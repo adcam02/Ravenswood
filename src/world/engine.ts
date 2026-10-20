@@ -7,8 +7,9 @@ import { presence } from '../game/presence';
 import { SCORE_OF, type GameJob, type JobResults } from '../jobs';
 import { rememberBest } from '../game/bests';
 import type { Execution, Nomination, TownAction, TownHall } from '../state/types';
+import { ambience } from '../lib/ambience';
 import { drumroll, gavel } from '../lib/audio';
-import { ui } from '../state/ui';
+import { ui, useUI } from '../state/ui';
 import { earshot } from '../voice/earshot';
 import { useVoice, voice, type Listener } from '../voice/voice';
 import { AvatarView, type AvatarInfo } from './avatar';
@@ -182,6 +183,7 @@ export class Engine {
   private pendingClick: { x: number; y: number; yaw: number } | null = null;
   /** How long the keys have been walking us, for the camera to swing round behind. */
   private keyWalkFor = 0;
+  private unsubUI: (() => void) | null = null;
 
   private emote: { anim: Anim; until: number } | null = null;
   /** Sitting or lying on something: the y to sit at. */
@@ -274,6 +276,7 @@ export class Engine {
     game.jobDone = (r) => this.finishJob(r);
     game.jobCancel = () => this.finishJob(undefined);
     game.turnCamera = (dir) => this.turnCamera(dir);
+    this.unsubUI = useUI.subscribe((s) => ambience.setEnabled(s.ambience && !s.muted));
     game.sheepDone = (correct) => {
       useHud.setState({ sheep: 'done' });
       if (correct) {
@@ -287,6 +290,8 @@ export class Engine {
 
   dispose() {
     cancelAnimationFrame(this.raf);
+    this.unsubUI?.();
+    ambience.dispose();
     if (this.bellTimer) clearTimeout(this.bellTimer);
     if (this.wellTimer) clearTimeout(this.wellTimer);
     for (const s of this.signs) s.el.remove();
@@ -574,7 +579,14 @@ export class Engine {
 
   // ---------------------------------------------------------------- input
 
+  /** Browsers only allow sound after a click or a key, so the ambience waits for the first one. */
+  private wakeAmbience() {
+    const s = useUI.getState();
+    if (s.ambience && !s.muted) ambience.start();
+  }
+
   private onKeyDown = (e: KeyboardEvent) => {
+    this.wakeAmbience();
     if (isTyping() || e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key.toLowerCase();
     if (k === 'v') voice.setHolding(true);
@@ -622,6 +634,7 @@ export class Engine {
   };
 
   private onPointerDown = (e: PointerEvent) => {
+    this.wakeAmbience();
     if (e.button === 2 || e.button === 1) {
       if (zoneKind(local.zone) === 'town') this.dragging = { x: e.clientX, yaw: this.yawTarget };
       return;
@@ -1003,6 +1016,7 @@ export class Engine {
     // Night falls (and lifts) over a few seconds.
     const night = v && v.started && v.phase === 'night' ? 1 : 0;
     this.time += (night - this.time) * Math.min(1, dt * 0.7);
+    ambience.update({ zone: local.zone, x: local.x, z: local.z, night: this.time, yaw: this.yaw });
     if (Math.abs(this.time - this.litAt) > 0.002) {
       this.litAt = this.time;
       this.town.setTime(this.time);

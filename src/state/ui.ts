@@ -47,12 +47,14 @@ interface UI {
   /** Storyteller: the grimoire (the circle of tokens) is open over the town. */
   grimoireOpen: boolean;
   muted: boolean;
+  /** Soft background sound around the town. */
+  ambience: boolean;
   draft: WakeDraft;
   toasts: { id: number; text: string; tone?: 'good' | 'evil' | 'info' }[];
   banner: { text: string; sub: string; key: number } | null;
 }
 
-const prefs = loadJSON<{ muted?: boolean; panel?: Panel }>('ravenswood:prefs', {});
+const prefs = loadJSON<{ muted?: boolean; ambience?: boolean; panel?: Panel }>('ravenswood:prefs', {});
 
 export const useUI = create<UI>(() => ({
   modal: null,
@@ -62,13 +64,14 @@ export const useUI = create<UI>(() => ({
   hideGrimoire: false,
   grimoireOpen: false,
   muted: prefs.muted ?? false,
+  ambience: prefs.ambience ?? true,
   draft: { to: [], panels: [emptyPanel()], active: 0, ask: null, extra: {}, sentId: null },
   toasts: [],
   banner: null,
 }));
 
 useUI.subscribe((s, p) => {
-  if (s.muted !== p.muted || s.panel !== p.panel) saveJSON('ravenswood:prefs', { muted: s.muted, panel: s.panel });
+  if (s.muted !== p.muted || s.panel !== p.panel || s.ambience !== p.ambience) saveJSON('ravenswood:prefs', { muted: s.muted, ambience: s.ambience, panel: s.panel });
 });
 
 export const ui = {

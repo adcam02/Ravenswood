@@ -428,6 +428,7 @@ function StorytellerSettings() {
 }
 
 function PlayerSettings() {
+  const ambienceOn = useUI((s) => s.ambience);
   const view = useView();
   const me = view.seats.find((s) => s.isMe);
   return (
@@ -452,6 +453,15 @@ function PlayerSettings() {
             </div>
           </>
         )}
+        <div className="setting">
+          <div>
+            <strong>Ambient sound</strong>
+            <span>A soft tune, birds, the pond, the fire: all well under the voices</span>
+          </div>
+          <button className="btn" onClick={() => useUI.setState({ ambience: !ambienceOn })}>
+            {ambienceOn ? 'Turn off' : 'Turn on'}
+          </button>
+        </div>
         {notificationsSupported() && (
           <div className="setting">
             <div>

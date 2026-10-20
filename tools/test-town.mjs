@@ -122,7 +122,8 @@ async function join(name, animal, color) {
   const p = await open(name, `?room=${room}`);
   await p.waitForSelector('.join-name input', { timeout: 180000 });
   await sleep(600);
-  await p.fill('.join-name input', name);
+  // The town builds on the main thread while the join card is up, so give a busy page plenty of time.
+  await p.fill('.join-name input', name, { timeout: 180000 });
   await sleep(400);
   await jsClick(p, '.join-name button');
   if (animal) {

@@ -67,9 +67,16 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
 | 1 to 6 | Wave, dance, cheer, laugh, cry, sit |
 | G / Q | Give what you're holding / put it away |
 | M / V | Mute / hold to talk (if push-to-talk is on) |
-| [ ] or right-drag, scroll | Turn the camera, zoom |
+| Drag the ground, [ ], right-drag or the ↺ ↻ buttons; scroll | Turn the camera (it also follows behind you as you walk), zoom |
 | Tab | Storyteller: open or close the grimoire |
 | B | Storyteller: speak to everyone |
+
+### Sound
+
+Everything you hear is made in the browser: the bell, the drumroll, a night tune in the bedroom, and
+a soft ambience around town (a gentle tune and birds by day, crickets and an owl by night, water and
+frogs by the pond, the rope creaking at the gallows, a fire in the tavern and the bakery, a hush in
+the church). It sits well under the voices and can be turned off in the player settings.
 
 ### Slow laptops
 
