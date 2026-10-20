@@ -908,7 +908,7 @@ function washhouse(p: Paint, r: () => number) {
     q.taper(WOOD, 0.85, 0.72, 0.62, 0, 0, 0, 16);
     for (let k = 0; k < 16; k++) {
       const a = (k / 16) * Math.PI * 2;
-      q.box(shade(WOOD, ((k * 7) % 3) * 0.03 - 0.03), 0.27, 0.62, 0.05, Math.cos(a) * 0.68, 0.31, Math.sin(a) * 0.68, 0, -a, 0.08);
+      q.box(shade(WOOD, ((k * 7) % 3) * 0.03 - 0.03), 0.27, 0.62, 0.05, Math.cos(a) * 0.68, 0.31, Math.sin(a) * 0.68, 0, Math.PI / 2 - a, 0);
     }
     for (const y of [0.12, 0.48]) q.cyl(IRON, 0.72 - y * 0.12, 0.05, 0, y, 0, 16);
     q.cyl('#8fd0e8', 0.58, 0.02, 0, 0.57, 0, 16);
@@ -919,7 +919,7 @@ function washhouse(p: Paint, r: () => number) {
   b.taper('#c9a46a', 1.2, 0.35, 0.35, 0, 0, 0, 12);
   for (let k = 0; k < 12; k++) {
     const a = (k / 12) * Math.PI * 2;
-    b.box(shade('#c9a46a', k % 2 ? -0.06 : 0.04), 0.14, 0.33, 0.03, Math.cos(a) * 0.37, 0.17, Math.sin(a) * 0.37, 0, -a, 0.12);
+    b.box(shade('#c9a46a', k % 2 ? -0.06 : 0.04), 0.14, 0.33, 0.03, Math.cos(a) * 0.37, 0.17, Math.sin(a) * 0.37, 0, Math.PI / 2 - a, 0);
   }
   b.torus('#a8834f', 0.38, 0.02, 0, 0.35, 0, Math.PI / 2);
   b.ico('#f2a7b8', 0.18, -0.1, 0.38, 0, 1);
@@ -1053,14 +1053,22 @@ function pond(group: THREE.Group, p: Paint, r: () => number): Outdoor['water'] {
     const bx = POND.x + POND.rx * 0.62;
     const bz = POND.z + POND.rz * 0.45;
     const boat = p.at(bx, 0.0, bz, 0.9);
-    boat.sphere('#8a5a36', 0.5, 0.26, 1.15, 0, 0.12, 0, 12, 6);
-    boat.sphere('#5fb6cf', 0.38, 0.16, 1.0, 0, 0.22, 0, 12, 4);
-    boat.box('#c49a6c', 0.7, 0.05, 0.14, 0, 0.3, 0.3);
-    boat.box('#c49a6c', 0.7, 0.05, 0.14, 0, 0.3, -0.35);
-    boat.torus('#6e4a30', 0.5, 0.03, 0, 0.32, 0, Math.PI / 2);
-    boat.rod('#c49a6c', 0.02, -0.4, 0.34, 0.5, 0.45, 0.36, -0.6, 6);
-    boat.post(WOOD_DARK, 0.06, 0.5, 0.9, 0, 0.9, 8);
-    boat.rope('#d8c8a0', 0.012, 0.45, 0.3, 0.6, 0.9, 0.45, 0.9, 0.05, 3);
+    const ell = (color: THREE.ColorRepresentation, geo: THREE.BufferGeometry, sx: number, sy: number, sz: number, y: number, rx = 0) =>
+      boat.geo(geo, color, new THREE.Matrix4().compose(new THREE.Vector3(0, y, 0), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, 0, 0)), new THREE.Vector3(sx, sy, sz)));
+    // The hull is a bowl (a dome turned over), with a darker bowl inside it, a gunwale, two thwarts and the oars shipped.
+    ell('#8a5a36', G.dome(16), 0.55, 0.34, 1.2, 0.4, Math.PI);
+    ell('#4a3020', G.dome(16), 0.47, 0.28, 1.1, 0.41, Math.PI);
+    ell('#6e4a30', G.torus(0.06, 6, 20), 0.55, 0.55, 1.2, 0.4, Math.PI / 2);
+    boat.box('#c49a6c', 0.8, 0.05, 0.16, 0, 0.3, 0.35);
+    boat.box('#c49a6c', 0.8, 0.05, 0.16, 0, 0.3, -0.3);
+    boat.box(shade('#8a5a36', 0.08), 0.1, 0.05, 0.9, 0, 0.17, 0);
+    for (const sx of [-1, 1]) {
+      boat.rod('#c49a6c', 0.02, sx * 0.5, 0.42, 0.1, sx * 0.35, 0.3, -1.1, 6);
+      boat.box('#c49a6c', 0.06, 0.02, 0.3, sx * 0.37, 0.3, -1.1);
+      boat.cyl(IRON, 0.03, 0.08, sx * 0.52, 0.44, 0.1, 6);
+    }
+    boat.post(WOOD_DARK, 0.06, 0.5, 1.0, 0, 1.3, 8);
+    boat.rope('#d8c8a0', 0.012, 0.5, 0.4, 1.0, 1.0, 0.45, 1.3, 0.05, 3);
   }
   for (let i = 0; i < 14; i++) {
     const a = r() * Math.PI * 2;
@@ -1097,7 +1105,7 @@ function well(p: Paint) {
     const n = 12;
     for (let k = 0; k < n; k++) {
       const a = ((k + (c % 2) * 0.5) / n) * Math.PI * 2;
-      p.box(shade('#a99c89', ((k * 5 + c * 3) % 4) * 0.03 - 0.05), 0.46, 0.24, 0.16, Math.cos(a) * 0.98, 0.15 + c * 0.28, Math.sin(a) * 0.98, 0, -a, 0);
+      p.box(shade('#a99c89', ((k * 5 + c * 3) % 4) * 0.03 - 0.05), 0.46, 0.24, 0.16, Math.cos(a) * 0.98, 0.15 + c * 0.28, Math.sin(a) * 0.98, 0, Math.PI / 2 - a, 0);
     }
   }
   p.cyl('#bfb2a0', 1.08, 0.12, 0, 0.88, 0, 20);
@@ -1379,7 +1387,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   };
   // Forest ring outside the fence.
   let placed = 0;
-  for (let k = 0; k < 2400 && placed < 430; k++) {
+  for (let k = 0; k < 2400 && placed < 400; k++) {
     const a = r() * Math.PI * 2;
     const rad = TOWN_R + 4 + Math.pow(r(), 0.8) * 55;
     const x = rad * Math.sin(a);
@@ -1390,7 +1398,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     placed++;
   }
   // Inside town, in the gaps.
-  for (let k = 0; k < 900 && placed < 520; k++) {
+  for (let k = 0; k < 900 && placed < 490; k++) {
     const a = r() * Math.PI * 2;
     const rad = 14 + r() * (TOWN_R - 16);
     const x = rad * Math.sin(a);
@@ -1409,19 +1417,19 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     if (trees.some((t) => Math.hypot(t.x - x, t.z - z) < 1.6)) continue;
     const kind = r();
     const p = painter(x, z, r() * 6);
-    if (kind < 0.18) bush(p, r, r() < 0.5);
-    else if (kind < 0.42) flowerPatch(p, r);
-    else if (kind < 0.5) rock(p, r, 0.6 + r() * 0.6);
-    else if (kind < 0.53) mushroom(p, r);
+    if (kind < 0.16) bush(p, r, r() < 0.5);
+    else if (kind < 0.34) flowerPatch(p, r);
+    else if (kind < 0.42) rock(p, r, 0.6 + r() * 0.6);
+    else if (kind < 0.45) mushroom(p, r);
     else tuft(p, r);
   }
-  for (let k = 0; k < 260; k++) {
+  for (let k = 0; k < 220; k++) {
     const a = r() * Math.PI * 2;
     const rad = TOWN_R + 2 + r() * 45;
     const p = painter(rad * Math.sin(a), -rad * Math.cos(a), r() * 6);
     const kind = r();
-    if (kind < 0.4) bush(p, r);
-    else if (kind < 0.7) rock(p, r, 0.8 + r());
+    if (kind < 0.45) bush(p, r, false, false);
+    else if (kind < 0.85) rock(p, r, 0.8 + r());
     else mushroom(p, r);
   }
 
@@ -1445,7 +1453,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
       const len = Math.hypot(x1 - x0, z1 - z0);
       const nx = -(z1 - z0) / len;
       const nz = (x1 - x0) / len;
-      const n = Math.max(1, Math.round(len / 0.6));
+      const n = Math.max(1, Math.round(len / 0.8));
       for (let k = 0; k < n; k++) {
         const t = (k + 0.5) / n;
         for (const side of [-1, 1]) {

@@ -57,7 +57,7 @@ export const G = {
   /** A lumpy ball for tree crowns, bushes and rocks; a handful of fixed variants so the town looks the same everywhere. */
   blob: (k = 0) => cached(`blob${k % 6}`, () => jitter(new THREE.IcosahedronGeometry(1, 1), 0.22, 11 + (k % 6) * 7)),
   /** A half sphere, flat side down. */
-  dome: (w = 16) => cached(`dome${w}`, () => new THREE.SphereGeometry(1, w, 8, 0, Math.PI * 2, 0, Math.PI / 2)),
+  dome: (w = 16) => cached(`dome${w}`, () => new THREE.SphereGeometry(1, w, 5, 0, Math.PI * 2, 0, Math.PI / 2)),
 };
 
 export interface Layers {
@@ -186,7 +186,7 @@ export class Paint {
   }
 
   torus(color: THREE.ColorRepresentation, r: number, tube: number, x: number, y: number, z: number, rx = 0, ry = 0): this {
-    return this.geo(G.torus(Math.round((tube / r) * 100) / 100, 8, 24), color, mat(x, y, z, rx, ry, 0, r, r, r));
+    return this.geo(G.torus(Math.round((tube / r) * 100) / 100, 6, 16), color, mat(x, y, z, rx, ry, 0, r, r, r));
   }
 
   /**

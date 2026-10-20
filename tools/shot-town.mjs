@@ -49,9 +49,9 @@ page.on('pageerror', (e) => {
   console.log('page error:', e.message.slice(0, 300));
 });
 for (const [name, qs] of Object.entries(views)) {
-  await page.goto(`http://localhost:${PORT}/dev/town.html?${qs}`);
+  await page.goto(`http://localhost:${PORT}/dev/town.html?${qs}`, { timeout: 180000 });
   try {
-    await page.waitForFunction(() => window.done, null, { timeout: 60000 });
+    await page.waitForFunction(() => window.done, null, { timeout: 120000 });
   } catch {
     console.log('timed out on', name);
   }

@@ -35,7 +35,10 @@ export function roundTree(p: Paint, r: () => number, autumn = false, detail = tr
     const a = r() * Math.PI * 2;
     const d = i === 0 ? 0 : 0.5 + r() * 0.45;
     const size = (i === 0 ? 1.25 : 0.75 + r() * 0.35) * (0.9 + r() * 0.2);
-    p.blob(shade(green, (r() - 0.5) * 0.12), size, Math.cos(a) * d, trunkH + 0.7 + (i === 0 ? 0.3 : r() * 0.6), Math.sin(a) * d, Math.floor(r() * 6), 0.9, r() * 3, r() * 3);
+    const c = shade(green, (r() - 0.5) * 0.12);
+    const y = trunkH + 0.7 + (i === 0 ? 0.3 : r() * 0.6);
+    if (detail) p.blob(c, size, Math.cos(a) * d, y, Math.sin(a) * d, Math.floor(r() * 6), 0.9, r() * 3, r() * 3);
+    else p.ico(c, size, Math.cos(a) * d, y, Math.sin(a) * d, 0, 0.9, r() * 3);
   }
   // A few apples or blossoms on some trees.
   if (!autumn && r() < 0.3) {
@@ -66,18 +69,20 @@ export function pineTree(p: Paint, r: () => number, detail = true) {
   }
 }
 
-export function bush(p: Paint, r: () => number, flowers = false) {
+export function bush(p: Paint, r: () => number, flowers = false, detail = true) {
   const green = pick(r, LEAF_GREENS);
-  const n = 2 + Math.floor(r() * 3);
+  const n = 2 + Math.floor(r() * (detail ? 3 : 2));
   for (let i = 0; i < n; i++) {
     const a = r() * Math.PI * 2;
-    p.blob(shade(green, (r() - 0.5) * 0.1), 0.45 + r() * 0.25, Math.cos(a) * 0.35, 0.35, Math.sin(a) * 0.35, Math.floor(r() * 6), 0.8, r() * 3);
+    const c = shade(green, (r() - 0.5) * 0.1);
+    if (detail) p.blob(c, 0.45 + r() * 0.25, Math.cos(a) * 0.35, 0.35, Math.sin(a) * 0.35, Math.floor(r() * 6), 0.8, r() * 3);
+    else p.ico(c, 0.45 + r() * 0.25, Math.cos(a) * 0.35, 0.35, Math.sin(a) * 0.35, 0, 0.8, r() * 3);
   }
   if (flowers) {
     const c = pick(r, ['#f2a7b8', '#f6d55c', '#ffffff', '#b494dd', '#e4553f']);
     for (let i = 0; i < 7; i++) {
       const a = r() * Math.PI * 2;
-      p.ico(c, 0.075, Math.cos(a) * 0.55, 0.45 + r() * 0.35, Math.sin(a) * 0.55, 1);
+      p.ico(c, 0.075, Math.cos(a) * 0.55, 0.45 + r() * 0.35, Math.sin(a) * 0.55, 0);
     }
   } else if (r() < 0.3) {
     for (let i = 0; i < 5; i++) {
@@ -131,7 +136,7 @@ export function mushroom(p: Paint, r: () => number) {
     p.post('#f3ead8', 0.05 * s, 0.16 * s, x, 0, z, 6);
     p.cyl('#e8dcc0', 0.1 * s, 0.03 * s, x, 0.15 * s, z, 8);
     p.dome(cap, 0.15 * s, x, 0.15 * s, z, 0.75, 8);
-    if (cap === '#d9473f') for (let k = 0; k < 4; k++) {
+    if (cap === '#d9473f' && i === 0) for (let k = 0; k < 4; k++) {
       const a = (k / 4) * Math.PI * 2 + r();
       p.ico('#fff6e6', 0.025 * s, x + Math.cos(a) * 0.08 * s, 0.24 * s, z + Math.sin(a) * 0.08 * s, 0, 0.5);
     }
@@ -142,13 +147,13 @@ export function lampPost(p: Paint) {
   // A moulded base, a fluted post with collars, a scroll bracket, and a six-sided lantern.
   p.post(IRON, 0.16, 0.12, 0, 0, 0, 8);
   p.post(IRON, 0.12, 0.25, 0, 0.12, 0, 10);
-  p.torus(IRON, 0.1, 0.03, 0, 0.37, 0);
+  p.cyl(IRON, 0.1, 0.06, 0, 0.4, 0, 10);
   p.post(IRON, 0.06, 2.5, 0, 0.37, 0, 10);
-  for (const y of [1.2, 2.3]) p.torus(IRON, 0.075, 0.025, 0, y, 0);
+  for (const y of [1.2, 2.3]) p.cyl(IRON, 0.085, 0.05, 0, y, 0, 10);
   p.post(IRON, 0.09, 0.08, 0, 2.5, 0, 10);
   // The cross-arm the lantern hangs from, with a curl at each end.
   p.box(IRON, 0.36, 0.06, 0.36, 0, 2.62, 0);
-  for (const sx of [-1, 1]) p.torus(IRON, 0.06, 0.018, sx * 0.2, 2.56, 0, Math.PI / 2);
+  for (const sx of [-1, 1]) p.box(IRON, 0.06, 0.1, 0.06, sx * 0.17, 2.55, 0);
   // Lantern: glass box with an iron frame, cap and finial.
   p.glass.cyl('#fff1c8', 0.17, 0.36, 0, 2.86, 0, 6);
   for (let k = 0; k < 6; k++) {
@@ -184,7 +189,7 @@ export function barrel(p: Paint, r: () => number, lying = false) {
     for (let k = 0; k < staves; k++) {
       const a = (k / staves) * Math.PI * 2;
       const c = shade(wood, ((k * 5) % 3) * 0.03 - 0.03);
-      q2.box(c, 0.17, 0.95, 0.07, Math.cos(a) * 0.36, 0.475, Math.sin(a) * 0.36, 0, -a, 0);
+      q2.box(c, 0.17, 0.95, 0.07, Math.cos(a) * 0.36, 0.475, Math.sin(a) * 0.36, 0, Math.PI / 2 - a, 0);
     }
     q2.taper(wood, 0.92, 0.37, 0.93, 0, 0.01, 0, 14);
     for (const y of [0.16, 0.5, 0.8]) q2.cyl(IRON, 0.4, 0.05, 0, y, 0, 16);

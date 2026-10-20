@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { sfx } from './sfx';
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { sfx } from "./sfx";
 
 /** How a game reports how it went: the shell shows this for a moment, then hands the result on. */
 export interface Summary {
@@ -15,21 +15,32 @@ export interface GameProps<R> {
   setHint: (hint: string) => void;
 }
 
-export const isMain = (e: KeyboardEvent) => e.key === ' ' || e.key === 'e' || e.key === 'E' || e.key === 'Enter';
-export const isLeft = (e: KeyboardEvent) => e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A';
-export const isRight = (e: KeyboardEvent) => e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D';
+export const isMain = (e: KeyboardEvent) =>
+  e.key === " " || e.key === "e" || e.key === "E" || e.key === "Enter";
+export const isLeft = (e: KeyboardEvent) =>
+  e.key === "ArrowLeft" || e.key === "a" || e.key === "A";
+export const isRight = (e: KeyboardEvent) =>
+  e.key === "ArrowRight" || e.key === "d" || e.key === "D";
 
 /**
  * Listens on the window before anything else does (the town listens for WASD and E too), and
  * swallows every key the handler says it used.
  */
-export function useKeys(handler: (e: KeyboardEvent, down: boolean) => boolean | void) {
+export function useKeys(
+  handler: (e: KeyboardEvent, down: boolean) => boolean | void,
+) {
   const ref = useRef(handler);
   ref.current = handler;
   useEffect(() => {
     const make = (down: boolean) => (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.isContentEditable)
+      )
+        return;
       if (ref.current(e, down)) {
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -37,11 +48,11 @@ export function useKeys(handler: (e: KeyboardEvent, down: boolean) => boolean | 
     };
     const down = make(true);
     const up = make(false);
-    window.addEventListener('keydown', down, true);
-    window.addEventListener('keyup', up, true);
+    window.addEventListener("keydown", down, true);
+    window.addEventListener("keyup", up, true);
     return () => {
-      window.removeEventListener('keydown', down, true);
-      window.removeEventListener('keyup', up, true);
+      window.removeEventListener("keydown", down, true);
+      window.removeEventListener("keyup", up, true);
     };
   }, []);
 }
@@ -50,7 +61,11 @@ export function useKeys(handler: (e: KeyboardEvent, down: boolean) => boolean | 
  * The main action: Space or E on the keyboard, or pressing on the game with a mouse or finger.
  * Spread the returned props onto the element that should take presses.
  */
-export function useMain(opts: { onPress?: () => void; onRelease?: () => void; enabled?: boolean }) {
+export function useMain(opts: {
+  onPress?: () => void;
+  onRelease?: () => void;
+  enabled?: boolean;
+}) {
   const held = useRef(false);
   const ref = useRef(opts);
   ref.current = opts;
@@ -72,13 +87,13 @@ export function useMain(opts: { onPress?: () => void; onRelease?: () => void; en
     return true;
   });
   useEffect(() => {
-    window.addEventListener('pointerup', release);
-    window.addEventListener('pointercancel', release);
-    window.addEventListener('blur', release);
+    window.addEventListener("pointerup", release);
+    window.addEventListener("pointercancel", release);
+    window.addEventListener("blur", release);
     return () => {
-      window.removeEventListener('pointerup', release);
-      window.removeEventListener('pointercancel', release);
-      window.removeEventListener('blur', release);
+      window.removeEventListener("pointerup", release);
+      window.removeEventListener("pointercancel", release);
+      window.removeEventListener("blur", release);
     };
   }, []);
   return {
@@ -130,7 +145,11 @@ export function Stars({ n, of = 3 }: { n: number; of?: number }) {
   return (
     <span className="cosy-stars job-stars" aria-label={`${n} of ${of} stars`}>
       {Array.from({ length: of }, (_, i) => (
-        <span key={i} className={i < n ? 'on' : 'off'} style={{ animationDelay: `${0.15 + i * 0.12}s` }}>
+        <span
+          key={i}
+          className={i < n ? "on" : "off"}
+          style={{ animationDelay: `${0.15 + i * 0.12}s` }}
+        >
           ★
         </span>
       ))}
@@ -148,7 +167,7 @@ export interface ChoiceOption<T extends string> {
 export function ChoiceRow<T extends string>({
   options,
   onPick,
-  className = '',
+  className = "",
 }: {
   options: ChoiceOption<T>[];
   onPick: (id: T) => void;
@@ -162,11 +181,11 @@ export function ChoiceRow<T extends string>({
     onPick(options[i].id);
   };
   useKeys((e, down) => {
-    if (isLeft(e) || e.key === 'ArrowUp') {
+    if (isLeft(e) || e.key === "ArrowUp") {
       if (down) setAt((a) => (a + options.length - 1) % options.length);
       return true;
     }
-    if (isRight(e) || e.key === 'ArrowDown') {
+    if (isRight(e) || e.key === "ArrowDown") {
       if (down) setAt((a) => (a + 1) % options.length);
       return true;
     }
@@ -188,7 +207,7 @@ export function ChoiceRow<T extends string>({
           key={o.id}
           role="option"
           aria-selected={i === at}
-          className={`job-choice ${i === at ? 'on' : ''}`}
+          className={`job-choice ${i === at ? "on" : ""}`}
           onClick={() => pick(i)}
           onPointerEnter={() => setAt(i)}
         >
@@ -207,19 +226,29 @@ export function SettleRing({ ms, label }: { ms: number; label: string }) {
     <div className="job-settle">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <circle cx="12" cy="12" r="9" className="track" />
-        <circle cx="12" cy="12" r="9" className="fill" style={{ animationDuration: `${ms}ms` }} />
+        <circle
+          cx="12"
+          cy="12"
+          r="9"
+          className="fill"
+          style={{ animationDuration: `${ms}ms` }}
+        />
       </svg>
       <span>{label}</span>
     </div>
   );
 }
 
-export const pickOne = <T,>(list: readonly T[]): T => list[Math.floor(Math.random() * list.length)];
-export const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+export const pickOne = <T,>(list: readonly T[]): T =>
+  list[Math.floor(Math.random() * list.length)];
+export const clamp = (n: number, lo: number, hi: number) =>
+  Math.max(lo, Math.min(hi, n));
 
 /** Little floating words over a scene ("Perfect!", "Miss"): call `pop`, render `pops` inside the scene. */
 export function usePops() {
-  const [pops, setPops] = useState<{ id: number; text: string; tone: number }[]>([]);
+  const [pops, setPops] = useState<
+    { id: number; text: string; tone: number }[]
+  >([]);
   const { later } = useLater();
   const pop = (text: string, tone: number) => {
     const id = Math.random();
@@ -250,12 +279,28 @@ export function stepRipples(list: Ripple[], dt: number): Ripple[] {
   return list.filter((r) => r.t < 1.3);
 }
 
-export function RippleRings({ list, color = '#ffffff' }: { list: Ripple[]; color?: string }) {
+export function RippleRings({
+  list,
+  color = "#ffffff",
+}: {
+  list: Ripple[];
+  color?: string;
+}) {
   return (
     <g fill="none" stroke={color}>
-      {list.map((r) => (
-        <ellipse key={r.id} cx={r.x} cy={r.y} rx={(3 + r.t * 24) * r.big} ry={(1.2 + r.t * 9) * r.big} strokeOpacity={0.75 * (1 - r.t / 1.3)} strokeWidth="1.5" />
-      ))}
+      {list
+        .filter((r) => r.t >= 0)
+        .map((r) => (
+          <ellipse
+            key={r.id}
+            cx={r.x}
+            cy={r.y}
+            rx={(3 + r.t * 24) * r.big}
+            ry={(1.2 + r.t * 9) * r.big}
+            strokeOpacity={0.75 * (1 - r.t / 1.3)}
+            strokeWidth="1.5"
+          />
+        ))}
     </g>
   );
 }
