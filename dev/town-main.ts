@@ -60,6 +60,7 @@ state.flowers = Array.from({ length: 10 }, (_, i) => ({
 town.setTown(state, now);
 town.setHouses(Array.from({ length: 20 }, (_, i) => (i < 6 ? { name: ['Abbey', 'Colter', 'Steele', 'Jarrod', 'Mika', 'Theo'][i], dead: i === 1 } : null)));
 town.setHomeOwner('Abbey');
+town.setGraves(['Colter', 'Mika']);
 if (q.has('meeting')) town.setMeeting({ n: 8, nominee: 2, hand: 4, active: true, votes: [0, 4, 6] });
 if (q.has('bell')) town.bellRing();
 

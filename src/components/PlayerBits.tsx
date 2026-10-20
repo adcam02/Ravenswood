@@ -91,7 +91,6 @@ export function PlayerRail() {
   const view = useView();
   const panel = useUI((s) => s.panel);
   const muted = useUI((s) => s.muted);
-  const circle = useUI((s) => s.grimoireOpen);
   const me = view.seats.find((s) => s.isMe);
   const open = (p: Exclude<Panel, null>) => () => ui.togglePanel(p);
   const items: { key: string; icon: IconName; label: string; on?: boolean; disabled?: boolean; action: () => void }[] = [
@@ -102,7 +101,6 @@ export function PlayerRail() {
       disabled: !me?.roleId,
       action: () => me?.roleId && ui.open({ kind: 'role', roleId: me.roleId }),
     },
-    { key: 'circle', icon: 'users', label: 'Town circle', on: circle, action: () => useUI.setState({ grimoireOpen: !circle }) },
     { key: 'reference', icon: 'book', label: 'Characters', on: panel === 'reference', action: open('reference') },
     { key: 'notes', icon: 'notepad', label: 'Notepad', on: panel === 'notes', action: open('notes') },
     { key: 'journal', icon: 'scroll', label: 'Storyteller info', on: panel === 'journal', action: open('journal') },

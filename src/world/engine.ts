@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { getRole, iconUrl } from '../data';
 import { game, useHud, type Prompt } from '../game/hud';
 import { local, setItem } from '../game/local';
@@ -86,7 +86,20 @@ const JOB_LOOK: Record<GameJob, { anim: Anim; item: Item | null }> = {
 };
 
 const EMOTE_TIME: Partial<Record<Anim, number>> = { wave: 2.4, cheer: 2.6, laugh: 2.6, cry: 3.2, dance: 8, drink: 1.6 };
-const SIPPABLE = new Set(['ale', 'cider', 'milk', 'cocoa', 'loaf', 'pie', 'bun']);
+const SIPPABLE = new Set(['ale', 'cider', 'milk', 'cocoa', 'loaf', 'pie', 'bun', 'water']);
+
+/** What the signs over the stations say. */
+const SIGN_TEXT: Partial<Record<Station['job'], string>> = {
+  bartender: '🍺 Pour drinks',
+  takeDrink: '🍻 Drinks to take',
+  laundry: '🧺 Laundry',
+  fishing: '🎣 Fishing',
+  baking: '🥖 Baking',
+  takeBread: '🍞 Fresh bakes',
+  gardening: '🌷 Gardening',
+  well: '🪣 The well',
+  notice: '📜 Noticeboard',
+};
 
 const PLACE_NAMES: Record<Exclude<ZoneKind, 'house'>, string> = {
   town: 'Ravenswood',
@@ -153,6 +166,10 @@ export class Engine {
   private slowFrames = 0;
   private lastFrameAt = 0;
   private nearStation: Station | null = null;
+  private signs: { station: Station; el: HTMLDivElement; obj: CSS2DObject }[] = [];
+  private bellTimer: ReturnType<typeof setTimeout> | null = null;
+  private wellTimer: ReturnType<typeof setTimeout> | null = null;
+  private hearing = 0;
   private nearDoor: { door: Door; locked: string | null } | null = null;
 
   constructor(
@@ -171,6 +188,20 @@ export class Engine {
 
     this.town = createTown(this.scene, this.renderer);
     this.town.show('town');
+    for (const station of this.town.stations) {
+      const text = SIGN_TEXT[station.job];
+      if (!text) continue;
+      // One sign per kind of thing in a place, not one per bench or tub.
+      if (this.signs.some((s) => s.station.job === station.job && s.station.zone === station.zone && Math.hypot(s.station.x - station.x, s.station.z - station.z) < 5)) continue;
+      const el = document.createElement('div');
+      el.className = 'station-sign';
+      el.textContent = text;
+      const obj = new CSS2DObject(el);
+      obj.position.set(station.x, 2.1, station.z);
+      obj.center.set(0.5, 1);
+      this.town.groups[station.zone].add(obj);
+      this.signs.push({ station, el, obj });
+    }
 
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(host);
@@ -202,6 +233,9 @@ export class Engine {
 
   dispose() {
     cancelAnimationFrame(this.raf);
+    if (this.bellTimer) clearTimeout(this.bellTimer);
+    if (this.wellTimer) clearTimeout(this.wellTimer);
+    for (const s of this.signs) s.el.remove();
     for (const k of ['interact', 'sip', 'give', 'putAway', 'takeMeetingSeat', 'goToSquare', 'jobCancel'] as const) game[k] = () => {};
     game.emote = game.goTo = game.jobDone = () => {};
     this.ro.disconnect();
@@ -265,14 +299,36 @@ export class Engine {
     const nom = v.nomination;
     const meeting = Boolean(nom || v.townHall);
     const handOn = nom && (nom.status === 'running' || nom.status === 'paused' || nom.status === 'done') ? (nom.step === 0 ? nom.nomineeId : nom.order[nom.step - 1]) : null;
+    const newCall = v.townHall && (!prev?.townHall || prev.townHall.ring !== v.townHall.ring || prev.townHall.id !== v.townHall.id);
+    if (newCall) {
+      this.town.bellRing();
+      // Players head to their stool on their own after a moment, so the circle matches the grimoire.
+      if (v.mode === 'player' && v.mySeatId && v.townHall && !v.townHall.back.includes(v.mySeatId)) {
+        if (this.bellTimer) clearTimeout(this.bellTimer);
+        this.bellTimer = setTimeout(() => this.goToSquare(), 2500);
+      }
+    }
+    // What the meeting is about, on a sign over the tower.
+    let label = '';
+    if (nom) {
+      const who = (id: string | null) => (id ? (v.seats.find((s) => s.id === id)?.name ?? 'Someone') : 'The Storyteller');
+      const alive = v.seats.filter((s) => !s.dead).length;
+      const needs = Math.ceil(alive / 2);
+      label = `${who(nom.nominatorId)} nominates ${who(nom.nomineeId)} · ${nom.votes.length} ${nom.votes.length === 1 ? 'vote' : 'votes'} · needs ${needs}`;
+      if (nom.status === 'done') label = `${who(nom.nomineeId)}: ${nom.votes.length} ${nom.votes.length === 1 ? 'vote' : 'votes'}, needs ${needs}`;
+    } else if (v.townHall) {
+      const here = v.seats.filter((s) => v.townHall!.back.includes(s.id)).length;
+      label = `Everyone to the square · ${here} of ${v.seats.length} here`;
+    }
+    this.town.setGraves(v.seats.filter((s) => s.dead).map((s) => s.name));
     this.town.setMeeting({
       n: v.seats.length,
       active: meeting,
       nominee: nom ? seatIndex(nom.nomineeId) : null,
       hand: handOn ? seatIndex(handOn) : null,
       votes: nom ? nom.votes.map(seatIndex).filter((i) => i >= 0) : [],
+      label,
     });
-    if (v.townHall && (!prev?.townHall || prev.townHall.ring !== v.townHall.ring || prev.townHall.id !== v.townHall.id)) this.town.bellRing();
 
     // Fish caught since we last looked get a bubble over whoever caught them.
     if (this.lastFish < 0) this.lastFish = v.town.fish.length;
@@ -417,6 +473,10 @@ export class Engine {
     if (isTyping() || e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key.toLowerCase();
     if (k === 'v') voice.setHolding(true);
+    if (useHud.getState().notice) {
+      if (k === 'escape') useHud.setState({ notice: false });
+      return;
+    }
     if (this.view?.paused || this.job) return;
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'shift'].includes(k)) {
       this.keys.add(k);
@@ -590,6 +650,21 @@ export class Engine {
       const l = v?.town.loaves[0];
       if (l) this.hooks.townAction({ k: 'takeBake', id: l.id });
       this.sips = 0;
+    } else if (s.job === 'well') {
+      // Wind the bucket up: a moment's work, then fresh water in your paw.
+      this.moveTarget = null;
+      local.x = s.stand.x;
+      local.z = s.stand.z;
+      local.ry = s.stand.ry;
+      this.emote = { anim: 'work', until: this.clock.elapsedTime + 1.8 };
+      if (this.wellTimer) clearTimeout(this.wellTimer);
+      this.wellTimer = setTimeout(() => {
+        setItem({ k: 'water' });
+        this.sips = 0;
+        this.me?.bubble('Fresh well water!', 2200);
+      }, 1600);
+    } else if (s.job === 'notice') {
+      useHud.setState({ notice: true });
     } else if (s.job === 'sit' || s.job === 'sleep') {
       if (this.seated) return this.standUp();
       local.x = s.stand.x;
@@ -733,6 +808,13 @@ export class Engine {
       this.syncVoice(v);
     }
 
+    for (const s of this.signs) {
+      if (s.station.zone !== zoneKind(local.zone)) continue;
+      const d = Math.hypot(s.station.x - local.x, s.station.z - local.z);
+      const near = this.nearStation && this.nearStation.job === s.station.job && this.nearStation.zone === s.station.zone;
+      const a = near || this.job ? 0 : Math.max(0, Math.min(1, (26 - d) / 10));
+      s.el.style.opacity = a.toFixed(2);
+    }
     this.renderer.render(this.scene, this.camera);
     this.labels.render(this.scene, this.camera);
     if (!useHud.getState().ready) useHud.setState({ ready: true });
@@ -1006,9 +1088,20 @@ export class Engine {
     const meeting = Boolean(v.townHall || (v.nomination && v.nomination.status !== 'done'));
     const ctx = { meeting, meetingRadius: this.town.meetingRadius, announce: presence.announce };
     const list: Listener[] = [];
+    let hearing = 0;
     for (const [key, p] of presence.others) {
+      const gain = earshot(local, p, key === 'st', ctx);
+      // Distance and walls work both ways, so this is also roughly who can hear us.
+      const av = this.others.get(key);
+      const near = gain > 0.02 && (!p.voiceId || key !== 'st' || !presence.announce);
+      av?.setHearing(near);
+      if (near) hearing += 1;
       if (!p.voiceId) continue;
-      list.push({ voiceId: p.voiceId, gain: earshot(local, p, key === 'st', ctx) });
+      list.push({ voiceId: p.voiceId, gain });
+    }
+    if (hearing !== this.hearing) {
+      this.hearing = hearing;
+      useHud.setState({ hearing });
     }
     voice.sync(list);
   }

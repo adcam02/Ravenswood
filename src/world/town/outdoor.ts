@@ -261,7 +261,8 @@ function pathMesh(): THREE.Mesh {
   const t = new Tris();
   const r = rng(21);
   const dirt = ['#d9bd8f', '#d2b484', '#dcc296', '#cfb07f'];
-  for (const { seg, w } of PATHS) {
+  PATHS.forEach(({ seg, w }, index) => {
+    const lift = index * 0.00012;
     const [x0, z0, x1, z1] = seg;
     const len = Math.hypot(x1 - x0, z1 - z0);
     const steps = Math.max(1, Math.round(len / 2.2));
@@ -282,10 +283,11 @@ function pathMesh(): THREE.Mesh {
       const nr = w / 2 + (r() - 0.5) * 0.35;
       prevL = nl;
       prevR = nr;
-      const y = 0.025 + r() * 0.004;
+      // Where paths cross, the one drawn later sits a hair higher, so they never flicker against each other.
+      const y = 0.024 + lift;
       t.quad(V(ax + nx * wl, y, az + nz * wl), V(bx + nx * nl, y, bz + nz * nl), V(bx - nx * nr, y, bz - nz * nr), V(ax - nx * wr, y, az - nz * wr), shade(pick(r, dirt), (r() - 0.5) * 0.03));
     }
-  }
+  });
   const mesh = new THREE.Mesh(t.geometry(), matte());
   mesh.receiveShadow = true;
   mesh.name = 'paths';
@@ -348,15 +350,16 @@ function clockTower(p: Paint): { faces: THREE.Matrix4[] } {
   p.block(quoin, 4.1, 0.3, 4.1, 0, 11.2, 0);
   const faces: THREE.Matrix4[] = [];
   for (let k = 0; k < 4; k++) {
-    const f = p.at(0, 9.8, 1.92, (k * Math.PI) / 2);
-    f.cyl('#3b2f2a', 1.12, 0.1, 0, 0, 0, 16, Math.PI / 2);
-    f.cyl('#f6ecd2', 1.0, 0.14, 0, 0, 0.02, 16, Math.PI / 2);
+    // The face sits flat against the wall: a thin rim, a dial and painted-on hour marks.
+    const f = p.at(0, 9.8, 1.9, (k * Math.PI) / 2);
+    f.cyl('#3b2f2a', 1.12, 0.03, 0, 0, 0.005, 16, Math.PI / 2);
+    f.cyl('#f6ecd2', 1.0, 0.03, 0, 0, 0.02, 16, Math.PI / 2);
     for (let h = 0; h < 12; h++) {
       const a = (h / 12) * Math.PI * 2;
       const big = h % 3 === 0;
-      f.box('#3b2f2a', big ? 0.08 : 0.05, big ? 0.2 : 0.12, 0.04, Math.sin(a) * 0.82, Math.cos(a) * 0.82, 0.1, 0, 0, -a);
+      f.box('#3b2f2a', big ? 0.08 : 0.05, big ? 0.2 : 0.12, 0.012, Math.sin(a) * 0.82, Math.cos(a) * 0.82, 0.04, 0, 0, -a);
     }
-    faces.push(new THREE.Matrix4().copy(p.m).multiply(new THREE.Matrix4().makeRotationY((k * Math.PI) / 2)).multiply(new THREE.Matrix4().makeTranslation(0, 9.8, 2.05)));
+    faces.push(new THREE.Matrix4().copy(p.m).multiply(new THREE.Matrix4().makeRotationY((k * Math.PI) / 2)).multiply(new THREE.Matrix4().makeTranslation(0, 9.8, 1.96)));
   }
   // Belfry: four corner pillars and arches, open to show the bell.
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) p.block(stone, 0.6, 2.3, 0.6, sx * 1.6, 11.5, sz * 1.6);
@@ -717,9 +720,11 @@ function flowerBedFrame(p: Paint) {
 }
 
 function well(p: Paint) {
+  // A ring of stone with a dark shaft inside, water glinting at the bottom.
   p.cyl('#a99c89', 1.0, 0.85, 0, 0.425, 0, 10);
   p.cyl('#bfb2a0', 1.08, 0.12, 0, 0.88, 0, 10);
-  p.cyl('#2f4a5a', 0.78, 0.04, 0, 0.8, 0, 10);
+  p.cyl('#1a2028', 0.78, 0.9, 0, 0.5, 0, 10);
+  p.cyl('#2f4a5a', 0.76, 0.04, 0, 0.34, 0, 10);
   for (const sx of [-1, 1]) p.block(WOOD_DARK, 0.14, 2.1, 0.14, sx * 0.85, 0.85, 0);
   p.cyl(WOOD, 0.07, 1.8, 0, 2.15, 0, 6, 0, 0, Math.PI / 2);
   p.prism(WOOD_LIGHT, 2.1, 0.7, 1.6, 0, 2.7, 0, Math.PI / 2);
@@ -980,15 +985,15 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     holder.matrix.copy(m);
     const make = (len: number, w: number) => {
       const b = new Builder();
-      b.add(G.box(), '#2a211c', { pos: [0, len / 2 - 0.08, 0], scale: [w, len, 0.04] });
-      b.add(G.cyl(6), '#2a211c', { pos: [0, 0, 0], scale: [0.07, 0.05, 0.07], rot: [Math.PI / 2, 0, 0] });
+      b.add(G.box(), '#2a211c', { pos: [0, len / 2 - 0.08, 0], scale: [w, len, 0.012] });
+      b.add(G.cyl(6), '#2a211c', { pos: [0, 0, 0], scale: [0.07, 0.02, 0.07], rot: [Math.PI / 2, 0, 0] });
       const mesh = b.mesh(handMat, { cast: false });
       holder.add(mesh);
       return mesh;
     };
     const hour = make(0.55, 0.08);
     const minute = make(0.85, 0.05);
-    minute.position.z = 0.03;
+    minute.position.z = 0.014;
     group.add(holder);
     return { hour, minute };
   });
@@ -1003,12 +1008,21 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     bell.add(b.mesh(matte()));
   }
   group.add(bell);
+  // A proper banner on a tall pole, so it reads as a flag from the ground: wine red with a gold raven.
   const flag = new THREE.Group();
-  flag.position.set(0, 19.8, 0);
+  flag.position.set(0, 19.9, 0);
   {
     const b = new Builder();
-    b.add(G.box(), '#8a3a5a', { pos: [0.45, -0.22, 0], scale: [0.9, 0.44, 0.03] });
-    b.add(G.box(), '#e8c35a', { pos: [0.45, -0.22, 0.02], scale: [0.3, 0.1, 0.02] });
+    b.add(G.cyl(6), '#4a3a2a', { pos: [0, 0.1, 0], scale: [0.05, 2.4, 0.05] });
+    b.add(G.sphere(6, 4), '#e8c35a', { pos: [0, 1.32, 0], scale: 0.12 });
+    b.add(G.box(), '#8a3a5a', { pos: [0.95, 0.65, 0], scale: [1.8, 1.1, 0.03] });
+    b.add(G.box(), '#e8c35a', { pos: [0.95, 0.12, 0], scale: [1.8, 0.1, 0.035] });
+    b.add(G.box(), '#e8c35a', { pos: [0.95, 1.18, 0], scale: [1.8, 0.1, 0.035] });
+    // The raven: a body, a head and a beak, in gold.
+    b.add(G.sphere(6, 4), '#e8c35a', { pos: [0.85, 0.62, 0.03], scale: [0.34, 0.2, 0.02] });
+    b.add(G.sphere(6, 4), '#e8c35a', { pos: [1.15, 0.78, 0.03], scale: [0.14, 0.13, 0.02] });
+    b.add(G.cone(4), '#e8c35a', { pos: [1.32, 0.78, 0.03], rot: [0, 0, -Math.PI / 2], scale: [0.06, 0.16, 0.02] });
+    b.add(G.cone(3), '#e8c35a', { pos: [0.55, 0.52, 0.03], rot: [0, 0, 1.2], scale: [0.12, 0.3, 0.02] });
     flag.add(b.mesh(matte()));
   }
   group.add(flag);

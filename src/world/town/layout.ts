@@ -252,6 +252,8 @@ export function makeStations(): Station[] {
     const p = local(b.x, b.z, b.ry, 0, BED_DEPTH / 2 + 0.75);
     st.push({ id: `bed-${i}`, zone: 'town', x: p.x, z: p.z, r: 2.7, job: 'gardening', stand: { x: p.x, z: p.z, ry: b.ry + Math.PI }, bed: i, label: 'Plant a flower' });
   });
+  st.push({ id: 'well', zone: 'town', x: WELL.x, z: WELL.z + 1.6, r: 1.5, job: 'well', stand: { x: WELL.x, z: WELL.z + 1.55, ry: Math.PI }, label: 'Draw some water' });
+  st.push({ id: 'notice', zone: 'town', x: NOTICEBOARD.x, z: NOTICEBOARD.z + 1.1, r: 1.6, job: 'notice', stand: { x: NOTICEBOARD.x, z: NOTICEBOARD.z + 1.0, ry: Math.PI }, label: 'Read the noticeboard' });
   benches.forEach((b, i) =>
     [-0.5, 0.5].forEach((lx, k) => {
       const p = local(b.x, b.z, b.ry, lx, -0.05);

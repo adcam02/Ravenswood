@@ -380,10 +380,10 @@ function StorytellerSettings() {
           <div>
             <strong>Day or night</strong>
             <span>
-              {g.phase === 'night' ? 'Night' : 'Day'} {g.day}
+              {g.day === 0 && g.phase === 'day' ? 'Before the game' : `${g.phase === 'night' ? 'Night' : 'Day'} ${g.day}`}
             </span>
           </div>
-          <Stepper value={g.day} onChange={st.setDay} min={1} max={30} />
+          <Stepper value={g.day} onChange={st.setDay} min={0} max={30} />
         </div>
         <hr className="rule" />
         <div className="setting">

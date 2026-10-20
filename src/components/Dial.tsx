@@ -192,7 +192,7 @@ function Stats() {
   return (
     <div className="stats">
       <div className="dial-phase" key={`${view.phase}${view.day}`}>
-        {view.phase === 'night' ? 'Night' : 'Day'} {view.day}
+        {view.day === 0 && view.phase === 'day' ? 'Before the game' : `${view.phase === 'night' ? 'Night' : 'Day'} ${view.day}`}
       </div>
       <div className="dial-numbers">
         <div>

@@ -23,6 +23,7 @@ import {
   HomeMusic,
   JobLayer,
   MeetingSeat,
+  NoticeBoard,
   PlaceChip,
   VoiceDock,
   WorldFailed,
@@ -35,6 +36,7 @@ import { useUI } from './state/ui';
 import { ModeContext, usePlayerView, useStorytellerView, ViewContext } from './state/view';
 import { Icon } from './components/Icon';
 import { World } from './world/World';
+import { MiniGrimoire } from './components/town/MiniGrimoire';
 
 type Route = { kind: 'landing' } | { kind: 'st' } | { kind: 'player'; room: string };
 
@@ -130,7 +132,9 @@ function Storyteller() {
                 <Announce />
                 <EmoteBar />
               </div>
+              <MiniGrimoire />
               <JobLayer />
+              <NoticeBoard />
             </>
           )}
           <SidePanel />
@@ -156,7 +160,6 @@ function Player({ room }: { room: string }) {
   const view = usePlayerView();
   const status = useClient((s) => s.status);
   const reopen = useJoin((s) => s.reopen);
-  const circle = useUI((s) => s.grimoireOpen);
   useEffects(view);
   if (!view) {
     return (
@@ -193,11 +196,6 @@ function Player({ room }: { room: string }) {
             <JoinFlow room={room} current={me ? { name: me.name, look: me.look } : null} />
           ) : (
             <>
-              {circle && (
-                <div className="grimoire-layer">
-                  <Square />
-                </div>
-              )}
               <PlaceChip />
               <VoiceDock />
               <MyCharacter />
@@ -212,6 +210,7 @@ function Player({ room }: { room: string }) {
                 <EmoteBar />
               </div>
               <JobLayer />
+              <NoticeBoard />
               <HelpCard />
               <Modals />
               <WakeOverlay />

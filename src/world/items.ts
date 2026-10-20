@@ -173,6 +173,15 @@ function grimoire(open: boolean): THREE.Object3D {
   return g;
 }
 
+function bucket(b: Builder) {
+  const o: Vec3 = [0, 0.02, 0.1];
+  b.add(BASKET, '#8a6a4a', { pos: [o[0], o[1] + 0.07, o[2]], scale: [0.09, 0.14, 0.09] });
+  b.add(CYL, '#5a4030', { pos: [o[0], o[1] + 0.13, o[2]], scale: [0.095, 0.015, 0.095] });
+  b.add(CYL, '#5a4030', { pos: [o[0], o[1] + 0.03, o[2]], scale: [0.08, 0.015, 0.08] });
+  b.add(CYL, '#6fb0e0', { pos: [o[0], o[1] + 0.125, o[2]], scale: [0.078, 0.006, 0.078] });
+  b.add(TORUS, '#9aa0a8', { pos: [o[0], o[1] + 0.16, o[2]], rot: [0, 0, 0], scale: [0.08, 0.08, 0.03] });
+}
+
 export function buildItem(item: Item): THREE.Object3D {
   if (item.k === 'grimoire') return grimoire(item.c === 'open');
   const b = new Builder();
@@ -202,6 +211,9 @@ export function buildItem(item: Item): THREE.Object3D {
       break;
     case 'washing':
       washing(b, item.c ?? '#e0605a');
+      break;
+    case 'water':
+      bucket(b);
       break;
   }
   const mesh = b.mesh(soft(), { cast: true, receive: false });

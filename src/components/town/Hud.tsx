@@ -26,6 +26,7 @@ const ITEM_NAMES: Record<Item['k'], [string, string]> = {
   can: ['🚿', 'a watering can'],
   washing: ['🧺', 'the washing'],
   grimoire: ['📖', 'the grimoire'],
+  water: ['🪣', 'a bucket of well water'],
 };
 
 export const itemName = (item: Item) => ITEM_NAMES[item.k]?.[1] ?? 'something';
@@ -39,9 +40,9 @@ export function PlaceChip() {
   const night = view.phase === 'night';
   return (
     <div className="place-chip cosy-panel">
-      <span className={`place-time ${night && view.revealed ? 'night' : 'day'}`}>
-        <Icon name={night && view.revealed ? 'moon' : 'sun'} />
-        {view.revealed ? `${night ? 'Night' : 'Day'} ${view.day}` : 'Before the game'}
+      <span className={`place-time ${night ? 'night' : 'day'}`}>
+        <Icon name={night ? 'moon' : 'sun'} />
+        {view.day === 0 && !night ? 'Before the game' : `${night ? 'Night' : 'Day'} ${view.day}`}
       </span>
       <strong>{place}</strong>
       {view.mode === 'player' && status !== 'open' && <span className="place-warn">{status === 'waiting' ? 'Waiting for the Storyteller…' : 'Reconnecting…'}</span>}
@@ -52,6 +53,7 @@ export function PlaceChip() {
 /** Microphone, push-to-talk and volume. */
 export function VoiceDock() {
   const v = useVoice();
+  const hearing = useHud((s) => s.hearing);
   const [open, setOpen] = useState(false);
   const [talking, setTalking] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
@@ -86,6 +88,9 @@ export function VoiceDock() {
         <Icon name={v.mic === 'on' && !v.muted ? 'mic' : 'micOff'} />
         <span>{label}</span>
       </button>
+      <span className={`voice-ears cosy-btn ${hearing ? 'some' : ''}`} title="People close enough to hear you right now (the ones with a speaker by their name)">
+        🔊 {hearing}
+      </span>
       <button className="cosy-btn voice-more" onClick={() => setOpen(!open)} aria-label="Voice settings" title="Voice settings">
         <Icon name="cog" />
       </button>
@@ -103,7 +108,7 @@ export function VoiceDock() {
           </label>
           <p className="voice-note">
             {v.links ? `Connected to ${v.links} ${v.links === 1 ? 'person' : 'people'}.` : 'Nobody else connected yet.'} You hear people close by, and only people in the same building.
-            Headphones stop echo.
+            Headphones stop echo. If you’re also in a Discord call, everyone hears everyone regardless, so leave the voice channel while you play.
           </p>
         </div>
       )}
@@ -183,7 +188,7 @@ export function BellCall() {
       <span className="bell-emoji">🔔</span>
       <div>
         <strong>The bell is ringing!</strong>
-        <span>Everyone to the town square.</span>
+        <span>Taking you to your seat at the square…</span>
       </div>
       <button className="cosy-btn primary" onClick={game.goToSquare}>
         Go now
@@ -240,11 +245,14 @@ export function Announce() {
       if (e.key.toLowerCase() === 'b' && !e.repeat && !(document.activeElement instanceof HTMLInputElement)) setOn(true);
     };
     const up = (e: KeyboardEvent) => e.key.toLowerCase() === 'b' && setOn(false);
+    const off = () => setOn(false);
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
+    window.addEventListener('blur', off);
     return () => {
       window.removeEventListener('keydown', down);
       window.removeEventListener('keyup', up);
+      window.removeEventListener('blur', off);
       presence.announce = false;
     };
   }, []);
@@ -324,7 +332,7 @@ export function HomeMusic() {
   const place = useHud((s) => s.place);
   const muted = useUI((s) => s.muted);
   const awake = useClient((s) => Boolean(s.priv?.wake));
-  const on = view.mode === 'player' && view.revealed && view.phase === 'night' && place === 'Your home' && !muted;
+  const on = view.mode === 'player' && view.phase === 'night' && place === 'Your home' && !muted;
   useEffect(() => {
     if (on) {
       nightMusic.setLevel(0.35);
@@ -334,4 +342,61 @@ export function HomeMusic() {
   useEffect(() => () => nightMusic.stop(), []);
   useEffect(() => nightMusic.duck(awake), [awake]);
   return null;
+}
+
+/** The noticeboard by the square: the day's news, the votes so far, and the town's little records. */
+export function NoticeBoard() {
+  const view = useView();
+  const open = useHud((s) => s.notice);
+  if (!open) return null;
+  const close = () => useHud.setState({ notice: false });
+  const dead = view.seats.filter((s) => s.dead);
+  const today = view.history.filter((h) => h.day === view.day);
+  const earlier = view.history.filter((h) => h.day !== view.day);
+  const fish = [...view.town.fish].sort((a, b) => b.cm - a.cm);
+  const best = fish[0];
+  const when = view.day === 0 && view.phase === 'day' ? 'Before the game' : `${view.phase === 'night' ? 'Night' : 'Day'} ${view.day}`;
+  const line = (h: (typeof view.history)[number]) => (
+    <li key={h.id}>
+      <b>{h.nominatorName}</b> nominated <b>{h.nomineeName}</b>: {h.votes} {h.votes === 1 ? 'vote' : 'votes'}, needed {h.majority}
+      {h.votes >= h.majority ? ' · enough' : ''}
+    </li>
+  );
+  return (
+    <div className="notice-layer" onClick={close}>
+      <div className="notice-board cosy-panel" onClick={(e) => e.stopPropagation()}>
+        <header>
+          <span className="notice-pin" />
+          <h2>Ravenswood Noticeboard</h2>
+          <span className="notice-when">{when}</span>
+        </header>
+        <section>
+          <h3>{dead.length ? 'In memoriam' : 'Everyone is alive and well'}</h3>
+          {dead.length > 0 && <p>{dead.map((s) => s.label).join(', ')}. The churchyard has a stone for each.</p>}
+        </section>
+        <section>
+          <h3>Nominations today</h3>
+          {today.length ? <ul>{today.map(line)}</ul> : <p>None yet.</p>}
+        </section>
+        {earlier.length > 0 && (
+          <section>
+            <h3>Earlier days</h3>
+            <ul>{earlier.slice(-6).map(line)}</ul>
+          </section>
+        )}
+        <section>
+          <h3>Around town</h3>
+          <ul>
+            <li>{view.town.drinks.length ? `${view.town.drinks.length} ${view.town.drinks.length === 1 ? 'drink' : 'drinks'} waiting on the bar at the Raven’s Rest.` : 'The bar at the Raven’s Rest is empty. Someone pour a round?'}</li>
+            <li>{view.town.loaves.length ? `${view.town.loaves.length} fresh ${view.town.loaves.length === 1 ? 'bake' : 'bakes'} on the bakery shelf.` : 'Nothing on the bakery shelf yet.'}</li>
+            <li>{best ? `Biggest catch: ${best.by}’s ${best.cm}cm ${best.kind}.` : 'Nobody has caught anything at the pond yet.'}</li>
+            <li>{view.town.flowers.length ? `${view.town.flowers.length} ${view.town.flowers.length === 1 ? 'flower' : 'flowers'} planted around the square.` : 'The flower beds are bare.'}</li>
+          </ul>
+        </section>
+        <button className="cosy-btn primary" onClick={close}>
+          Close <span className="cosy-key">Esc</span>
+        </button>
+      </div>
+    </div>
+  );
 }

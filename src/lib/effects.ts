@@ -26,7 +26,7 @@ export function useEffects(view: View | null) {
     if (p.phase !== view.phase) {
       if (view.phase === 'night') {
         nightfall();
-        ui.banner(`Night ${view.day}`, view.revealed ? 'Everyone heads home to sleep' : 'Night falls');
+        ui.banner(`Night ${view.day}`, 'Everyone heads home to sleep');
       } else {
         dawn();
         const died = view.seats.filter((s) => s.dead && !p.seats.find((x) => x.id === s.id)?.dead).map((s) => s.label);

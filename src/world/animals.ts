@@ -302,7 +302,18 @@ function thinTail(k: Kit, c: THREE.ColorRepresentation, len = 0.32, r = 0.025, c
 
 // ---------------------------------------------------------------- species
 
-type Recipe = (k: Kit, c: Colors, coat: string) => { aquatic?: boolean; legs?: 'none' | 'tentacles' };
+type Recipe = (k: Kit, c: Colors, coat: string) => { aquatic?: boolean; legs?: 'none' | 'tentacles'; sleepy?: boolean };
+
+/** Shaggy fur: a scatter of little lumps over a body part. */
+function shag(b: Builder, color: THREE.Color, centre: Vec3, r: Vec3, n: number, seed: number, minZ = -1) {
+  for (let i = 0; i < n; i++) {
+    const theta = 0.4 + ((i * 7 + seed) % n) * (2.2 / n);
+    const phi = i * 2.4 + seed;
+    const dir = new THREE.Vector3(Math.sin(theta) * Math.cos(phi), Math.cos(theta), Math.sin(theta) * Math.sin(phi));
+    if (dir.z < minZ) continue;
+    ell(b, i % 3 ? color : mix(color, '#fff', 0.12), [centre[0] + dir.x * r[0] * 0.9, centre[1] + dir.y * r[1] * 0.9, centre[2] + dir.z * r[2] * 0.9], [0.075, 0.06, 0.06], [phi, theta, 0], G.ico);
+  }
+}
 
 const RECIPES: Record<AnimalId, Recipe> = {
   wolf(k, c) {
@@ -796,6 +807,276 @@ const RECIPES: Record<AnimalId, Recipe> = {
     for (const zz of [-0.1, -0.18, -0.26]) k.tail.add(G.box, mix(c.dark, '#000', 0.25), { pos: [0, -0.025 - (zz + 0.1) * -0.3 + 0.0, -0.16 + (zz + 0.1)], rot: [0.3, 0, 0], scale: [0.18, 0.005, 0.01] });
     return { aquatic: true };
   },
+  capybara(k, c) {
+    const s = k.shape;
+    s.hr = [0.3, 0.25, 0.29];
+    s.tr = [0.24, 0.22, 0.21];
+    torso(k, c.coat, c.light);
+    head(k, c.coat);
+    // A long blunt muzzle, with two nostrils and a calm little mouth.
+    const mz = headZ(s, 0, -0.06, 0.06);
+    ell(k.head, mix(c.coat, '#fff', 0.2), [0, s.hc[1] - 0.06, mz + 0.02], [0.17, 0.11, 0.13]);
+    for (const side of [-1, 1]) ell(k.head, '#3a2a24', [side * 0.045, s.hc[1] + 0.0, mz + 0.14], [0.018, 0.012, 0.01]);
+    k.head.add(G.smile, INK, { pos: [0, s.hc[1] - 0.1, mz + 0.14], rot: [0, 0, Math.PI], scale: [0.03, 0.02, 0.02] });
+    eyes(k, { dy: 0.06, x: 0.14, style: 'small' });
+    // Half-closed lids make it look unbothered.
+    for (const side of [-1, 1]) ell(k.head, c.coat, [side * 0.14, s.hc[1] + 0.085, headZ(s, 0.14, 0.085, 0.004)], [0.045, 0.022, 0.025], [0, side * 0.3, 0]);
+    for (const side of [-1, 1]) ell(k.head, c.coat, [side * 0.21, s.hc[1] + 0.18, s.hc[2] - 0.05], [0.045, 0.05, 0.03]);
+    // A mandarin, as is traditional.
+    ell(k.head, '#f5a623', [0.07, s.hc[1] + 0.27, s.hc[2] - 0.02], 0.05);
+    ell(k.head, '#5fae55', [0.09, s.hc[1] + 0.32, s.hc[2] - 0.02], [0.035, 0.01, 0.018], [0, 0.6, 0]);
+    blush(k, BLUSH, 0.2, -0.04);
+    arms(k, c.coat, c.dark);
+    legs(k, c.coat, c.dark);
+    return {};
+  },
+  redpanda(k, c) {
+    const s = k.shape;
+    const dark = '#2e2426';
+    s.hr = [0.29, 0.25, 0.26];
+    torso(k, c.coat, dark);
+    head(k, c.coat);
+    // White cheeks and brows, with rust tear marks between them.
+    for (const side of [-1, 1]) {
+      ell(k.head, WHITE, [side * 0.14, s.hc[1] - 0.06, headZ(s, 0.14, -0.06, 0.06)], [0.11, 0.1, 0.07], [0, side * 0.3, 0]);
+      ell(k.head, WHITE, [side * 0.1, s.hc[1] + 0.11, headZ(s, 0.1, 0.11, 0.02)], [0.05, 0.03, 0.03]);
+      ell(k.head, mix(c.coat, '#5a2a1a', 0.4), [side * 0.085, s.hc[1] - 0.05, headZ(s, 0.085, -0.05, 0.012)], [0.03, 0.08, 0.03], [0, 0, side * 0.3]);
+    }
+    muzzle(k, WHITE, INK, { w: 0.09, h: 0.065, d: 0.07, noseR: [0.04, 0.028, 0.028] });
+    eyes(k, { dy: 0.04, x: 0.1 });
+    pointyEars(k, WHITE, c.coat, { h: 0.17, r: 0.12, tilt: 0.5, x: 0.19, y: 0.16 });
+    blush(k, BLUSH, 0.2, -0.1);
+    arms(k, dark, dark);
+    legs(k, dark, dark);
+    for (let i = 0; i < 6; i++) {
+      const t = i / 5;
+      ell(k.tail, i % 2 ? mix(c.coat, '#5a2a1a', 0.5) : c.coat, [0, 0.02 + t * 0.22, -0.06 - t * 0.24], [0.095 - t * 0.01, 0.095 - t * 0.01, 0.065], [-0.75, 0, 0]);
+    }
+    return {};
+  },
+  quokka(k, c) {
+    const s = k.shape;
+    s.hr = [0.31, 0.23, 0.26];
+    s.tr = [0.21, 0.21, 0.19];
+    torso(k, c.coat, c.light);
+    head(k, c.coat);
+    // Big puffy cheeks either side of a small dark nose.
+    for (const side of [-1, 1]) ell(k.head, mix(c.coat, '#fff', 0.45), [side * 0.15, s.hc[1] - 0.09, headZ(s, 0.15, -0.09, 0.02)], [0.13, 0.1, 0.09], [0, side * 0.25, 0]);
+    nose(k, '#3a2a24', [0, s.hc[1] - 0.03, headZ(s, 0, -0.03, -0.012)], [0.032, 0.026, 0.024]);
+    // The famous grin.
+    k.head.add(G.smile, INK, { pos: [0, s.hc[1] - 0.07, headZ(s, 0, -0.07, -0.03)], rot: [0.2, 0, Math.PI], scale: [0.1, 0.07, 0.05] });
+    eyes(k, { dy: 0.06, x: 0.12, size: 1.1 });
+    roundEars(k, c.coat, PINK, { x: 0.22, r: 0.065, y: 0.17, depth: 0.45 });
+    blush(k, BLUSH, 0.2, -0.03);
+    arms(k, c.coat, c.dark);
+    legs(k, c.coat, c.dark);
+    thinTail(k, c.dark, 0.2, 0.02, 0.6);
+    return {};
+  },
+  sloth(k, c) {
+    const s = k.shape;
+    const face = mix(c.coat, '#fff', 0.5);
+    const mask = mix(c.coat, '#3a2a1a', 0.55);
+    s.hr = [0.28, 0.24, 0.26];
+    torso(k, c.coat);
+    shag(k.torso, c.coat, s.tc, s.tr, 14, 3, -0.2);
+    head(k, c.coat);
+    ell(k.head, face, [0, s.hc[1] - 0.01, headZ(s, 0, -0.01, 0.1)], [0.2, 0.17, 0.1]);
+    // Dark stripes sweeping back from the eyes.
+    for (const side of [-1, 1]) ell(k.head, mask, [side * 0.12, s.hc[1] + 0.02, headZ(s, 0.12, 0.02, 0.025)], [0.1, 0.045, 0.03], [0, side * 0.45, -side * 0.35]);
+    nose(k, '#3a2a24', [0, s.hc[1] - 0.06, headZ(s, 0, -0.06, -0.005)], [0.035, 0.028, 0.025]);
+    smile(k, INK, -0.1, 0.05);
+    eyes(k, { dy: 0.03, x: 0.1, style: 'small' });
+    blush(k, BLUSH, 0.19, -0.07);
+    // Long arms ending in three claws.
+    for (const [b, side] of [
+      [k.armL, 1],
+      [k.armR, -1],
+    ] as const) {
+      ell(b, c.coat, [side * 0.015, -0.14, 0], [0.055, 0.17, 0.055]);
+      ell(b, c.coat, [side * 0.02, -0.29, 0.01], 0.06);
+      for (const cx of [-0.03, 0, 0.03]) b.add(G.cone4, '#e8d8b8', { pos: [side * 0.02 + cx, -0.35, 0.03], rot: [Math.PI + 0.3, 0, 0], scale: [0.012, 0.06, 0.01] });
+    }
+    legs(k, c.coat, c.dark);
+    ell(k.tail, c.coat, [0, 0, -0.03], 0.04);
+    return { sleepy: true };
+  },
+  seal(k, c) {
+    const s = k.shape;
+    const belly = mix(c.coat, '#fff', 0.45);
+    s.hr = [0.27, 0.24, 0.27];
+    // No legs: the body tapers down to sit on the ground.
+    s.tc = [0, 0.3, 0];
+    s.tr = [0.23, 0.31, 0.21];
+    k.torso.add(G.sph, c.coat, { pos: [0, 0.3, 0], scale: [0.23, 0.31, 0.21] });
+    ell(k.torso, belly, [0, 0.28, 0.07], [0.17, 0.26, 0.16]);
+    for (const [x, y, z] of [
+      [-0.12, 0.5, -0.12],
+      [0.1, 0.42, -0.16],
+      [-0.03, 0.34, -0.19],
+      [0.15, 0.25, -0.12],
+    ] as Vec3[]) {
+      ell(k.torso, c.dark, [x, y, z], 0.022);
+    }
+    head(k, c.coat);
+    ell(k.head, belly, [0, s.hc[1] - 0.07, headZ(s, 0, -0.07, 0.08)], [0.17, 0.1, 0.09]);
+    nose(k, '#2a2428', [0, s.hc[1] - 0.03, headZ(s, 0, -0.03, -0.01)], [0.04, 0.03, 0.028]);
+    smile(k, INK, -0.085, 0.04);
+    for (const side of [-1, 1]) {
+      for (const tilt of [-0.12, 0.1]) {
+        k.head.add(G.box, '#f4efe6', { pos: [side * 0.14, s.hc[1] - 0.05 + tilt * 0.1, headZ(s, 0.1, -0.05, 0.03)], rot: [0, side * 0.3, side * tilt], scale: [0.12, 0.006, 0.006] });
+      }
+    }
+    for (const [x, y, z] of [
+      [0.14, 0.12, 0.02],
+      [-0.1, 0.16, 0.0],
+    ] as Vec3[]) {
+      ell(k.head, c.dark, [x, s.hc[1] + y, headZ(s, x, y, 0.005)], 0.02);
+    }
+    eyes(k, { dy: 0.04, x: 0.11, size: 1.35 });
+    blush(k, BLUSH, 0.19, -0.03);
+    arms(k, c.coat, c.coat, 'flipper');
+    // The tail flipper: two lobes splayed out behind, resting on the ground.
+    for (const side of [-1, 1]) ell(k.tail, c.coat, [side * 0.08, -0.29, -0.13], [0.065, 0.02, 0.12], [0, -side * 0.45, 0]);
+    return { aquatic: true, legs: 'none' };
+  },
+  puffin(k, c) {
+    const s = k.shape;
+    s.tr = [0.22, 0.26, 0.2];
+    s.tc = [0, 0.4, 0];
+    s.hr = [0.27, 0.25, 0.25];
+    torso(k, c.coat);
+    ell(k.torso, WHITE, [0, 0.38, 0.08], [0.16, 0.22, 0.14]);
+    head(k, c.coat);
+    for (const side of [-1, 1]) ell(k.head, '#eceae6', [side * 0.09, s.hc[1] + 0.0, headZ(s, 0.09, 0, 0.1)], [0.14, 0.15, 0.115]);
+    // The big striped beak: a grey root, a yellow band, and a red-orange tip.
+    const bz = headZ(s, 0, -0.04, 0.0);
+    k.head.add(G.cone4, '#6a7a9a', { pos: [0, s.hc[1] - 0.04, bz + 0.05], rot: [Math.PI / 2, Math.PI / 4, 0], scale: [0.085, 0.2, 0.09] });
+    k.head.add(G.ring, '#f2c14e', { pos: [0, s.hc[1] - 0.04, bz + 0.075], scale: [0.055, 0.06, 0.03] });
+    k.head.add(G.cone4, '#f26a1a', { pos: [0, s.hc[1] - 0.04, bz + 0.12], rot: [Math.PI / 2, Math.PI / 4, 0], scale: [0.065, 0.14, 0.075] });
+    eyes(k, { dy: 0.03, x: 0.1, ring: '#f0883a', out: 0.022 });
+    // The dark eye mark trailing back, like eyeliner.
+    for (const side of [-1, 1]) ell(k.head, '#2a2a30', [side * 0.17, s.hc[1] + 0.05, headZ(s, 0.17, 0.05, 0.005)], [0.05, 0.012, 0.015], [0, side * 0.4, side * 0.5]);
+    blush(k);
+    arms(k, c.coat, c.coat, 'wing');
+    legs(k, ORANGE, ORANGE, 'webbed');
+    k.tail.add(G.cone4, c.coat, { pos: [0, -0.04, -0.08], rot: [-2.0, Math.PI / 4, 0], scale: [0.07, 0.1, 0.03] });
+    return { aquatic: true };
+  },
+  snail(k, c, coat) {
+    const s = k.shape;
+    // The coat colour is the shell; the snail itself is a soft cream-green.
+    const body = mix('#d8d0a8', coat, 0.18);
+    const shell = c.coat;
+    const shellLine = mix(coat, '#2a2020', 0.4);
+    s.tc = [0, 0.12, 0.1];
+    s.tr = [0.17, 0.12, 0.36];
+    s.hc = [0, -0.2, 0.36];
+    s.hr = [0.17, 0.15, 0.17];
+    // The foot, long and low, flaring out at the back.
+    k.torso.add(G.sph, body, { pos: [0, 0.12, 0.1], scale: [0.17, 0.12, 0.36] });
+    ell(k.torso, body, [0, 0.09, -0.22], [0.14, 0.08, 0.14]);
+    // The shell rides on the back: a big sphere with a spiral drawn on each side.
+    const sc: Vec3 = [0, 0.4, -0.1];
+    ell(k.torso, shell, sc, [0.25, 0.24, 0.21]);
+    for (const side of [-1, 1]) {
+      k.torso.add(G.ring, shellLine, { pos: [side * 0.2, sc[1], sc[2]], rot: [0, Math.PI / 2, 0], scale: [0.17, 0.17, 0.06] });
+      k.torso.add(G.ring, shellLine, { pos: [side * 0.24, sc[1] + 0.02, sc[2] + 0.02], rot: [0, Math.PI / 2, 0], scale: [0.095, 0.095, 0.04] });
+      ell(k.torso, shellLine, [side * 0.26, sc[1] + 0.03, sc[2] + 0.03], [0.015, 0.035, 0.035]);
+    }
+    k.torso.add(G.ring, shellLine, { pos: sc, rot: [Math.PI / 2, 0, 0], scale: [0.25, 0.24, 0.05] });
+    // The neck joins the head to the foot.
+    ell(k.torso, body, [0, 0.26, 0.28], [0.12, 0.12, 0.14]);
+    head(k, body);
+    smile(k, INK, -0.05, 0.045);
+    blush(k, BLUSH, 0.13, -0.02);
+    // Eyes on stalks.
+    const ey = s.hc[1] + 0.4;
+    for (const side of [-1, 1]) {
+      k.head.add(G.cyl6, body, { pos: [side * 0.09, s.hc[1] + 0.25, s.hc[2] + 0.03], rot: [0.2, 0, -side * 0.25], scale: [0.028, 0.3, 0.028] });
+      ell(k.eyes, WHITE, [side * 0.125, ey, s.hc[2] + 0.06], 0.055);
+      ell(k.eyes, INK, [side * 0.125, ey, s.hc[2] + 0.1], [0.03, 0.034, 0.025]);
+      ell(k.eyes, '#fff', [side * 0.135, ey + 0.015, s.hc[2] + 0.12], 0.01);
+      k.head.add(G.cyl6, body, { pos: [side * 0.07, s.hc[1] - 0.04, s.hc[2] + 0.17], rot: [1.2, 0, -side * 0.5], scale: [0.012, 0.1, 0.012] });
+    }
+    k.eyeY = ey;
+    return { legs: 'none' };
+  },
+  fennec(k, c) {
+    const s = k.shape;
+    s.tr = [0.18, 0.2, 0.16];
+    s.hr = [0.27, 0.24, 0.25];
+    torso(k, c.coat, WHITE);
+    head(k, c.coat);
+    ell(k.head, WHITE, [0, s.hc[1] - 0.09, headZ(s, 0, -0.09, 0.09)], [0.19, 0.1, 0.08]);
+    snout(k, WHITE, INK, 0.13, 0.085, -0.07);
+    eyes(k, { dy: 0.04, x: 0.1, size: 1.1 });
+    pointyEars(k, c.coat, PINK, { h: 0.38, r: 0.16, tilt: 0.55, x: 0.17, y: 0.14 });
+    blush(k);
+    arms(k, c.coat, c.light);
+    legs(k, c.coat, c.dark);
+    bushyTail(k, c.coat, '#3a2a24', 1.1);
+    return {};
+  },
+  chinchilla(k, c) {
+    const s = k.shape;
+    s.tr = [0.24, 0.22, 0.21];
+    s.hr = [0.29, 0.25, 0.26];
+    torso(k, c.coat, c.light);
+    head(k, c.coat);
+    ell(k.head, c.light, [0, s.hc[1] - 0.07, headZ(s, 0, -0.07, 0.06)], [0.14, 0.09, 0.07]);
+    nose(k, '#e47a90', [0, s.hc[1] - 0.045, headZ(s, 0, -0.045, -0.008)], [0.03, 0.022, 0.022]);
+    for (const side of [-1, 1]) {
+      for (const tilt of [-0.12, 0.1]) {
+        k.head.add(G.box, luminance(c.coat) < 0.2 ? WHITE : INK, { pos: [side * 0.13, s.hc[1] - 0.05 + tilt * 0.1, headZ(s, 0.09, -0.05, 0.0)], rot: [0, side * 0.3, side * tilt], scale: [0.13, 0.005, 0.005] });
+      }
+    }
+    eyes(k, { dy: 0.04, x: 0.11 });
+    roundEars(k, c.coat, PINK, { x: 0.21, r: 0.14, y: 0.2, depth: 0.3 });
+    blush(k);
+    // Tiny paws held in front.
+    for (const [b, side] of [
+      [k.armL, 1],
+      [k.armR, -1],
+    ] as const) {
+      ell(b, c.coat, [side * 0.01, -0.07, 0.01], [0.05, 0.09, 0.05]);
+      ell(b, PINK, [side * 0.015, -0.15, 0.02], 0.045);
+    }
+    legs(k, c.coat, PINK);
+    // A squirrel tail curling up over the back.
+    ell(k.tail, c.coat, [0, 0.16, -0.1], [0.08, 0.26, 0.09], [0.35, 0, 0], G.ico1);
+    ell(k.tail, c.light, [0, 0.36, -0.04], [0.06, 0.08, 0.07], [0.35, 0, 0], G.ico1);
+    return {};
+  },
+  highland(k, c) {
+    const s = k.shape;
+    const horn = '#e8d8b8';
+    s.hr = [0.3, 0.26, 0.27];
+    s.tr = [0.24, 0.22, 0.21];
+    torso(k, c.coat);
+    shag(k.torso, c.coat, s.tc, s.tr, 16, 5, -0.3);
+    head(k, c.coat);
+    muzzle(k, mix(c.coat, '#fff', 0.35), '#3a2a2a', { w: 0.14, h: 0.095, d: 0.1, noseR: [0.06, 0.038, 0.036], dy: -0.08 });
+    eyes(k, { dy: 0.03, x: 0.11, style: 'small' });
+    // The fringe, hanging over the eyes.
+    for (let i = -3; i <= 3; i++) {
+      const x = i * 0.075;
+      ell(k.head, i % 2 ? c.coat : mix(c.coat, '#fff', 0.1), [x, s.hc[1] + 0.1 - Math.abs(i) * 0.01, headZ(s, x, 0.1, -0.03)], [0.055, 0.075, 0.05], [0.3, 0, i * 0.2], G.ico);
+    }
+    for (let i = 0; i < 5; i++) ell(k.head, c.coat, [(i - 2) * 0.09, s.hc[1] + 0.22, s.hc[2] - 0.02], [0.07, 0.06, 0.06], [0, i, 0], G.ico);
+    for (const side of [-1, 1]) {
+      ell(k.head, c.coat, [side * 0.26, s.hc[1] + 0.08, s.hc[2] - 0.04], [0.09, 0.045, 0.05], [0, 0, side * 0.3]);
+      // Long horns sweeping out and up.
+      k.head.add(G.cyl6, horn, { pos: [side * 0.33, s.hc[1] + 0.2, s.hc[2] - 0.03], rot: [0, 0, -side * 1.15], scale: [0.032, 0.28, 0.032] });
+      k.head.add(G.cone4, horn, { pos: [side * 0.49, s.hc[1] + 0.33, s.hc[2] - 0.03], rot: [0, 0, -side * 0.45], scale: [0.03, 0.18, 0.03] });
+      ell(k.head, horn, [side * 0.455, s.hc[1] + 0.26, s.hc[2] - 0.03], 0.034);
+    }
+    arms(k, c.coat, c.dark);
+    legs(k, c.coat, '#3a2a24');
+    thinTail(k, c.coat, 0.26, 0.022, 0.5);
+    ell(k.tail, c.dark, [0, 0.06, -0.26], 0.05, undefined, G.ico1);
+    return {};
+  },
   bunny(k, c) {
     const s = k.shape;
     torso(k, c.coat, mix(c.coat, '#fff', 0.5));
@@ -881,6 +1162,8 @@ interface RigParts {
   tentacles: boolean;
   aquatic: boolean;
   noLegs?: boolean;
+  /** Slower, droopier idling with half-closed eyes (the sloth). */
+  sleepy?: boolean;
   /** Extra things that hang off the body group (the Storyteller's lantern). */
   extras?: (body: THREE.Group, hand: THREE.Group) => void;
   eyeMaterial?: THREE.Material;
@@ -919,6 +1202,7 @@ class AnimalRig implements Rig {
   private floats: boolean;
   private tentacles: boolean;
   private noLegs: boolean;
+  private sleepy: boolean;
   private owned: THREE.Material[] = [];
 
   constructor(p: RigParts) {
@@ -926,6 +1210,7 @@ class AnimalRig implements Rig {
     this.floats = p.floats;
     this.tentacles = p.tentacles;
     this.noLegs = Boolean(p.noLegs);
+    this.sleepy = Boolean(p.sleepy);
     this.material = p.material;
     this.eyeMaterial = p.eyeMaterial ?? p.material;
     this.owned.push(p.material);
@@ -1185,12 +1470,18 @@ class AnimalRig implements Rig {
       }
       default: {
         // Idle: a little breathing, glancing about and a lazy tail.
-        P.hry = sin(t * 0.37) * 0.22 * (sin(t * 0.13) > 0 ? 1 : 0.3);
-        P.hrz = sin(t * 0.29) * 0.05;
-        P.try = sin(t * 1.6) * 0.25;
-        P.by = sin(t * 2.2) * 0.006;
-        P.alz = 0.18 + sin(t * 2.2) * 0.03;
-        P.arz = -0.18 - sin(t * 2.2) * 0.03;
+        const slow = this.sleepy ? 0.45 : 1;
+        P.hry = sin(t * 0.37 * slow) * 0.22 * (sin(t * 0.13) > 0 ? 1 : 0.3);
+        P.hrz = sin(t * 0.29 * slow) * 0.05;
+        P.try = sin(t * 1.6 * slow) * 0.25;
+        P.by = sin(t * 2.2 * slow) * 0.006;
+        P.alz = 0.18 + sin(t * 2.2 * slow) * 0.03;
+        P.arz = -0.18 - sin(t * 2.2 * slow) * 0.03;
+        if (this.sleepy) {
+          P.hrx = 0.2 + sin(t * 0.6) * 0.04;
+          P.alz = 0.42;
+          P.arz = -0.42;
+        }
       }
     }
     if (s.speaking) {
@@ -1254,6 +1545,7 @@ class AnimalRig implements Rig {
     }
     if (s.anim === 'sleep') this.eyes.scale.y = 0.12;
     else if (s.anim === 'laugh') this.eyes.scale.y = 0.35;
+    else if (this.sleepy && s.anim === 'idle') this.eyes.scale.y = Math.min(this.eyes.scale.y, 0.5);
 
     if (this.drips && !this.ghost) this.updateDrips(dt);
   }
@@ -1330,6 +1622,7 @@ export function buildAnimal(look: Look): Rig {
     floats: false,
     tentacles: res.legs === 'tentacles',
     aquatic,
+    sleepy: res.sleepy,
   });
 }
 

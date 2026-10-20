@@ -25,6 +25,8 @@ import {
   townColliders,
 } from './layout';
 import { buildOutdoor } from './outdoor';
+import { signBoard, TextSign } from './sign';
+import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 
 export interface TownWorld {
   groups: Record<ZoneKind, THREE.Group>;
@@ -42,7 +44,9 @@ export interface TownWorld {
   setHouses(list: ({ name: string; dead: boolean } | null)[]): void;
   setHomeOwner(name: string): void;
   setTown(state: TownState, now: number): void;
-  setMeeting(m: { n: number; nominee: number | null; hand: number | null; active: boolean; votes: number[] }): void;
+  setMeeting(m: { n: number; nominee: number | null; hand: number | null; active: boolean; votes: number[]; label?: string }): void;
+  /** Gravestones for the dead, by seat name. */
+  setGraves(names: string[]): void;
   follow(x: number, z: number): void;
   update(dt: number, t: number): void;
   bellRing(): void;
@@ -146,7 +150,9 @@ function flowerGeometry(kind: string, color: string, seed: number): THREE.Buffer
     b.add(G.ico(1), c, { pos: [0, h + 0.05, 0], scale: [0.09, 0.08, 0.09] });
     b.add(G.ico(0), shade(c, -0.12), { pos: [0, h + 0.1, 0], rot: [0.3, 0.5, 0], scale: [0.05, 0.04, 0.05] });
   }
-  return b.geometry();
+  const geo = b.geometry();
+  geo.scale(1.8, 1.8, 1.8);
+  return geo;
 }
 
 interface Tracked {
@@ -297,8 +303,32 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     const s = bedSpot(f.bed, Math.min(BED_SPOTS - 1, f.spot));
     m.position.set(s.x, BED_H, s.z);
     m.rotation.y = s.ry + f.spot;
-    m.scale.setScalar(0.15);
+    m.scale.setScalar(0.45);
     return m;
+  });
+
+  // A stone for each of the dead, in the churchyard, with their name on it.
+  const stoneGeo = (() => {
+    const b = new Builder();
+    b.add(G.box(), '#a8a196', { pos: [0, 0.4, 0], scale: [0.6, 0.8, 0.14] });
+    b.add(G.cyl(10), '#a8a196', { pos: [0, 0.8, 0], rot: [Math.PI / 2, 0, 0], scale: [0.3, 0.14, 0.3] });
+    b.add(G.box(), '#7aa85a', { pos: [0, 0.03, 0.75], scale: [0.7, 0.06, 1.3] });
+    return b.geometry();
+  })();
+  const stoneMat = matte();
+  const graves = new Keeper<{ id: string; name: string; i: number }>(outdoor.group, (g) => {
+    const group = new THREE.Group();
+    const stone = new THREE.Mesh(stoneGeo, stoneMat);
+    stone.castShadow = true;
+    group.add(stone);
+    const label = new TextSign({ w: 256, h: 128, bg: '#a8a196', fg: '#3a3630', size: 54 }, g.name);
+    const { mesh } = signBoard(label, 0.5, 0.25);
+    mesh.position.set(0, 0.5, 0.075);
+    group.add(mesh);
+    // Down the middle of the churchyard, oldest nearest the church.
+    const col = Math.floor(g.i / 8);
+    group.position.set(-8.75 + col * 1.3 - 0.65 * Math.min(col, 1), 0, -34 - 4.4 + (g.i % 8) * 1.25);
+    return group;
   });
 
   // Meeting stools around the tower, the hand on the cobbles, and a mark by each raised hand.
@@ -317,6 +347,18 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   const markMat = new THREE.MeshBasicMaterial({ color: '#f2c14e' });
   const meeting = new THREE.Group();
   meeting.visible = false;
+  const handRing = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.06, 6, 20), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
+  handRing.rotation.x = Math.PI / 2;
+  handRing.position.y = 0.11;
+  handRing.visible = false;
+  meeting.add(handRing);
+  let handTarget = 0;
+  const signEl = document.createElement('div');
+  signEl.className = 'meeting-sign cosy-panel';
+  const sign = new CSS2DObject(signEl);
+  sign.position.set(0, 6.2, 0);
+  sign.visible = false;
+  meeting.add(sign);
   const hand = (() => {
     const b = new Builder();
     b.add(G.box(), '#2a211c', { pos: [0, 0, 2.2], scale: [0.26, 0.05, 3.6] });
@@ -436,7 +478,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     doors: makeDoors(),
     stations: makeStations(),
     houseSlots,
-    spawn: { x: 0, z: 17.5, ry: Math.PI },
+    spawn: { x: 0, z: 10.5, ry: Math.PI },
     homeSpawn: { x: BED.x - 1.7, z: BED.z + 1.1, ry: Math.PI / 2 },
     meetingSpot: (i, n) => aroundSquare(i, n, STOOL_R),
     meetingRadius: MEETING_R,
@@ -506,9 +548,21 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       });
       if (m.hand !== null && m.hand >= 0 && m.hand < m.n) {
         const spot = aroundSquare(m.hand, m.n, STOOL_R);
+        if (!hand.visible) hand.rotation.y = Math.atan2(spot.x, spot.z);
+        handTarget = Math.atan2(spot.x, spot.z);
         hand.visible = true;
-        hand.rotation.y = Math.atan2(spot.x, spot.z);
-      } else hand.visible = false;
+        handRing.visible = true;
+        handRing.position.set(spot.x, 0.11, spot.z);
+      } else {
+        hand.visible = false;
+        handRing.visible = false;
+      }
+      signEl.textContent = m.label ?? '';
+      sign.visible = Boolean(m.label);
+    },
+
+    setGraves(names) {
+      graves.sync(names.map((name, i) => ({ id: `${i}:${name}`, name, i })));
     },
 
     follow(x, z) {
@@ -530,10 +584,17 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       for (let i = 0; i < pos.count; i++) {
         const x = w.base[i * 3];
         const z = w.base[i * 3 + 2];
-        pos.setY(i, w.base[i * 3 + 1] + Math.sin(x * 0.9 + t * 1.4) * 0.025 + Math.sin(z * 1.3 + t * 1.1) * 0.025);
+        pos.setY(i, w.base[i * 3 + 1] + Math.sin(x * 0.7 + t * 0.9) * 0.012 + Math.sin(z * 0.9 + t * 0.7 + 1) * 0.012);
       }
       pos.needsUpdate = true;
-      w.mesh.geometry.computeVertexNormals();
+      w.material.opacity = 0.88 + Math.sin(t * 0.8) * 0.03;
+      // The hand swings round to the next stool rather than jumping.
+      if (hand.visible) {
+        let d = handTarget - hand.rotation.y;
+        while (d > Math.PI) d -= Math.PI * 2;
+        while (d < -Math.PI) d += Math.PI * 2;
+        hand.rotation.y += d * Math.min(1, dt * 5);
+      }
       // The flag, the clock and the bell.
       outdoor.flag.rotation.y = Math.sin(t * 1.7) * 0.25 + Math.sin(t * 4.1) * 0.08;
       const d = new Date();
@@ -587,9 +648,9 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       });
       const now = Date.now();
       flowers.each((f) => {
-        const age = f.at ? (now - f.at) / 60000 : 1;
+        const age = f.at ? (now - f.at) / 30000 : 1;
         const g = smooth(THREE.MathUtils.clamp(age, 0, 1));
-        f.obj.scale.setScalar(0.15 + 0.85 * g);
+        f.obj.scale.setScalar(0.45 + 0.55 * g);
       });
     },
 

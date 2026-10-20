@@ -29,6 +29,16 @@ export type AnimalId =
   | 'octopus'
   | 'duck'
   | 'platypus'
+  | 'capybara'
+  | 'redpanda'
+  | 'quokka'
+  | 'sloth'
+  | 'seal'
+  | 'puffin'
+  | 'snail'
+  | 'fennec'
+  | 'chinchilla'
+  | 'highland'
   | 'bunny';
 
 export interface AnimalInfo {
@@ -82,6 +92,16 @@ export const ANIMALS: AnimalInfo[] = [
   { id: 'octopus', name: 'Octopus', aquatic: true, colors: ['#c45a7a', '#8a5ab0', '#e2793a'] },
   { id: 'duck', name: 'Duck', aquatic: true, colors: ['#f6d55c', '#f4efe6', '#8a6a4a'] },
   { id: 'platypus', name: 'Platypus', aquatic: true, colors: ['#7a5638', '#5a4030', '#9a7454'] },
+  { id: 'capybara', name: 'Capybara', aquatic: false, colors: ['#a97c50', '#8b6a45', '#c49a6c'] },
+  { id: 'redpanda', name: 'Red Panda', aquatic: false, colors: ['#c8532e', '#a8402a', '#e07a3a'] },
+  { id: 'quokka', name: 'Quokka', aquatic: false, colors: ['#9a8a70', '#b8a080', '#6a5a48'] },
+  { id: 'sloth', name: 'Sloth', aquatic: false, colors: ['#b89c7a', '#9a8268', '#d8c4a4'] },
+  { id: 'seal', name: 'Seal', aquatic: true, colors: ['#8a9aa6', '#6a7682', '#e8e4dc'] },
+  { id: 'puffin', name: 'Puffin', aquatic: true, colors: ['#2e2e36', '#4a4a58', '#f4efe6'] },
+  { id: 'snail', name: 'Snail', aquatic: false, colors: ['#c8853a', '#8a5ab0', '#5fae55', '#e0605a'] },
+  { id: 'fennec', name: 'Fennec Fox', aquatic: false, colors: ['#e3c89a', '#d4b07a', '#f4efe6'] },
+  { id: 'chinchilla', name: 'Chinchilla', aquatic: false, colors: ['#9aa0a8', '#6d6f78', '#e8d3a9'] },
+  { id: 'highland', name: 'Highland Cow', aquatic: false, colors: ['#c47a3a', '#3d3f47', '#e8d3a9'] },
   { id: 'bunny', name: 'Bunny', aquatic: false, colors: ['#f4efe6', '#c89b62', '#9aa0a8', '#f2a7b8'], reservedFor: 'jarrod' },
 ];
 
@@ -148,7 +168,7 @@ export type ClothKind = 'shirt' | 'sock' | 'dress' | 'towel' | 'pants';
 export type FlowerKind = 'tulip' | 'daisy' | 'sunflower' | 'rose';
 
 /** Something held in the right paw. The grimoire is the Storyteller's; `c: 'open'` while they read it. */
-export type ItemKind = DrinkKind | BakeKind | 'fish' | 'flower' | 'rod' | 'can' | 'washing' | 'grimoire';
+export type ItemKind = DrinkKind | BakeKind | 'fish' | 'flower' | 'rod' | 'can' | 'washing' | 'grimoire' | 'water';
 
 export interface Item {
   k: ItemKind;
@@ -199,7 +219,7 @@ export interface Door {
   label: string;
 }
 
-export type JobId = 'bartender' | 'laundry' | 'fishing' | 'baking' | 'gardening' | 'takeDrink' | 'takeBread' | 'sleep' | 'sit';
+export type JobId = 'bartender' | 'laundry' | 'fishing' | 'baking' | 'gardening' | 'takeDrink' | 'takeBread' | 'sleep' | 'sit' | 'well' | 'notice';
 
 export interface Station {
   id: string;

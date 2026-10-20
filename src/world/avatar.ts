@@ -25,6 +25,7 @@ export class AvatarView {
   private nameEl: HTMLSpanElement;
   private roleEl: HTMLSpanElement;
   private badgeEl: HTMLSpanElement;
+  private earEl: HTMLSpanElement;
   private bubbleEl: HTMLDivElement;
   private bubbleTimer: ReturnType<typeof setTimeout> | null = null;
   private key = '';
@@ -59,11 +60,15 @@ export class AvatarView {
     plate.className = 'tag-plate';
     const voice = document.createElement('i');
     voice.className = 'tag-voice';
+    this.earEl = document.createElement('span');
+    this.earEl.className = 'tag-ear';
+    this.earEl.textContent = '🔊';
+    this.earEl.title = 'Can hear you';
     this.nameEl = document.createElement('span');
     this.nameEl.className = 'tag-name';
     this.badgeEl = document.createElement('span');
     this.badgeEl.className = 'tag-badge';
-    plate.append(voice, this.nameEl, this.badgeEl);
+    plate.append(voice, this.nameEl, this.earEl, this.badgeEl);
     this.el.append(this.bubbleEl, this.roleEl, plate);
     this.label = new CSS2DObject(this.el);
     this.label.center.set(0.5, 1);
@@ -191,6 +196,11 @@ export class AvatarView {
     if (a === 'idle' && this.speed > 0.6) a = this.speed > 4.2 ? 'run' : 'walk';
     this.rig.update({ anim: a, speed: this.speed, dt, t, speaking });
     this.el.classList.toggle('talking', speaking);
+  }
+
+  /** Whether they're within earshot, shown by a little speaker by their name. */
+  setHearing(on: boolean) {
+    this.el.classList.toggle('in-earshot', on);
   }
 
   /** A little speech-bubble note over their head ("caught a Trout!"). */

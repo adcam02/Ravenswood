@@ -31,6 +31,9 @@ const ALL = {
   'bakery-inside': 'zone=bakery&t=0',
   'church-inside': 'zone=church&t=0',
   'house-inside': 'zone=house&t=1',
+  well: 'x=-7.5&z=-16&t=0&dist=10',
+  graveyard: 'x=-8.75&z=-30&t=0&dist=14',
+  'tower-top': 'x=0&z=4&t=0&dist=30&pitch=0.35',
 };
 
 const views = process.env.VIEWS ? Object.fromEntries(process.env.VIEWS.split(',').map((k) => [k, ALL[k]])) : ALL;

@@ -59,8 +59,9 @@ function freshGame(prev?: GameState, keepPlayers = true): GameState {
   return {
     v: 1,
     room: prev?.room ?? roomCode(),
-    phase: 'night',
-    day: 1,
+    // The game proper starts with Night 1; before it, the town mingles in the daylight of Day 0.
+    phase: 'day',
+    day: 0,
     script: prev?.script ?? editionScript('tb'),
     seats,
     bag: [],
@@ -131,6 +132,7 @@ export function seatsWithRole(g: GameState, roleId: string): { seat: Seat; belie
 }
 
 export function nightLabel(g: { phase: Phase; day: number }): string {
+  if (g.day === 0 && g.phase === 'day') return 'Before the game';
   return `${g.phase === 'night' ? 'Night' : 'Day'} ${g.day}`;
 }
 
@@ -602,7 +604,7 @@ export const st = {
     });
   },
   setDay(day: number) {
-    update((g) => void (g.day = Math.max(1, day)));
+    update((g) => void (g.day = Math.max(0, day)));
   },
   toggleNightDone(key: string) {
     update((g) => {

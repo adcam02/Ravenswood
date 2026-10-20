@@ -28,6 +28,10 @@ interface Hud {
   emote: Anim | null;
   /** Holding something you can sip. */
   canSip: boolean;
+  /** How many people are close enough to hear you right now. */
+  hearing: number;
+  /** The noticeboard is open. */
+  notice: boolean;
 }
 
 export const useHud = create<Hud>(() => ({
@@ -40,6 +44,8 @@ export const useHud = create<Hud>(() => ({
   failed: null,
   emote: null,
   canSip: false,
+  hearing: 0,
+  notice: false,
 }));
 
 /** Commands from the on-screen buttons to the 3D world. The world fills these in when it starts. */
