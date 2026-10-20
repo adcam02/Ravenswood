@@ -41,6 +41,7 @@ const ALL = {
   gallows: 'x=8.6&z=6.2&t=0&dist=12&gallows=1&yaw=0.9',
   'gallows-shut': 'x=8.6&z=6.2&t=0&dist=12&gallows=0&yaw=0.9',
   'cottage-gable': 'x=25.6&z=13.6&t=0&dist=11&yaw=2.3&pitch=0.45',
+  'well-roof': 'x=-6.5&z=-15.5&t=0&dist=6&pitch=1.1&yaw=0.4',
 };
 
 const views = process.env.VIEWS ? Object.fromEntries(process.env.VIEWS.split(',').map((k) => [k, ALL[k]])) : ALL;

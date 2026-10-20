@@ -248,9 +248,10 @@ export class Paint {
         }
       }
     }
-    // Ridge caps: a row of rounded tiles along the top.
+    // Ridge caps: a row of rounded tiles along the top, over a ridge beam that closes the gap between the slabs.
     const top = this.at(x, 0, z, ry);
     const capLen = len + overhang * 1.5;
+    top.box(shade(color, -0.16), capLen, thick * 1.3, thick * 1.5, 0, y + h + thick * 0.45, 0);
     const caps = Math.max(2, Math.round(capLen / 0.45));
     const cw = capLen / caps;
     for (let j = 0; j < caps; j++) {

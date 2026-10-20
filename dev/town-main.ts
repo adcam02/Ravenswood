@@ -82,7 +82,15 @@ function loop() {
       const m = o as THREE.Mesh;
       if (m.isMesh && m.geometry) total += (m.geometry.index ? m.geometry.index.count : m.geometry.getAttribute('position').count) / 3;
     });
-    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, total: Math.round(total), buildMs };
+    // Any NaN normal shows up as a black patch, so count them.
+    let badNormals = 0;
+    scene.traverse((o) => {
+      const n = (o as THREE.Mesh).geometry?.getAttribute?.('normal') as THREE.BufferAttribute | undefined;
+      if (!n) return;
+      const arr = n.array as Float32Array;
+      for (let i = 0; i < arr.length; i++) if (Number.isNaN(arr[i])) badNormals++;
+    });
+    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, total: Math.round(total), buildMs, badNormals };
   }
 }
 loop();
