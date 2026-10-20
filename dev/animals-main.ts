@@ -1,10 +1,11 @@
 // A test bench for the animals: open /dev/animals.html?view=grid|close|poses|items|ghosts|hats&animal=fox
 // Add &hat=crown to put a hat on every animal, &detail=low for the distant versions.
 import * as THREE from 'three';
-import { animalThumbnail, buildAnimal, buildStoryteller, type Rig } from '../src/world/animals';
+import { animalThumbnail, buildAnimal, buildPet, buildStoryteller, type Pet, type Rig } from '../src/world/animals';
+import { buildBack, buildFace, buildNeck, type BackFit, type FaceFit, type NeckFit } from '../src/world/dressup';
 import { buildHat } from '../src/world/hats';
 import { buildItem } from '../src/world/items';
-import { ANIMALS, HATS, type Anim, type AnimalId, type HatId, type ItemKind } from '../src/world/types';
+import { ANIMALS, BACKS, FACES, HATS, NECKS, PETS, type Anim, type AnimalId, type BackId, type FaceId, type HatId, type ItemKind, type Look, type NeckId, type PetId } from '../src/world/types';
 
 const q = new URLSearchParams(location.search);
 const view = q.get('view') ?? 'grid';
@@ -36,6 +37,8 @@ const camera = new THREE.PerspectiveCamera(40, W / H, 0.1, 200);
 const rigs: { rig: Rig; anim: Anim; speed: number; spinning?: boolean }[] = [];
 
 const hatParam = q.get('hat') as HatId | null;
+const pets: { pet: Pet; moving: boolean }[] = [];
+const lookOf = (id: AnimalId, extra: Partial<Look> = {}): Look => ({ animal: id, color: ANIMALS.find((x) => x.id === id)!.colors[0], ...extra });
 const lowParam = q.get('detail') === 'low';
 function place(rig: Rig, x: number, z: number, anim: Anim = 'idle', speed = 0, ry = 0) {
   rig.root.position.set(x, 0, z);
@@ -133,6 +136,49 @@ if (view === 'grid' || view === 'night') {
   });
   camera.position.set(0, 3.6, 8.2);
   camera.lookAt(0, 0.5, -0.2);
+} else if (view === 'dressup') {
+  // Front row: full outfits with a pet beside each. Back row: very different heads all wearing the same piece
+  // (?face=, ?neck=, ?back= pick it; by default each head tries a different face piece).
+  const outfits: [AnimalId, Partial<Look>][] = [
+    ['fox', { face: 'glasses', neck: 'scarf', back: 'backpack', pet: 'chick' }],
+    ['cat', { face: 'hearts', neck: 'bowtie', back: 'butterfly', pet: 'slime' }],
+    ['wolf', { face: 'shades', neck: 'bandana', back: 'cape', pet: 'ghost' }],
+    ['bear', { face: 'monocle', neck: 'pearls', back: 'satchel', pet: 'mouse', hat: 'tophat' }],
+    ['penguin', { face: 'moustache', neck: 'bell', back: 'wings', pet: 'bee' }],
+    ['raven', { face: 'mask', neck: 'lei', back: 'balloon', pet: 'snail' }],
+  ];
+  const moving = q.has('moving');
+  outfits.forEach(([id, extra], i) => {
+    const x = (i - 2.5) * 1.55;
+    const r = place(buildAnimal(lookOf(id, extra)), x, 1.2, moving ? 'walk' : 'idle', moving ? 1.6 : 0, 0.3);
+    if (q.has('ghost') && i % 2) r.setGhost(true);
+    const pet = buildPet(extra.pet as PetId);
+    pet.root.position.set(x + 0.55, 0, 1.35);
+    pet.root.rotation.y = 0.3;
+    if (q.has('ghost') && i % 2) pet.setGhost(true);
+    scene.add(pet.root);
+    pets.push({ pet, moving });
+  });
+  const heads: AnimalId[] = ['fox', 'owl', 'snail', 'squid', 'jellyfish', 'highland', 'bunny', 'bat'];
+  const face = q.get('face') as FaceId | null;
+  const neck = q.get('neck') as NeckId | null;
+  const back = q.get('back') as BackId | null;
+  heads.forEach((id, i) => {
+    const f = face ?? (neck || back ? null : FACES[i % FACES.length].id);
+    place(buildAnimal(lookOf(id, { face: f, neck, back })), (i - 3.5) * 1.15, -0.6, 'idle', 0, Number(q.get('ry') ?? 0.3));
+  });
+  camera.position.set(0, 3.2, 8.6);
+  camera.lookAt(0, 0.8, 0);
+} else if (view === 'pets') {
+  PETS.forEach((p, i) => {
+    const pet = buildPet(p.id);
+    pet.root.position.set((i - 2.5) * 0.7, 0, 0);
+    pet.root.rotation.y = 0.35;
+    scene.add(pet.root);
+    pets.push({ pet, moving: q.has('moving') });
+  });
+  camera.position.set(0, 1.1, 3.4);
+  camera.lookAt(0, 0.2, 0);
 } else if (view === 'ghosts') {
   ['fox', 'bunny', 'octopus', 'owl', 'shark'].forEach((id, i) => {
     const r = place(buildAnimal({ animal: id as AnimalId, color: ANIMALS.find((x) => x.id === id)!.colors[0] }), i * 1.4 - 2.8, 0, i === 2 ? 'wave' : 'idle');
@@ -172,6 +218,7 @@ function frame(now: number) {
   for (const r of rigs) {
     r.rig.update({ anim: r.anim, speed: r.speed, dt, t });
   }
+  for (const p of pets) p.pet.update(dt, t, p.moving);
   renderer.render(scene, camera);
   frames++;
   if (frames === 12) {
@@ -197,7 +244,22 @@ function frame(now: number) {
       });
       hats[h.id] = Math.round(n);
     }
-    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, rigs: tris, levels, hats };
+    // Every dress-up piece on a fox, and every pet.
+    const count = (o: THREE.Object3D) => {
+      let n = 0;
+      o.traverse((c) => {
+        const m = c as THREE.Mesh;
+        if (m.isMesh) n += ((m.geometry.index?.count ?? m.geometry.getAttribute('position')?.count ?? 0) / 3) * ((m as THREE.InstancedMesh).isInstancedMesh ? (m as THREE.InstancedMesh).count : 1);
+      });
+      return Math.round(n);
+    };
+    const fox = buildAnimal(lookOf('fox')) as unknown as { dressFit: { face: FaceFit; neck: NeckFit; back: BackFit } };
+    const pieces: Record<string, number> = {};
+    for (const f of FACES) pieces[`face:${f.id}`] = count(buildFace(f.id, fox.dressFit.face)!.group);
+    for (const f of NECKS) pieces[`neck:${f.id}`] = count(buildNeck(f.id, fox.dressFit.neck)!.group);
+    for (const f of BACKS) pieces[`back:${f.id}`] = count(buildBack(f.id, fox.dressFit.back)!.group);
+    for (const p of PETS) pieces[`pet:${p.id}`] = count(buildPet(p.id).root);
+    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, rigs: tris, levels, hats, pieces };
     (window as unknown as { done: boolean }).done = true;
   }
   requestAnimationFrame(frame);

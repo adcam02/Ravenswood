@@ -1,8 +1,18 @@
 import * as THREE from 'three';
 import { Builder, glow, placeMatrix, soft, wet, type Vec3 } from './build';
+import { buildBack, buildFace, buildNeck, type BackFit, type BuiltPiece, type FaceFit, type NeckFit } from './dressup';
 import { buildHat, type BuiltHat, type HatFit } from './hats';
 import { buildItem, disposeObject } from './items';
-import { animalInfo, type Anim, type AnimalId, type HatId, type Item, type Look } from './types';
+import { animalInfo, type Anim, type AnimalId, type BackId, type FaceId, type HatId, type Item, type Look, type NeckId } from './types';
+
+export { buildPet, type Pet } from './pets';
+
+/** What's worn besides a hat: on the face, round the neck, on the back. */
+export interface DressUp {
+  face?: FaceId | null;
+  neck?: NeckId | null;
+  back?: BackId | null;
+}
 
 /**
  * Chibi low-poly animals, built from simple shapes in code. Each moving part (torso, head, eyes, each
@@ -32,6 +42,8 @@ export interface Rig {
   setHat(hat: HatId | null): void;
   /** 'low' swaps in a cheaper version of every part (about a quarter of the triangles), for players far away. */
   setDetail(level: 'high' | 'low'): void;
+  /** Puts on (or takes off) face, neck and back pieces; a field left out is left as it is, null takes it off. */
+  setDressUp(d: DressUp): void;
   dispose(): void;
 }
 
@@ -1697,6 +1709,8 @@ interface RigParts {
   /** Builds the same animal with the light shapes, and the key its parts are cached under. */
   lowKit?: () => Kit;
   lowKey?: string;
+  /** Where dress-up goes; none for the Storyteller. */
+  dressFit?: { face: FaceFit; neck: NeckFit; back: BackFit };
 }
 
 type PartName = 'torso' | 'head' | 'eyes' | 'armL' | 'armR' | 'legL' | 'legR' | 'tail';
@@ -1773,6 +1787,10 @@ class AnimalRig implements Rig {
   private hatFit?: HatFit;
   private hat: { id: HatId; built: BuiltHat; holder: THREE.Group } | null = null;
   private baseHeadHeight = 1.1;
+  private dressFit?: { face: FaceFit; neck: NeckFit; back: BackFit };
+  private worn: Record<'face' | 'neck' | 'back', { id: string; piece: BuiltPiece } | null> = { face: null, neck: null, back: null };
+  private lastSpeed = 0;
+  private lastT = 0;
 
   constructor(p: RigParts) {
     const k = p.parts;
@@ -1785,6 +1803,7 @@ class AnimalRig implements Rig {
     this.material = p.material;
     this.eyeMaterial = p.eyeMaterial ?? p.material;
     this.hatFit = p.hatFit;
+    this.dressFit = p.dressFit;
     this.lowKit = p.lowKit;
     this.lowKey = p.lowKey;
     this.owned.push(p.material);
@@ -1901,9 +1920,38 @@ class AnimalRig implements Rig {
     this.headHeight = Math.max(this.baseHeadHeight, top);
   }
 
+  setDressUp(d: DressUp) {
+    const fit = this.dressFit;
+    if (!fit) return;
+    const slots: ['face' | 'neck' | 'back', string | null | undefined][] = [
+      ['face', d.face],
+      ['neck', d.neck],
+      ['back', d.back],
+    ];
+    for (const [slot, id] of slots) {
+      if (id === undefined) continue;
+      const cur = this.worn[slot];
+      if ((cur?.id ?? null) === id) continue;
+      if (cur) {
+        cur.piece.group.removeFromParent();
+        cur.piece.group.traverse((o) => (o as THREE.Mesh).isMesh && (o as THREE.Mesh).geometry.dispose());
+        for (const m of cur.piece.materials) m.dispose();
+        this.worn[slot] = null;
+      }
+      if (!id) continue;
+      const piece = slot === 'face' ? buildFace(id as FaceId, fit.face) : slot === 'neck' ? buildNeck(id as NeckId, fit.neck) : buildBack(id as BackId, fit.back);
+      if (!piece) continue;
+      // Face pieces move with the head; the rest with the body.
+      (slot === 'face' ? this.neck : this.body).add(piece.group);
+      this.worn[slot] = { id, piece };
+      piece.update?.(this.lastT, 0, this.lastSpeed);
+    }
+    this.applyHatGhost();
+  }
+
   private applyHatGhost() {
-    if (!this.hat) return;
-    for (const { mesh, material } of this.hat.built.solid) {
+    const solids = [...(this.hat?.built.solid ?? []), ...Object.values(this.worn).flatMap((w) => w?.piece.solid ?? [])];
+    for (const { mesh, material } of solids) {
       mesh.material = this.ghost ? this.ghostMaterial : material;
       mesh.castShadow = !this.ghost;
     }
@@ -2192,6 +2240,10 @@ class AnimalRig implements Rig {
 
     if (this.drips && !this.ghost) this.updateDrips(dt);
     this.hat?.built.update?.(s.t + this.seed);
+    const moving = s.anim === 'walk' || s.anim === 'run' ? Math.max(s.speed, s.anim === 'run' ? 4 : 1.6) : 0;
+    this.lastSpeed = moving;
+    this.lastT = s.t + this.seed;
+    for (const w of Object.values(this.worn)) w?.piece.update?.(s.t + this.seed, dt, moving);
   }
 
   private updateDrips(dt: number) {
@@ -2224,6 +2276,7 @@ class AnimalRig implements Rig {
   dispose() {
     this.setItem(null);
     this.setHat(null);
+    this.setDressUp({ face: null, neck: null, back: null });
     // Back to this rig's own geometry first: the distant versions are shared and stay cached.
     this.setDetail('high');
     for (const m of this.meshes) m.geometry.dispose();
@@ -2278,6 +2331,7 @@ export function buildAnimal(look: Look): Rig {
     aquatic,
     sleepy: res.sleepy,
     hatFit: hatFit(info.id, k.shape),
+    dressFit: dressFit(info.id, k),
     lowKey: `${info.id}:${coat}`,
     lowKit: () => {
       const lk = newKit();
@@ -2286,7 +2340,40 @@ export function buildAnimal(look: Look): Rig {
     },
   });
   if (look.hat) rig.setHat(look.hat);
+  if (look.face || look.neck || look.back) rig.setDressUp({ face: look.face ?? null, neck: look.neck ?? null, back: look.back ?? null });
   return rig;
+}
+
+/** Torso half-width at a height, from its ellipsoid. */
+const torsoR = (s: Shape, y: number) => s.tr[0] * Math.sqrt(Math.max(0, 1 - ((y - s.tc[1]) / s.tr[1]) ** 2));
+
+/** Some bodies need their neck ring or back placed by hand: the snail's back is its shell, the squid's its mantle. */
+const DRESS_NUDGE: Partial<Record<AnimalId, { neck?: Partial<NeckFit>; back?: Partial<BackFit>; floating?: boolean }>> = {
+  snail: { neck: { centre: [0, 0.27, 0.3], r: 0.12, tilt: 0.5 }, back: { centre: [0, 0.4, -0.1], r: 0.25, depth: 0.22, top: 0.62, bottom: 0.2 }, floating: true },
+  squid: { neck: { centre: [0, 0.4, 0], r: 0.16 }, back: { centre: [0, 0.66, 0], r: 0.21, depth: 0.21, top: 0.86, bottom: 0.42 } },
+  jellyfish: { neck: { centre: [0, 0.55, 0], r: 0.32 }, back: { centre: [0, 0.66, 0], r: 0.3, depth: 0.3, top: 0.86, bottom: 0.56 } },
+  octopus: { neck: { centre: [0, 0.37, 0], r: 0.25 }, back: { centre: [0, 0.66, 0], r: 0.32, depth: 0.31, top: 0.86, bottom: 0.4 } },
+};
+
+function dressFit(id: AnimalId, k: Kit): { face: FaceFit; neck: NeckFit; back: BackFit } {
+  const s = k.shape;
+  const n = DRESS_NUDGE[id] ?? {};
+  // The neck ring sits just under the chin, wide enough to show round the top of the torso.
+  const chin = NECK[1] + s.hc[1] - s.hr[1];
+  const ny = Math.min(chin - 0.03, s.tc[1] + s.tr[1] * 0.85);
+  const nr = Math.max(0.1, torsoR(s, ny) + 0.012);
+  const neck: NeckFit = { centre: [0, ny, s.tc[2]], r: nr, tilt: 0.12, ...n.neck };
+  const back: BackFit = {
+    centre: s.tc,
+    r: s.tr[0],
+    depth: s.tr[2],
+    top: s.tc[1] + s.tr[1] * 0.72,
+    bottom: s.tc[1] - s.tr[1] * 0.85,
+    headTop: NECK[1] + s.hc[1] + s.hr[1],
+    ...n.back,
+  };
+  const face: FaceFit = { eyeX: k.eyeX, eyeY: k.eyeY, eyeR: k.eyeR, eyeZ: k.eyeZ, nose: k.nose, hc: s.hc, hr: s.hr, floating: n.floating };
+  return { face, neck, back };
 }
 
 /**
@@ -2409,7 +2496,7 @@ let thumbCamera: THREE.PerspectiveCamera | null = null;
 const thumbCache = new Map<string, string>();
 
 export function animalThumbnail(look: Look, size = 128): string {
-  const key = `${look.animal}:${look.color}:${look.hat ?? ''}:${size}`;
+  const key = `${look.animal}:${look.color}:${look.hat ?? ''}:${look.face ?? ''}:${look.neck ?? ''}:${look.back ?? ''}:${size}`;
   const hit = thumbCache.get(key);
   if (hit) return hit;
   try {

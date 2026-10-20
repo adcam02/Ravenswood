@@ -357,7 +357,7 @@ function wallWindow(p: Paint, w: number, h: number, trim: THREE.ColorRepresentat
   }
   // Clear and frosted glass glows warm at night; stained glass glows in its own colours.
   const clear = glass === GLASS || glass === '#c9d3c0' || glass === '#d6e2e8';
-  glowAt(p, 0, 0, 0.3, Math.max(w, h) * 1.8 + 0.35, clear ? WARM_GLOW : `#${shade(glass, 0.12).getHexString()}`);
+  glowAt(p, 0, 0, 0.25, Math.max(w, h) * 1.25 + 0.25, clear ? '#b87a3a' : `#${shade(glass, -0.05).getHexString()}`);
   if (shutters) {
     for (const sx of [-1, 1]) {
       const x = sx * (w / 2 + 0.08 + 0.17);
@@ -1373,16 +1373,38 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   collect = { glow: glowSpots, perches };
   // Leaves, grass and reeds sway in the wind.
   const leafMat = addSway(matte());
+  const forestMat = addSway(matte(), true);
 
   // Chunks of static geometry, so off-screen parts of town can be skipped.
   const chunks = new Map<string, Layers>();
+  const mains = new Map<string, Builder>();
+  const chunkMain = (key: string) => {
+    let b = mains.get(key);
+    if (!b) {
+      b = new Builder();
+      mains.set(key, b);
+    }
+    return b;
+  };
   const glass = new Builder();
+  // Leaves and grass inside the fence sway, in a few big pieces; beyond the fence they stay still with the rest.
+  const leafChunks = new Map<string, Builder>();
   const chunkAt = (x: number, z: number): Layers => {
-    const key = `${Math.floor(x / 32)},${Math.floor(z / 32)}`;
-    let l = chunks.get(key);
+    // 48 m pieces: big enough to keep the draw calls down, small enough that most of the forest ring is skipped.
+    const key = `${Math.floor(x / 48)},${Math.floor(z / 48)}`;
+    const inside = Math.hypot(x, z) < TOWN_R + 1;
+    // All of the town's swaying leaves in one piece: it's nearly always in view anyway.
+    const lkey = 'town';
+    let foliage = inside ? leafChunks.get(lkey) : undefined;
+    if (inside && !foliage) {
+      foliage = new Builder();
+      leafChunks.set(lkey, foliage);
+    }
+    const ckey = `${key}:${inside ? lkey : '-'}`;
+    let l = chunks.get(ckey);
     if (!l) {
-      l = { main: new Builder(), glass, foliage: new Builder() };
-      chunks.set(key, l);
+      l = { main: chunkMain(key), glass, foliage };
+      chunks.set(ckey, l);
     }
     return l;
   };
@@ -1500,37 +1522,68 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     placed++;
   }
   {
+    // Each tree shape is built (and smoothed) once, then copied into place: four quarter-rings of forest, so the
+    // quarters behind the camera are skipped, with no smoothing pass over the whole lot.
     const vr = rng(4242);
-    const trunkMat = matte();
-    const m4 = new THREE.Matrix4();
-    const q4 = new THREE.Quaternion();
-    const tint = new THREE.Color();
-    for (let v = 0; v < 8; v++) {
-      const list = forest.filter((f) => f.v === v);
-      if (!list.length) continue;
-      const trunk = new Builder();
-      const crown = new Builder();
-      const p = new Paint({ main: trunk, glass: new Builder(), foliage: crown });
+    const shapes = Array.from({ length: 8 }, (_, v) => {
+      const tree = new Builder();
+      const p = new Paint({ main: tree, glass: new Builder(), foliage: tree });
       if (v < 3) pineTree(p, vr, false);
       else roundTree(p, vr, v >= 6, false);
-      for (const [b, mat, tinted] of [
-        [trunk, trunkMat, false],
-        [crown, leafMat, true],
-      ] as [Builder, THREE.Material, boolean][]) {
-        if (b.empty) continue;
-        const im = new THREE.InstancedMesh(b.geometry(), mat, list.length);
-        list.forEach((f, i) => {
-          m4.compose(new THREE.Vector3(f.x, hillAt(f.x, f.z) - 0.4, f.z), q4.setFromAxisAngle(new THREE.Vector3(0, 1, 0), f.ry), new THREE.Vector3(f.s, f.s, f.s));
-          im.setMatrixAt(i, m4);
-          if (tinted) im.setColorAt(i, tint.setScalar(0.88 + vr() * 0.24));
-        });
-        im.castShadow = true;
-        im.receiveShadow = true;
-        im.computeBoundingSphere();
-        im.name = 'forest';
-        group.add(im);
+      return tree.geometry();
+    });
+    const quarters: (typeof forest)[] = [[], [], [], []];
+    for (const f of forest) quarters[Math.floor(((Math.atan2(f.x, -f.z) + Math.PI * 2.25) % (Math.PI * 2)) / (Math.PI / 2))].push(f);
+    const m4 = new THREE.Matrix4();
+    const q4 = new THREE.Quaternion();
+    const up = new THREE.Vector3(0, 1, 0);
+    const v3 = new THREE.Vector3();
+    const n3 = new THREE.Vector3();
+    for (const list of quarters) {
+      if (!list.length) continue;
+      const verts = list.reduce((n, f) => n + shapes[f.v].getAttribute('position').count, 0);
+      const pos = new Float32Array(verts * 3);
+      const nor = new Float32Array(verts * 3);
+      const colr = new Float32Array(verts * 3);
+      const sway = new Float32Array(verts);
+      let o = 0;
+      for (const f of list) {
+        const g = shapes[f.v];
+        const gp = g.getAttribute('position') as THREE.BufferAttribute;
+        const gn = g.getAttribute('normal') as THREE.BufferAttribute;
+        const gc = g.getAttribute('color') as THREE.BufferAttribute;
+        q4.setFromAxisAngle(up, f.ry);
+        m4.compose(v3.set(f.x, hillAt(f.x, f.z) - 0.4, f.z), q4, n3.set(f.s, f.s, f.s));
+        const tint = 0.88 + vr() * 0.24;
+        for (let i = 0; i < gp.count; i++, o++) {
+          v3.fromBufferAttribute(gp, i);
+          sway[o] = v3.y * f.s;
+          v3.applyMatrix4(m4);
+          pos[o * 3] = v3.x;
+          pos[o * 3 + 1] = v3.y;
+          pos[o * 3 + 2] = v3.z;
+          n3.fromBufferAttribute(gn, i).applyQuaternion(q4);
+          nor[o * 3] = n3.x;
+          nor[o * 3 + 1] = n3.y;
+          nor[o * 3 + 2] = n3.z;
+          colr[o * 3] = gc.getX(i) * tint;
+          colr[o * 3 + 1] = gc.getY(i) * tint;
+          colr[o * 3 + 2] = gc.getZ(i) * tint;
+        }
       }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(colr, 3));
+      geo.setAttribute('swayH', new THREE.BufferAttribute(sway, 1));
+      geo.computeBoundingSphere();
+      const mesh = new THREE.Mesh(geo, forestMat);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.name = 'forest';
+      group.add(mesh);
     }
+    for (const g of shapes) g.dispose();
   }
   // Inside town, in the gaps.
   for (let k = 0; k < 900 && placed < 450; k++) {
@@ -1618,17 +1671,17 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
 
   // Merge everything.
   const main = matte();
-  for (const l of chunks.values()) {
-    if (!l.main.empty) {
-      const m = l.main.mesh(main);
-      m.name = 'chunk';
-      group.add(m);
-    }
-    if (l.foliage && !l.foliage.empty) {
-      const f = l.foliage.mesh(leafMat);
-      f.name = 'foliage';
-      group.add(f);
-    }
+  for (const b of mains.values()) {
+    if (b.empty) continue;
+    const m = b.mesh(main);
+    m.name = 'chunk';
+    group.add(m);
+  }
+  for (const b of leafChunks.values()) {
+    if (b.empty) continue;
+    const f = b.mesh(leafMat);
+    f.name = 'foliage';
+    group.add(f);
   }
   const occluders: THREE.Mesh[] = [];
   for (const b of solos) {

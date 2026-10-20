@@ -109,7 +109,12 @@ function loop() {
       const arr = n.array as Float32Array;
       for (let i = 0; i < arr.length; i++) if (Number.isNaN(arr[i])) badNormals++;
     });
-    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, total: Math.round(total), buildMs, badNormals, shadowRenders };
+    // How many meshes of each kind, to keep an eye on draw calls.
+    const kinds: Record<string, number> = {};
+    scene.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh && o.visible) kinds[o.name || 'other'] = (kinds[o.name || 'other'] ?? 0) + 1;
+    });
+    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, total: Math.round(total), buildMs, badNormals, shadowRenders, kinds };
   }
 }
 loop();

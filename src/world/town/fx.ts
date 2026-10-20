@@ -13,15 +13,16 @@ import { G } from './kit';
 export const swayUniforms = { uSwayTime: { value: 0 }, uSway: { value: 1 } };
 
 /**
- * Makes a material sway in the wind. The sway grows with height above the ground (world y for the merged
- * town meshes, local y for instanced trees), so trunks and stems stay planted while crowns move.
+ * Makes a material sway in the wind. The sway grows with height above the ground, so trunks and stems stay
+ * planted while crowns move: world y for the town's meshes (the ground there is flat), or a per-vertex `swayH`
+ * attribute (`byAttribute`) for trees standing on the hills.
  */
-export function addSway<M extends THREE.Material>(mat: M): M {
+export function addSway<M extends THREE.Material>(mat: M, byAttribute = false): M {
   mat.onBeforeCompile = (shader) => {
     shader.uniforms.uSwayTime = swayUniforms.uSwayTime;
     shader.uniforms.uSway = swayUniforms.uSway;
     shader.vertexShader =
-      'uniform float uSwayTime;\nuniform float uSway;\n' +
+      `uniform float uSwayTime;\nuniform float uSway;\n${byAttribute ? 'attribute float swayH;\n' : ''}` +
       shader.vertexShader.replace(
         '#include <begin_vertex>',
         `#include <begin_vertex>
@@ -30,14 +31,14 @@ export function addSway<M extends THREE.Material>(mat: M): M {
           #ifdef USE_INSTANCING
             swayP += instanceMatrix[3].xz;
           #endif
-          float swayH = clamp(transformed.y, 0.0, 3.6);
+          float swayH = clamp(${byAttribute ? 'swayH' : 'transformed.y'}, 0.0, 3.6);
           float swayA = sin(uSwayTime * 1.55 + swayP.x * 0.35 + swayP.y * 0.27) + 0.45 * sin(uSwayTime * 2.7 + swayP.x * 0.9 - swayP.y * 0.6);
           transformed.x += swayA * swayH * 0.028 * uSway;
           transformed.z += cos(uSwayTime * 1.25 + swayP.y * 0.31 + swayP.x * 0.12) * swayH * 0.016 * uSway;
         }`,
       );
   };
-  mat.customProgramCacheKey = () => 'sway';
+  mat.customProgramCacheKey = () => (byAttribute ? 'sway-attr' : 'sway');
   return mat;
 }
 
@@ -279,24 +280,29 @@ export interface Mist {
   set(amount: number, dt: number, center: THREE.Vector3, color: THREE.Color): void;
 }
 
-/** Low sheets of mist drifting over the ground around a point. */
+/** Low sheets of mist drifting over the ground around a point, drawn in one go. */
 export function makeMist(n = 12): Mist {
   const group = new THREE.Group();
   group.name = 'mist';
   const material = new THREE.MeshBasicMaterial({ map: softDisc(128, 1.1), color: '#e8eef2', transparent: true, opacity: 0, depthWrite: false });
+  const plane = new THREE.PlaneGeometry(1, 1);
+  plane.rotateX(-Math.PI / 2);
+  const mesh = new THREE.InstancedMesh(plane, material, n);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 4;
+  group.add(mesh);
   const r = rng(23);
   const SPAN = 52;
   const sheets = Array.from({ length: n }, (_, i) => {
     const size = 11 + r() * 9;
-    const geo = new THREE.PlaneGeometry(size, size * (0.6 + r() * 0.4));
-    geo.rotateX(-Math.PI / 2);
-    const m = new THREE.Mesh(geo, material);
-    m.renderOrder = 4;
-    m.rotation.y = r() * Math.PI;
-    const s = { mesh: m, x: r() * SPAN, z: r() * SPAN, y: 0.35 + (i % 4) * 0.4, speed: 0.15 + r() * 0.25 };
-    group.add(m);
-    return s;
+    return { x: r() * SPAN, z: r() * SPAN, y: 0.35 + (i % 4) * 0.4, speed: 0.15 + r() * 0.25, sx: size, sz: size * (0.6 + r() * 0.4), ry: r() * Math.PI };
   });
+  const m4 = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const up = new THREE.Vector3(0, 1, 0);
+  const pos = new THREE.Vector3();
+  const scl = new THREE.Vector3();
+  const wrap = (v: number, c: number) => c + ((((v - c) % SPAN) + SPAN) % SPAN) - SPAN / 2;
   group.visible = false;
   return {
     group,
@@ -305,11 +311,12 @@ export function makeMist(n = 12): Mist {
       if (!group.visible) return;
       material.opacity = 0.28 * amount;
       material.color.copy(color);
-      for (const s of sheets) {
+      sheets.forEach((s, i) => {
         s.x = (s.x + s.speed * dt) % SPAN;
-        const wrap = (v: number, c: number) => c + ((((v - c) % SPAN) + SPAN) % SPAN) - SPAN / 2;
-        s.mesh.position.set(wrap(s.x, center.x), s.y, wrap(s.z, center.z));
-      }
+        m4.compose(pos.set(wrap(s.x, center.x), s.y, wrap(s.z, center.z)), q.setFromAxisAngle(up, s.ry), scl.set(s.sx, 1, s.sz));
+        mesh.setMatrixAt(i, m4);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
     },
   };
 }

@@ -77,18 +77,18 @@ function beanie(): BuiltHat {
   const cuff = '#b83c38';
   const cream = '#f6ead8';
   // The crown hugs the head; the cuff is folded up round the bottom, ribbed.
-  b.add(dome(24, 10), knit, { pos: [0, -0.13, -0.01], scale: [0.3, 0.2, 0.3] });
+  b.add(dome(22, 9), knit, { pos: [0, -0.13, -0.01], scale: [0.3, 0.2, 0.3] });
   b.add(cyl(28), cuff, { pos: [0, -0.13, -0.01], scale: [0.305, 0.085, 0.305] });
-  for (let i = 0; i < 24; i++) {
-    const a = (i / 24) * Math.PI * 2;
-    b.add(cyl(6), i % 2 ? cuff : '#c8443f', { pos: [Math.sin(a) * 0.307, -0.13, -0.01 + Math.cos(a) * 0.307], scale: [0.012, 0.08, 0.012] });
+  for (let i = 0; i < 18; i++) {
+    const a = (i / 18) * Math.PI * 2;
+    b.add(cyl(5), '#c8443f', { pos: [Math.sin(a) * 0.307, -0.13, -0.01 + Math.cos(a) * 0.307], scale: [0.012, 0.08, 0.012] });
   }
   // A cream stripe round the crown, then the pom-pom.
-  b.add(torus(0.12, 6, 32), cream, { pos: [0, -0.04, -0.01], rot: [Math.PI / 2, 0, 0], scale: [0.278, 0.278, 0.12] });
-  b.add(sph(14, 10), cream, { pos: [0, 0.095, -0.01], scale: 0.075 });
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2;
-    b.add(sph(8, 6), cream, { pos: [Math.cos(a) * 0.04, 0.1 + (i % 2) * 0.02, -0.01 + Math.sin(a) * 0.04], scale: 0.045 });
+  b.add(torus(0.12, 5, 28), cream, { pos: [0, -0.04, -0.01], rot: [Math.PI / 2, 0, 0], scale: [0.278, 0.278, 0.12] });
+  b.add(sph(12, 9), cream, { pos: [0, 0.095, -0.01], scale: 0.075 });
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    b.add(sph(7, 5), cream, { pos: [Math.cos(a) * 0.04, 0.1 + (i % 2) * 0.02, -0.01 + Math.sin(a) * 0.04], scale: 0.045 });
   }
   return finish(b, { top: 0.17 });
 }
@@ -191,21 +191,21 @@ function crown(): BuiltHat {
   const gold = '#e8b83a';
   const R = 0.17;
   // Red velvet inside, a gold band (a hollow ring, so its inside shows), points with pearls, and jewels.
-  b.add(dome(20, 8), '#8a2030', { pos: [0, -0.04, 0], scale: [R * 0.95, 0.09, R * 0.95] });
+  b.add(dome(16, 6), '#8a2030', { pos: [0, -0.04, 0], scale: [R * 0.95, 0.09, R * 0.95] });
   const profile = [new THREE.Vector2(R - 0.012, -0.05), new THREE.Vector2(R + 0.006, -0.05), new THREE.Vector2(R + 0.012, 0.025), new THREE.Vector2(R - 0.006, 0.025), new THREE.Vector2(R - 0.012, -0.05)];
-  const band = new THREE.LatheGeometry(profile, 36);
+  const band = new THREE.LatheGeometry(profile, 30);
   b.add(band, gold);
   band.dispose();
-  b.add(torus(0.3, 6, 36), '#f2c94a', { pos: [0, -0.05, 0], rot: [Math.PI / 2, 0, 0], scale: [R + 0.004, R + 0.004, 0.04] });
+  b.add(torus(0.3, 4, 30), '#f2c94a', { pos: [0, -0.05, 0], rot: [Math.PI / 2, 0, 0], scale: [R + 0.004, R + 0.004, 0.04] });
   const jewels = ['#d8303c', '#3a6ad8', '#3aa860'];
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2;
     const x = Math.sin(a) * (R + 0.002);
     const z = Math.cos(a) * (R + 0.002);
-    b.add(new THREE.ConeGeometry(1, 1, 14), gold, { pos: [x, 0.06, z], scale: [0.034, 0.075, 0.03] });
-    b.add(sph(10, 8), '#fbf8f2', { pos: [Math.sin(a) * (R + 0.004), 0.105, Math.cos(a) * (R + 0.004)], scale: 0.016 });
+    b.add(new THREE.ConeGeometry(1, 1, 12), gold, { pos: [x, 0.06, z], scale: [0.034, 0.075, 0.03] });
+    b.add(sph(7, 5), '#fbf8f2', { pos: [Math.sin(a) * (R + 0.004), 0.105, Math.cos(a) * (R + 0.004)], scale: 0.016 });
     const ja = a + Math.PI / 6;
-    b.add(sph(10, 8), jewels[i % 3], { pos: [Math.sin(ja) * (R + 0.012), -0.015, Math.cos(ja) * (R + 0.012)], scale: [0.02, 0.022, 0.012], rot: [0, ja, 0] });
+    b.add(sph(8, 6), jewels[i % 3], { pos: [Math.sin(ja) * (R + 0.012), -0.015, Math.cos(ja) * (R + 0.012)], scale: [0.02, 0.022, 0.012], rot: [0, ja, 0] });
   }
   return finish(b, { top: 0.13 });
 }
