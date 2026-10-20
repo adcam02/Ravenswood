@@ -455,28 +455,33 @@ function cape(f: BackFit): BuiltPiece {
   const red = '#b8303a';
   const lining = '#e8c26a';
   const top = f.top + 0.02;
-  const H = top - Math.max(0.06, f.bottom - 0.08);
-  const r0 = f.r * 0.85;
-  const r1 = f.r * 1.45;
-  const arc = Math.PI * 1.15;
+  // It hangs to about the knees, flaring a little, over the back only.
+  const H = top - Math.max(0.08, f.bottom + 0.03);
+  const r0 = f.r * 0.92;
+  const r1 = f.r * 1.18;
+  const zs = THREE.MathUtils.clamp((f.depth / f.r) * 1.04, 0.8, 1.6);
+  const arc = Math.PI * 0.78;
   // Hung from a pivot at the shoulders so it can trail behind; outer cloth and a gold lining inside.
   const outer = new THREE.CylinderGeometry(r0, r1, H, 28, 4, true, Math.PI - arc / 2, arc);
-  b.add(outer, red, { pos: [0, -H / 2, 0] });
+  b.add(outer, red, { pos: [0, -H / 2, 0], scale: [1, 1, zs] });
   const inner = new THREE.CylinderGeometry(r0 * 0.97, r1 * 0.97, H, 28, 4, true, Math.PI - arc / 2, arc);
-  b.add(inner, lining, { pos: [0, -H / 2, 0], scale: [-1, 1, 1] });
+  b.add(inner, lining, { pos: [0, -H / 2, 0], scale: [-1, 1, zs] });
   outer.dispose();
   inner.dispose();
-  // A rolled hem along the bottom edge, following the cloth's own curve, then a collar and a gold clasp.
+  // A rolled hem along the bottom edge, following the cloth's own curve, a cord over the shoulders and a clasp.
   const hemPts: Vec3[] = [];
   for (let i = 0; i <= 16; i++) {
     const th = Math.PI - arc / 2 + (i / 16) * arc;
-    hemPts.push([Math.sin(th) * r1, -H, Math.cos(th) * r1]);
+    hemPts.push([Math.sin(th) * r1, -H, Math.cos(th) * r1 * zs]);
   }
   tube(b, '#9a2830', hemPts, 0.012, 40, 5);
-  const collar = new THREE.TorusGeometry(1, 0.12, 6, 30);
-  b.add(collar, red, { pos: [0, 0.01, 0], rot: [Math.PI / 2, 0, 0], scale: [r0 * 0.95, r0 * 0.95, r0] });
-  collar.dispose();
-  b.add(sph(12, 8), '#e8c26a', { pos: [0, 0.0, r0 * 0.95], scale: 0.026 });
+  const cordPts: Vec3[] = [];
+  for (let i = 0; i <= 20; i++) {
+    const th = Math.PI - (arc / 2) * 1.02 + (i / 20) * (Math.PI * 2 - arc) + arc;
+    cordPts.push([Math.sin(th) * r0 * 1.01, 0.005 - Math.sin((i / 20) * Math.PI) * 0.04, Math.cos(th) * r0 * zs * 1.01]);
+  }
+  tube(b, '#e8c26a', cordPts, 0.008, 30, 5);
+  b.add(sph(12, 8), '#e8c26a', { pos: [0, -0.035, r0 * zs * 1.01], scale: 0.022 });
   const material = softWith({ side: THREE.DoubleSide });
   const built = finish(b, { material });
   const pivot = new THREE.Group();
@@ -527,19 +532,21 @@ function pairedWings(f: BackFit, geo: THREE.BufferGeometry, material: THREE.Mate
 function wings(f: BackFit): BuiltPiece {
   const b = new Builder();
   const k = THREE.MathUtils.clamp(f.r / 0.2, 0.75, 1.25);
-  // A right wing (+x), swept back and up: rows of soft feathers, longest at the bottom tip.
-  const feathers = [
-    [0.05, 0.06, 0.07, 0.035, -0.3],
-    [0.1, 0.07, 0.085, 0.035, -0.55],
-    [0.15, 0.06, 0.1, 0.033, -0.8],
-    [0.19, 0.03, 0.11, 0.03, -1.05],
-    [0.08, 0.1, 0.06, 0.03, 0.2],
-    [0.13, 0.11, 0.06, 0.028, 0.0],
-  ];
-  for (const [x, y, len, w, rz] of feathers) {
-    b.add(sph(10, 6), y > 0.09 ? '#ffffff' : '#f4f0ff', { pos: [x * k, y * k, -0.04 * k], rot: [0.25, 0, rz], scale: [w * k, len * k, 0.014 * k] });
+  // A right wing (+x): a rounded leading edge rising out from the shoulder blade, a row of long flight
+  // feathers hanging from it (longest at the tip), and small coverts over their roots.
+  b.add(sph(14, 8), '#ffffff', { pos: [0.1 * k, 0.07 * k, -0.02 * k], rot: [0, 0, 0.5], scale: [0.13 * k, 0.034 * k, 0.03 * k] });
+  for (let i = 0; i < 6; i++) {
+    const u = i / 5;
+    const x = (0.03 + u * 0.17) * k;
+    const yTop = (0.02 + u * 0.11) * k;
+    const len = (0.07 + u * 0.08) * k;
+    const rz = 0.1 - u * 0.55;
+    b.add(sph(10, 6), i % 2 ? '#f6f2ff' : '#ffffff', { pos: [x + Math.sin(-rz) * len * 0.5, yTop - Math.cos(rz) * len * 0.5, -0.025 * k - i * 0.003], rot: [0.15, 0, rz], scale: [0.026 * k, len * 0.55, 0.012 * k] });
   }
-  b.add(sph(10, 7), '#ffffff', { pos: [0.05 * k, 0.1 * k, -0.03 * k], rot: [0.25, 0, -0.6], scale: [0.07 * k, 0.04 * k, 0.025 * k] });
+  for (let i = 0; i < 4; i++) {
+    const u = i / 3;
+    b.add(sph(8, 6), '#ffffff', { pos: [(0.05 + u * 0.12) * k, (0.045 + u * 0.075) * k, -0.012 * k], rot: [0.15, 0, -0.2 - u * 0.3], scale: [0.03 * k, 0.04 * k, 0.012 * k] });
+  }
   const geo = b.geometry();
   const material = softWith({ side: THREE.DoubleSide });
   return pairedWings(f, geo, material, 0.04 * k, (t, flow) => Math.sin(t * (3 + flow * 1.5)) * (0.18 + flow * 0.04), 0.35);

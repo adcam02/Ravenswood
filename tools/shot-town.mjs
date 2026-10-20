@@ -61,6 +61,10 @@ const ALL = {
   ripples: 'x=6.5&z=17.8&t=0&dist=10&ripple&frames=14',
   'forest-hills': 'x=0&z=-30&t=0&dist=30&pitch=0.35&yaw=3.1',
   'shadow-cottage': 'x=25.6&z=13.6&t=0&dist=9&yaw=0.6',
+  // The same view three times, for a steadier build time.
+  'build-1': 'wide&t=0&z=4&dist=70&run=1',
+  'build-2': 'wide&t=0&z=4&dist=70&run=2',
+  'build-3': 'wide&t=0&z=4&dist=70&run=3',
 };
 
 const views = process.env.VIEWS ? Object.fromEntries(process.env.VIEWS.split(',').map((k) => [k, ALL[k]])) : ALL;
