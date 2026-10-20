@@ -8,13 +8,16 @@ import { local } from './kit';
 
 export const TOWN_R = 36;
 export const SQUARE_R = 11;
-export const STOOL_R = 6.6;
-export const MEETING_R = 10;
+/** The meeting circle sits in front of the tower (towards the camera), so nobody is hidden behind it. */
+export const MEETING_CENTRE = { x: 0, z: 7.6 };
+export const STOOL_R = 4.2;
+/** Anyone this close to the tower counts as being at the meeting. */
+export const MEETING_R = 12.5;
 export const HOUSE_R = 29;
 export const RING_ROAD_R = 25.5;
 export const HOUSES = 20;
-/** The gallows, on the square's north-east edge, facing the tower. */
-export const GALLOWS = { x: 7.3, z: -7.3, ry: Math.atan2(-7.3, 7.3) };
+/** The gallows, just to the side of the meeting circle, facing it. */
+export const GALLOWS = { x: 8.0, z: 7.4, ry: -Math.PI / 2 };
 /** The churchyard beside the church. */
 export const GRAVEYARD = { x: -8, z: -23, hw: 2.2, hd: 5.6 };
 
@@ -26,6 +29,14 @@ export function aroundSquare(i: number, n: number, r: number): Spot {
   const x = r * Math.sin(a);
   const z = -r * Math.cos(a);
   return { x, z, ry: face(x, z, 0, 0) };
+}
+
+/** Seat i of n around the meeting circle, facing its middle. */
+export function meetingSpot(i: number, n: number): Spot {
+  const a = (i / Math.max(1, n)) * Math.PI * 2;
+  const x = MEETING_CENTRE.x + STOOL_R * Math.sin(a);
+  const z = MEETING_CENTRE.z - STOOL_R * Math.cos(a);
+  return { x, z, ry: face(x, z, MEETING_CENTRE.x, MEETING_CENTRE.z) };
 }
 
 // ---------------------------------------------------------------- public buildings
@@ -56,10 +67,10 @@ export const LINE_POS = [
 export const LINE_Y = 1.95;
 
 export const POND = { x: 15, z: 17.5, rx: 6.5, rz: 5.6 };
-export const DOCK = { x: 15, z0: 11, z1: 16.6, w: 2.6 };
+export const DOCK = { x: 15, z0: 10.6, z1: 17.4, w: 2.6 };
 export const FISHING = [
-  { x: 14.3, z: 15.7 },
-  { x: 15.7, z: 15.7 },
+  { x: 14.3, z: 16.5 },
+  { x: 15.7, z: 16.5 },
 ];
 
 export const WELL = { x: -6.5, z: -15.5 };
@@ -94,7 +105,7 @@ export function bedSpot(bed: number, spot: number): { x: number; z: number; ry: 
   return { ...local(b.x, b.z, b.ry, lx, 0), ry: b.ry };
 }
 
-export const benches = [30, 150, 210, 330].map((deg) => {
+export const benches = [70, 110, 250, 290].map((deg) => {
   const a = (deg * Math.PI) / 180;
   const r = 9.6;
   const x = r * Math.sin(a);

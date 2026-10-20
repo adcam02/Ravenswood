@@ -14,9 +14,10 @@ import {
   MEETING_R,
   POND,
   ROOMS,
+  MEETING_CENTRE,
   STOOL_R,
   TOWN_R,
-  aroundSquare,
+  meetingSpot,
   bedSpot,
   counterSpot,
   houseSlots,
@@ -405,16 +406,23 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   const signEl = document.createElement('div');
   signEl.className = 'meeting-sign cosy-panel';
   const sign = new CSS2DObject(signEl);
-  sign.position.set(0, 6.2, 0);
+  sign.position.set(MEETING_CENTRE.x, 3.4, MEETING_CENTRE.z);
   sign.visible = false;
   meeting.add(sign);
+  {
+    // A ring of red stones marking the circle, there whether or not a meeting is on.
+    const b = new Builder();
+    b.add(G.torus(0.09, 4, 48), '#b98e74', { pos: [MEETING_CENTRE.x, 0.075, MEETING_CENTRE.z], rot: [Math.PI / 2, 0, 0], scale: [STOOL_R, STOOL_R, 1] });
+    const ring = b.mesh(matte(), { cast: false });
+    outdoor.group.add(ring);
+  }
   const hand = (() => {
     const b = new Builder();
-    b.add(G.box(), '#2a211c', { pos: [0, 0, 2.2], scale: [0.26, 0.05, 3.6] });
-    b.add(G.cone(3), '#2a211c', { pos: [0, 0, 4.5], rot: [Math.PI / 2, 0, 0], scale: [0.55, 1.1, 0.5] });
+    b.add(G.box(), '#2a211c', { pos: [0, 0, 1.3], scale: [0.22, 0.05, 2.2] });
+    b.add(G.cone(3), '#2a211c', { pos: [0, 0, 2.75], rot: [Math.PI / 2, 0, 0], scale: [0.45, 0.9, 0.4] });
     b.add(G.cyl(10), '#2a211c', { pos: [0, 0, 0], scale: [0.5, 0.05, 0.5] });
     const m = new THREE.Mesh(b.geometry(), matte());
-    m.position.y = 0.13;
+    m.position.set(MEETING_CENTRE.x, 0.13, MEETING_CENTRE.z);
     m.visible = false;
     return m;
   })();
@@ -527,9 +535,9 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     doors: makeDoors(),
     stations: makeStations(),
     houseSlots,
-    spawn: { x: 0, z: 10.5, ry: Math.PI },
+    spawn: { x: 0, z: 13.2, ry: Math.PI },
     homeSpawn: { x: BED.x - 1.7, z: BED.z + 1.1, ry: Math.PI / 2 },
-    meetingSpot: (i, n) => aroundSquare(i, n, STOOL_R),
+    meetingSpot,
     meetingRadius: MEETING_R,
 
     show(kind) {
@@ -589,16 +597,17 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         s.visible = on;
         voteMarks[i].visible = on && m.votes.includes(i);
         if (!on) return;
-        const spot = aroundSquare(i, m.n, STOOL_R);
+        const spot = meetingSpot(i, m.n);
         s.position.set(spot.x, 0, spot.z);
         s.rotation.y = spot.ry;
         voteMarks[i].position.set(spot.x, 0.12, spot.z);
         s.material = i === m.nominee ? nomineeMat : stoolMat;
       });
       if (m.hand !== null && m.hand >= 0 && m.hand < m.n) {
-        const spot = aroundSquare(m.hand, m.n, STOOL_R);
-        if (!hand.visible) hand.rotation.y = Math.atan2(spot.x, spot.z);
-        handTarget = Math.atan2(spot.x, spot.z);
+        const spot = meetingSpot(m.hand, m.n);
+        const angle = Math.atan2(spot.x - MEETING_CENTRE.x, spot.z - MEETING_CENTRE.z);
+        if (!hand.visible) hand.rotation.y = angle;
+        handTarget = angle;
         hand.visible = true;
         handRing.visible = true;
         handRing.position.set(spot.x, 0.11, spot.z);

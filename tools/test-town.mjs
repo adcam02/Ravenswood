@@ -445,11 +445,15 @@ await check('game: a night death shows at dawn and the dead walk as ghosts', asy
 });
 
 await check('game: ringing the bell gathers everyone at the square', async () => {
+  for (const p of all()) await place(p, 'town', -20, 20, 0);
+  await sleep(1500);
   await st.evaluate(() => window.__st.st.callTownHall());
-  await players.abbey.waitForSelector('.bell-call', { timeout: 20000 });
+  await sleep(1200);
   await shot(players.abbey, '16-bell');
-  for (const p of all()) await jsClick(p, '.bell-call .cosy-btn', 30000);
-  await until(st, () => !window.__host.getState().g.townHall, null, 10000, 'everyone to arrive');
+  // Everyone is taken to their stool on their own; the host sees them arrive.
+  await until(st, () => !window.__host.getState().g.townHall, null, 60000, 'everyone to arrive at the square');
+  const me = await players.abbey.evaluate(() => ({ ...window.__local }));
+  expect(Math.hypot(me.x, me.z) < 13, `Abbey ended up ${Math.hypot(me.x, me.z).toFixed(1)}m from the tower`);
 });
 
 await check('game: nominations and votes raise paws round the clock', async () => {

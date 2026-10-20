@@ -1295,3 +1295,47 @@
   border-color: #8a3a5a;
   color: #f6dc93;
 }
+
+/* ---------------------------------------------------------------- the minimap */
+
+.minimap {
+  position: absolute;
+  left: 14px;
+  top: 64px;
+  z-index: 14;
+  padding: 5px;
+  border-radius: 50%;
+  overflow: hidden;
+  opacity: 0.94;
+}
+.mode-st .minimap {
+  top: 124px;
+}
+.minimap canvas {
+  display: block;
+  border-radius: 50%;
+}
+.help-btn,
+.help-card {
+  top: auto;
+  bottom: 14px;
+}
+@media (max-width: 760px) {
+  .minimap {
+    display: none;
+  }
+}
+.mode-player .my-character {
+  bottom: 14px;
+  left: 14px;
+}
+.help-btn {
+  left: auto;
+  right: 112px;
+  bottom: 96px;
+}
+.help-card {
+  left: auto;
+  right: 112px;
+  bottom: 96px;
+}

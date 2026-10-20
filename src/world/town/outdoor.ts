@@ -20,7 +20,6 @@ import {
   GRAVEYARD,
   SQUARE_R,
   STEEPLE,
-  STOOL_R,
   TAVERN,
   TOWN_R,
   TUBS,
@@ -180,7 +179,7 @@ function cobbleMesh(): THREE.Mesh {
     const r1 = Math.min(SQUARE_R - 0.05, rad + w);
     const n = Math.max(8, Math.round((Math.PI * 2 * (rad + w / 2)) / 0.85));
     const off = r() * Math.PI;
-    const ring = Math.abs(rad + w / 2 - STOOL_R) < w / 2;
+    const ring = false;
     for (let j = 0; j < n; j++) {
       const g = 0.05;
       const a0 = off + (j / n) * Math.PI * 2 + g / rad;
@@ -878,8 +877,8 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   }
   washhouse(painter(WASHHOUSE.x, WASHHOUSE.z), r);
   washingLines(painter(0, 0));
-  dock(painter(DOCK.x, (DOCK.z0 + DOCK.z1) / 2));
-  const water = pond(group, painter(POND.x, POND.z), r);
+  dock(painter(0, 0));
+  const water = pond(group, painter(0, 0), r);
   for (const b of beds) flowerBedFrame(painter(b.x, b.z, b.ry));
   for (const b of benches) bench(painter(b.x, b.z, b.ry));
   for (const l of [...squareLamps, ...roadLamps, ...pathLamps]) lampPost(painter(l.x, l.z));

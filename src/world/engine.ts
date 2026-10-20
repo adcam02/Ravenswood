@@ -789,7 +789,7 @@ export class Engine {
       this.me?.snap();
     };
     this.stopEverything();
-    if (inTown && Math.hypot(local.x, local.z) < this.town.meetingRadius * 1.6) {
+    if (inTown && Math.hypot(local.x, local.z) < this.town.meetingRadius * 1.4) {
       local.x = spot.x;
       local.z = spot.z;
       local.ry = spot.ry;

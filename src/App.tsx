@@ -37,6 +37,7 @@ import { ModeContext, usePlayerView, useStorytellerView, ViewContext } from './s
 import { Icon } from './components/Icon';
 import { World } from './world/World';
 import { MiniGrimoire } from './components/town/MiniGrimoire';
+import { MiniMap } from './components/town/MiniMap';
 
 type Route = { kind: 'landing' } | { kind: 'st' } | { kind: 'player'; room: string };
 
@@ -125,6 +126,7 @@ function Storyteller() {
           ) : (
             <>
               <PlaceChip />
+              <MiniMap />
               <VoiceDock />
               <ActionPrompt />
               <HandSlot />
@@ -197,6 +199,7 @@ function Player({ room }: { room: string }) {
           ) : (
             <>
               <PlaceChip />
+              <MiniMap />
               <VoiceDock />
               <MyCharacter />
               <PlayerRail />
