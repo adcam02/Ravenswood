@@ -70,7 +70,8 @@ const DAY = {
   sky: new THREE.Color('#9fd3ef'),
   fog: new THREE.Color('#c3e4f4'),
   hemiSky: new THREE.Color('#cfe8ff'),
-  hemiGround: new THREE.Color('#86b063'),
+  // Bright enough that faces turned away from the sun (gable ends, ridge caps) never go black.
+  hemiGround: new THREE.Color('#a2c486'),
   hemi: 1.35,
   sun: new THREE.Color('#fff1d2'),
   sunPower: 2.4,
@@ -139,7 +140,7 @@ function flowerGeometry(kind: string, color: string, seed: number): THREE.Buffer
   const stem = '#4f8f3f';
   const leaf = '#5fa34a';
   const h = kind === 'sunflower' ? 0.95 : kind === 'rose' ? 0.6 : 0.5;
-  b.add(G.cyl(5), stem, { pos: [0, h / 2, 0], scale: [0.025, h, 0.025] });
+  b.add(G.cyl(10), stem, { pos: [0, h / 2, 0], scale: [0.025, h, 0.025] });
   b.add(G.ico(0), leaf, { pos: [0.08, h * 0.4, 0], rot: [0, r() * 3, 0.6], scale: [0.09, 0.03, 0.05] });
   b.add(G.ico(0), leaf, { pos: [-0.07, h * 0.6, 0.02], rot: [0, r() * 3, -0.6], scale: [0.08, 0.03, 0.05] });
   const c = new THREE.Color(color);
@@ -151,13 +152,13 @@ function flowerGeometry(kind: string, color: string, seed: number): THREE.Buffer
       const a = (k / 8) * Math.PI * 2;
       b.add(G.ico(0), c, { pos: [Math.cos(a) * 0.09, h, Math.sin(a) * 0.09], rot: [0, -a, 0], scale: [0.07, 0.015, 0.035] });
     }
-    b.add(G.cyl(8), '#f2c14e', { pos: [0, h + 0.01, 0], scale: [0.045, 0.03, 0.045] });
+    b.add(G.cyl(16), '#f2c14e', { pos: [0, h + 0.01, 0], scale: [0.045, 0.03, 0.045] });
   } else if (kind === 'sunflower') {
     for (let k = 0; k < 12; k++) {
       const a = (k / 12) * Math.PI * 2;
       b.add(G.ico(0), c, { pos: [Math.cos(a) * 0.15, h, Math.sin(a) * 0.15], rot: [0, -a, 0], scale: [0.1, 0.015, 0.05] });
     }
-    b.add(G.cyl(10), '#5a3a1a', { pos: [0, h + 0.01, 0], scale: [0.1, 0.04, 0.1] });
+    b.add(G.cyl(18), '#5a3a1a', { pos: [0, h + 0.01, 0], scale: [0.1, 0.04, 0.1] });
   } else {
     b.add(G.ico(1), c, { pos: [0, h + 0.05, 0], scale: [0.09, 0.08, 0.09] });
     b.add(G.ico(0), shade(c, -0.12), { pos: [0, h + 0.1, 0], rot: [0.3, 0.5, 0], scale: [0.05, 0.04, 0.05] });
@@ -275,7 +276,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   // Chimney smoke: a shared pool of puffs rising from whichever chimneys are nearest the camera.
   const PUFFS = 48;
   const puffMat = new THREE.MeshLambertMaterial({ color: '#e8e4de', transparent: true, opacity: 0.55, depthWrite: false });
-  const puffs = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.28, 1), puffMat, PUFFS);
+  const puffs = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.28, 3), puffMat, PUFFS);
   puffs.castShadow = false;
   puffs.frustumCulled = false;
   const puffState = Array.from({ length: PUFFS }, (_, i) => ({ chimney: i % Math.max(1, outdoor.chimneys.length), age: (i * 0.37) % 4, dx: 0, dz: 0 }));
@@ -323,7 +324,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   const stoneGeo = (() => {
     const b = new Builder();
     b.add(G.box(), '#a8a196', { pos: [0, 0.4, 0], scale: [0.6, 0.8, 0.14] });
-    b.add(G.cyl(10), '#a8a196', { pos: [0, 0.8, 0], rot: [Math.PI / 2, 0, 0], scale: [0.3, 0.14, 0.3] });
+    b.add(G.cyl(20), '#a8a196', { pos: [0, 0.8, 0], rot: [Math.PI / 2, 0, 0], scale: [0.3, 0.14, 0.3] });
     b.add(G.box(), '#7aa85a', { pos: [0, 0.03, 0.75], scale: [0.7, 0.06, 1.3] });
     return b.geometry();
   })();
@@ -365,7 +366,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     // Posts and a beam, and a rope with a loop.
     for (const sx of [-1, 1]) b.add(G.box(), wood, { pos: [sx * 1.1, PLAT_H + 1.5, 0], scale: [0.16, 3.0, 0.16] });
     b.add(G.box(), wood, { pos: [0, PLAT_H + 3.0, 0], scale: [2.5, 0.16, 0.16] });
-    b.add(G.cyl(5), '#d8c8a0', { pos: [0, PLAT_H + 2.45, 0], scale: [0.025, 1.0, 0.025] });
+    b.add(G.cyl(10), '#d8c8a0', { pos: [0, PLAT_H + 2.45, 0], scale: [0.025, 1.0, 0.025] });
     b.add(G.torus(0.14, 5, 10), '#d8c8a0', { pos: [0, PLAT_H + 1.8, 0], rot: [0, Math.PI / 2, 0], scale: [0.16, 0.16, 0.16] });
     gallows.add(b.mesh(matte()));
   }
@@ -379,7 +380,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   }
   gallows.add(trap);
   // The rope, let down from the noose when someone hangs from it.
-  const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1, 5), new THREE.MeshLambertMaterial({ color: '#d8c8a0' }));
+  const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1, 10), new THREE.MeshLambertMaterial({ color: '#d8c8a0' }));
   rope.position.set(0, PLAT_H + 1.8, 0);
   rope.scale.y = 0.001;
   gallows.add(rope);
@@ -394,20 +395,21 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   // Meeting stools around the tower, the hand on the cobbles, and a mark by each raised hand.
   const stoolGeo = (() => {
     const b = new Builder();
-    b.add(G.cyl(9), '#7a5236', { pos: [0, 0.2, 0], scale: [0.4, 0.4, 0.4] });
-    b.add(G.cyl(9), '#c49a6c', { pos: [0, 0.41, 0], scale: [0.4, 0.03, 0.4] });
-    b.add(G.torus(0.18, 5, 10), '#a3794f', { pos: [0, 0.425, 0], rot: [Math.PI / 2, 0, 0], scale: [0.24, 0.24, 0.24] });
+    // A round log stool: bark round the side, a pale cut top with a ring or two.
+    b.add(G.cyl(24), '#7a5236', { pos: [0, 0.2, 0], scale: [0.4, 0.4, 0.4] });
+    b.add(G.cyl(24), '#c49a6c', { pos: [0, 0.41, 0], scale: [0.4, 0.03, 0.4] });
+    b.add(G.torus(0.18, 8, 24), '#a3794f', { pos: [0, 0.425, 0], rot: [Math.PI / 2, 0, 0], scale: [0.24, 0.24, 0.24] });
     return b.geometry();
   })();
   const stoolMat = matte();
   const nomineeMat = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#d8303a', emissiveIntensity: 0.55 });
   const stools: THREE.Mesh[] = [];
   const voteMarks: THREE.Mesh[] = [];
-  const markGeo = new THREE.TorusGeometry(0.62, 0.05, 6, 20);
+  const markGeo = new THREE.TorusGeometry(0.62, 0.05, 10, 40);
   const markMat = new THREE.MeshBasicMaterial({ color: '#f2c14e' });
   const meeting = new THREE.Group();
   meeting.visible = false;
-  const handRing = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.06, 6, 20), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
+  const handRing = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.06, 10, 40), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
   handRing.rotation.x = Math.PI / 2;
   handRing.position.y = 0.11;
   handRing.visible = false;
@@ -428,7 +430,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   }
   // The clock hands from the grimoire's vote clock, laid on the cobbles: an antique spade hand each for the
   // nominator (blue) and the nominee (red), and the gold hand that sweeps round as the votes are taken.
-  const handMat = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.25, roughness: 0.45, flatShading: true });
+  const handMat = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.25, roughness: 0.45 });
   const spadeHand = (colour: string, L: number, y: number) => {
     const b = new Builder();
     const dark = '#1a1410';
