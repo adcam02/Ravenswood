@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries, toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 export type Vec3 = [number, number, number];
 
@@ -63,17 +63,25 @@ export class Builder {
     return this.parts.length === 0;
   }
 
-  geometry(): THREE.BufferGeometry {
-    const g = this.parts.length ? mergeGeometries(this.parts, false) ?? new THREE.BufferGeometry() : new THREE.BufferGeometry();
+  /**
+   * The merged geometry. Normals are smoothed across edges gentler than `creaseDeg` (round things read as
+   * smooth), and kept hard across sharper ones (boxes keep their corners). 0 gives flat facets everywhere.
+   */
+  geometry(creaseDeg = SMOOTH_DEG): THREE.BufferGeometry {
+    let g = this.parts.length ? mergeGeometries(this.parts, false) ?? new THREE.BufferGeometry() : new THREE.BufferGeometry();
     for (const p of this.parts) p.dispose();
     this.parts = [];
-    g.computeVertexNormals();
+    if (creaseDeg > 0 && g.getAttribute('position')?.count) {
+      const smoothed = toCreasedNormals(g, THREE.MathUtils.degToRad(creaseDeg));
+      g.dispose();
+      g = smoothed;
+    } else g.computeVertexNormals();
     g.computeBoundingSphere();
     return g;
   }
 
-  mesh(material: THREE.Material, opts: { cast?: boolean; receive?: boolean } = {}): THREE.Mesh {
-    const mesh = new THREE.Mesh(this.geometry(), material);
+  mesh(material: THREE.Material, opts: { cast?: boolean; receive?: boolean; crease?: number } = {}): THREE.Mesh {
+    const mesh = new THREE.Mesh(this.geometry(opts.crease), material);
     mesh.castShadow = opts.cast ?? true;
     mesh.receiveShadow = opts.receive ?? true;
     return mesh;
@@ -111,17 +119,19 @@ export function jitter(geo: THREE.BufferGeometry, amount: number, seed = 1): THR
 
 // ---------------------------------------------------------------- shared materials
 
-/** The standard matte low-poly look, coloured by vertex. */
-export const matte = () => new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+/** Edges gentler than this are shaded smooth; sharper ones stay crisp. */
+export const SMOOTH_DEG = 38;
 
-/** A softer look for characters: still faceted, with a little sheen. */
-export const soft = () => new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.82, metalness: 0 });
+/** The standard matte look, coloured by vertex, smooth where the geometry is round. */
+export const matte = () => new THREE.MeshLambertMaterial({ vertexColors: true });
+
+/** A softer look for characters, with a little sheen. */
+export const soft = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0 });
 
 /** Glossy and slightly wet, for aquatic animals. */
 export const wet = () =>
   new THREE.MeshPhysicalMaterial({
     vertexColors: true,
-    flatShading: true,
     roughness: 0.28,
     metalness: 0,
     clearcoat: 1,

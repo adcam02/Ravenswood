@@ -14,7 +14,9 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(num('fov', 40), innerWidth / innerHeight, 0.3, 400);
+const t0 = performance.now();
 const town = createTown(scene, renderer);
+const buildMs = Math.round(performance.now() - t0);
 town.show(zone, q.has('night'));
 town.setTime(num('t', 0));
 
@@ -80,7 +82,7 @@ function loop() {
       const m = o as THREE.Mesh;
       if (m.isMesh && m.geometry) total += (m.geometry.index ? m.geometry.index.count : m.geometry.getAttribute('position').count) / 3;
     });
-    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, total: Math.round(total) };
+    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, total: Math.round(total), buildMs };
   }
 }
 loop();
