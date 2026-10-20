@@ -136,6 +136,12 @@ interface Kit {
   shape: Shape;
   /** Where the eyes sit (neck space), so blinking squashes around them. */
   eyeY: number;
+  /** Half the distance between the eyes, how big they are, and how far forward their fronts are (for glasses). */
+  eyeX: number;
+  eyeR: number;
+  eyeZ: number;
+  /** The tip of the nose, if the face has one (for a moustache). */
+  nose: Vec3 | null;
 }
 
 interface Colors {
@@ -261,6 +267,21 @@ function eyes(k: Kit, opts: { style?: EyeStyle; x?: number; dy?: number; ring?: 
   const size = opts.size ?? 1;
   const ey = style === 'top' ? s.hc[1] + 0.18 : s.hc[1] + dy;
   k.eyeY = ey;
+  k.eyeX = x;
+  if (style === 'top') {
+    k.eyeR = 0.06 * size;
+    k.eyeZ = s.hc[2] + 0.12 + 0.035;
+  } else if (style === 'side') {
+    k.eyeR = 0.034 * size;
+    k.eyeZ = headZ(s, x, dy, 0.03) + 0.02;
+  } else if (style === 'big') {
+    k.eyeR = 0.075 * size;
+    k.eyeZ = headZ(s, x, dy, 0.02) + (opts.out ?? 0) + 0.03;
+  } else {
+    const sc = style === 'small' ? 0.75 : 1;
+    k.eyeR = (opts.ring ? 0.058 : 0.046) * sc * size;
+    k.eyeZ = headZ(s, x, dy, 0.012) + (opts.out ?? 0) + 0.024;
+  }
   for (const side of [-1, 1]) {
     const ex = side * x;
     if (style === 'top') {
@@ -308,6 +329,8 @@ function smile(k: Kit, color: THREE.ColorRepresentation = INK, dy = -0.075, w = 
 
 function nose(k: Kit, color: THREE.ColorRepresentation, pos: Vec3, r: Vec3 | number = [0.035, 0.026, 0.026]) {
   ell(k.head, color, pos, r);
+  const rz = typeof r === 'number' ? r : r[2];
+  k.nose = [pos[0], pos[1], pos[2] + rz * 0.5];
 }
 
 /** A rounded muzzle on the lower front of the face, with the nose on top. */
@@ -1228,6 +1251,9 @@ const RECIPES: Record<AnimalId, Recipe> = {
       k.head.add(G.cyl6, body, { pos: [side * 0.07, s.hc[1] - 0.04, s.hc[2] + 0.17], rot: [1.2, 0, -side * 0.5], scale: [0.012, 0.1, 0.012] });
     }
     k.eyeY = ey;
+    k.eyeX = 0.125;
+    k.eyeR = 0.055;
+    k.eyeZ = s.hc[2] + 0.115;
     return { legs: 'none' };
   },
   fennec(k, c) {
@@ -1540,6 +1566,9 @@ const RECIPES: Record<AnimalId, Recipe> = {
     // Big round eyes with slit pupils, set on bumps either side of the head.
     const ey = s.hc[1] + 0.07;
     k.eyeY = ey;
+    k.eyeX = 0.15;
+    k.eyeR = 0.075;
+    k.eyeZ = headZ(s, 0.15, 0.07, 0.03) + 0.05;
     for (const side of [-1, 1]) {
       const ex = side * 0.15;
       const ez = headZ(s, 0.15, 0.07, 0.03);
@@ -2223,6 +2252,10 @@ function newKit(): Kit {
     tail: new Builder(),
     shape: defaultShape(),
     eyeY: 0.28,
+    eyeX: 0.1,
+    eyeR: 0.05,
+    eyeZ: 0.27,
+    nose: null,
   };
 }
 
