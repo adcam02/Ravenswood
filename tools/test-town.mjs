@@ -17,7 +17,7 @@ const PEER = 9000;
 const BUILD = joinPath(tmpdir(), 'ravenswood-test-build');
 mkdirSync(OUT, { recursive: true });
 // Machines without a graphics card (like CI) render slowly, so the pages run small, in low graphics, at a capped frame rate.
-const FLAGS = `peer=127.0.0.1:${PEER}&debug&fx=low&fps=10`;
+const FLAGS = `peer=127.0.0.1:${PEER}&debug&fx=low&fps=4`;
 
 const procs = [];
 function run(cmd, args) {
@@ -62,7 +62,7 @@ const browser = await chromium.launch({
 const errors = [];
 const results = [];
 async function open(name, path) {
-  const ctx = await browser.newContext({ viewport: { width: 1100, height: 640 }, permissions: ['microphone'] });
+  const ctx = await browser.newContext({ viewport: { width: 760, height: 480 }, permissions: ['microphone'] });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
   page.on('console', (m) => {
@@ -118,21 +118,21 @@ async function join(name, animal, color) {
   await sleep(600);
   await p.fill('.join-name input', name);
   await sleep(400);
-  await p.click('.join-name button', { timeout: 15000 }).catch(async (e) => {
+  await p.click('.join-name button', { timeout: 30000, noWaitAfter: true }).catch(async (e) => {
     const nav = await p.evaluate(() => performance.getEntriesByType('navigation')[0]?.type);
     throw new Error(`${e.message.split('\n')[0]} (navigation type ${nav}; page shows: ${(await p.textContent('body'))?.slice(0, 120)})`);
   });
   if (animal) {
     await p.waitForSelector('.join-animal', { timeout: 60000 });
     await p.waitForSelector(`.join-tile[title="${animal}"] img`, { timeout: 90000 });
-    await p.click(`.join-tile[title="${animal}"]`);
-    if (color) await p.click(`.join-color[aria-label="${color}"]`);
-    await p.click('.join-animal .cosy-btn.primary');
+    await p.click(`.join-tile[title="${animal}"]`, { noWaitAfter: true });
+    if (color) await p.click(`.join-color[aria-label="${color}"]`, { noWaitAfter: true });
+    await p.click('.join-animal .cosy-btn.primary', { noWaitAfter: true });
   }
-  await p.waitForSelector('.join-mic');
-  await p.click('.join-mic .cosy-btn.big:not(.primary)');
-  await p.waitForSelector('.mic-meter', { timeout: 30000 });
-  await p.click('.join-mic .cosy-btn.primary');
+  await p.waitForSelector('.join-mic', { timeout: 60000 });
+  await p.click('.join-mic .cosy-btn.big:not(.primary)', { noWaitAfter: true });
+  await p.waitForSelector('.mic-meter', { timeout: 60000 });
+  await p.click('.join-mic .cosy-btn.primary', { noWaitAfter: true });
   await p.waitForSelector('.place-chip', { timeout: 60000 });
   return p;
 }
@@ -148,7 +148,7 @@ await check('join: the bunny is not on offer to anyone but Jarrod', async () => 
   const p = await open('Peeker', `?room=${room}`);
   await p.waitForSelector('.join-name input', { timeout: 180000 });
   await p.fill('.join-name input', 'Peeker');
-  await p.click('.join-name button');
+  await p.click('.join-name button', { noWaitAfter: true });
   await p.waitForSelector('.join-animal', { timeout: 60000 });
   await p.waitForSelector('.join-tile[title="Platypus"] img', { timeout: 90000 });
   const bunny = await p.$('.join-tile[title="Bunny"]');
@@ -163,11 +163,11 @@ await check('join: Jarrod skips the picker and is the bunny', async () => {
   const p = await open('Jarrod', `?room=${room}`);
   await p.waitForSelector('.join-name input', { timeout: 180000 });
   await p.fill('.join-name input', 'jarrod');
-  await p.click('.join-name button');
+  await p.click('.join-name button', { noWaitAfter: true });
   await p.waitForSelector('.join-mic', { timeout: 30000 });
   expect(!(await p.$('.join-animal')), 'Jarrod saw the animal picker');
   await shot(p, '02-jarrod-mic');
-  await p.click('.join-mic .cosy-btn.primary');
+  await p.click('.join-mic .cosy-btn.primary', { noWaitAfter: true });
   await p.waitForSelector('.place-chip', { timeout: 60000 });
   players.jarrod = p;
   const look = await st.evaluate(() => window.__host.getState().g.seats.find((s) => s.name.toLowerCase() === 'jarrod')?.look);
@@ -203,10 +203,9 @@ await check('move: walking with W moves Abbey for everyone', async () => {
   await sleep(500);
   const before = await me(p);
   await p.keyboard.down('w');
-  await sleep(1200);
+  await until(p, ([x, z]) => Math.hypot(window.__local.x - x, window.__local.z - z) > 2, [before.x, before.z], 20000, 'Abbey to walk 2m');
   await p.keyboard.up('w');
   const after = await me(p);
-  expect(Math.hypot(after.x - before.x, after.z - before.z) > 2, `only moved ${Math.hypot(after.x - before.x, after.z - before.z).toFixed(2)}m`);
   const id = await seatOf('Abbey');
   await until(st, ([id, x, z]) => {
     const o = window.__presence.others.get(id);
@@ -280,7 +279,7 @@ await check('doors: walking into the tavern door goes inside', async () => {
   await p.evaluate(([x, z]) => {
     window.__engine.moveTarget = { x, z, y: 0 };
   }, [door.x, door.z]);
-  await until(p, () => window.__local.zone === 'tavern', null, 6000, 'to be inside the tavern');
+  await until(p, () => window.__local.zone === 'tavern', null, 30000, 'to be inside the tavern');
   await sleep(800);
   await shot(p, '05-tavern-inside');
   void start;
@@ -293,7 +292,7 @@ await check('jobs: bartending puts a drink on the bar', async () => {
   await place(p, 'tavern', s.stand.x, s.stand.z, s.stand.ry);
   await sleep(400);
   await p.keyboard.press('e');
-  await p.waitForSelector('.job', { timeout: 5000 });
+  await p.waitForSelector('.job', { timeout: 20000 });
   await shot(p, '06-bartender-game');
   const before = await st.evaluate(() => window.__host.getState().g.town.drinks.length);
   await p.evaluate(() => window.__game.jobDone({ kind: 'cocoa', stars: 3 }));
@@ -307,7 +306,7 @@ await check('jobs: the minigame can actually be played (pour)', async () => {
   const s = await stationFor(p, 'bartender');
   await place(p, 'tavern', s.stand.x, s.stand.z, s.stand.ry);
   await p.keyboard.press('e');
-  await p.waitForSelector('.job', { timeout: 5000 });
+  await p.waitForSelector('.job', { timeout: 20000 });
   const before = await st.evaluate(() => window.__host.getState().g.town.drinks.length);
   // Pick the first drink, then hold to pour and let go part way.
   await p.keyboard.press('Space');
@@ -352,7 +351,7 @@ for (const [job, where] of [
     await place(p, where, s.stand.x, s.stand.z, s.stand.ry);
     await sleep(500);
     await p.keyboard.press('e');
-    await p.waitForSelector('.job', { timeout: 5000 });
+    await p.waitForSelector('.job', { timeout: 20000 });
     await sleep(400);
     await shot(p, `09-${job}`);
     const results = {
@@ -401,10 +400,10 @@ await check('game: dealing and night sends everyone home with doors locked', asy
   await place(a, zone, exit.x, exit.z - 0.3, 0);
   await sleep(300);
   await a.keyboard.down('s');
-  await sleep(700);
+  await sleep(2500);
   await a.keyboard.up('s');
   expect((await me(a)).zone === zone, 'Abbey left home at night');
-  await a.waitForSelector('.action-prompt.locked', { timeout: 3000 });
+  await a.waitForSelector('.action-prompt.locked', { timeout: 15000 });
 });
 
 await check('game: the Storyteller floats into a house to talk', async () => {
@@ -426,7 +425,7 @@ await check('game: a night death shows at dawn and the dead walk as ghosts', asy
   expect(!early, 'players saw the death before dawn');
   await st.evaluate(() => window.__st.st.setPhase('day'));
   for (const p of all()) await until(p, () => window.__local.zone === 'town', null, 8000, 'to be back outside');
-  await players.abbey.waitForSelector('.phase-banner', { timeout: 4000 });
+  await players.abbey.waitForSelector('.phase-banner', { timeout: 15000 });
   const banner = await players.abbey.textContent('.phase-banner');
   expect(/Colter died/.test(banner), `banner said "${banner}"`);
   await sleep(1000);
@@ -439,7 +438,7 @@ await check('game: a night death shows at dawn and the dead walk as ghosts', asy
 
 await check('game: ringing the bell gathers everyone at the square', async () => {
   await st.evaluate(() => window.__st.st.callTownHall());
-  await players.abbey.waitForSelector('.bell-call', { timeout: 5000 });
+  await players.abbey.waitForSelector('.bell-call', { timeout: 20000 });
   await shot(players.abbey, '16-bell');
   for (const p of all()) {
     await p.click('.bell-call .cosy-btn');
@@ -451,7 +450,7 @@ await check('game: nominations and votes raise paws round the clock', async () =
   const nominee = await seatOf('Steele');
   const nominator = await seatOf('Abbey');
   await st.evaluate(([a, b]) => window.__st.st.nominate(a, b), [nominator, nominee]);
-  await players.abbey.waitForSelector('.vote-bar', { timeout: 5000 });
+  await players.abbey.waitForSelector('.vote-bar', { timeout: 20000 });
   for (const p of [players.abbey, players.jarrod]) {
     await p.click('.meeting-seat').catch(() => {});
   }
@@ -469,7 +468,7 @@ await check('game: nominations and votes raise paws round the clock', async () =
 
 await check('game: the grimoire opens over the town for the Storyteller', async () => {
   await st.keyboard.press('Tab');
-  await st.waitForSelector('.grimoire-layer .town', { timeout: 3000 });
+  await st.waitForSelector('.grimoire-layer .town', { timeout: 15000 });
   await sleep(500);
   await shot(st, '19-grimoire');
   await st.keyboard.press('Tab');

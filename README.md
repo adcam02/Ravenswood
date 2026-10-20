@@ -23,8 +23,10 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    - **Baking** at the bakery: knead, then pull it out of the oven when it's golden.
    - **Gardening** in the beds around the square: plant and water a flower, and watch it grow.
    Hold something and you can sip it, give it to someone (G) or put it away (Q).
-5. **The Storyteller runs the game from the Grimoire** (top bar, or Tab): fill the bag, deal characters
-   and press **Show players their characters**.
+5. **The Storyteller carries the grimoire.** Press **Open grimoire** (or Tab) and the camera swoops in
+   over your shoulder as the book opens in your hands; its pages hold the circle of seats, the bag, the
+   night order and everything else from the Grimoire. Fill the bag, deal characters and press **Show
+   players their characters**. Close it to float off again.
    - **Night**: everyone is sent home and their door locks. The Storyteller wakes players with the same
      tools as the Grimoire, and can float into a house to talk to its owner privately.
    - **Day**: everyone comes back outside. Deaths in the night are announced at dawn, and dead players
@@ -47,6 +49,11 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
 | [ ] or right-drag, scroll | Turn the camera, zoom |
 | Tab | Storyteller: open or close the grimoire |
 | B | Storyteller: speak to everyone |
+
+### Slow laptops
+
+The town turns shadows off and drops the resolution by itself if a machine can't keep up (a notice
+says so). Add `?fx=low` to the address to start that way.
 
 ## How the connection works
 
