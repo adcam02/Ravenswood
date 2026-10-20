@@ -255,11 +255,19 @@ await check('voice: players close together hear each other at full volume', asyn
 
 await check('voice: far away is silent, and walls are absolute', async () => {
   await place(players.colter, 'town', -30, 30, 0);
-  await gainUntil(players.abbey, 'Colter', (g) => g.gain !== null && g.gain < 0.05, 'far away');
+  await gainUntil(players.abbey, 'Colter', (g) => g.gain === null || g.gain < 0.05, 'far away');
   await place(players.colter, 'town', 10, 24, 0);
   await gainUntil(players.abbey, 'Colter', (g) => g.gain !== null && g.gain > 0.1 && g.gain < 0.95, 'mid-distance');
   await place(players.colter, 'tavern', 0, 0, 0);
   await gainUntil(players.abbey, 'Colter', (g) => g.gain === null || g.gain < 0.01, 'through a wall');
+});
+
+await check('voice: lines to far-away players hang up, and reopen when they come back', async () => {
+  await place(players.abbey, 'town', 4, 24, 0);
+  await place(players.colter, 'town', -30, 30, 0);
+  await gainUntil(players.abbey, 'Colter', (g) => g.gain === null, 'the far line to hang up', 45000);
+  await place(players.colter, 'town', 5, 24, 0);
+  await gainUntil(players.abbey, 'Colter', (g) => g.gain !== null && g.gain > 0.5, 'the line to reopen', 60000);
 });
 
 await check('voice: the Storyteller can speak to everyone', async () => {
