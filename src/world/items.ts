@@ -7,13 +7,15 @@ import type { Item } from './types';
  * stands upright, a little in front of the paw. The rig keeps the hand anchor level, so mugs don't spill.
  */
 
-const SPH = new THREE.SphereGeometry(1, 10, 8);
-const CYL = new THREE.CylinderGeometry(1, 1, 1, 10);
-const CYL6 = new THREE.CylinderGeometry(1, 1, 1, 6);
-const CONE = new THREE.ConeGeometry(1, 1, 8);
+const SPH = new THREE.SphereGeometry(1, 16, 12);
+const CYL = new THREE.CylinderGeometry(1, 1, 1, 16);
+const CYL6 = new THREE.CylinderGeometry(1, 1, 1, 8);
+const CONE = new THREE.ConeGeometry(1, 1, 12);
 const BOX = new THREE.BoxGeometry(1, 1, 1);
-const TORUS = new THREE.TorusGeometry(1, 0.28, 5, 10);
-const BASKET = new THREE.CylinderGeometry(1, 0.8, 1, 10);
+const TORUS = new THREE.TorusGeometry(1, 0.28, 8, 18);
+const THIN_TORUS = new THREE.TorusGeometry(1, 0.1, 6, 18);
+const BASKET = new THREE.CylinderGeometry(1, 0.8, 1, 16);
+const ICO = new THREE.IcosahedronGeometry(1, 1);
 
 const DRINK: Record<string, { cup: string; band: string; top: string; foam?: string }> = {
   ale: { cup: '#a8743f', band: '#5d5a5a', top: '#d98c2b', foam: '#fbf3df' },
@@ -25,15 +27,22 @@ const DRINK: Record<string, { cup: string; band: string; top: string; foam?: str
 function mug(b: Builder, kind: string) {
   const d = DRINK[kind] ?? DRINK.ale;
   const o: Vec3 = [0, 0.02, 0.07];
-  b.add(CYL, d.cup, { pos: [o[0], o[1] + 0.07, o[2]], scale: [0.065, 0.14, 0.065] });
-  b.add(CYL, d.band, { pos: [o[0], o[1] + 0.025, o[2]], scale: [0.068, 0.018, 0.068] });
-  b.add(CYL, d.band, { pos: [o[0], o[1] + 0.115, o[2]], scale: [0.068, 0.018, 0.068] });
-  b.add(CYL, d.top, { pos: [o[0], o[1] + 0.141, o[2]], scale: [0.058, 0.004, 0.058] });
-  // The handle faces the paw.
+  // A rounder tankard: a slightly flared body, bands, a lip, and the handle toward the paw.
+  b.add(BASKET, d.cup, { pos: [o[0], o[1] + 0.07, o[2]], scale: [0.068, 0.14, 0.068] });
+  b.add(CYL, d.band, { pos: [o[0], o[1] + 0.02, o[2]], scale: [0.06, 0.018, 0.06] });
+  b.add(CYL, d.band, { pos: [o[0], o[1] + 0.12, o[2]], scale: [0.07, 0.016, 0.07] });
+  b.add(THIN_TORUS, d.band, { pos: [o[0], o[1] + 0.141, o[2]], rot: [Math.PI / 2, 0, 0], scale: 0.068 });
+  b.add(CYL, d.top, { pos: [o[0], o[1] + 0.138, o[2]], scale: [0.062, 0.004, 0.062] });
   b.add(TORUS, d.cup, { pos: [o[0], o[1] + 0.075, o[2] - 0.07], rot: [0, Math.PI / 2, 0], scale: 0.035 });
   if (d.foam) {
     b.add(SPH, d.foam, { pos: [o[0], o[1] + 0.15, o[2]], scale: [0.068, 0.035, 0.068] });
     b.add(SPH, d.foam, { pos: [o[0] + 0.045, o[1] + 0.13, o[2] + 0.03], scale: [0.025, 0.04, 0.025] });
+    for (const [dx, dz, s] of [
+      [-0.03, 0.03, 0.018],
+      [0.02, -0.035, 0.014],
+      [-0.01, -0.01, 0.012],
+    ]) b.add(SPH, '#ffffff', { pos: [o[0] + dx, o[1] + 0.175, o[2] + dz], scale: s });
+    b.add(SPH, d.foam, { pos: [o[0] - 0.05, o[1] + 0.105, o[2] - 0.02], scale: [0.018, 0.045, 0.018] });
   }
   if (kind === 'cocoa') {
     b.add(BOX, '#fffaf2', { pos: [o[0] + 0.015, o[1] + 0.15, o[2]], rot: [0.3, 0.5, 0.2], scale: 0.028 });
@@ -66,23 +75,45 @@ function fish(b: Builder) {
   const o: Vec3 = [0, 0.08, 0.08];
   b.add(SPH, '#7fa8c8', { pos: o, scale: [0.045, 0.07, 0.15] });
   b.add(SPH, '#dfe8ee', { pos: [o[0], o[1] - 0.02, o[2] + 0.01], scale: [0.038, 0.045, 0.12] });
-  b.add(CONE, '#5f86a8', { pos: [o[0], o[1], o[2] - 0.17], rot: [-Math.PI / 2, 0, 0], scale: [0.07, 0.07, 0.015] });
+  // A forked tail, a dorsal fin, pectoral fins, gill lines, scales down the flank, and eyes with a glint.
+  for (const s of [-1, 1]) b.add(CONE, '#5f86a8', { pos: [o[0], o[1] + s * 0.03, o[2] - 0.18], rot: [-Math.PI / 2 + s * 0.5, 0, 0], scale: [0.045, 0.07, 0.012] });
   b.add(CONE, '#5f86a8', { pos: [o[0], o[1] + 0.07, o[2] - 0.01], scale: [0.04, 0.05, 0.01] });
+  b.add(CONE, '#5f86a8', { pos: [o[0], o[1] + 0.055, o[2] - 0.07], rot: [-0.5, 0, 0], scale: [0.025, 0.035, 0.008] });
   for (const s of [-1, 1]) {
-    b.add(SPH, '#1d1a1c', { pos: [o[0] + s * 0.034, o[1] + 0.02, o[2] + 0.1], scale: [0.006, 0.01, 0.01] });
+    b.add(CONE, '#6f98b8', { pos: [o[0] + s * 0.045, o[1] - 0.01, o[2] + 0.03], rot: [0.6, 0, s * 1.3], scale: [0.02, 0.05, 0.008] });
+    b.add(THIN_TORUS, '#6a90ae', { pos: [o[0] + s * 0.04, o[1], o[2] + 0.07], rot: [0, Math.PI / 2, 0], scale: [0.035, 0.035, 0.02] });
+    b.add(SPH, '#f6f1e6', { pos: [o[0] + s * 0.036, o[1] + 0.02, o[2] + 0.1], scale: [0.009, 0.013, 0.013] });
+    b.add(SPH, '#1d1a1c', { pos: [o[0] + s * 0.042, o[1] + 0.02, o[2] + 0.102], scale: [0.005, 0.008, 0.008] });
+    for (let k = 0; k < 6; k++) b.add(THIN_TORUS, '#6f98b8', { pos: [o[0] + s * 0.044, o[1] + 0.01 + (k % 2) * 0.02, o[2] - 0.02 - k * 0.018], rot: [0, Math.PI / 2, 0], scale: [0.012, 0.012, 0.01] });
   }
+  b.add(SPH, '#d86a5a', { pos: [o[0], o[1] - 0.01, o[2] + 0.148], scale: [0.02, 0.012, 0.008] });
 }
 
 function flower(b: Builder, color: string) {
   const o: Vec3 = [0, 0, 0.06];
   b.add(CYL6, '#4f9a4a', { pos: [o[0], o[1] + 0.13, o[2]], scale: [0.008, 0.26, 0.008] });
-  b.add(SPH, '#5fae55', { pos: [o[0] + 0.03, o[1] + 0.12, o[2]], rot: [0, 0, -0.6], scale: [0.012, 0.035, 0.02] });
-  const top: Vec3 = [o[0], o[1] + 0.27, o[2]];
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2;
-    b.add(SPH, color, { pos: [top[0] + Math.cos(a) * 0.035, top[1] + Math.sin(a) * 0.035, top[2]], scale: [0.03, 0.03, 0.014] });
+  // Two leaves with a midrib, petals in two rows, and a dotted centre.
+  for (const [s, y, a] of [
+    [1, 0.12, -0.6],
+    [-1, 0.07, 0.5],
+  ]) {
+    b.add(SPH, '#5fae55', { pos: [o[0] + s * 0.03, o[1] + y, o[2]], rot: [0, 0, a], scale: [0.014, 0.04, 0.022] });
+    b.add(BOX, '#4f9a4a', { pos: [o[0] + s * 0.03, o[1] + y, o[2] + 0.02], rot: [0, 0, a], scale: [0.003, 0.06, 0.002] });
   }
-  b.add(SPH, '#f6d04d', { pos: [top[0], top[1], top[2] + 0.01], scale: 0.022 });
+  const top: Vec3 = [o[0], o[1] + 0.27, o[2]];
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    b.add(SPH, color, { pos: [top[0] + Math.cos(a) * 0.04, top[1] + Math.sin(a) * 0.04, top[2]], rot: [0, 0, a], scale: [0.03, 0.018, 0.012] });
+  }
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + 0.4;
+    b.add(SPH, color, { pos: [top[0] + Math.cos(a) * 0.022, top[1] + Math.sin(a) * 0.022, top[2] + 0.008], rot: [0, 0, a], scale: [0.02, 0.014, 0.01] });
+  }
+  b.add(SPH, '#f6d04d', { pos: [top[0], top[1], top[2] + 0.012], scale: 0.018 });
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    b.add(SPH, '#c9a020', { pos: [top[0] + Math.cos(a) * 0.01, top[1] + Math.sin(a) * 0.01, top[2] + 0.028], scale: 0.004 });
+  }
 }
 
 function rod(b: Builder) {
@@ -102,17 +133,34 @@ function rod(b: Builder) {
 
 function can(b: Builder) {
   const o: Vec3 = [0, 0.02, 0.1];
+  // A tin can with a rolled rim, a spout ending in a rose with holes, and a carrying handle.
   b.add(CYL, '#6fa88a', { pos: [o[0], o[1] + 0.07, o[2]], scale: [0.075, 0.14, 0.075] });
-  b.add(CYL, '#5a8f73', { pos: [o[0], o[1] + 0.142, o[2]], scale: [0.078, 0.012, 0.078] });
+  b.add(THIN_TORUS, '#5a8f73', { pos: [o[0], o[1] + 0.142, o[2]], rot: [Math.PI / 2, 0, 0], scale: 0.078 });
+  b.add(THIN_TORUS, '#5a8f73', { pos: [o[0], o[1] + 0.005, o[2]], rot: [Math.PI / 2, 0, 0], scale: 0.078 });
+  b.add(CYL, '#5a8f73', { pos: [o[0], o[1] + 0.142, o[2]], scale: [0.07, 0.008, 0.07] });
+  b.add(CYL, '#4a4a52', { pos: [o[0], o[1] + 0.146, o[2] - 0.02], scale: [0.035, 0.006, 0.035] });
   b.add(CYL6, '#6fa88a', { pos: [o[0], o[1] + 0.1, o[2] + 0.12], rot: [0.9, 0, 0], scale: [0.016, 0.16, 0.016] });
   b.add(CONE, '#5a8f73', { pos: [o[0], o[1] + 0.155, o[2] + 0.18], rot: [-2.25, 0, 0], scale: [0.03, 0.04, 0.03] });
+  b.add(CYL, '#4a7a62', { pos: [o[0], o[1] + 0.17, o[2] + 0.192], rot: [-2.25, 0, 0], scale: [0.03, 0.006, 0.03] });
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * Math.PI * 2;
+    const rr = k === 0 ? 0 : 0.018;
+    b.add(SPH, '#2a2a30', { pos: [o[0] + Math.cos(a) * rr, o[1] + 0.172 + Math.sin(a) * rr * 0.62, o[2] + 0.196 + Math.sin(a) * rr * 0.78], scale: 0.004 });
+  }
   b.add(TORUS, '#5a8f73', { pos: [o[0], o[1] + 0.16, o[2] - 0.02], rot: [0, Math.PI / 2, 0], scale: [0.06, 0.06, 0.06] });
+  b.add(CYL6, '#8a5a36', { pos: [o[0], o[1] + 0.22, o[2] - 0.02], rot: [0, 0, Math.PI / 2], scale: [0.012, 0.05, 0.012] });
 }
 
 function washing(b: Builder, color: string) {
   const o: Vec3 = [0, 0.02, 0.12];
+  // A woven basket: the body, upright staves round it, a couple of woven bands and a rolled rim.
   b.add(BASKET, '#c9a46a', { pos: [o[0], o[1] + 0.06, o[2]], scale: [0.14, 0.12, 0.11] });
-  b.add(CYL, '#a8834f', { pos: [o[0], o[1] + 0.12, o[2]], scale: [0.145, 0.015, 0.115] });
+  for (let k = 0; k < 14; k++) {
+    const a = (k / 14) * Math.PI * 2;
+    b.add(BOX, k % 2 ? '#b8924f' : '#d6b47a', { pos: [o[0] + Math.cos(a) * 0.14, o[1] + 0.06, o[2] + Math.sin(a) * 0.11], rot: [0, -a, 0], scale: [0.012, 0.11, 0.025] });
+  }
+  for (const y of [0.035, 0.085]) b.add(THIN_TORUS, '#a8834f', { pos: [o[0], o[1] + y, o[2]], rot: [Math.PI / 2, 0, 0], scale: [0.143, 0.112, 0.08] });
+  b.add(TORUS, '#a8834f', { pos: [o[0], o[1] + 0.12, o[2]], rot: [Math.PI / 2, 0, 0], scale: [0.14, 0.11, 0.05] });
   b.add(SPH, color, { pos: [o[0] - 0.05, o[1] + 0.14, o[2]], scale: [0.07, 0.04, 0.06] });
   b.add(SPH, '#f4efe6', { pos: [o[0] + 0.05, o[1] + 0.145, o[2] + 0.02], scale: [0.06, 0.035, 0.055] });
   b.add(SPH, '#8fc1e8', { pos: [o[0] + 0.01, o[1] + 0.155, o[2] - 0.04], scale: [0.05, 0.03, 0.04] });
@@ -185,8 +233,15 @@ function bucket(b: Builder) {
 function goblet(b: Builder) {
   const o: Vec3 = [0, 0.02, 0.08];
   b.add(CYL, '#c9a24f', { pos: [o[0], o[1] + 0.01, o[2]], scale: [0.05, 0.02, 0.05] });
+  b.add(THIN_TORUS, '#e0bf6a', { pos: [o[0], o[1] + 0.02, o[2]], rot: [Math.PI / 2, 0, 0], scale: 0.045 });
   b.add(CYL6, '#c9a24f', { pos: [o[0], o[1] + 0.06, o[2]], scale: [0.012, 0.08, 0.012] });
+  b.add(SPH, '#c9a24f', { pos: [o[0], o[1] + 0.06, o[2]], scale: 0.02 });
   b.add(BASKET, '#c9a24f', { pos: [o[0], o[1] + 0.14, o[2]], scale: [0.055, 0.09, 0.055] });
+  b.add(THIN_TORUS, '#e0bf6a', { pos: [o[0], o[1] + 0.185, o[2]], rot: [Math.PI / 2, 0, 0], scale: 0.055 });
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * Math.PI * 2;
+    b.add(ICO, '#a8463f', { pos: [o[0] + Math.cos(a) * 0.052, o[1] + 0.13, o[2] + Math.sin(a) * 0.052], scale: 0.008 });
+  }
   b.add(CYL, '#7a1f2e', { pos: [o[0], o[1] + 0.175, o[2]], scale: [0.048, 0.006, 0.048] });
 }
 

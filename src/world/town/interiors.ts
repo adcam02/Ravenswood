@@ -99,11 +99,11 @@ function shell(p: Paint, room: Room, s: Shell, r: () => number) {
   for (const sx of [-1, 1]) p.box(shade(s.trim, -0.08), 0.06, 0.14, hd * 2, sx * (hw - 0.03), 0.07, 0);
   p.box(shade(s.trim, 0.05), hw * 2, 0.05, 0.06, 0, WALL_H - 0.75, -hd + 0.03);
   for (const sx of [-1, 1]) p.box(shade(s.trim, 0.02), 0.06, 0.05, hd * 2, sx * (hw - 0.03), WALL_H - 0.75, 0);
-  // The wall plate, with corbels and the ends of ceiling joists showing along it.
+  // The wall plate along the top, with a moulded cornice just under it.
   p.box(s.trim, hw * 2 + 0.6, 0.16, 0.36, 0, WALL_H + 0.05, -hd - 0.15);
   for (const sx of [-1, 1]) p.box(s.trim, 0.36, 0.16, hd * 2 + 0.3, sx * (hw + 0.15), WALL_H + 0.05, 0.15);
-  for (let x = -hw + 0.6; x < hw - 0.3; x += 1.2) p.box(shade(s.trim, -0.1), 0.18, 0.22, 0.3, x, WALL_H - 0.14, -hd + 0.15);
-  for (const sx of [-1, 1]) for (let z = -hd + 0.6; z < hd - 0.3; z += 1.2) p.box(shade(s.trim, -0.12), 0.3, 0.22, 0.18, sx * (hw - 0.15), WALL_H - 0.14, z);
+  p.box(shade(s.trim, 0.08), hw * 2, 0.08, 0.1, 0, WALL_H - 0.08, -hd + 0.05);
+  for (const sx of [-1, 1]) p.box(shade(s.trim, 0.06), 0.1, 0.08, hd * 2, sx * (hw - 0.05), WALL_H - 0.08, 0);
   // The way out, on the camera side: a door frame and a mat.
   p.box(s.trim, 0.18, 2.5, 0.25, -0.75, 1.25, hd + 0.05);
   p.box(s.trim, 0.18, 2.5, 0.25, 0.75, 1.25, hd + 0.05);
@@ -218,57 +218,125 @@ function tavern(p: Paint, glow: Builder, r: () => number) {
   for (let x = BAR.x0 + 0.5; x < BAR.x1; x += 1.0) p.box('#6e4a30', 0.8, 0.7, 0.04, x, 0.5, BAR.z + BAR.depth / 2 + 0.02);
   p.block('#a87a4f', len + 0.2, 0.09, BAR.depth + 0.25, cx, BAR.h - 0.08, BAR.z + 0.05);
   p.cyl('#d8a845', 0.04, len, cx, 0.2, BAR.z + BAR.depth / 2 + 0.25, 6, 0, 0, Math.PI / 2);
-  // Taps.
+  // Taps, with porcelain handles and a drip tray.
   for (const x of [-4.6, -2.2, 0.2]) {
-    p.post('#d8a845', 0.05, 0.35, x, BAR.h, BAR.z - 0.25, 6);
-    p.box('#2a1f1a', 0.06, 0.18, 0.06, x, BAR.h + 0.42, BAR.z - 0.2);
+    p.post('#d8a845', 0.05, 0.35, x, BAR.h, BAR.z - 0.25, 10);
+    p.box('#d8a845', 0.05, 0.05, 0.16, x, BAR.h + 0.33, BAR.z - 0.18);
+    p.box('#f6efe0', 0.06, 0.2, 0.06, x, BAR.h + 0.46, BAR.z - 0.2, 0.3);
+    p.sphere('#a8463f', 0.04, 0.04, 0.04, x, BAR.h + 0.57, BAR.z - 0.23);
   }
-  // Shelves of bottles and kegs behind it.
+  p.box('#9aa0a8', 3.6, 0.03, 0.2, -2.2, BAR.h + 0.02, BAR.z - 0.1);
+  // Shelves of bottles (with labels) and glasses behind it, on brackets.
   for (const y of [1.5, 2.2]) {
     p.box(WOOD, 7.0, 0.07, 0.35, -2.0, y, -hd + 0.2);
+    for (const x of [-5.2, -2.0, 1.2]) p.box(shade(WOOD, -0.12), 0.06, 0.25, 0.3, x, y - 0.16, -hd + 0.18, 0.6);
     for (let k = 0; k < 11; k++) {
       const c = pick(r, ['#3f7a4f', '#7a3f3f', '#c9a24f', '#4f5f8a', '#e8dcc0']);
-      p.post(c, 0.07, 0.3, -5.2 + k * 0.62, y + 0.04, -hd + 0.2, 6);
-      p.post(c, 0.03, 0.1, -5.2 + k * 0.62, y + 0.34, -hd + 0.2, 4);
+      const x = -5.2 + k * 0.62;
+      if (k % 4 === 3) {
+        // A tankard or a glass now and then.
+        p.taper('#d8d8e0', 0.85, 0.06, 0.16, x, y + 0.04, -hd + 0.2, 10);
+        p.cyl('#d8d8e0', 0.05, 0.02, x, y + 0.04, -hd + 0.2, 10);
+        continue;
+      }
+      p.post(c, 0.07, 0.3, x, y + 0.04, -hd + 0.2, 10);
+      p.taper(c, 0.45, 0.07, 0.08, x, y + 0.34, -hd + 0.2, 10);
+      p.post(c, 0.03, 0.1, x, y + 0.4, -hd + 0.2, 8);
+      p.cyl(shade(c, -0.3), 0.032, 0.02, x, y + 0.51, -hd + 0.2, 8);
+      p.box(pick(r, ['#f6efe0', '#f2d9a0', '#f8c8c8']), 0.09, 0.1, 0.01, x, y + 0.2, -hd + 0.27);
     }
   }
   for (const x of [-5.3, -3.9, 1.6]) {
     p.box(WOOD_DARK, 1.0, 0.25, 0.9, x, 0.12, -hd + 0.5);
     barrel(p.at(x, 0.25, -hd + 0.5, Math.PI / 2), r, true);
   }
-  // Stools along the bar.
+  // Stools along the bar: three turned legs, a footring and a padded top.
   for (const s of BAR_STOOLS) {
-    p.post(WOOD_DARK, 0.05, 0.72, s.x, 0, s.z, 6);
-    p.cyl('#a8463f', 0.26, 0.08, s.x, 0.75, s.z, 10);
-    p.cyl(IRON, 0.18, 0.03, s.x, 0.3, s.z, 8);
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2;
+      p.cyl(WOOD_DARK, 0.03, 0.74, s.x + Math.cos(a) * 0.14, 0.37, s.z + Math.sin(a) * 0.14, 8, Math.sin(a) * -0.12, 0, Math.cos(a) * 0.12);
+    }
+    p.torus(IRON, 0.19, 0.012, s.x, 0.28, s.z, Math.PI / 2);
+    p.cyl(WOOD_DARK, 0.22, 0.04, s.x, 0.73, s.z, 14);
+    p.cyl('#a8463f', 0.26, 0.08, s.x, 0.78, s.z, 14);
+    p.torus('#8a3630', 0.24, 0.015, s.x, 0.83, s.z, Math.PI / 2);
   }
-  // Tables with chairs around them.
+  // Tables with chairs around them, with tankards, a plate and a bread roll on each.
   for (const t of TAVERN_TABLES) {
-    p.post(WOOD_DARK, 0.12, 0.75, t.x, 0, t.z, 6);
-    p.cyl(WOOD_LIGHT, 0.85, 0.08, t.x, 0.78, t.z, 12);
-    p.cyl(WOOD_DARK, 0.4, 0.05, t.x, 0.03, t.z, 8);
+    p.post(WOOD_DARK, 0.12, 0.75, t.x, 0, t.z, 12);
+    p.cyl(WOOD_DARK, 0.16, 0.08, t.x, 0.7, t.z, 12);
+    p.cyl(WOOD_LIGHT, 0.85, 0.08, t.x, 0.78, t.z, 20);
+    p.torus(shade(WOOD_LIGHT, -0.1), 0.84, 0.02, t.x, 0.82, t.z, Math.PI / 2);
+    p.cyl(WOOD_DARK, 0.4, 0.05, t.x, 0.03, t.z, 12);
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2;
+      p.box(WOOD_DARK, 0.08, 0.05, 0.7, t.x + Math.cos(a) * 0.3, 0.03, t.z + Math.sin(a) * 0.3, 0, -a + Math.PI / 2, 0);
+    }
     candle(p, glow, t.x, 0.82, t.z, 0.18);
-    for (const c of tableChairs(t)) chair(p.at(c.x, 0, c.z, c.ry), '#8a5a36');
+    for (const [dx, dz] of [
+      [0.45, 0.2],
+      [-0.4, -0.3],
+    ]) {
+      p.post('#a8743f', 0.06, 0.14, t.x + dx, 0.82, t.z + dz, 10);
+      p.sphere('#fbf3df', 0.065, 0.03, 0.065, t.x + dx, 0.97, t.z + dz, 10, 6);
+      p.torus('#a8743f', 0.035, 0.01, t.x + dx + 0.07, 0.89, t.z + dz, 0, Math.PI / 2);
+    }
+    p.cyl('#e8dcc0', 0.16, 0.015, t.x - 0.3, 0.83, t.z + 0.4, 14);
+    p.sphere('#d18b46', 0.07, 0.05, 0.07, t.x - 0.3, 0.86, t.z + 0.4, 10, 6);
+    for (const c of tableChairs(t)) chair(p.at(c.x, 0, c.z, c.ry), '#8a5a36', '#7a3f3f');
   }
-  // Fireplace on the left wall, and a rug.
+  // Fireplace on the left wall, antlers over it, and a rug with a fringe.
   fireplace(p.at(-hw + 0.4, 0, 0.4, Math.PI / 2), glow, '#9a8f84');
+  {
+    const a = p.at(-hw + 0.06, 2.4, 0.4, Math.PI / 2);
+    a.box(WOOD_DARK, 0.5, 0.4, 0.05, 0, 0, 0);
+    a.sphere('#e8dcc0', 0.12, 0.1, 0.08, 0, 0.0, 0.05);
+    for (const sx of [-1, 1]) {
+      a.rod('#d8ccb8', 0.025, sx * 0.08, 0.05, 0.06, sx * 0.35, 0.35, 0.1, 6);
+      a.rod('#d8ccb8', 0.02, sx * 0.2, 0.18, 0.08, sx * 0.14, 0.4, 0.1, 6);
+      a.rod('#d8ccb8', 0.018, sx * 0.3, 0.3, 0.09, sx * 0.45, 0.42, 0.1, 6);
+    }
+  }
   p.box('#a8463f', 3.4, 0.03, 2.2, -0.8, 0.015, 2.5);
   p.box('#d8a845', 3.0, 0.035, 1.8, -0.8, 0.02, 2.5);
   p.box('#a8463f', 2.6, 0.04, 1.4, -0.8, 0.025, 2.5);
-  // Barrels and crates on the right, a dartboard and a painting.
+  for (let x = -2.4; x <= 0.8; x += 0.16) for (const sz of [-1, 1]) p.box('#d8a845', 0.04, 0.02, 0.16, x, 0.02, 2.5 + sz * 1.18);
+  // Barrels and crates on the right, a dartboard with a chalk score, and a painting.
   barrel(p.at(6.6, 0, -4.2), r);
   barrel(p.at(7.3, 0, -5.0), r);
   barrel(p.at(6.9, 0.95, -4.6), r);
   crate(p.at(6.6, 0, 3.4), r, 0.8);
   crate(p.at(7.3, 0, 3.9), r, 0.6);
   const right = p.at(hw - 0.02, 0, -0.5, -Math.PI / 2);
-  right.cyl('#2a1f1a', 0.42, 0.05, 0, 1.9, 0.03, 16, Math.PI / 2);
-  right.cyl('#e8dcc0', 0.36, 0.06, 0, 1.9, 0.04, 16, Math.PI / 2);
-  right.cyl('#a8463f', 0.24, 0.07, 0, 1.9, 0.05, 16, Math.PI / 2);
-  right.cyl('#3f7a4f', 0.12, 0.08, 0, 1.9, 0.06, 12, Math.PI / 2);
+  right.cyl('#2a1f1a', 0.42, 0.05, 0, 1.9, 0.03, 24, Math.PI / 2);
+  right.cyl('#e8dcc0', 0.36, 0.06, 0, 1.9, 0.04, 24, Math.PI / 2);
+  for (let k = 0; k < 20; k++) {
+    const a = (k / 20) * Math.PI * 2;
+    right.box(k % 2 ? '#2a1f1a' : '#e8dcc0', 0.1, 0.1, 0.07, Math.cos(a) * 0.3, 1.9 + Math.sin(a) * 0.3, 0.045, 0, 0, a);
+  }
+  right.cyl('#a8463f', 0.24, 0.07, 0, 1.9, 0.05, 24, Math.PI / 2);
+  for (let k = 0; k < 20; k++) right.box('#3b2f2a', 0.004, 0.84, 0.01, 0, 1.9, 0.085, 0, 0, (k / 20) * Math.PI);
+  right.cyl('#3f7a4f', 0.12, 0.08, 0, 1.9, 0.06, 16, Math.PI / 2);
+  right.cyl('#a8463f', 0.05, 0.09, 0, 1.9, 0.07, 10, Math.PI / 2);
+  right.box('#2a2a2a', 0.5, 0.6, 0.03, 0.8, 1.9, 0.02);
+  for (let k = 0; k < 4; k++) right.box('#f6efe0', 0.3 - k * 0.05, 0.02, 0.01, 0.8, 2.1 - k * 0.12, 0.04);
   p.box('#c9a24f', 1.5, 1.0, 0.06, 0, 2.3, -hd + 0.05);
   p.box('#5a7a9a', 1.3, 0.8, 0.07, 0, 2.3, -hd + 0.07);
-  p.ico('#2a2530', 0.18, 0.1, 2.3, -hd + 0.12, 0, 0.8);
+  p.box('#8aa0b8', 1.3, 0.3, 0.075, 0, 2.55, -hd + 0.07);
+  p.ico('#2a2530', 0.18, 0.1, 2.3, -hd + 0.12, 1, 0.8);
+  p.sphere('#2a2530', 0.08, 0.08, 0.06, 0.25, 2.42, -hd + 0.12);
+  p.cone('#e8c35a', 0.03, 0.1, 0.34, 2.41, -hd + 0.12, 4, 0);
+  // A menu board by the door and a coat stand.
+  p.box(WOOD_DARK, 0.8, 1.1, 0.05, 4.2, 1.8, -hd + 0.06);
+  p.box('#2a2a2a', 0.7, 1.0, 0.03, 4.2, 1.8, -hd + 0.09);
+  for (let k = 0; k < 5; k++) p.box('#f6efe0', 0.45 - (k % 2) * 0.1, 0.025, 0.01, 4.2, 2.15 - k * 0.15, -hd + 0.11);
+  p.post(WOOD_DARK, 0.04, 1.8, 6.5, 0, 5.2, 10);
+  p.cyl(WOOD_DARK, 0.22, 0.05, 6.5, 0.02, 5.2, 12);
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * Math.PI * 2;
+    p.rod(WOOD_DARK, 0.02, 6.5, 1.6, 5.2, 6.5 + Math.cos(a) * 0.2, 1.75, 5.2 + Math.sin(a) * 0.2, 6);
+  }
+  p.sphere('#3f6f9a', 0.14, 0.12, 0.14, 6.68, 1.65, 5.2, 10, 6);
   hangingLamp(p, glow, -1.8, 2.4, -2.0);
   hangingLamp(p, glow, -4.6, 2.4, 2.6);
   hangingLamp(p, glow, 3.0, 2.4, 2.4);
@@ -280,14 +348,23 @@ function bakery(p: Paint, glow: Builder, r: () => number) {
   const { hd } = ROOMS.bakery;
   shell(p, 'bakery', { floor: ['#f1e2c8', '#c97a5a'], wall: '#f7e6cc', wainscot: '#e3a77f', trim: '#8a5a3a', tiles: true }, r);
   backWindow(p, -0.6, 2.0, -hd, 1.0, 1.0, '#8a5a3a');
-  // The brick oven.
+  // The brick oven, in proper brickwork, with a chimney and an ash door.
   const o = p.at(OVEN.x, 0, OVEN.z);
   o.block('#b5603f', 2.8, 1.0, 2.2, 0, 0, 0);
-  for (let k = 0; k < 6; k++) o.box('#a3523a', 2.82, 0.04, 2.22, 0, 0.15 + k * 0.16, 0);
-  o.sphere('#c06a48', 1.35, 1.05, 1.05, 0, 1.0, -0.05, 10, 6);
-  o.post('#7a3a2a', 0.25, 1.8, 0.5, 1.6, -0.5, 6);
+  for (let k = 0; k < 6; k++) {
+    o.box('#a3523a', 2.82, 0.04, 2.22, 0, 0.15 + k * 0.16, 0);
+    const off = k % 2 ? 0.15 : 0;
+    for (let x = -1.25 + off; x < 1.3; x += 0.3) o.box('#a3523a', 0.03, 0.14, 0.03, x, 0.075 + k * 0.16, 1.105);
+    for (let z = -0.95 + off; z < 1.05; z += 0.3) for (const sx of [-1, 1]) o.box('#a3523a', 0.03, 0.14, 0.03, sx * 1.405, 0.075 + k * 0.16, z);
+  }
+  o.dome('#c06a48', 1.35, 0, 1.0, -0.05, 0.78, 20);
+  for (let k = 1; k < 5; k++) o.torus('#a3523a', 1.35 * Math.sqrt(1 - (k / 5) ** 2) + 0.01, 0.015, 0, 1.0 + (k / 5) * 1.05 * 0.78, -0.05, Math.PI / 2);
+  o.post('#7a3a2a', 0.25, 1.8, 0.5, 1.6, -0.5, 12);
+  o.cyl('#5a2a1a', 0.3, 0.08, 0.5, 3.4, -0.5, 12);
   o.box('#2a1a14', 1.1, 0.7, 0.2, 0, 0.75, 1.02);
-  o.cyl('#2a1a14', 0.55, 0.2, 0, 1.1, 1.02, 10, Math.PI / 2);
+  o.cyl('#2a1a14', 0.55, 0.2, 0, 1.1, 1.02, 16, Math.PI / 2);
+  o.box(IRON, 0.5, 0.25, 0.04, 0, 0.3, 1.12);
+  o.box(shade(IRON, 0.2), 0.08, 0.04, 0.03, 0.15, 0.3, 1.15);
   glow.add(new THREE.ConeGeometry(0.2, 0.4, 5), '#ffb347', { pos: [OVEN.x - 0.15, 0.62, OVEN.z + 1.0] });
   glow.add(new THREE.ConeGeometry(0.16, 0.32, 5), '#ffd76b', { pos: [OVEN.x + 0.2, 0.58, OVEN.z + 1.02] });
   glow.add(new THREE.BoxGeometry(0.9, 0.1, 0.1), '#ff8a3d', { pos: [OVEN.x, 0.46, OVEN.z + 1.05] });
@@ -298,36 +375,89 @@ function bakery(p: Paint, glow: Builder, r: () => number) {
   // Shelves for the day's bakes.
   const len = SHELF.x1 - SHELF.x0;
   const scx = (SHELF.x0 + SHELF.x1) / 2;
-  for (const y of SHELF.ys) p.box(WOOD, len, 0.07, 0.6, scx, y, SHELF.z);
+  for (const y of SHELF.ys) {
+    p.box(WOOD, len, 0.07, 0.6, scx, y, SHELF.z);
+    p.box(shade(WOOD, -0.1), len, 0.03, 0.02, scx, y + 0.05, SHELF.z + 0.3);
+  }
   for (const x of [SHELF.x0, scx, SHELF.x1]) p.block(WOOD_DARK, 0.08, 2.1, 0.6, x, 0, SHELF.z);
   p.box(WOOD, len + 0.1, 0.07, 0.6, scx, 2.1, SHELF.z);
-  for (let k = 0; k < 4; k++) p.taper('#c9a46a', 1.25, 0.2, 0.18, SHELF.x0 + 0.5 + k * 1.1, 2.14, SHELF.z, 8);
-  // The shop counter, with a cake and a till.
+  for (let k = 0; k < 4; k++) {
+    // Baskets of rolls on the top shelf.
+    const bx = SHELF.x0 + 0.5 + k * 1.1;
+    p.taper('#c9a46a', 1.25, 0.2, 0.18, bx, 2.14, SHELF.z, 12);
+    p.torus('#a8834f', 0.24, 0.012, bx, 2.32, SHELF.z, Math.PI / 2);
+    for (let j = 0; j < 4; j++) {
+      const a = (j / 4) * Math.PI * 2;
+      p.sphere('#d8964e', 0.07, 0.05, 0.07, bx + Math.cos(a) * 0.1, 2.33, SHELF.z + Math.sin(a) * 0.1, 10, 6);
+    }
+  }
+  // The shop counter with a panelled front, a cake under a glass dome, scales and a till.
   p.block('#e3a77f', 3.4, 0.95, 0.9, 3.2, 0, 1.1);
+  for (let x = 1.75; x < 4.7; x += 0.7) p.box(shade('#e3a77f', -0.1), 0.5, 0.6, 0.03, x, 0.5, 1.56);
   p.block('#fff3e0', 3.5, 0.06, 1.0, 3.2, 0.95, 1.1);
-  p.post('#d8d0c0', 0.25, 0.2, 2.2, 1.0, 1.1, 8);
-  p.cyl('#f2a7b8', 0.3, 0.3, 2.2, 1.35, 1.1, 10);
-  p.cyl('#fff3e0', 0.31, 0.06, 2.2, 1.5, 1.1, 10);
+  p.box(shade('#fff3e0', -0.1), 3.5, 0.03, 0.03, 3.2, 1.0, 1.6);
+  p.post('#d8d0c0', 0.25, 0.2, 2.2, 1.0, 1.1, 14);
+  p.cyl('#f2a7b8', 0.3, 0.3, 2.2, 1.35, 1.1, 16);
+  p.cyl('#fff3e0', 0.31, 0.06, 2.2, 1.5, 1.1, 16);
   for (let k = 0; k < 6; k++) {
     const a = (k / 6) * Math.PI * 2;
-    p.ico('#e4553f', 0.045, 2.2 + Math.cos(a) * 0.2, 1.56, 1.1 + Math.sin(a) * 0.2, 0);
+    p.ico('#e4553f', 0.045, 2.2 + Math.cos(a) * 0.2, 1.56, 1.1 + Math.sin(a) * 0.2, 1);
   }
-  p.block('#7a5a3a', 0.6, 0.35, 0.45, 4.2, 1.0, 1.1);
+  p.glass.dome('#ffffff', 0.4, 2.2, 1.21, 1.1, 1.0, 16);
+  p.glass.sphere('#ffffff', 0.04, 0.04, 0.04, 2.2, 1.62, 1.1, 8, 6);
+  // Brass scales.
+  p.cyl('#c9a24f', 0.14, 0.03, 3.1, 1.0, 1.1, 12);
+  p.post('#c9a24f', 0.02, 0.35, 3.1, 1.0, 1.1, 8);
+  p.box('#c9a24f', 0.5, 0.02, 0.02, 3.1, 1.36, 1.1);
+  for (const sx of [-1, 1]) {
+    p.cyl('#c9a24f', 0.1, 0.015, 3.1 + sx * 0.24, 1.15 + (sx > 0 ? 0.04 : 0), 1.1, 12);
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2;
+      p.rod('#c9a24f', 0.004, 3.1 + sx * 0.24 + Math.cos(a) * 0.09, 1.15 + (sx > 0 ? 0.04 : 0), 1.1 + Math.sin(a) * 0.09, 3.1 + sx * 0.24, 1.35, 1.1, 4);
+    }
+  }
+  p.sphere('#d18b46', 0.06, 0.045, 0.06, 2.86, 1.18, 1.1, 10, 6);
+  p.box('#7a5a3a', 0.6, 0.35, 0.45, 4.2, 1.17, 1.1);
   p.block('#d8a845', 0.5, 0.15, 0.3, 4.2, 1.35, 1.0);
-  // The work table, with dough and a rolling pin.
+  for (let k = 0; k < 6; k++) p.cyl('#f6efe0', 0.03, 0.02, 4.0 + (k % 3) * 0.2, 1.37, 0.9 + Math.floor(k / 3) * 0.12, 8);
+  // The work table, with dough, a rolling pin, a flour dusting, and eggs in a bowl.
   p.block(WOOD_LIGHT, 2.2, 0.85, 1.3, -3.3, 0, 1.3);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) p.block(shade(WOOD_LIGHT, -0.15), 0.12, 0.85, 0.12, -3.3 + sx * 1.0, 0, 1.3 + sz * 0.55);
+  p.box(shade(WOOD_LIGHT, -0.1), 2.0, 0.05, 1.1, -3.3, 0.3, 1.3);
   p.box('#f6efe0', 1.6, 0.02, 0.9, -3.3, 0.86, 1.3);
   p.sphere('#f3dcb0', 0.3, 0.16, 0.25, -3.6, 0.92, 1.3);
-  p.cyl(WOOD_LIGHT, 0.06, 0.8, -2.8, 0.92, 1.3, 6, 0, 0.3, Math.PI / 2);
-  // Flour sacks.
+  p.cyl(WOOD_LIGHT, 0.06, 0.8, -2.8, 0.92, 1.3, 10, 0, 0.3, Math.PI / 2);
+  p.cyl(shade(WOOD_LIGHT, -0.15), 0.035, 0.12, -2.8 + Math.cos(0.3) * 0.46, 0.92, 1.3 - Math.sin(0.3) * 0.46, 8, 0, 0.3, Math.PI / 2);
+  p.cyl(shade(WOOD_LIGHT, -0.15), 0.035, 0.12, -2.8 - Math.cos(0.3) * 0.46, 0.92, 1.3 + Math.sin(0.3) * 0.46, 8, 0, 0.3, Math.PI / 2);
+  p.taper('#8fc1e8', 1.3, 0.14, 0.1, -2.6, 0.86, 1.8, 12);
+  for (let k = 0; k < 3; k++) p.sphere('#f6e7c8', 0.045, 0.055, 0.045, -2.6 + (k - 1) * 0.07, 0.98, 1.8 + (k % 2) * 0.05, 8, 6);
+  // Pans and a whisk hanging on a rail over the table.
+  p.cyl(IRON, 0.015, 2.0, -3.3, 2.3, 0.65, 6, 0, 0, Math.PI / 2);
+  for (const x of [-3.9, -3.3, -2.7]) {
+    p.rod(IRON, 0.008, x, 2.3, 0.65, x, 2.1, 0.65, 4);
+    p.cyl(x === -3.3 ? '#c9a24f' : '#4a4a52', 0.16, 0.05, x, 1.9, 0.65, 14, Math.PI / 2);
+    p.box('#4a4a52', 0.03, 0.2, 0.02, x, 2.1, 0.65);
+  }
+  // Jars of jam and spices on a shelf on the left wall.
+  const js = p.at(-ROOMS.bakery.hw + 0.25, 0, -1.5, Math.PI / 2);
+  js.box(WOOD, 1.8, 0.05, 0.3, 0, 1.6, 0);
+  for (let k = 0; k < 6; k++) {
+    const c = pick(r, ['#a8463f', '#d8a845', '#7a3f6f', '#5f8a4f', '#e07a4a']);
+    js.post(c, 0.07, 0.16, -0.75 + k * 0.3, 1.63, 0, 10);
+    js.cyl('#f6efe0', 0.075, 0.03, -0.75 + k * 0.3, 1.8, 0, 10);
+    js.box('#f6efe0', 0.08, 0.06, 0.01, -0.75 + k * 0.3, 1.7, 0.075);
+  }
+  // Flour sacks, tied at the neck.
   for (const [x, z] of [
     [-5.2, 2.6],
     [-5.1, 3.4],
   ]) {
-    p.sphere('#efe4cc', 0.42, 0.5, 0.38, x, 0.48, z, 8, 6);
+    p.sphere('#efe4cc', 0.42, 0.5, 0.38, x, 0.48, z, 12, 8);
     p.box('#c9a46a', 0.3, 0.08, 0.3, x, 0.95, z);
+    p.torus('#a8834f', 0.14, 0.015, x, 0.92, z, Math.PI / 2);
   }
-  p.sphere('#efe4cc', 0.38, 0.45, 0.35, -5.25, 1.2, 3.0, 8, 6);
+  p.sphere('#efe4cc', 0.38, 0.45, 0.35, -5.25, 1.2, 3.0, 12, 8);
+  p.box('#8a2f3a', 0.3, 0.1, 0.02, -5.25, 1.1, 3.35);
   hangingLamp(p, glow, 2.5, 2.4, -1.2);
   hangingLamp(p, glow, -1.0, 2.4, 1.5);
 }
@@ -349,9 +479,42 @@ function church(p: Paint, glow: Builder, r: () => number) {
       const w = p.at(sx * (hw - 0.01), 0, z, -sx * (Math.PI / 2));
       w.box('#8f8070', 1.0, 2.1, 0.08, 0, 2.0, 0.02);
       for (let k = 0; k < 6; k++) w.glass.box(stained[(i * 2 + k + (sx > 0 ? 1 : 0)) % stained.length], 0.38, 0.62, 0.06, (k % 2 ? 0.2 : -0.2), 1.35 + Math.floor(k / 2) * 0.66, 0.06);
-      w.glass.cyl(stained[(i + 3) % stained.length], 0.4, 0.06, 0, 3.05, 0.06, 8, Math.PI / 2);
+      // Lead lines between the panes, a stone sill and a pointed arch.
+      w.box('#3a3330', 0.03, 2.0, 0.03, 0, 2.0, 0.09);
+      for (let k = 0; k < 4; k++) w.box('#3a3330', 0.9, 0.03, 0.03, 0, 1.02 + k * 0.66, 0.09);
+      w.box(shade('#8f8070', 0.06), 1.2, 0.1, 0.2, 0, 0.95, 0.1);
+      w.glass.cyl(stained[(i + 3) % stained.length], 0.4, 0.06, 0, 3.05, 0.06, 16, Math.PI / 2);
+      w.torus('#8f8070', 0.45, 0.04, 0, 3.05, 0.08, 0, 0);
+      for (let k = 0; k < 3; k++) w.box('#3a3330', 0.025, 0.8, 0.03, 0, 3.05, 0.09, 0, 0, (k / 3) * Math.PI);
     });
+    // Banners hanging from the pillars, and a sconce on each.
+    for (const z of [-2.5, 1.5]) {
+      const b = p.at(sx * (hw - 0.5), 0, z, -sx * (Math.PI / 2));
+      b.box('#8a2f3a', 0.5, 1.4, 0.03, 0, 2.2, 0.05);
+      b.box('#c9a24f', 0.44, 0.08, 0.035, 0, 2.8, 0.05);
+      b.ico('#c9a24f', 0.1, 0, 2.3, 0.07, 1, 0.5);
+      b.cyl(WOOD_DARK, 0.02, 0.6, 0, 2.92, 0.05, 8, 0, 0, Math.PI / 2);
+    }
   }
+  // A stone font by the door, with water in the bowl.
+  p.post('#bdb3a4', 0.3, 0.3, -4.5, 0, hd - 1.6, 12);
+  p.post('#cfc6b8', 0.18, 0.5, -4.5, 0.3, hd - 1.6, 12);
+  p.taper('#cfc6b8', 1.3, 0.3, 0.35, -4.5, 0.8, hd - 1.6, 16);
+  p.cyl('#8fc1e8', 0.33, 0.02, -4.5, 1.13, hd - 1.6, 16);
+  p.torus('#bdb3a4', 0.39, 0.03, -4.5, 1.15, hd - 1.6, Math.PI / 2);
+  // The lectern, with an open book on it.
+  const lec = p.at(-2.4, 0, -hd + 2.3, 0.4);
+  lec.cyl('#7a5236', 0.25, 0.06, 0, 0.03, 0, 12);
+  lec.post('#7a5236', 0.06, 1.1, 0, 0.06, 0, 10);
+  lec.cyl('#c9a24f', 0.08, 0.03, 0, 0.5, 0, 10);
+  lec.box('#7a5236', 0.6, 0.04, 0.45, 0, 1.2, 0, -0.5);
+  lec.box(shade('#7a5236', -0.1), 0.6, 0.06, 0.03, 0, 1.08, 0.2, -0.5);
+  lec.box('#efe3c6', 0.5, 0.05, 0.36, 0, 1.25, 0, -0.5);
+  lec.box('#3b2a36', 0.02, 0.06, 0.37, 0, 1.25, 0, -0.5);
+  for (const sx of [-1, 1]) for (let k = 0; k < 4; k++) lec.box('#2a1d12', 0.17, 0.003, 0.01, sx * 0.12, 1.28 + (k - 1.5) * -0.04, (k - 1.5) * 0.07, -0.5);
+  // A kneeler and a stack of hymn books by the front pew.
+  p.box('#8a2f3a', 0.9, 0.08, 0.3, 3.2, 0.04, -4.95);
+  for (let k = 0; k < 3; k++) p.box(pick(r, ['#3b2a36', '#8a2f3a', '#3f6f9a']), 0.18, 0.04, 0.24, -3.9, 0.22 + k * 0.045, -hd + 0.3 + 0.1, 0, (k - 1) * 0.15, 0);
   // The rose window above the altar.
   const back = p.at(0, 2.45, -hd + 0.02);
   back.cyl('#8f8070', 0.95, 0.06, 0, 0, 0.02, 16, Math.PI / 2);
@@ -383,8 +546,15 @@ function church(p: Paint, glow: Builder, r: () => number) {
       q.box('#7a5236', PEW_LEN, 0.08, 0.5, 0, 0.44, 0);
       q.box('#7a5236', PEW_LEN, 0.55, 0.08, 0, 0.75, 0.27);
       q.box('#6a4630', PEW_LEN + 0.06, 0.06, 0.12, 0, 1.04, 0.27);
-      for (const ex of [-1, 1]) q.block('#6a4630', 0.08, 0.95, 0.6, ex * (PEW_LEN / 2), 0, 0.03);
+      for (const ex of [-1, 1]) {
+        q.block('#6a4630', 0.08, 0.95, 0.6, ex * (PEW_LEN / 2), 0, 0.03);
+        q.cyl('#6a4630', 0.3, 0.08, ex * (PEW_LEN / 2), 0.9, -0.1, 14, 0, 0, Math.PI / 2);
+      }
+      q.box('#6a4630', PEW_LEN - 0.2, 0.05, 0.05, 0, 0.2, -0.2);
       q.box('#a8463f', PEW_LEN - 0.2, 0.04, 0.42, 0, 0.5, 0);
+      // A hymn book left on the seat, and a little shelf on the back.
+      q.box('#3b2a36', 0.16, 0.03, 0.22, (sx > 0 ? 1 : -1) * 0.9, 0.54, 0, 0, 0.2, 0);
+      q.box(shade('#7a5236', -0.08), PEW_LEN - 0.3, 0.03, 0.12, 0, 0.85, 0.38);
     }
   }
   // Hanging candle wheels.
@@ -406,8 +576,20 @@ function home(p: Paint, glow: Builder, r: () => number, sign: TextSign): THREE.O
   // Wallpaper stripes.
   for (let x = -hw + 0.3; x < hw; x += 0.6) p.box('#efd9bf', 0.22, WALL_H - 1.1, 0.02, x, 1.1 + (WALL_H - 1.1) / 2, -hd + 0.02);
   backWindow(p, 0.5, 2.0, -hd, 1.1, 1.0, '#7a5236');
-  for (const sx of [-1, 1]) p.box('#d8687a', 0.35, 1.3, 0.06, 0.5 + sx * 0.78, 2.05, -hd + 0.12);
-  p.box(WOOD_DARK, 2.0, 0.05, 0.05, 0.5, 2.72, -hd + 0.12);
+  // Curtains gathered with tiebacks, on a pole with finials, and a picture beside the window.
+  for (const sx of [-1, 1]) {
+    const x = 0.5 + sx * 0.78;
+    p.box('#d8687a', 0.35, 1.3, 0.06, x, 2.05, -hd + 0.12);
+    for (let k = 0; k < 4; k++) p.box(shade('#d8687a', k % 2 ? -0.08 : 0.04), 0.06, 1.3, 0.07, x - 0.13 + k * 0.085, 2.05, -hd + 0.12);
+    p.box('#c9a24f', 0.3, 0.06, 0.09, x, 1.7, -hd + 0.12);
+    p.cyl('#c9a24f', 0.05, 0.1, x, 1.7, -hd + 0.17, 10, Math.PI / 2);
+  }
+  p.cyl(WOOD_DARK, 0.03, 2.1, 0.5, 2.72, -hd + 0.12, 8, 0, 0, Math.PI / 2);
+  for (const sx of [-1, 1]) p.sphere(WOOD_DARK, 0.06, 0.06, 0.06, 0.5 + sx * 1.08, 2.72, -hd + 0.12, 10, 8);
+  p.box('#c9a24f', 0.5, 0.4, 0.04, -1.6, 2.2, -hd + 0.06);
+  p.box('#5f8fbf', 0.42, 0.32, 0.045, -1.6, 2.2, -hd + 0.06);
+  p.box('#8bc366', 0.42, 0.12, 0.05, -1.6, 2.1, -hd + 0.06);
+  p.ico('#f6d55c', 0.04, -1.5, 2.28, -hd + 0.09, 0);
   // The bed.
   const b = p.at(BED.x, 0, BED.z);
   b.block(WOOD, BED.w, 0.3, BED.d, 0, 0.05, 0);
@@ -415,15 +597,44 @@ function home(p: Paint, glow: Builder, r: () => number, sign: TextSign): THREE.O
   b.block(WOOD_DARK, BED.w + 0.1, 1.25, 0.12, 0, 0, -BED.d / 2);
   b.cyl(WOOD_DARK, BED.w / 2 + 0.05, 0.12, 0, 1.25, -BED.d / 2, 10, Math.PI / 2);
   b.block('#f6f1e6', BED.w - 0.1, 0.17, BED.d - 0.1, 0, 0.35, 0);
-  b.sphere('#ffffff', 0.55, 0.13, 0.28, 0, BED.top + 0.05, -BED.d / 2 + 0.38);
+  b.sphere('#ffffff', 0.55, 0.13, 0.28, 0, BED.top + 0.05, -BED.d / 2 + 0.38, 14, 8);
+  // Headboard panels and knobs on the posts.
+  for (let k = 0; k < 3; k++) b.box(shade(WOOD_DARK, 0.08), 0.42, 0.7, 0.04, (k - 1) * 0.5, 0.75, -BED.d / 2 + 0.06);
+  for (const sx of [-1, 1]) b.sphere(WOOD_DARK, 0.08, 0.08, 0.08, sx * (BED.w / 2 - 0.05), 1.4, -BED.d / 2, 10, 8);
+  // A patchwork quilt with stitching between the patches, turned down at the top.
   const quilt = ['#f2a7b8', '#8fc1e8', '#f6d55c', '#b494dd', '#7cc28b', '#ff9a62'];
   for (let i = 0; i < 4; i++) for (let k = 0; k < 4; k++) b.box(quilt[(i * 3 + k) % quilt.length], (BED.w - 0.05) / 4, 0.06, 0.4, -BED.w / 2 + 0.03 + ((i + 0.5) * (BED.w - 0.05)) / 4, BED.top + 0.01, -0.35 + k * 0.4);
+  for (let i = 1; i < 4; i++) b.box('#f6f1e6', 0.015, 0.012, 1.6, -BED.w / 2 + 0.03 + (i * (BED.w - 0.05)) / 4, BED.top + 0.045, 0.25);
+  for (let k = 1; k < 4; k++) b.box('#f6f1e6', BED.w - 0.05, 0.012, 0.015, 0, BED.top + 0.045, -0.55 + k * 0.4);
   b.box('#e8dcc0', BED.w + 0.02, 0.2, 0.06, 0, BED.top - 0.08, BED.d / 2 - 0.28);
-  // Bedside table and lamp.
+  b.box('#f6f1e6', BED.w - 0.05, 0.03, 0.3, 0, BED.top + 0.05, -0.7);
+  // A teddy sitting on the pillow, and slippers on the floor beside the bed.
+  const ted = b.at(0.45, BED.top + 0.08, -BED.d / 2 + 0.5, 0.4);
+  ted.sphere('#c49a6c', 0.1, 0.11, 0.09, 0, 0.1, 0);
+  ted.sphere('#c49a6c', 0.085, 0.08, 0.08, 0, 0.26, 0.01);
+  ted.sphere('#e8c8a0', 0.045, 0.035, 0.03, 0, 0.23, 0.08, 8, 6);
+  for (const sx of [-1, 1]) {
+    ted.sphere('#c49a6c', 0.035, 0.035, 0.02, sx * 0.07, 0.33, 0, 8, 6);
+    ted.sphere('#c49a6c', 0.035, 0.08, 0.035, sx * 0.1, 0.12, 0.03, 8, 6);
+    ted.sphere('#c49a6c', 0.04, 0.035, 0.07, sx * 0.07, 0.03, 0.08, 8, 6);
+    ted.sphere('#2a2530', 0.012, 0.012, 0.012, sx * 0.03, 0.28, 0.075, 6, 4);
+  }
+  ted.box('#a8463f', 0.12, 0.03, 0.03, 0, 0.19, 0.06);
+  for (const sx of [-1, 1]) {
+    b.sphere('#8a5a7a', 0.07, 0.03, 0.14, -BED.w / 2 - 0.25 + sx * 0.09, 0.03, 0.4, 10, 6);
+    b.sphere('#f2a7b8', 0.07, 0.03, 0.05, -BED.w / 2 - 0.25 + sx * 0.09, 0.055, 0.32, 10, 6);
+  }
+  // Bedside table with a drawer, a lamp with a fringed shade, and a book.
   p.block(WOOD, 0.6, 0.6, 0.5, 4.45, 0, -3.5);
-  p.post('#d8a845', 0.04, 0.3, 4.45, 0.6, -3.5, 6);
-  p.taper('#f6d9a8', 0.6, 0.18, 0.22, 4.45, 0.88, -3.5, 8);
-  glow.add(new THREE.IcosahedronGeometry(0.08, 0), '#ffe2a0', { pos: [4.45, 0.92, -3.5] });
+  p.box(shade(WOOD, -0.1), 0.46, 0.18, 0.02, 4.45, 0.42, -3.24);
+  p.sphere('#c9a24f', 0.025, 0.025, 0.025, 4.45, 0.42, -3.22, 8, 6);
+  p.box(shade(WOOD, 0.06), 0.64, 0.04, 0.54, 4.45, 0.62, -3.5);
+  p.post('#d8a845', 0.04, 0.3, 4.45, 0.6, -3.5, 8);
+  p.cyl('#d8a845', 0.09, 0.02, 4.45, 0.65, -3.5, 12);
+  p.taper('#f6d9a8', 0.6, 0.18, 0.22, 4.45, 0.88, -3.5, 14);
+  p.torus('#e8b878', 0.18, 0.012, 4.45, 0.89, -3.5, Math.PI / 2);
+  p.box('#3f6f9a', 0.2, 0.04, 0.26, 4.3, 0.66, -3.3, 0, 0.3, 0);
+  glow.add(new THREE.IcosahedronGeometry(0.08, 1), '#ffe2a0', { pos: [4.45, 0.92, -3.5] });
   // Fireplace with a rug before it.
   fireplace(p.at(-2.4, 0, -hd + 0.4), glow, '#b5a99a');
   candle(p, glow, -2.9, 1.66, -hd + 0.4, 0.2);
@@ -449,19 +660,38 @@ function home(p: Paint, glow: Builder, r: () => number, sign: TextSign): THREE.O
   p.box('#8fc1e8', 0.14, 0.04, 0.04, HOME_TABLE.x + 0.18, 0.93, HOME_TABLE.z);
   for (const dx of [-0.35, 0.35]) p.post('#ffffff', 0.06, 0.07, HOME_TABLE.x + dx, 0.8, HOME_TABLE.z + 0.2, 8);
   for (const c of HOME_CHAIRS) chair(p.at(c.x, 0, c.z, c.ry), '#c98a5a');
-  // A big oval rug and a potted plant.
-  p.sphere('#7cc28b', 1.8, 0.02, 1.2, 0.4, 0.02, 0.7, 12, 2);
-  p.sphere('#f6efe0', 1.5, 0.025, 0.95, 0.4, 0.025, 0.7, 12, 2);
-  p.sphere('#f2a7b8', 1.1, 0.03, 0.65, 0.4, 0.03, 0.7, 12, 2);
-  p.taper('#c06a48', 1.3, 0.28, 0.45, 4.5, 0, 1.6, 8);
-  for (let k = 0; k < 5; k++) {
-    const a = (k / 5) * Math.PI * 2;
-    p.sphere('#5f9e47', 0.18, 0.4, 0.12, 4.5 + Math.cos(a) * 0.18, 0.85, 1.6 + Math.sin(a) * 0.18);
+  // A big oval rug with a fringe, and a potted plant in a glazed pot.
+  p.sphere('#7cc28b', 1.8, 0.02, 1.2, 0.4, 0.02, 0.7, 24, 2);
+  p.sphere('#f6efe0', 1.5, 0.025, 0.95, 0.4, 0.025, 0.7, 24, 2);
+  p.sphere('#f2a7b8', 1.1, 0.03, 0.65, 0.4, 0.03, 0.7, 24, 2);
+  for (let k = 0; k < 40; k++) {
+    const a = (k / 40) * Math.PI * 2;
+    p.box('#e8dcc0', 0.04, 0.015, 0.14, 0.4 + Math.cos(a) * 1.86, 0.015, 0.7 + Math.sin(a) * 1.26, 0, -a + Math.PI / 2, 0);
   }
-  // A coat hook by the door and a little clock.
+  p.taper('#c06a48', 1.3, 0.28, 0.45, 4.5, 0, 1.6, 14);
+  p.torus('#a8503a', 0.36, 0.03, 4.5, 0.45, 1.6, Math.PI / 2);
+  p.cyl('#5e4130', 0.33, 0.02, 4.5, 0.45, 1.6, 14);
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * Math.PI * 2;
+    p.sphere('#5f9e47', 0.16, 0.42, 0.1, 4.5 + Math.cos(a) * 0.2, 0.85, 1.6 + Math.sin(a) * 0.2, 8, 6);
+    p.rod('#4f8f45', 0.012, 4.5, 0.5, 1.6, 4.5 + Math.cos(a) * 0.2, 0.85, 1.6 + Math.sin(a) * 0.2, 4);
+  }
+  // A coat hook by the door with a coat and a hat on it, a mirror, and a little clock with hands.
   p.box(WOOD_DARK, 0.9, 0.08, 0.06, -2.2, 1.9, hd - 0.1);
-  p.cyl('#c9a24f', 0.2, 0.05, -1.0, 2.5, -hd + 0.05, 10, Math.PI / 2);
-  p.cyl('#f6efe0', 0.16, 0.06, -1.0, 2.5, -hd + 0.06, 10, Math.PI / 2);
+  for (let k = 0; k < 3; k++) p.rod(IRON, 0.012, -2.5 + k * 0.3, 1.86, hd - 0.1, -2.5 + k * 0.3, 1.8, hd - 0.2, 4);
+  p.box('#3f6f9a', 0.3, 0.6, 0.08, -2.2, 1.5, hd - 0.2);
+  p.sphere('#8a5a36', 0.14, 0.05, 0.14, -2.5, 1.9, hd - 0.2, 12, 6);
+  p.cyl('#8a5a36', 0.09, 0.08, -2.5, 1.94, hd - 0.2, 12);
+  p.box(WOOD_DARK, 0.5, 0.7, 0.04, -3.6, 2.0, -hd + 0.05);
+  p.box('#cfe0ec', 0.42, 0.62, 0.045, -3.6, 2.0, -hd + 0.05);
+  p.cyl('#c9a24f', 0.2, 0.05, -1.0, 2.5, -hd + 0.05, 16, Math.PI / 2);
+  p.cyl('#f6efe0', 0.16, 0.06, -1.0, 2.5, -hd + 0.06, 16, Math.PI / 2);
+  p.box('#2a2530', 0.02, 0.1, 0.01, -1.0, 2.55, -hd + 0.095);
+  p.box('#2a2530', 0.02, 0.07, 0.01, -1.03, 2.52, -hd + 0.095, 0, 0, 1.0);
+  for (let k = 0; k < 12; k++) {
+    const a = (k / 12) * Math.PI * 2;
+    p.box('#2a2530', 0.012, 0.025, 0.008, -1.0 + Math.sin(a) * 0.13, 2.5 + Math.cos(a) * 0.13, -hd + 0.095, 0, 0, -a);
+  }
   // The owner's name, embroidered on a hoop above the bed.
   const hoop = new THREE.Group();
   const face = new THREE.Mesh(

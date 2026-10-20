@@ -1055,20 +1055,15 @@ function pond(group: THREE.Group, p: Paint, r: () => number): Outdoor['water'] {
     const boat = p.at(bx, 0.0, bz, 0.9);
     const ell = (color: THREE.ColorRepresentation, geo: THREE.BufferGeometry, sx: number, sy: number, sz: number, y: number, rx = 0) =>
       boat.geo(geo, color, new THREE.Matrix4().compose(new THREE.Vector3(0, y, 0), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, 0, 0)), new THREE.Vector3(sx, sy, sz)));
-    // The hull is a bowl (a dome turned over), with a darker bowl inside it, a gunwale, two thwarts and the oars shipped.
-    ell('#8a5a36', G.dome(16), 0.55, 0.34, 1.2, 0.4, Math.PI);
-    ell('#4a3020', G.dome(16), 0.47, 0.28, 1.1, 0.41, Math.PI);
-    ell('#6e4a30', G.torus(0.06, 6, 20), 0.55, 0.55, 1.2, 0.4, Math.PI / 2);
-    boat.box('#c49a6c', 0.8, 0.05, 0.16, 0, 0.3, 0.35);
-    boat.box('#c49a6c', 0.8, 0.05, 0.16, 0, 0.3, -0.3);
-    boat.box(shade('#8a5a36', 0.08), 0.1, 0.05, 0.9, 0, 0.17, 0);
-    for (const sx of [-1, 1]) {
-      boat.rod('#c49a6c', 0.02, sx * 0.5, 0.42, 0.1, sx * 0.35, 0.3, -1.1, 6);
-      boat.box('#c49a6c', 0.06, 0.02, 0.3, sx * 0.37, 0.3, -1.1);
-      boat.cyl(IRON, 0.03, 0.08, sx * 0.52, 0.44, 0.1, 6);
-    }
-    boat.post(WOOD_DARK, 0.06, 0.5, 1.0, 0, 1.3, 8);
-    boat.rope('#d8c8a0', 0.012, 0.5, 0.4, 1.0, 1.0, 0.45, 1.3, 0.05, 3);
+    // A pointed hull (a four-sided bowl turned over), the rim and floor planked, two thwarts, and a mooring rope.
+    ell('#8a5a36', G.dome(4), 0.62, 0.55, 1.4, 0.5, Math.PI);
+    ell('#6e4a30', G.cyl(4), 0.62, 0.05, 1.4, 0.5);
+    ell('#a8784a', G.cyl(4), 0.5, 0.04, 1.2, 0.5);
+    for (let k = -2; k <= 2; k++) boat.box(shade('#a8784a', -0.1), 0.03, 0.02, 1.15 - Math.abs(k) * 0.25, k * 0.1, 0.53, 0);
+    boat.box('#c49a6c', 0.8, 0.06, 0.2, 0, 0.5, 0.45);
+    boat.box('#c49a6c', 0.9, 0.06, 0.2, 0, 0.5, -0.3);
+    boat.post(WOOD_DARK, 0.06, 0.5, 1.1, 0, 1.6, 8);
+    boat.rope('#d8c8a0', 0.012, 0.0, 0.52, 1.4, 1.1, 0.45, 1.6, 0.05, 3);
   }
   for (let i = 0; i < 14; i++) {
     const a = r() * Math.PI * 2;
@@ -1387,7 +1382,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   };
   // Forest ring outside the fence.
   let placed = 0;
-  for (let k = 0; k < 2400 && placed < 400; k++) {
+  for (let k = 0; k < 2400 && placed < 360; k++) {
     const a = r() * Math.PI * 2;
     const rad = TOWN_R + 4 + Math.pow(r(), 0.8) * 55;
     const x = rad * Math.sin(a);
@@ -1398,7 +1393,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     placed++;
   }
   // Inside town, in the gaps.
-  for (let k = 0; k < 900 && placed < 490; k++) {
+  for (let k = 0; k < 900 && placed < 450; k++) {
     const a = r() * Math.PI * 2;
     const rad = 14 + r() * (TOWN_R - 16);
     const x = rad * Math.sin(a);
@@ -1408,7 +1403,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     placeTree(x, z, true);
     placed++;
   }
-  for (let k = 0; k < 900; k++) {
+  for (let k = 0; k < 780; k++) {
     const a = r() * Math.PI * 2;
     const rad = 12 + r() * (TOWN_R - 14);
     const x = rad * Math.sin(a);
