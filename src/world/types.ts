@@ -118,7 +118,35 @@ export interface Look {
   animal: AnimalId;
   /** The main coat colour, as a hex string. */
   color: string;
+  /** A hat earned in earlier games, worn on the head. */
+  hat?: HatId | null;
 }
+
+// ---------------------------------------------------------------- hats, earned and kept between games
+
+export type HatId = 'beanie' | 'flower' | 'party' | 'wizard' | 'tophat' | 'crown' | 'halo' | 'witch';
+
+/** What a player has done across all their games, kept in their own browser. */
+export interface Progress {
+  stars: number;
+  records: number;
+  ghosts: number;
+  nights: number;
+}
+
+export const HATS: { id: HatId; name: string; icon: string; how: string; unlocked: (p: Progress) => boolean }[] = [
+  { id: 'beanie', name: 'Beanie', icon: '🧶', how: 'Free for everyone', unlocked: () => true },
+  { id: 'flower', name: 'Flower crown', icon: '🌸', how: 'Earn a gold star counting sheep', unlocked: (p) => p.stars >= 1 },
+  { id: 'party', name: 'Party hat', icon: '🥳', how: 'Earn 3 gold stars', unlocked: (p) => p.stars >= 3 },
+  { id: 'witch', name: 'Witch hat', icon: '🧹', how: 'Sleep through 10 nights', unlocked: (p) => p.nights >= 10 },
+  { id: 'wizard', name: 'Wizard hat', icon: '🧙', how: 'Earn 5 gold stars', unlocked: (p) => p.stars >= 5 },
+  { id: 'tophat', name: 'Top hat', icon: '🎩', how: 'Set a town record at any job', unlocked: (p) => p.records >= 1 },
+  { id: 'halo', name: 'Halo', icon: '😇', how: 'Walk the town as a ghost', unlocked: (p) => p.ghosts >= 1 },
+  { id: 'crown', name: 'Crown', icon: '👑', how: 'Earn 10 gold stars', unlocked: (p) => p.stars >= 10 },
+];
+
+/** The weather the Storyteller can call for. */
+export type Weather = 'clear' | 'mist' | 'rain';
 
 /** Jarrod is always the bunny, and nobody else can be. */
 export function isJarrod(name: string): boolean {
@@ -128,11 +156,16 @@ export function isJarrod(name: string): boolean {
 export function fixLook(name: string, look: Partial<Look> | null | undefined): Look {
   if (isJarrod(name)) {
     const color = look?.animal === 'bunny' && look.color ? look.color : animalInfo('bunny').colors[0];
-    return { animal: 'bunny', color };
+    return { animal: 'bunny', color, hat: fixHat(look?.hat) };
   }
   const info = ANIMALS.find((a) => a.id === look?.animal && !a.reservedFor) ?? ANIMALS[0];
   const color = /^#[0-9a-f]{6}$/i.test(look?.color ?? '') ? look!.color! : info.colors[0];
-  return { animal: info.id, color };
+  return { animal: info.id, color, hat: fixHat(look?.hat) };
+}
+
+/** A known hat or none. (Unlocks are checked in the player's own browser; this is a friendly game.) */
+export function fixHat(hat: unknown): HatId | null {
+  return HATS.some((h) => h.id === hat) ? (hat as HatId) : null;
 }
 
 // ---------------------------------------------------------------- what an animal is doing
