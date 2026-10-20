@@ -247,8 +247,10 @@ export function Fishing({ finish, setHint }: GameProps<{ kind: string; cm: numbe
         </defs>
         <rect x="-200" y="-100" width="720" height="400" fill="url(#pond)" />
         {/* far bank */}
-        <rect x="-200" y="-100" width="720" height="122" fill="#86c26e" />
-        <path d="M-200 22 q60 10 120 0 q40 -6 80 4 h320 v26 q-40 10 -80 4 q-50 -8 -90 6 q-60 12 -150 -2 z M320 30 q60 -10 120 2 q40 6 80 -4 v-10 h-200 z" fill="#86c26e" />
+        <path
+          d="M-200 -100 H520 V24 q-60 8 -120 0 q-40 -4 -80 2 q-40 10 -80 4 q-50 -8 -90 6 q-60 12 -150 -2 q-60 -6 -120 2 q-40 4 -80 -4 Z"
+          fill="#86c26e"
+        />
         {[-150, -96, -40, 30, 70, 250, 292, 350, 410, 470].map((x, i) => (
           <circle key={x} cx={x} cy={10 + (i % 2) * 4} r={16 + (i % 2) * 5} fill="#5fa25a" />
         ))}

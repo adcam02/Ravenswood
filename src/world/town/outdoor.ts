@@ -4,7 +4,6 @@ import type { Collider } from '../types';
 import { G, Paint, frame, local, pick, shade, type Layers } from './kit';
 import {
   BAKERY,
-  BED_DEPTH,
   BED_H,
   BED_LEN,
   CHURCH,
@@ -29,7 +28,6 @@ import {
   benches,
   houseSlots,
   pathLamps,
-  pondContains,
   roadLamps,
   squareLamps,
 } from './layout';
@@ -388,7 +386,7 @@ function church(p: Paint) {
   p.roof(roof, D, W, 4.6, 6.9, 0.55, 0.22, 0, 0, Math.PI / 2);
   const stained = ['#4f6fb8', '#b84f5a', '#e0b84f', '#5aa06a'];
   for (const sx of [-1, 1]) {
-    for (const z of [-5.6, -2.0, 1.6, 5.2]) p.block(dark, 0.6, 4.2, 0.9, sx * (W / 2 + 0.25), 0.3, z + 1.8);
+    for (const z of [-5.6, -2.0, 1.6, 5.2]) p.block(dark, 0.6, 4.2, 0.9, sx * (W / 2 + 0.25), 0.3, z);
     [-3.8, -0.2, 3.4].forEach((z, i) => {
       const f = p.at(sx * (W / 2 + 0.01), 3.6, z, (sx * Math.PI) / 2);
       wallWindow(f, 0.9, 2.4, '#8f8070', stained[(i + (sx > 0 ? 1 : 0)) % stained.length], false);
@@ -535,7 +533,7 @@ function bakery(p: Paint, r: () => number, smoke: (v: THREE.Vector3) => void) {
   }
   for (let k = 0; k < stripes; k++) {
     const x = -W / 2 + 0.2 + (k + 0.5) * ((W - 0.4) / stripes);
-    f.cone(k % 2 ? '#fff3e0' : '#e4553f', ((W - 0.4) / stripes) * 0.55, 0.25, x, 2.42, 1.22, 3, Math.PI);
+    f.box(k % 2 ? '#fff3e0' : '#e4553f', (W - 0.4) / stripes + 0.01, 0.22, 0.04, x, 2.56, 1.25);
   }
   for (const sx of [-1, 1]) {
     const side = p.at(sx * (W / 2 + 0.01), 0, 0, (sx * Math.PI) / 2);
@@ -574,7 +572,7 @@ function cottage(p: Paint, r: () => number, slot: number, smoke: (v: THREE.Vecto
   f.sphere('#e8c35a', 0.05, 0.05, 0.05, 0.3, 1.2, 0.12);
   f.block(STONE, 1.3, 0.14, 0.55, 0, 0, 0.3);
   // A little porch roof over the door.
-  f.box(roof, 1.6, 0.1, 0.7, 0, 2.45, 0.32, -0.25);
+  f.box(roof, 1.6, 0.1, 0.7, 0, 2.45, 0.32, 0.25);
   lantern(f.at(0.85, 2.0, 0));
   for (const x of [-1.6, 1.6]) {
     wallWindow(f.at(x, 1.7, 0), 0.85, 0.85, trim);
@@ -672,9 +670,8 @@ function pond(group: THREE.Group, p: Paint, r: () => number): Outdoor['water'] {
       const b = ring(i, k + 1);
       const c = ring(i + 1, k + 1);
       const d = ring(i + 1, k);
-      pos.push(...a, ...c, ...b);
-      if (i > 0) pos.push(...a, ...d, ...c);
-      else pos.push(...a, ...d, ...c);
+      if (i > 0) pos.push(...a, ...b, ...c);
+      pos.push(...a, ...c, ...d);
     }
   }
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -900,7 +897,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     const x = fenceR * Math.sin(am);
     const z = -fenceR * Math.cos(am);
     if (z > 0 && Math.abs(x) < 3.4) continue;
-    railFence(painter(x, z, -am + Math.PI / 2 - Math.PI / 2), 2 * fenceR * Math.sin(Math.PI / segs));
+    railFence(painter(x, z, -am), 2 * fenceR * Math.sin(Math.PI / segs));
   }
 
   // Trees, bushes and flowers.
@@ -1006,10 +1003,11 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   }
   group.add(bell);
   const flag = new THREE.Group();
-  flag.position.set(0, 19.1, 0);
+  flag.position.set(0, 19.8, 0);
   {
     const b = new Builder();
-    b.add(G.prism(), '#8a3a5a', { pos: [0.45, -0.25, 0], rot: [Math.PI / 2, 0, -Math.PI / 2], scale: [0.04, 0.9, 0.5] });
+    b.add(G.box(), '#8a3a5a', { pos: [0.45, -0.22, 0], scale: [0.9, 0.44, 0.03] });
+    b.add(G.box(), '#e8c35a', { pos: [0.45, -0.22, 0.02], scale: [0.3, 0.1, 0.02] });
     flag.add(b.mesh(matte()));
   }
   group.add(flag);
@@ -1080,8 +1078,6 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
 
   const lampLights = [0, 2, 4, 6].map((i) => new THREE.Vector3(squareLamps[i].x, 2.9, squareLamps[i].z));
 
-  void BED_DEPTH;
   return { group, colliders, water, clockHands, bell, flag, chimneys, houseSigns, signMaterials, wreaths, pools, lampLights };
 }
 
-export { pondContains };

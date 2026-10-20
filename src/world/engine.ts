@@ -114,6 +114,7 @@ export class Engine {
   private stuckFor = 0;
 
   private time = 0;
+  private litAt = -1;
   private yaw = 0;
   private yawTarget = 0;
   private dist = 15;
@@ -126,6 +127,7 @@ export class Engine {
   private job: { job: GameJob; station: Station; prevItem: Item | null } | null = null;
   private sips = 0;
   private doorCooldown = 0;
+  private frozen = false;
   private lastVoice = 0;
   private lastFish = -1;
   private wasJoined = false;
@@ -182,6 +184,8 @@ export class Engine {
 
   dispose() {
     cancelAnimationFrame(this.raf);
+    for (const k of ['interact', 'sip', 'give', 'putAway', 'takeMeetingSeat', 'goToSquare', 'jobCancel'] as const) game[k] = () => {};
+    game.emote = game.goTo = game.jobDone = () => {};
     this.ro.disconnect();
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
@@ -341,9 +345,12 @@ export class Engine {
       if (zoneKind(zone) !== 'town') this.yaw = this.yawTarget = 0;
     };
     if (!fade) return go();
+    this.frozen = true;
+    this.moveTarget = null;
     useHud.setState({ fading: true });
     setTimeout(() => {
       go();
+      this.frozen = false;
       setTimeout(() => useHud.setState({ fading: false }), 120);
     }, 260);
   }
@@ -512,7 +519,7 @@ export class Engine {
   }
 
   private interact() {
-    if (!this.me || this.view?.paused || this.job) return;
+    if (!this.me || this.view?.paused || this.job || this.frozen) return;
     const s = this.nearStation;
     if (!s) {
       if (local.item && SIPPABLE.has(local.item.k)) this.sip();
@@ -660,7 +667,10 @@ export class Engine {
     // Night falls (and lifts) over a few seconds.
     const night = v && v.started && v.phase === 'night' ? 1 : 0;
     this.time += (night - this.time) * Math.min(1, dt * 0.7);
-    this.town.setTime(this.time);
+    if (Math.abs(this.time - this.litAt) > 0.002) {
+      this.litAt = this.time;
+      this.town.setTime(this.time);
+    }
 
     if (this.me && v) this.moveMe(dt, t, v);
     this.updateOthers(dt, t, v);
@@ -688,7 +698,7 @@ export class Engine {
     // Keyboard direction, relative to the camera.
     let ix = 0;
     let iz = 0;
-    if (!v.paused && !this.job) {
+    if (!v.paused && !this.job && !this.frozen) {
       if (this.keys.has('w') || this.keys.has('arrowup')) iz -= 1;
       if (this.keys.has('s') || this.keys.has('arrowdown')) iz += 1;
       if (this.keys.has('a') || this.keys.has('arrowleft')) ix -= 1;
@@ -705,7 +715,7 @@ export class Engine {
       const sin = Math.sin(this.yaw);
       dx = ix * cos + iz * sin;
       dz = -ix * sin + iz * cos;
-    } else if (this.moveTarget) {
+    } else if (this.moveTarget && !this.frozen) {
       const tx = this.moveTarget.x - local.x;
       const tz = this.moveTarget.z - local.z;
       const d = Math.hypot(tx, tz);

@@ -500,9 +500,20 @@
     display: none;
   }
 
+  .job-choices {
+    grid-template-columns: repeat(auto-fit, minmax(60px, 1fr));
+    gap: 6px;
+  }
+
   .job-choice {
-    padding: 8px 4px;
-    font-size: 0.9rem;
+    padding: 8px 2px 6px;
+    font-size: 0.82rem;
+    border-radius: 14px;
+  }
+
+  .job-choice-num {
+    top: 3px;
+    left: 6px;
   }
 
   .job-choice-art {

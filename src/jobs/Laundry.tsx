@@ -193,6 +193,9 @@ export function Laundry({ finish, setHint }: GameProps<{ kind: ClothKind; color:
             <stop offset="0" stopColor="#bfe6f2" />
             <stop offset="1" stopColor="#8ccbe0" />
           </radialGradient>
+          <clipPath id="wash-tub">
+            <ellipse cx="120" cy="86" rx="108" ry="66" />
+          </clipPath>
         </defs>
         <rect x="-200" y="-100" width="640" height="220" fill="#cfe7c6" />
         <rect x="-200" y="120" width="640" height="140" fill="#b7d8a8" />
@@ -205,9 +208,11 @@ export function Laundry({ finish, setHint }: GameProps<{ kind: ClothKind; color:
         {/* the tub */}
         <ellipse cx="120" cy="88" rx="118" ry="74" fill="#9a6337" />
         <ellipse cx="120" cy="86" rx="108" ry="66" fill="url(#wash-water)" />
-        {[-70, -24, 24, 70].map((dx) => (
-          <path key={dx} d={`M${120 + dx} 14 q${dx * 0.05} 74 0 146`} stroke="#7d4c26" strokeWidth="2" opacity="0.3" fill="none" />
-        ))}
+        <g clipPath="url(#wash-tub)">
+          {[-70, -24, 24, 70].map((dx) => (
+            <path key={dx} d={`M${120 + dx} 14 q${dx * 0.05} 74 0 146`} stroke="#7d4c26" strokeWidth="2" opacity="0.3" fill="none" />
+          ))}
+        </g>
         <ellipse cx="120" cy="86" rx="108" ry="66" fill="none" stroke="#c48a55" strokeWidth="4" />
         <g className="job-garment">
           <path d={shape.d} fill={garment.color} stroke="rgba(0,0,0,0.18)" strokeWidth="2" strokeLinejoin="round" />
