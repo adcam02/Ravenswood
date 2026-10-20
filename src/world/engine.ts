@@ -278,7 +278,7 @@ export class Engine {
     game.turnCamera = (dir) => this.turnCamera(dir);
     this.unsubUI = useUI.subscribe((s) => ambience.setEnabled(s.ambience && !s.muted));
     game.sheepDone = (correct) => {
-      useHud.setState({ sheep: 'done' });
+      // The result stays up until they close it (or nod off); the HUD moves to 'done' then.
       if (correct) {
         this.hooks.townAction({ k: 'star' });
         this.me?.bubble('Counted them all!', 3000);

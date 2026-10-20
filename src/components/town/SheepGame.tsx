@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { game } from '../../game/hud';
+import { game, useHud } from '../../game/hud';
 
 /**
  * Counting sheep, in bed at night. Sheep (and a few goats) run across and jump the fence; keep the count in your
@@ -234,6 +234,14 @@ export function SheepGame() {
     setStage('done');
     game.sheepDone(right);
   };
+  const sleepNow = () => useHud.setState({ sheep: 'done' });
+
+  // The result lingers a while, then they nod off.
+  useEffect(() => {
+    if (stage !== 'done') return;
+    const t = setTimeout(sleepNow, 9000);
+    return () => clearTimeout(t);
+  }, [stage]);
 
   return (
     <div className="sheep-game cosy-panel" role="dialog" aria-label="Counting sheep">
@@ -286,6 +294,9 @@ export function SheepGame() {
           <span className="sheep-big">{result.right ? '⭐' : '💤'}</span>
           <strong>{result.right ? 'Spot on!' : `It was ${result.answer}.`}</strong>
           <span>{result.right ? 'A gold star for you in the morning.' : 'Sleep tight. Try again tomorrow night.'}</span>
+          <button className="cosy-btn primary" onClick={sleepNow} autoFocus>
+            Back to sleep
+          </button>
         </div>
       )}
     </div>
