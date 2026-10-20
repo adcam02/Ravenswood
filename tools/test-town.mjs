@@ -112,16 +112,19 @@ await until(st, () => window.__hostNet?.getState().status === 'open', null, 6000
 
 // ---------------------------------------------------------------- players arrive
 
+/** Clicks through the DOM once the element exists: a starved page can't satisfy Playwright's stability checks in time. */
+async function jsClick(page, selector, ms = 90000) {
+  await page.waitForSelector(selector, { state: 'attached', timeout: ms });
+  await page.$eval(selector, (el) => el.click());
+}
+
 async function join(name, animal, color) {
   const p = await open(name, `?room=${room}`);
   await p.waitForSelector('.join-name input', { timeout: 180000 });
   await sleep(600);
   await p.fill('.join-name input', name);
   await sleep(400);
-  await p.click('.join-name button', { timeout: 30000, noWaitAfter: true }).catch(async (e) => {
-    const nav = await p.evaluate(() => performance.getEntriesByType('navigation')[0]?.type);
-    throw new Error(`${e.message.split('\n')[0]} (navigation type ${nav}; page shows: ${(await p.textContent('body'))?.slice(0, 120)})`);
-  });
+  await jsClick(p, '.join-name button');
   if (animal) {
     await p.waitForSelector('.join-animal', { timeout: 60000 });
     await p.waitForSelector(`.join-tile[title="${animal}"] img`, { timeout: 90000 });
@@ -130,14 +133,14 @@ async function join(name, animal, color) {
       const tiles = await p.$$eval('.join-tile', (els) => els.map((e) => e.getAttribute('title')));
       pickerTiles = tiles;
     }
-    await p.click(`.join-tile[title="${animal}"]`, { noWaitAfter: true });
-    if (color) await p.click(`.join-color[aria-label="${color}"]`, { noWaitAfter: true });
-    await p.click('.join-animal .cosy-btn.primary', { noWaitAfter: true });
+    await jsClick(p, `.join-tile[title="${animal}"]`);
+    if (color) await jsClick(p, `.join-color[aria-label="${color}"]`);
+    await jsClick(p, '.join-animal .cosy-btn.primary');
   }
   await p.waitForSelector('.join-mic', { timeout: 60000 });
-  await p.click('.join-mic .cosy-btn.big:not(.primary)', { noWaitAfter: true });
+  await jsClick(p, '.join-mic .cosy-btn.big:not(.primary)');
   await p.waitForSelector('.mic-meter', { timeout: 60000 });
-  await p.click('.join-mic .cosy-btn.primary', { noWaitAfter: true });
+  await jsClick(p, '.join-mic .cosy-btn.primary');
   await p.waitForSelector('.place-chip', { timeout: 60000 });
   return p;
 }
@@ -159,11 +162,12 @@ await check('join: Jarrod skips the picker and is the bunny', async () => {
   const p = await open('Jarrod', `?room=${room}`);
   await p.waitForSelector('.join-name input', { timeout: 180000 });
   await p.fill('.join-name input', 'jarrod');
-  await p.click('.join-name button', { noWaitAfter: true });
+  await sleep(400);
+  await jsClick(p, '.join-name button');
   await p.waitForSelector('.join-mic', { timeout: 30000 });
   expect(!(await p.$('.join-animal')), 'Jarrod saw the animal picker');
   await shot(p, '02-jarrod-mic');
-  await p.click('.join-mic .cosy-btn.primary', { noWaitAfter: true });
+  await jsClick(p, '.join-mic .cosy-btn.primary');
   await p.waitForSelector('.place-chip', { timeout: 60000 });
   players.jarrod = p;
   const look = await st.evaluate(() => window.__host.getState().g.seats.find((s) => s.name.toLowerCase() === 'jarrod')?.look);
@@ -390,8 +394,7 @@ await check('game: dealing and night sends everyone home with doors locked', asy
   for (const p of all()) await until(p, () => window.__local.zone.startsWith('house:'), null, 30000, 'to be home');
   // Each player gets a "You are the…" card, which they'd read and close.
   for (const p of all()) {
-    await p.waitForSelector('.reveal-overlay .btn', { timeout: 20000 });
-    await p.click('.reveal-overlay .btn', { noWaitAfter: true });
+    await jsClick(p, '.reveal-overlay .btn', 30000);
     await p.waitForSelector('.reveal-overlay', { state: 'detached', timeout: 20000 });
   }
   await shot(players.abbey, '12a-after-reveal');
@@ -445,9 +448,7 @@ await check('game: ringing the bell gathers everyone at the square', async () =>
   await st.evaluate(() => window.__st.st.callTownHall());
   await players.abbey.waitForSelector('.bell-call', { timeout: 20000 });
   await shot(players.abbey, '16-bell');
-  for (const p of all()) {
-    await p.click('.bell-call .cosy-btn');
-  }
+  for (const p of all()) await jsClick(p, '.bell-call .cosy-btn', 30000);
   await until(st, () => !window.__host.getState().g.townHall, null, 10000, 'everyone to arrive');
 });
 
