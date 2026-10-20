@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Builder, matte, rng } from '../build';
 import type { ZoneKind } from '../types';
-import { Paint, pick, shade } from './kit';
+import { Paint, pick, shade, smoothMesh } from './kit';
 import {
   BAR,
   BAR_STOOLS,
@@ -751,7 +751,7 @@ export function buildInteriors(): Interiors {
     const extra = fill(p, glow, rng(room.length * 97 + 3));
     const g = new THREE.Group();
     g.name = room;
-    g.add(main.mesh(matte()));
+    g.add(smoothMesh(main, matte()));
     if (!glass.empty) g.add(glass.mesh(glassMaterial, { cast: false, receive: false }));
     if (!glow.empty) {
       const flames = glow.mesh(glowMaterial, { cast: false, receive: false });

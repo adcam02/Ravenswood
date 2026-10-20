@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
-import { Builder, jitter } from '../build';
+import { Builder, SMOOTH_DEG, jitter } from '../build';
 
 /** Unit primitives, made once and copied into builders. */
 const cache = new Map<string, THREE.BufferGeometry>();
@@ -292,4 +292,100 @@ export function local(x: number, z: number, ry: number, lx: number, lz: number):
   const c = Math.cos(ry);
   const sn = Math.sin(ry);
   return { x: x + lx * c + lz * sn, z: z - lx * sn + lz * c };
+}
+
+/**
+ * Smooth normals across edges gentler than `deg`, sharp ones kept: the same result as three's
+ * `toCreasedNormals`, but several times faster on the town's big merged meshes (numbers, not strings, for the
+ * position hash, and no per-triangle allocations). Works in place on a non-indexed geometry.
+ */
+export function creaseNormals(geo: THREE.BufferGeometry, deg = SMOOTH_DEG): THREE.BufferGeometry {
+  const posAttr = geo.getAttribute('position') as THREE.BufferAttribute | undefined;
+  if (!posAttr || geo.index) return geo;
+  const p = posAttr.array as Float32Array;
+  const verts = posAttr.count;
+  const tris = Math.floor(verts / 3);
+  const creaseDot = Math.cos(THREE.MathUtils.degToRad(deg));
+  // Face normals.
+  const fn = new Float32Array(tris * 3);
+  for (let t = 0; t < tris; t++) {
+    const a = t * 9;
+    const ux = p[a + 3] - p[a];
+    const uy = p[a + 4] - p[a + 1];
+    const uz = p[a + 5] - p[a + 2];
+    const vx = p[a + 6] - p[a];
+    const vy = p[a + 7] - p[a + 1];
+    const vz = p[a + 8] - p[a + 2];
+    let nx = uy * vz - uz * vy;
+    let ny = uz * vx - ux * vz;
+    let nz = ux * vy - uy * vx;
+    const l = Math.hypot(nx, ny, nz) || 1;
+    nx /= l;
+    ny /= l;
+    nz /= l;
+    fn[t * 3] = nx;
+    fn[t * 3 + 1] = ny;
+    fn[t * 3 + 2] = nz;
+  }
+  // Group the corners that share a position (to the centimetre).
+  const groupOf = new Int32Array(verts);
+  const ids = new Map<number, number>();
+  for (let v = 0; v < verts; v++) {
+    const ix = Math.trunc(p[v * 3] * 100) + 65536;
+    const iy = Math.trunc(p[v * 3 + 1] * 100) + 65536;
+    const iz = Math.trunc(p[v * 3 + 2] * 100) + 65536;
+    const key = (ix * 131072 + iy) * 131072 + iz;
+    let g = ids.get(key);
+    if (g === undefined) {
+      g = ids.size;
+      ids.set(key, g);
+    }
+    groupOf[v] = g;
+  }
+  const groups = ids.size;
+  const start = new Int32Array(groups + 1);
+  for (let v = 0; v < verts; v++) start[groupOf[v] + 1]++;
+  for (let g = 0; g < groups; g++) start[g + 1] += start[g];
+  const fill = start.slice(0, groups);
+  const members = new Int32Array(verts);
+  for (let v = 0; v < verts; v++) members[fill[groupOf[v]]++] = v;
+  // Each corner takes the sum of the face normals at its position that are within the crease angle of its own.
+  const out = new Float32Array(verts * 3);
+  for (let v = 0; v < verts; v++) {
+    const f = Math.floor(v / 3) * 3;
+    const ax = fn[f];
+    const ay = fn[f + 1];
+    const az = fn[f + 2];
+    let sx = 0;
+    let sy = 0;
+    let sz = 0;
+    const g = groupOf[v];
+    for (let k = start[g]; k < start[g + 1]; k++) {
+      const o = Math.floor(members[k] / 3) * 3;
+      const bx = fn[o];
+      const by = fn[o + 1];
+      const bz = fn[o + 2];
+      if (ax * bx + ay * by + az * bz > creaseDot) {
+        sx += bx;
+        sy += by;
+        sz += bz;
+      }
+    }
+    const l = Math.hypot(sx, sy, sz) || 1;
+    out[v * 3] = sx / l;
+    out[v * 3 + 1] = sy / l;
+    out[v * 3 + 2] = sz / l;
+  }
+  geo.setAttribute('normal', new THREE.BufferAttribute(out, 3));
+  return geo;
+}
+
+/** A mesh from a builder, smoothed with the fast crease above. Casts and takes shadows unless told otherwise. */
+export function smoothMesh(b: Builder, material: THREE.Material, opts: { cast?: boolean; receive?: boolean } = {}): THREE.Mesh {
+  const geo = creaseNormals(b.geometry(0));
+  geo.computeBoundingSphere();
+  const mesh = new THREE.Mesh(geo, material);
+  mesh.castShadow = opts.cast ?? true;
+  mesh.receiveShadow = opts.receive ?? true;
+  return mesh;
 }

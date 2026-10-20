@@ -41,7 +41,7 @@ const LOD_FAR = 20;
 const LOD_NEAR = 16;
 const TAG_FAR = 26;
 /** Even with nothing changing, the shadow map is redrawn this often, just in case. */
-const SHADOW_SAFETY_S = 4;
+const SHADOW_SAFETY_S = 10;
 import {
   cottageSlot,
   cottageZone,

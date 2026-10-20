@@ -9,6 +9,7 @@ import {
   BED,
   BED_H,
   COTTAGE_NAMES,
+  DOCK,
   GALLOWS,
   GRAVEYARD,
   LINE_Y,
@@ -972,9 +973,12 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       birds.update(dt, t, followAt, true);
       ripples.setTime(t);
       if (t > nextFish) {
+        // A fish rising somewhere on the open water (not under the pier).
         const a = Math.random() * Math.PI * 2;
         const d = Math.sqrt(Math.random()) * 0.75;
-        ripples.spawn(POND.x + Math.cos(a) * POND.rx * d, POND.z + Math.sin(a) * POND.rz * d, 0.5 + Math.random() * 0.5, t);
+        const x = POND.x + Math.cos(a) * POND.rx * d;
+        const z = POND.z + Math.sin(a) * POND.rz * d;
+        if (!(Math.abs(x - DOCK.x) < DOCK.w / 2 + 0.4 && z < DOCK.z1 + 0.4)) ripples.spawn(x, z, 0.5 + Math.random() * 0.5, t);
         nextFish = t + 2.5 + Math.random() * 4;
       }
       // Slow changes that cast shadows (a ringing bell, growing flowers) redraw the shadows now and then.

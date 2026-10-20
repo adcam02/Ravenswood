@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Builder, SMOOTH_DEG, matte, rng } from '../build';
 import type { Collider } from '../types';
-import { G, Paint, frame, local, pick, shade, type Layers } from './kit';
+import { G, Paint, frame, local, pick, shade, smoothMesh, type Layers } from './kit';
 import {
   BAKERY,
   BED_DEPTH,
@@ -357,7 +357,7 @@ function wallWindow(p: Paint, w: number, h: number, trim: THREE.ColorRepresentat
   }
   // Clear and frosted glass glows warm at night; stained glass glows in its own colours.
   const clear = glass === GLASS || glass === '#c9d3c0' || glass === '#d6e2e8';
-  glowAt(p, 0, 0, 0.25, Math.max(w, h) * 1.25 + 0.25, clear ? '#b87a3a' : `#${shade(glass, -0.05).getHexString()}`);
+  glowAt(p, 0, 0, 0.25, Math.max(w, h) * 1.1 + 0.2, clear ? '#94622e' : `#${shade(glass, -0.12).getHexString()}`);
   if (shutters) {
     for (const sx of [-1, 1]) {
       const x = sx * (w / 2 + 0.08 + 0.17);
@@ -1361,13 +1361,6 @@ function hillAt(x: number, z: number): number {
   return smooth(TOWN_R + 1, TOWN_R + 52, rad) * (5 + 3 * Math.sin(a * 3 + 1.3) + 2 * Math.sin(a * 7 + 0.4)) + smooth(TOWN_R + 4, TOWN_R + 22, rad) * 0.7;
 }
 
-const TT: Record<string, number> = ((globalThis as unknown as { __tt: Record<string, number> }).__tt = {});
-let tl = 0;
-const T = (k: string) => {
-  const n = performance.now();
-  if (tl) TT[k] = Math.round(n - tl);
-  tl = n;
-};
 export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   const group = new THREE.Group();
   group.name = 'town';
@@ -1424,9 +1417,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     return new Paint({ main, glass }, frame(x, z, ry));
   };
 
-T('start');
   group.add(groundMesh(), cobbleMesh(), pathMesh());
-  T('ground');
 
   // The clock tower, its faces softly lit at night.
   const tower = clockTower(solo(0, 0));
@@ -1477,7 +1468,6 @@ T('start');
   noticeboard(painter(NOTICEBOARD.x, NOTICEBOARD.z), r);
   gate(painter(0, GATE_Z));
 
-  T('public');
   // Cottages.
   houseSlots.forEach((h, i) => {
     cottage(solo(h.x, h.z, h.ry), rng(500 + i), i, smoke);
@@ -1485,7 +1475,6 @@ T('start');
     colliders.push({ kind: 'circle', x: post.x, z: post.z, r: 0.15 });
   });
 
-  T('cottages');
   // The town fence, with a gap for the road south.
   const fenceR = TOWN_R + 0.9;
   const segs = 120;
@@ -1499,7 +1488,6 @@ T('start');
     railFence(painter(x, z, -am), 2 * fenceR * Math.sin(Math.PI / segs));
   }
 
-  T('fence');
   // Trees, bushes and flowers.
   const block = blockers();
   const trees: Blocker[] = [];
@@ -1633,7 +1621,6 @@ T('start');
     else mushroom(p, r);
   }
 
-  T('scatter');
   // Cobbles along the edges of the paths, skipping where paths cross.
   {
     const inside = (x: number, z: number, except: number) => {
@@ -1682,35 +1669,31 @@ T('start');
     }
   }
 
-  T('edges');
   // Merge everything.
   const main = matte();
   for (const b of mains.values()) {
     if (b.empty) continue;
-    const m = b.mesh(main);
+    const m = smoothMesh(b, main);
     m.name = 'chunk';
     group.add(m);
   }
   for (const b of leafChunks.values()) {
     if (b.empty) continue;
-    const f = b.mesh(leafMat);
+    const f = smoothMesh(b, leafMat);
     f.name = 'foliage';
     group.add(f);
   }
   const occluders: THREE.Mesh[] = [];
-  T('chunks');
   for (const b of solos) {
     if (b.empty) continue;
     const mat = matte();
     mat.transparent = true;
-    const m = b.mesh(mat);
+    const m = smoothMesh(b, mat);
     m.name = 'building';
     group.add(m);
     occluders.push(m);
   }
-  T('merge');
   const glassMesh = glass.mesh(windowMat, { cast: false, receive: false });
-  T('glass');
   glassMesh.name = 'glass';
   group.add(glassMesh);
 

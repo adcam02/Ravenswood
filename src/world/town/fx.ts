@@ -161,7 +161,9 @@ export function makeRain(drops = 2600, splashes = 260): Rain {
         wp.y += position.y;
         wp.x += (y + position.y) * 0.09;
         vAlpha = on * smoothstep(0.0, 0.6, y) * (1.0 - smoothstep(${(H - 3).toFixed(1)}, ${H.toFixed(1)}, y));
-        vAlpha *= 1.0 - smoothstep(24.0, 34.0, length(toCam));
+        // Fade out far away, and right in front of the camera, where a drop would be a huge streak.
+        float camD = length(toCam);
+        vAlpha *= (1.0 - smoothstep(24.0, 34.0, camD)) * smoothstep(4.0, 9.0, camD);
         gl_Position = on > 0.5 ? projectionMatrix * viewMatrix * vec4(wp, 1.0) : vec4(2.0, 2.0, 2.0, 1.0);
       }`,
     fragmentShader: /* glsl */ `
