@@ -90,10 +90,20 @@ function shell(p: Paint, room: Room, s: Shell, r: () => number) {
   for (const sx of [-1, 1]) p.box(shade(s.wall, -0.04), 0.3, WALL_H, hd * 2 + 0.3, sx * (hw + 0.15), WALL_H / 2, 0.15);
   p.box(s.wainscot, hw * 2, 1.0, 0.06, 0, 0.5, -hd + 0.03);
   for (const sx of [-1, 1]) p.box(shade(s.wainscot, -0.04), 0.06, 1.0, hd * 2, sx * (hw - 0.03), 0.5, 0);
+  // Panelling: battens over the wainscot, a skirting board, and a picture rail higher up.
+  for (let x = -hw + 0.5; x < hw - 0.2; x += 0.5) p.box(shade(s.wainscot, -0.08), 0.05, 0.9, 0.03, x, 0.5, -hd + 0.075);
+  for (const sx of [-1, 1]) for (let z = -hd + 0.5; z < hd - 0.2; z += 0.5) p.box(shade(s.wainscot, -0.1), 0.03, 0.9, 0.05, sx * (hw - 0.075), 0.5, z);
   p.box(s.trim, hw * 2, 0.08, 0.1, 0, 1.02, -hd + 0.05);
   for (const sx of [-1, 1]) p.box(s.trim, 0.1, 0.08, hd * 2, sx * (hw - 0.05), 1.02, 0);
+  p.box(shade(s.trim, -0.05), hw * 2, 0.14, 0.06, 0, 0.07, -hd + 0.03);
+  for (const sx of [-1, 1]) p.box(shade(s.trim, -0.08), 0.06, 0.14, hd * 2, sx * (hw - 0.03), 0.07, 0);
+  p.box(shade(s.trim, 0.05), hw * 2, 0.05, 0.06, 0, WALL_H - 0.75, -hd + 0.03);
+  for (const sx of [-1, 1]) p.box(shade(s.trim, 0.02), 0.06, 0.05, hd * 2, sx * (hw - 0.03), WALL_H - 0.75, 0);
+  // The wall plate, with corbels and the ends of ceiling joists showing along it.
   p.box(s.trim, hw * 2 + 0.6, 0.16, 0.36, 0, WALL_H + 0.05, -hd - 0.15);
   for (const sx of [-1, 1]) p.box(s.trim, 0.36, 0.16, hd * 2 + 0.3, sx * (hw + 0.15), WALL_H + 0.05, 0.15);
+  for (let x = -hw + 0.6; x < hw - 0.3; x += 1.2) p.box(shade(s.trim, -0.1), 0.18, 0.22, 0.3, x, WALL_H - 0.14, -hd + 0.15);
+  for (const sx of [-1, 1]) for (let z = -hd + 0.6; z < hd - 0.3; z += 1.2) p.box(shade(s.trim, -0.12), 0.3, 0.22, 0.18, sx * (hw - 0.15), WALL_H - 0.14, z);
   // The way out, on the camera side: a door frame and a mat.
   p.box(s.trim, 0.18, 2.5, 0.25, -0.75, 1.25, hd + 0.05);
   p.box(s.trim, 0.18, 2.5, 0.25, 0.75, 1.25, hd + 0.05);
@@ -114,10 +124,41 @@ function backWindow(p: Paint, x: number, y: number, z: number, w: number, h: num
 function fireplace(p: Paint, glow: Builder, stone: string) {
   // Faces +z. Origin at the floor in front of the wall.
   p.block(stone, 1.9, 1.5, 0.8, 0, 0, 0);
+  // Stone blocks laid in courses either side of the opening.
+  for (let c = 0; c < 5; c++) for (const sx of [-1, 1]) {
+    const w = c % 2 ? 0.38 : 0.3;
+    p.block(shade(stone, ((c * 3 + sx) % 3) * 0.04 - 0.04), w, 0.26, 0.06, sx * (0.95 - w / 2 - (c % 2 ? 0.02 : 0.08)), 0.02 + c * 0.29, 0.4);
+  }
+  for (let k = -0.6; k <= 0.6; k += 0.3) p.block(shade(stone, (k * 2) % 2 ? 0.03 : -0.03), 0.26, 0.26, 0.06, k, 1.18, 0.4);
   p.block('#2a1f1a', 1.0, 0.85, 0.3, 0, 0.12, 0.3);
+  p.block('#3a2a22', 1.0, 0.04, 0.5, 0, 0.1, 0.4);
   p.block(shade(stone, -0.1), 2.2, 0.16, 0.95, 0, 1.5, 0.05);
+  p.block(shade(stone, -0.14), 2.3, 0.06, 1.0, 0, 1.66, 0.05);
   p.block(stone, 1.2, 1.6, 0.6, 0, 1.66, -0.1);
-  for (const x of [-0.25, 0.1]) p.cyl(WOOD_DARK, 0.09, 0.7, x, 0.2, 0.45, 6, 0, 0.4, Math.PI / 2);
+  // Andirons, logs on them, a kettle on a crane, and a basket of logs beside.
+  for (const sx of [-1, 1]) {
+    p.box(IRON, 0.04, 0.3, 0.04, sx * 0.3, 0.27, 0.62);
+    p.ico(IRON, 0.05, sx * 0.3, 0.44, 0.62, 1);
+    p.box(IRON, 0.04, 0.04, 0.4, sx * 0.3, 0.14, 0.45);
+  }
+  for (const x of [-0.25, 0.1]) p.cyl(WOOD_DARK, 0.09, 0.7, x, 0.2, 0.45, 10, 0, 0.4, Math.PI / 2);
+  p.cyl(shade(WOOD_DARK, -0.1), 0.08, 0.6, -0.05, 0.36, 0.5, 10, 0, 1.2, Math.PI / 2);
+  p.box(IRON, 0.04, 0.9, 0.04, 0.42, 0.57, 0.35);
+  p.box(IRON, 0.5, 0.04, 0.04, 0.2, 1.0, 0.35);
+  p.rod(IRON, 0.01, 0.0, 0.98, 0.35, 0.0, 0.82, 0.35, 4);
+  p.sphere(IRON, 0.14, 0.11, 0.14, 0.0, 0.7, 0.38);
+  p.cyl(IRON, 0.06, 0.04, 0.0, 0.82, 0.38, 10);
+  p.torus(IRON, 0.1, 0.012, 0.0, 0.84, 0.38, 0, 0);
+  p.rod(IRON, 0.015, 0.13, 0.74, 0.38, 0.24, 0.8, 0.38, 4);
+  const lb = p.at(1.3, 0, 0.5);
+  lb.taper('#c9a46a', 1.15, 0.28, 0.32, 0, 0, 0, 12);
+  lb.torus('#a8834f', 0.3, 0.015, 0, 0.32, 0, Math.PI / 2);
+  for (let k = 0; k < 4; k++) lb.cyl(shade(WOOD_DARK, k * 0.04), 0.06, 0.5, (k - 1.5) * 0.11, 0.35, 0, 8, 0.3, 0, 0.1);
+  // Something on the mantel: a jug and a little frame.
+  p.taper('#5f8fbf', 0.8, 0.08, 0.2, -0.7, 1.66, 0.1, 10);
+  p.cyl('#5f8fbf', 0.07, 0.03, -0.7, 1.87, 0.1, 10);
+  p.box('#c9a24f', 0.2, 0.16, 0.02, 0.6, 1.76, 0.05, -0.15);
+  p.box('#8fc1e8', 0.15, 0.11, 0.015, 0.6, 1.76, 0.065, -0.15);
   // The flames go through the fireplace's own frame, so they sit in the grate and not in the middle of the room.
   glow.add(new THREE.ConeGeometry(0.22, 0.5, 5), '#ffb347', { pos: [-0.1, 0.48, 0.45] }, p.m);
   glow.add(new THREE.ConeGeometry(0.16, 0.38, 5), '#ffd76b', { pos: [0.15, 0.42, 0.5] }, p.m);
@@ -126,21 +167,38 @@ function fireplace(p: Paint, glow: Builder, stone: string) {
 }
 
 function candle(p: Paint, glow: Builder, x: number, y: number, z: number, h = 0.25) {
-  p.post('#f6efe0', 0.04, h, x, y, z, 6);
-  glow.add(new THREE.ConeGeometry(0.035, 0.1, 4), '#ffd76b', { pos: [x, y + h + 0.06, z] }, p.m);
+  // A brass dish with a thumb ring, the candle, a run of wax, and the flame.
+  p.cyl('#c9a24f', 0.07, 0.015, x, y + 0.008, z, 12);
+  p.cyl('#c9a24f', 0.045, 0.02, x, y + 0.025, z, 12);
+  p.torus('#c9a24f', 0.03, 0.008, x + 0.075, y + 0.015, z, Math.PI / 2);
+  p.post('#f6efe0', 0.035, h, x, y + 0.02, z, 10);
+  p.sphere('#f6efe0', 0.015, 0.035, 0.015, x + 0.03, y + h - 0.02, z);
+  p.post('#2a1f1a', 0.005, 0.03, x, y + h + 0.02, z, 4);
+  glow.add(new THREE.ConeGeometry(0.035, 0.1, 6), '#ffd76b', { pos: [x, y + h + 0.08, z] }, p.m);
 }
 
 function hangingLamp(p: Paint, glow: Builder, x: number, y: number, z: number) {
-  p.cyl(IRON, 0.01, 0.8, x, y + 0.6, z, 3);
-  p.cone(IRON, 0.3, 0.18, x, y + 0.12, z, 6);
-  glow.add(new THREE.IcosahedronGeometry(0.14, 0), '#ffe2a0', { pos: [x, y + 0.05, z] }, p.m);
+  // A chain of links down to an iron shade, with a glass bowl under it.
+  for (let k = 0; k < 6; k++) p.torus(IRON, 0.035, 0.008, x, y + 0.3 + k * 0.1, z, 0, k % 2 ? Math.PI / 2 : 0);
+  p.cyl(IRON, 0.02, 0.2, x, y + 0.9, z, 6);
+  p.cone(IRON, 0.3, 0.18, x, y + 0.12, z, 14);
+  p.torus(IRON, 0.29, 0.012, x, y + 0.13, z, Math.PI / 2);
+  p.glass.cyl('#fff1c8', 0.14, 0.06, x, y + 0.1, z, 10);
+  glow.add(new THREE.IcosahedronGeometry(0.14, 1), '#ffe2a0', { pos: [x, y + 0.05, z] }, p.m);
 }
 
-function chair(p: Paint, color: string) {
+function chair(p: Paint, color: string, cushion: string | null = null) {
   // Faces +z (someone sitting looks along +z); the back is at -z.
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) p.block(shade(color, -0.1), 0.06, 0.45, 0.06, sx * 0.2, 0, sz * 0.2);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    p.cyl(shade(color, -0.1), 0.03, 0.45, sx * 0.2, 0.225, sz * 0.2, 8);
+    p.cyl(shade(color, -0.04), 0.04, 0.06, sx * 0.2, 0.12, sz * 0.2, 8);
+  }
+  for (const sx of [-1, 1]) p.box(shade(color, -0.12), 0.02, 0.02, 0.4, sx * 0.2, 0.2, 0);
   p.block(color, 0.5, 0.06, 0.5, 0, 0.43, 0);
-  p.block(color, 0.5, 0.55, 0.06, 0, 0.49, -0.22);
+  if (cushion) p.box(cushion, 0.42, 0.05, 0.42, 0, 0.515, 0.02);
+  // The back: two uprights and three slats.
+  for (const sx of [-1, 1]) p.block(shade(color, -0.06), 0.05, 0.6, 0.05, sx * 0.21, 0.49, -0.22);
+  for (let k = 0; k < 3; k++) p.box(color, 0.4, 0.07, 0.03, 0, 0.62 + k * 0.17, -0.22);
 }
 
 // ---------------------------------------------------------------- the tavern

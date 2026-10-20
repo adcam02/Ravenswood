@@ -20,10 +20,17 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
 4. **Daytime jobs**, each a little minigame:
    - **Bartender** at the Raven's Rest: pour drinks onto the bar for anyone to pick up.
    - **Laundry** at the washhouse: scrub the mud out and hang it on the line.
-   - **Fishing** off the dock at the pond.
+   - **Fishing** off the pier at the pond: pick a lure, cast, strike on the tug (one, two or three
+     marks, the big ones bite fast), then reel while keeping the line out of the red. Fish come in
+     common, uncommon, rare and legendary sizes; a rare or legendary catch gets a fanfare.
    - **Baking** at the bakery: knead, then pull it out of the oven when it's golden.
    - **Gardening** in the beds around the square: plant and water a flower, and watch it grow.
-   Hold something and you can sip it, give it to someone (G) or put it away (Q).
+   - **Darts** in the tavern, **breaking bread** into even halves and thirds and **pouring wine** into
+     a moving chalice at the church lectern, **chopping firewood** at the woodpile, **stone skimming**
+     at the pond bank and **tossing a coin** into the well.
+   Every game has a score. Beat the town's best and it goes on the noticeboard as a record, with a
+   toast for everyone; your own personal bests are kept on your machine. Hold something and you can
+   sip it, give it to someone (G) or put it away (Q).
 5. **The Storyteller carries the grimoire.** Press **Open grimoire** (or Tab) and the camera swoops in
    over your shoulder as the book opens in your hands; its pages hold the circle of seats, the bag, the
    night order and everything else from the Grimoire. Fill the bag, deal characters and press **Show
