@@ -228,6 +228,32 @@ function paperMaterial(): THREE.Material {
   return m;
 }
 
+/**
+ * Card: the material for the papercraft animals, built by hand with big flat facets. Matte, flat-lit, with a
+ * faint paper grain and a touch of warm bounce so shadowed faces stay warm. `wetSheen` adds a soft glint for
+ * aquatic animals. (Unlike the ?look=paper preview, nothing is simplified: the models are made faceted.)
+ */
+export function card(wetSheen = false): THREE.MeshLambertMaterial {
+  const m = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  m.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <opaque_fragment>',
+      `
+      {
+        float grain = fract(sin(dot(floor(gl_FragCoord.xy / 1.5), vec2(12.9898, 78.233))) * 43758.5453);
+        outgoingLight *= 0.97 + grain * 0.06;
+        outgoingLight += diffuseColor.rgb * 0.06;
+        ${wetSheen ? `
+        float glint = smoothstep(0.93, 0.96, dot(normal, normalize(vec3(-0.35, 0.6, 0.72))));
+        outgoingLight += vec3(1.0) * glint * 0.18;` : ''}
+      }
+      #include <opaque_fragment>`,
+    );
+  };
+  m.customProgramCacheKey = () => (wetSheen ? 'card-wet' : 'card');
+  return m;
+}
+
 /** The characters' material (see LOOK above). */
 export const soft = (): THREE.Material =>
   LOOK === 'paper'
