@@ -23,7 +23,7 @@ const ALL = {
   'square-day': 'x=0&z=6&t=0&meeting',
   'square-night': 'x=0&z=6&t=1&bell',
   'tavern-front': 'x=-16&z=2&t=0&yaw=-0.6',
-  'pond-dock': 'x=15&z=14&t=0',
+  'pond-dock': 'x=13&z=12&t=0&dist=18',
   'washhouse': 'x=-14&z=17&t=0',
   'flower-bed': 'x=10&z=-10&t=0&dist=11',
   'cottages-night': 'x=0&z=26&t=1&dist=22',

@@ -66,11 +66,12 @@ export const LINE_POS = [
 ].slice(0, LINES);
 export const LINE_Y = 1.95;
 
-export const POND = { x: 15, z: 17.5, rx: 6.5, rz: 5.6 };
-export const DOCK = { x: 15, z0: 10.6, z1: 17.4, w: 2.6 };
+/** Tucked between the square and the ring road, clear of both. */
+export const POND = { x: 13.6, z: 14.2, rx: 4.6, rz: 4.2 };
+export const DOCK = { x: 13.6, z0: 9, z1: 14.6, w: 2.6 };
 export const FISHING = [
-  { x: 14.3, z: 16.5 },
-  { x: 15.7, z: 16.5 },
+  { x: 12.9, z: 13.8 },
+  { x: 14.3, z: 13.8 },
 ];
 
 export const WELL = { x: -6.5, z: -15.5 };
