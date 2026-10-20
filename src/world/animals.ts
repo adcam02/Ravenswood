@@ -318,13 +318,14 @@ function pointyEars(k: Kit, outer: THREE.ColorRepresentation, inner: THREE.Color
   const tilt = opts.tilt ?? 0.32;
   const y = s.hc[1] + (opts.y ?? s.hr[1] * 0.78);
   for (const side of [-1, 1]) {
+    // Round-based cones rather than pyramids, so the ears shade smoothly round to a point.
     const pos: Vec3 = [side * x, y + h * 0.35, s.hc[2] - 0.01];
-    k.head.add(G.cone4, outer, { pos, rot: [0, Math.PI / 4, -side * tilt], scale: [r, h, r * 0.6] });
+    k.head.add(G.cone6, outer, { pos, rot: [0, 0, -side * tilt], scale: [r, h, r * 0.6] });
     const ip: Vec3 = [pos[0] - side * 0.004, pos[1] - h * 0.06, pos[2] + r * 0.32];
-    k.head.add(G.cone4, inner, { pos: ip, rot: [0, Math.PI / 4, -side * tilt], scale: [r * 0.6, h * 0.75, r * 0.3] });
+    k.head.add(G.cone6, inner, { pos: ip, rot: [0, 0, -side * tilt], scale: [r * 0.6, h * 0.75, r * 0.3] });
     if (opts.tip) {
       const tip: Vec3 = [pos[0] + side * Math.sin(tilt) * h * 0.38, pos[1] + Math.cos(tilt) * h * 0.38, pos[2]];
-      k.head.add(G.cone4, opts.tip, { pos: tip, rot: [0, Math.PI / 4, -side * tilt], scale: [r * 0.32, h * 0.26, r * 0.22] });
+      k.head.add(G.cone6, opts.tip, { pos: tip, rot: [0, 0, -side * tilt], scale: [r * 0.32, h * 0.26, r * 0.22] });
     }
   }
 }

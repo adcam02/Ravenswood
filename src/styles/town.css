@@ -1321,7 +1321,8 @@
   padding: 5px;
   border-radius: 50%;
   overflow: hidden;
-  opacity: 0.94;
+  /* Opaque, so station signs in the world don't show through it. */
+  background: #fbf4e6;
 }
 .mode-st .minimap {
   top: 124px;
