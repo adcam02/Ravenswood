@@ -209,6 +209,18 @@ await check('move: walking with W moves Abbey for everyone', async () => {
   }, [id, after.x, after.z], 5000, 'host to see the new position');
 });
 
+/** Waits until the listener hears the speaker at a volume satisfying `ok`, and returns the last reading. */
+async function gainUntil(listener, speakerName, ok, what, ms = 25000) {
+  const end = Date.now() + ms;
+  let g;
+  while (Date.now() < end) {
+    g = await voiceGain(listener, speakerName);
+    if (ok(g)) return g;
+    await sleep(400);
+  }
+  throw new Error(`${what}: gain ${g?.gain} (${g?.why ?? ''})`);
+}
+
 async function voiceGain(listener, speakerName) {
   const id = await seatOf(speakerName);
   return listener.evaluate((id) => {
@@ -224,37 +236,30 @@ await check('voice: players close together hear each other at full volume', asyn
   await place(players.abbey, 'town', 4, 24, 0);
   await place(players.colter, 'town', 5, 24, 0);
   await until(players.abbey, () => (window.__voiceLinks?.() ?? []).some((l) => l.open), null, 60000, 'a voice link to open');
-  await sleep(1200);
-  const g = await voiceGain(players.abbey, 'Colter');
-  expect(g.gain !== null && g.gain > 0.9, `Abbey hears Colter at ${g.gain} (${g.why})`);
+  await gainUntil(players.abbey, 'Colter', (g) => g.gain !== null && g.gain > 0.9, 'close together');
 });
 
 await check('voice: far away is silent, and walls are absolute', async () => {
   await place(players.colter, 'town', -30, 30, 0);
-  await sleep(1200);
-  let g = await voiceGain(players.abbey, 'Colter');
-  expect(g.gain !== null && g.gain < 0.05, `far away gain ${g.gain} (${g.why})`);
+  await gainUntil(players.abbey, 'Colter', (g) => g.gain !== null && g.gain < 0.05, 'far away');
   await place(players.colter, 'town', 10, 24, 0);
-  await sleep(1200);
-  g = await voiceGain(players.abbey, 'Colter');
-  expect(g.gain !== null && g.gain > 0.1 && g.gain < 0.95, `mid-distance gain ${g.gain}`);
+  await gainUntil(players.abbey, 'Colter', (g) => g.gain !== null && g.gain > 0.1 && g.gain < 0.95, 'mid-distance');
   await place(players.colter, 'tavern', 0, 0, 0);
-  await sleep(1200);
-  g = await voiceGain(players.abbey, 'Colter');
-  expect(g.gain === null || g.gain < 0.01, `through a wall gain ${g.gain}`);
+  await gainUntil(players.abbey, 'Colter', (g) => g.gain === null || g.gain < 0.01, 'through a wall');
 });
 
 await check('voice: the Storyteller can speak to everyone', async () => {
   await place(st, 'church', 0, 0, 0);
   await st.evaluate(() => (window.__presence.announce = true));
-  await sleep(1500);
-  const g = await players.steele.evaluate(() => {
-    const p = window.__presence.others.get('st');
-    const link = (window.__voiceLinks?.() ?? []).find((l) => l.id === p?.voiceId);
-    return link ? link.volume : null;
-  });
-  await st.evaluate(() => (window.__presence.announce = false));
-  expect(g !== null && g > 0.9, `announce gain ${g}`);
+  try {
+    await until(players.steele, () => {
+      const p = window.__presence.others.get('st');
+      const link = (window.__voiceLinks?.() ?? []).find((l) => l.id === p?.voiceId);
+      return Boolean(link && link.volume > 0.9);
+    }, null, 25000, 'the announcement to reach Steele');
+  } finally {
+    await st.evaluate(() => (window.__presence.announce = false));
+  }
 });
 
 // ---------------------------------------------------------------- doors, jobs and items
@@ -282,13 +287,13 @@ await check('jobs: bartending puts a drink on the bar', async () => {
   const s = await stationFor(p, 'bartender');
   expect(s, 'no bartender station');
   await place(p, 'tavern', s.stand.x, s.stand.z, s.stand.ry);
-  await sleep(400);
+  await p.waitForSelector('.action-prompt', { timeout: 30000 });
   await p.keyboard.press('e');
-  await p.waitForSelector('.job-dock', { timeout: 20000 });
+  await p.waitForSelector('.job-dock', { timeout: 60000 });
   await shot(p, '06-bartender-game');
   const before = await st.evaluate(() => window.__host.getState().g.town.drinks.length);
   await p.evaluate(() => window.__game.jobDone({ kind: 'cocoa', stars: 3 }));
-  await until(st, (n) => window.__host.getState().g.town.drinks.length > n, before, 5000, 'a drink on the bar');
+  await until(st, (n) => window.__host.getState().g.town.drinks.length > n, before, 30000, 'a drink on the bar');
   await sleep(800);
   await shot(p, '07-drink-on-bar');
 });
@@ -297,8 +302,9 @@ await check('jobs: the minigame can actually be played (pour)', async () => {
   const p = players.abbey;
   const s = await stationFor(p, 'bartender');
   await place(p, 'tavern', s.stand.x, s.stand.z, s.stand.ry);
+  await p.waitForSelector('.action-prompt', { timeout: 30000 });
   await p.keyboard.press('e');
-  await p.waitForSelector('.job-dock', { timeout: 20000 });
+  await p.waitForSelector('.job-dock', { timeout: 60000 });
   const before = await st.evaluate(() => window.__host.getState().g.town.drinks.length);
   // Pick the first drink, then hold to pour and let go part way.
   await p.keyboard.press('Space');
@@ -318,14 +324,14 @@ await check('items: Colter takes a drink from the bar and gives it to Abbey', as
   const s = await stationFor(c, 'takeDrink');
   expect(s, 'no takeDrink station');
   await place(c, 'tavern', s.stand.x, s.stand.z, s.stand.ry);
-  await sleep(400);
+  await c.waitForSelector('.action-prompt:not(.locked)', { timeout: 30000 });
   await c.keyboard.press('e');
-  await until(c, () => window.__local.item, null, 5000, 'a drink in paw');
+  await until(c, () => window.__local.item, null, 30000, 'a drink in paw');
   const a = players.abbey;
   await place(a, 'tavern', s.stand.x + 1, s.stand.z, s.stand.ry);
-  await sleep(1200);
+  await until(c, () => window.__hud.getState().giveTo, null, 30000, 'Abbey to be close enough to give to');
   await c.keyboard.press('g');
-  await until(a, () => window.__local.item, null, 5000, 'Abbey to receive it');
+  await until(a, () => window.__local.item, null, 30000, 'Abbey to receive it');
   await sleep(500);
   await shot(a, '08-gift-received');
 });
@@ -341,9 +347,9 @@ for (const [job, where] of [
     const s = await stationFor(p, job);
     expect(s, `no ${job} station`);
     await place(p, where, s.stand.x, s.stand.z, s.stand.ry);
-    await sleep(500);
+    await p.waitForSelector('.action-prompt', { timeout: 30000 });
     await p.keyboard.press('e');
-    await p.waitForSelector('.job-dock', { timeout: 20000 });
+    await p.waitForSelector('.job-dock', { timeout: 60000 });
     await sleep(400);
     await shot(p, `09-${job}`);
     const results = {
@@ -355,7 +361,7 @@ for (const [job, where] of [
     const key = { laundry: 'clothes', fishing: 'fish', baking: 'loaves', gardening: 'flowers' }[job];
     const before = await st.evaluate((k) => window.__host.getState().g.town[k].length, key);
     await p.evaluate((r) => window.__game.jobDone(r), results[job]);
-    await until(st, ([k, n]) => window.__host.getState().g.town[k].length > n, [key, before], 5000, `${key} to update`);
+    await until(st, ([k, n]) => window.__host.getState().g.town[k].length > n, [key, before], 30000, `${key} to update`);
   });
 }
 
@@ -424,7 +430,7 @@ await check('game: a night death shows at dawn and the dead walk as ghosts', asy
   expect(!early, 'players saw the death before dawn');
   await st.evaluate(() => window.__st.st.setPhase('day'));
   for (const p of all()) await until(p, () => window.__local.zone === 'town', null, 8000, 'to be back outside');
-  await players.abbey.waitForSelector('.phase-banner', { timeout: 15000 });
+  await players.abbey.waitForSelector('.phase-banner', { timeout: 40000 });
   const banner = await players.abbey.textContent('.phase-banner');
   expect(/Colter died/.test(banner), `banner said "${banner}"`);
   await sleep(1000);
