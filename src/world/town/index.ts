@@ -51,10 +51,12 @@ export interface TownWorld {
   setMeeting(m: { n: number; nominee: number | null; hand: number | null; active: boolean; votes: number[]; label?: string }): void;
   /** Gravestones for the dead, by seat name. */
   setGraves(names: string[]): void;
+  /** Buildings that can be faded when they hide a player. */
+  occluders: THREE.Mesh[];
   /** Where the condemned stands, on the trapdoor. */
   gallowsSpot: Spot & { y: number };
-  /** Opens the trapdoor: 0 shut, 1 fully open. */
-  setGallows(open: number, label: string): void;
+  /** Opens the trapdoor (0 shut, 1 open) and lets out the rope, in metres below the noose. */
+  setGallows(open: number, label: string, rope?: number): void;
   follow(x: number, z: number): void;
   update(dt: number, t: number): void;
   bellRing(): void;
@@ -374,6 +376,11 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     trap.add(b.mesh(matte()));
   }
   gallows.add(trap);
+  // The rope, let down from the noose when someone hangs from it.
+  const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1, 5), new THREE.MeshLambertMaterial({ color: '#d8c8a0' }));
+  rope.position.set(0, PLAT_H + 1.8, 0);
+  rope.scale.y = 0.001;
+  gallows.add(rope);
   const gallowsLabelEl = document.createElement('div');
   gallowsLabelEl.className = 'meeting-sign cosy-panel gallows-sign';
   const gallowsLabel = new CSS2DObject(gallowsLabelEl);
@@ -625,9 +632,12 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     },
 
     gallowsSpot: { x: GALLOWS.x, z: GALLOWS.z, ry: GALLOWS.ry, y: PLAT_H },
+    occluders: outdoor.occluders,
 
-    setGallows(open, label) {
+    setGallows(open, label, ropeLen = 0) {
       trap.rotation.z = -Math.PI * 0.52 * THREE.MathUtils.clamp(open, 0, 1);
+      rope.scale.y = Math.max(0.001, ropeLen);
+      rope.position.y = PLAT_H + 1.8 - ropeLen / 2;
       gallowsLabelEl.textContent = label;
       gallowsLabel.visible = Boolean(label);
     },

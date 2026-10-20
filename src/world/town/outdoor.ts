@@ -68,6 +68,8 @@ export interface Outdoor {
   pools: THREE.Mesh;
   /** Night-time lamp positions for the few real point lights around the square. */
   lampLights: THREE.Vector3[];
+  /** Buildings on their own meshes, so one between the camera and a player can fade to see-through. */
+  occluders: THREE.Mesh[];
 }
 
 const GLASS = '#a9c3d3';
@@ -224,7 +226,7 @@ export const PATHS: { seg: Seg; w: number }[] = (() => {
   add(0, SQUARE_R - 1, 0, 60, 2.6);
   add(-SQUARE_R + 1, 0, -16.4, 0, 2.6);
   add(SQUARE_R - 1, 0, 16.4, 0, 2.6);
-  add(1, 8.6, 13.6, 8.6, 2.2);
+  add(1, 12.2, 6.5, 12.2, 2.2);
   add(-1, 12.6, -14, 12.6, 2.2);
   add(-14, 12.6, -14, 13.4, 2.2);
   for (const deg of [60, 120, 240, 300]) {
@@ -847,17 +849,24 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     return l;
   };
   const painter = (x: number, z: number, ry = 0) => new Paint(chunkAt(x, z), frame(x, z, ry));
+  // Big things that can hide a player get a mesh each, so they can be faded on their own.
+  const solos: Builder[] = [];
+  const solo = (x: number, z: number, ry = 0) => {
+    const main = new Builder();
+    solos.push(main);
+    return new Paint({ main, glass }, frame(x, z, ry));
+  };
 
   group.add(groundMesh(), cobbleMesh(), pathMesh());
 
   // The clock tower.
-  const tower = clockTower(painter(0, 0));
+  const tower = clockTower(solo(0, 0));
   // Public buildings.
-  church(painter(CHURCH.x, CHURCH.z, CHURCH.ry));
+  church(solo(CHURCH.x, CHURCH.z, CHURCH.ry));
   graveyard(painter(GRAVEYARD.x, GRAVEYARD.z), r);
   colliders.push({ kind: 'box', x: GRAVEYARD.x, z: GRAVEYARD.z, hw: GRAVEYARD.hw + 0.1, hd: GRAVEYARD.hd + 0.1, rot: 0 });
-  tavern(painter(TAVERN.x, TAVERN.z, TAVERN.ry), r, (v) => smoke(v.applyMatrix4(frame(TAVERN.x, TAVERN.z, TAVERN.ry))));
-  bakery(painter(BAKERY.x, BAKERY.z, BAKERY.ry), r, (v) => smoke(v.applyMatrix4(frame(BAKERY.x, BAKERY.z, BAKERY.ry))));
+  tavern(solo(TAVERN.x, TAVERN.z, TAVERN.ry), r, (v) => smoke(v.applyMatrix4(frame(TAVERN.x, TAVERN.z, TAVERN.ry))));
+  bakery(solo(BAKERY.x, BAKERY.z, BAKERY.ry), r, (v) => smoke(v.applyMatrix4(frame(BAKERY.x, BAKERY.z, BAKERY.ry))));
   for (const [lx, lz] of [
     [-4.6, TAVERN.d / 2 + 0.9],
     [-3.8, TAVERN.d / 2 + 1.2],
@@ -875,7 +884,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     const c = local(BAKERY.x, BAKERY.z, BAKERY.ry, lx, lz);
     colliders.push({ kind: 'circle', x: c.x, z: c.z, r: 0.45 });
   }
-  washhouse(painter(WASHHOUSE.x, WASHHOUSE.z), r);
+  washhouse(solo(WASHHOUSE.x, WASHHOUSE.z), r);
   washingLines(painter(0, 0));
   dock(painter(0, 0));
   const water = pond(group, painter(0, 0), r);
@@ -888,7 +897,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
 
   // Cottages.
   houseSlots.forEach((h, i) => {
-    cottage(painter(h.x, h.z, h.ry), rng(500 + i), i, smoke);
+    cottage(solo(h.x, h.z, h.ry), rng(500 + i), i, smoke);
     const post = local(h.x, h.z, h.ry, -1.75, HOUSE_D / 2 + 1.9);
     colliders.push({ kind: 'circle', x: post.x, z: post.z, r: 0.15 });
   });
@@ -972,6 +981,16 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     const m = l.main.mesh(main);
     m.name = 'chunk';
     group.add(m);
+  }
+  const occluders: THREE.Mesh[] = [];
+  for (const b of solos) {
+    if (b.empty) continue;
+    const mat = matte();
+    mat.transparent = true;
+    const m = b.mesh(mat);
+    m.name = 'building';
+    group.add(m);
+    occluders.push(m);
   }
   const glassMesh = glass.mesh(windowMat, { cast: false, receive: false });
   glassMesh.name = 'glass';
@@ -1093,6 +1112,6 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
 
   const lampLights = [0, 2, 4, 6].map((i) => new THREE.Vector3(squareLamps[i].x, 2.9, squareLamps[i].z));
 
-  return { group, colliders, water, clockHands, bell, flag, chimneys, houseSigns, signMaterials, wreaths, pools, lampLights };
+  return { group, colliders, water, clockHands, bell, flag, chimneys, houseSigns, signMaterials, wreaths, pools, lampLights, occluders };
 }
 

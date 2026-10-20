@@ -20,7 +20,7 @@ export const HOUSES = 5;
 export const COTTAGE_ANGLES = [40, 68, 118, 296, 326];
 export const COTTAGE_NAMES = ['Bramble Cottage', 'Ferncroft', 'The Old Mill', 'Rose Cottage', 'Hollow Oak'];
 /** The gallows, just to the side of the meeting circle, facing it. */
-export const GALLOWS = { x: 8.0, z: 7.4, ry: -Math.PI / 2 };
+export const GALLOWS = { x: 8.6, z: 6.2, ry: -Math.PI / 2 };
 /** The churchyard beside the church. */
 export const GRAVEYARD = { x: -8, z: -23, hw: 2.2, hd: 5.6 };
 
@@ -69,12 +69,12 @@ export const LINE_POS = [
 ].slice(0, LINES);
 export const LINE_Y = 1.95;
 
-/** Tucked between the square and the ring road, clear of both. */
-export const POND = { x: 13.6, z: 14.2, rx: 4.6, rz: 4.2 };
-export const DOCK = { x: 13.6, z0: 9, z1: 14.6, w: 2.6 };
+/** On the open grass south-east of the square, inside the ring road and away from the gallows. */
+export const POND = { x: 6.5, z: 17.8, rx: 4.6, rz: 4.0 };
+export const DOCK = { x: 6.5, z0: 12.8, z1: 18.1, w: 2.6 };
 export const FISHING = [
-  { x: 12.9, z: 13.8 },
-  { x: 14.3, z: 13.8 },
+  { x: 5.8, z: 17.3 },
+  { x: 7.2, z: 17.3 },
 ];
 
 export const WELL = { x: -6.5, z: -15.5 };

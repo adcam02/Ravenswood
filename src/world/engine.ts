@@ -18,9 +18,11 @@ import {
   houseZone,
   zoneKind,
   type Anim,
+  type Collider,
   type Door,
   type Item,
   type Look,
+  type Spot,
   type Station,
   type TownState,
   type ZoneId,
@@ -174,6 +176,8 @@ export class Engine {
   private bellTimer: ReturnType<typeof setTimeout> | null = null;
   private wellTimer: ReturnType<typeof setTimeout> | null = null;
   private hearing = 0;
+  private occluderRay = new THREE.Raycaster();
+  private occluded = new Set<THREE.Mesh>();
   private lastShowId = new Set<string>();
   private gavelled = false;
   private lastWakeId: string | null = null;
@@ -364,7 +368,7 @@ export class Engine {
         this.frozen = true;
       }
       drumroll(2.8);
-      ui.banner(`${name} is to be executed`, 'The town has spoken');
+      ui.banner(`${name} is to be hanged`, 'The town has spoken');
     }
     // Waking someone at night takes the Storyteller to their bedside.
     if (v.mode === 'st' && v.lastWake && v.lastWake.id !== this.lastWakeId) {
@@ -616,6 +620,24 @@ export class Engine {
     }
   }
 
+  /** The station's spot, or a slot beside it if someone is already standing there, so people work side by side. */
+  private freeStand(s: Station): Spot {
+    const taken = (x: number, z: number) => {
+      for (const [, p] of presence.others) if (p.zone === local.zone && Math.hypot(p.x - x, p.z - z) < 0.7) return true;
+      return false;
+    };
+    if (!taken(s.stand.x, s.stand.z)) return s.stand;
+    // Sideways from the way the station faces, alternating left and right, a little further each time.
+    const sx = Math.cos(s.stand.ry);
+    const sz = -Math.sin(s.stand.ry);
+    for (const k of [1, -1, 2, -2]) {
+      const x = s.stand.x + sx * 0.9 * k;
+      const z = s.stand.z + sz * 0.9 * k;
+      if (!taken(x, z)) return { x, z, ry: s.stand.ry };
+    }
+    return s.stand;
+  }
+
   private nearestOther(maxDist: number): { key: string; av: AvatarView } | null {
     let best: { key: string; av: AvatarView } | null = null;
     let bestD = maxDist;
@@ -658,9 +680,10 @@ export class Engine {
       this.standUp();
       this.emote = null;
       this.moveTarget = null;
-      local.x = s.stand.x;
-      local.z = s.stand.z;
-      local.ry = s.stand.ry;
+      const stand = this.freeStand(s);
+      local.x = stand.x;
+      local.z = stand.z;
+      local.ry = stand.ry;
       const look = JOB_LOOK[game_];
       this.job = { job: game_, station: s, prevItem: local.item };
       if (look.item) setItem(look.item);
@@ -679,9 +702,10 @@ export class Engine {
     } else if (s.job === 'well') {
       // Wind the bucket up: a moment's work, then fresh water in your paw.
       this.moveTarget = null;
-      local.x = s.stand.x;
-      local.z = s.stand.z;
-      local.ry = s.stand.ry;
+      const stand = this.freeStand(s);
+      local.x = stand.x;
+      local.z = stand.z;
+      local.ry = stand.ry;
       this.emote = { anim: 'work', until: this.clock.elapsedTime + 1.8 };
       if (this.wellTimer) clearTimeout(this.wellTimer);
       this.wellTimer = setTimeout(() => {
@@ -836,6 +860,7 @@ export class Engine {
     if (this.me && v) this.moveMe(dt, t, v);
     this.updateOthers(dt, t, v);
     this.updateCamera(dt, t);
+    this.fadeOccluders(dt);
     this.town.follow(this.camTarget.x, this.camTarget.z);
     this.town.update(dt, t);
 
@@ -902,7 +927,15 @@ export class Engine {
       const speed = st ? (running ? FLOAT * 1.7 : FLOAT) : running ? RUN : WALK;
       const nx = local.x + dx * speed * dt;
       const nz = local.z + dz * speed * dt;
-      const [rx, rz] = resolve(nx, nz, colliders, bounds);
+      // Animals bump gently off each other; the Storyteller's ghost drifts through anyone.
+      const people: Collider[] = [];
+      if (!st) {
+        for (const [key, p] of presence.others) {
+          if (key === 'st' || p.zone !== local.zone) continue;
+          if (Math.hypot(p.x - local.x, p.z - local.z) < 3) people.push({ kind: 'circle', x: p.x, z: p.z, r: 0.3 });
+        }
+      }
+      const [rx, rz] = resolve(nx, nz, people.length ? [...colliders, ...people] : colliders, bounds);
       const progress = Math.hypot(rx - local.x, rz - local.z);
       if (this.moveTarget && progress < speed * dt * 0.2) {
         this.stuckFor += dt;
@@ -940,6 +973,7 @@ export class Engine {
     });
 
     let myY = this.seated?.y ?? this.hoverY;
+    let dangle: { swing: number; scale: number } | null = null;
     if (this.show?.mine) {
       const sp = this.showPose(t - this.show.start);
       local.x = sp.x;
@@ -948,11 +982,14 @@ export class Engine {
       myY = sp.y;
       anim = sp.anim;
       local.anim = anim;
+      dangle = sp;
     }
     me.setTarget(local.x, local.z, local.ry, myY);
     me.setItem(local.item);
     me.setVisible(true);
     me.update(dt, t, anim, local.speaking, false);
+    me.rig.root.rotation.z = dangle?.swing ?? 0;
+    me.rig.root.scale.setScalar(dangle?.scale ?? 1);
 
     this.checkDoors(v, moving, dx, dz);
     this.checkStations(v);
@@ -1031,19 +1068,23 @@ export class Engine {
     }
   }
 
-  /** The gallows: a drumroll, the drop at three seconds, and the ghost let go at six. */
+  /**
+   * The gallows: a drumroll while the condemned waits on the trapdoor, the drop at three seconds, the rope
+   * snapping taut and a dangle with a swing, a puff at six, and the ghost let go after.
+   */
   private runShow(t: number) {
     const show = this.show;
     if (!show) return;
     const age = t - show.start;
     const spot = this.town.gallowsSpot;
-    const open = Math.max(0, Math.min(1, (age - 3.1) / 0.3));
-    if (open > 0 && !show.released && age < 3.5 && age >= 3.1 && !this.gavelled) {
+    const open = Math.max(0, Math.min(1, (age - 2.9) / 0.25));
+    if (age >= 2.9 && !this.gavelled) {
       this.gavelled = true;
       gavel();
     }
-    this.town.setGallows(open, age < 6.2 ? `${show.name} is executed` : '');
-    if (age > 6.5) {
+    const rope = Math.max(0, Math.min(1, (age - 3.1) / 0.3)) * 1.15;
+    this.town.setGallows(open, age < 6.6 ? `${show.name} is hanged` : '', age > 7 ? 0 : rope);
+    if (age > 7) {
       if (show.mine) {
         this.frozen = false;
         this.place('town', spot.x + 2.2, spot.z + 1.4, Math.PI, true);
@@ -1053,11 +1094,22 @@ export class Engine {
     }
   }
 
-  /** Where the condemned is during the show, in world space: standing on the trapdoor, then falling through it. */
-  private showPose(age: number): { x: number; z: number; y: number; ry: number; anim: Anim } {
+  /** Where the condemned is during the show: on the trapdoor, dropping, yanked up by the rope, dangling, then gone. */
+  private showPose(age: number): { x: number; z: number; y: number; ry: number; anim: Anim; swing: number; scale: number } {
     const spot = this.town.gallowsSpot;
-    const drop = Math.max(0, Math.min(1, (age - 3.4) / 0.6));
-    return { x: spot.x, z: spot.z, y: spot.y - drop * drop * 3.2, ry: spot.ry, anim: age < 3.4 ? 'cry' : 'idle' };
+    let y = spot.y;
+    let swing = 0;
+    let scale = 1;
+    if (age > 2.9 && age < 3.3) y = spot.y - 0.7 * ((age - 2.9) / 0.4);
+    else if (age >= 3.3) {
+      // The rope takes the weight: a bounce up to hang just under the noose, then a slow swing.
+      const k = Math.min(1, (age - 3.3) / 0.35);
+      const hang = spot.y + 0.55;
+      y = -0.7 + spot.y + (hang - (spot.y - 0.7)) * (1 - Math.pow(1 - k, 2)) + Math.sin(k * Math.PI) * 0.25;
+      swing = Math.sin((age - 3.3) * 3.2) * 0.14 * Math.max(0, 1 - (age - 3.3) / 4);
+    }
+    if (age > 6.1) scale = Math.max(0.001, 1 - (age - 6.1) / 0.45);
+    return { x: spot.x, z: spot.z, y, ry: spot.ry, anim: age < 2.9 ? 'cry' : age < 3.3 ? 'idle' : 'cry', swing, scale };
   }
 
   private updateOthers(dt: number, t: number, v: WorldView | null) {
@@ -1081,14 +1133,18 @@ export class Engine {
       }
       const sitting = p.anim === 'sit' || p.anim === 'sleep';
       let anim: Anim = nom && nom.status !== 'done' && nom.votes.includes(key) ? 'hand' : p.anim;
+      let dangle: { swing: number; scale: number } | null = null;
       if (this.show && this.show.seatId === key && local.zone === 'town') {
         const sp = this.showPose(t - this.show.start);
         av.setTarget(sp.x, sp.z, sp.ry, sp.y);
         av.snap();
         anim = sp.anim;
+        dangle = sp;
       } else av.setTarget(p.x, p.z, p.ry, sitting ? this.seatHeight(p.zone, p.anim, p.x, p.z) : 0);
       av.setItem(p.item);
       av.update(dt, t, anim, p.speaking, true);
+      av.rig.root.rotation.z = dangle?.swing ?? 0;
+      av.rig.root.scale.setScalar(dangle?.scale ?? 1);
     }
     for (const [key, av] of this.others) {
       if (!seen.has(key)) {
@@ -1113,6 +1169,27 @@ export class Engine {
       }
     }
     return 0;
+  }
+
+  /** Anything standing between the camera and our animal turns see-through, so we're never hidden behind the church. */
+  private fadeOccluders(dt: number) {
+    const inTown = zoneKind(local.zone) === 'town' && this.me;
+    this.occluded.clear();
+    if (inTown) {
+      const head = new THREE.Vector3(local.x, 1.1, local.z);
+      const origin = this.camera.position;
+      const dir = head.clone().sub(origin);
+      const far = dir.length();
+      this.occluderRay.set(origin, dir.normalize());
+      this.occluderRay.far = far;
+      for (const hit of this.occluderRay.intersectObjects(this.town.occluders, false)) this.occluded.add(hit.object as THREE.Mesh);
+    }
+    for (const m of this.town.occluders) {
+      const mat = m.material as THREE.Material;
+      const want = this.occluded.has(m) ? 0.22 : 1;
+      if (Math.abs(mat.opacity - want) < 0.005) continue;
+      mat.opacity += (want - mat.opacity) * Math.min(1, dt * 8);
+    }
   }
 
   private updateCamera(dt: number, t: number) {

@@ -530,6 +530,16 @@ export const st = {
       }
     });
   },
+  /** Hangs a player at the gallows in front of the town, whoever is on the block. */
+  execute(id: string) {
+    update((g) => {
+      const s = seatOf(g, id);
+      if (!s || s.dead) return;
+      s.dead = true;
+      g.execution = { id: uid(), seatId: id, at: Date.now() };
+      if (g.marked?.seatId === id) g.marked = null;
+    });
+  },
   toggleGhostVote(id: string) {
     update((g) => {
       const s = seatOf(g, id);

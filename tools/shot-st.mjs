@@ -26,6 +26,12 @@ await page.goto(`http://localhost:${PORT}/?st&nopeer&nomesh&fx=low&fps=12`);
 await page.waitForFunction(() => window.__engine && window.__hud?.getState().ready, null, { timeout: 90000 });
 await sleep(1500);
 await page.screenshot({ path: `${OUT}/st-town.png` });
+if (process.env.ST_AT) {
+  const [x, z] = process.env.ST_AT.split(',').map(Number);
+  await page.evaluate(([x, z]) => window.__engine.place('town', x, z, 0, false), [x, z]);
+  await sleep(2500);
+  await page.screenshot({ path: `${OUT}/st-at.png` });
+}
 await page.keyboard.press('Tab');
 await sleep(350);
 await page.screenshot({ path: `${OUT}/st-swoop.png` });
