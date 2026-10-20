@@ -4,6 +4,7 @@ import type { Collider } from '../types';
 import { G, Paint, frame, local, pick, shade, type Layers } from './kit';
 import {
   BAKERY,
+  BED_DEPTH,
   BED_H,
   BED_LEN,
   CHURCH,
@@ -870,7 +871,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     colliders.push({ kind: 'circle', x: c.x, z: c.z, r: 0.45 });
   }
   washhouse(painter(WASHHOUSE.x, WASHHOUSE.z), r);
-  washingLines(painter(-19.5, 27));
+  washingLines(painter(0, 0));
   dock(painter(DOCK.x, (DOCK.z0 + DOCK.z1) / 2));
   const water = pond(group, painter(POND.x, POND.z), r);
   for (const b of beds) flowerBedFrame(painter(b.x, b.z, b.ry));
