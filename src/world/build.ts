@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { mergeGeometries, toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices, toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { SimplifyModifier } from 'three/examples/jsm/modifiers/SimplifyModifier.js';
 
 export type Vec3 = [number, number, number];
 
@@ -81,7 +82,8 @@ export class Builder {
   }
 
   mesh(material: THREE.Material, opts: { cast?: boolean; receive?: boolean; crease?: number } = {}): THREE.Mesh {
-    const mesh = new THREE.Mesh(this.geometry(opts.crease), material);
+    const geo = material.userData.paper ? papercraft(this.geometry(0)) : this.geometry(opts.crease);
+    const mesh = new THREE.Mesh(geo, material);
     mesh.castShadow = opts.cast ?? true;
     mesh.receiveShadow = opts.receive ?? true;
     return mesh;
@@ -130,11 +132,11 @@ export const matte = () => new THREE.MeshLambertMaterial({ vertexColors: true })
  * gentle rim of light round the edges, like a storybook; 'matte' is plain and flat-lit; 'shiny' is the old
  * glossy look. `?look=matte` (or toon, shiny) switches it, for comparing.
  */
-type CharacterLook = 'toon' | 'matte' | 'shiny';
+type CharacterLook = 'toon' | 'matte' | 'shiny' | 'paper';
 const LOOK: CharacterLook = (() => {
   try {
     const v = new URLSearchParams(location.search).get('look');
-    return v === 'matte' || v === 'shiny' ? v : 'toon';
+    return v === 'matte' || v === 'shiny' || v === 'paper' ? v : 'toon';
   } catch {
     return 'toon';
   }
@@ -180,9 +182,57 @@ function storybook(wetGlint: boolean): THREE.MeshToonMaterial {
   return m;
 }
 
+/**
+ * A papercraft sculpture: each part is simplified into big irregular flat facets (colour patches stay
+ * separate, like cut card), lit flat and matte with a faint paper grain. A preview for now (?look=paper).
+ */
+function papercraft(geo: THREE.BufferGeometry): THREE.BufferGeometry {
+  const plain = new THREE.BufferGeometry();
+  plain.setAttribute('position', geo.getAttribute('position'));
+  plain.setAttribute('color', geo.getAttribute('color'));
+  const welded = mergeVertices(plain, 1e-4);
+  const count = welded.getAttribute('position').count;
+  // Keep about a sixth of the corners: big facets, the silhouette still reads.
+  let out = count > 60 ? new SimplifyModifier().modify(welded, Math.floor(count * 0.84)) : welded;
+  out = out.index ? out.toNonIndexed() : out;
+  // A little variation in each facet's tone, as if each were a separate piece of card.
+  const col = out.getAttribute('color') as THREE.BufferAttribute;
+  for (let f = 0; f < col.count; f += 3) {
+    const k = 1 + (Math.sin(f * 12.9898) * 43758.5453 - Math.floor(Math.sin(f * 12.9898) * 43758.5453) - 0.5) * 0.07;
+    for (let v = 0; v < 3; v++) col.setXYZ(f + v, col.getX(f + v) * k, col.getY(f + v) * k, col.getZ(f + v) * k);
+  }
+  out.computeVertexNormals();
+  out.computeBoundingSphere();
+  geo.dispose();
+  welded.dispose();
+  return out;
+}
+
+function paperMaterial(): THREE.Material {
+  const m = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  m.userData.paper = true;
+  m.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <opaque_fragment>',
+      `
+      {
+        // A faint paper grain, fixed to the screen so it reads as the card's texture.
+        float grain = fract(sin(dot(floor(gl_FragCoord.xy / 1.5), vec2(12.9898, 78.233))) * 43758.5453);
+        outgoingLight *= 0.97 + grain * 0.06;
+        outgoingLight += diffuseColor.rgb * 0.05;
+      }
+      #include <opaque_fragment>`,
+    );
+  };
+  m.customProgramCacheKey = () => 'paper';
+  return m;
+}
+
 /** The characters' material (see LOOK above). */
 export const soft = (): THREE.Material =>
-  LOOK === 'toon'
+  LOOK === 'paper'
+    ? paperMaterial()
+    : LOOK === 'toon'
     ? storybook(false)
     : LOOK === 'matte'
       ? new THREE.MeshLambertMaterial({ vertexColors: true })
@@ -190,7 +240,9 @@ export const soft = (): THREE.Material =>
 
 /** Aquatic animals: the same, with a little wet glint (or the old glossy clearcoat with ?look=shiny). */
 export const wet = (): THREE.Material =>
-  LOOK === 'toon'
+  LOOK === 'paper'
+    ? paperMaterial()
+    : LOOK === 'toon'
     ? storybook(true)
     : LOOK === 'matte'
       ? new THREE.MeshLambertMaterial({ vertexColors: true })
