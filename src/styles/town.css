@@ -1598,3 +1598,34 @@
 .day-clock.late {
   color: #c0532a;
 }
+
+/* ---------------------------------------------------------------- dress-up tabs */
+.dress-up {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+.dress-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.dress-tab {
+  border: 0;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cosy-ink-soft);
+  cursor: pointer;
+}
+.dress-tab.on {
+  background: #ff9a62;
+  color: #fff;
+}
+.dress-tab.has:not(.on) {
+  box-shadow: inset 0 0 0 2px rgba(255, 154, 98, 0.6);
+}

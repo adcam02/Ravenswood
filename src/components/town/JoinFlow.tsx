@@ -5,7 +5,7 @@ import { player } from '../../net/client';
 import { useVoice, voice } from '../../voice/voice';
 import { AnimalPreview } from '../../world/AnimalPreview';
 import { animalThumbnail } from '../../world/animals';
-import { ANIMALS, animalInfo, EXTRA_COLORS, fixLook, HATS, isJarrod, type AnimalId, type Look } from '../../world/types';
+import { ANIMALS, animalInfo, BACKS, EXTRA_COLORS, FACES, fixLook, HATS, isJarrod, NECKS, PETS, type AnimalId, type Look } from '../../world/types';
 import { useProgress } from '../../game/progress';
 
 type Step = 'name' | 'animal' | 'mic';
@@ -98,31 +98,59 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
   );
 }
 
-/** Hats earned in earlier games. Locked ones say how to earn them. */
-function HatRow({ look, setLook }: { look: Look; setLook: (l: Look) => void }) {
+type DressTab = 'hat' | 'face' | 'neck' | 'back' | 'pet';
+const TABS: { id: DressTab; label: string; icon: string }[] = [
+  { id: 'hat', label: 'Hats', icon: '🎩' },
+  { id: 'face', label: 'Face', icon: '👓' },
+  { id: 'neck', label: 'Neck', icon: '🎀' },
+  { id: 'back', label: 'Back', icon: '🎒' },
+  { id: 'pet', label: 'Pet', icon: '🐾' },
+];
+
+/** Dress-up, like Among Us: hats are earned in earlier games (locked ones say how); the rest is free. */
+function DressUp({ look, setLook }: { look: Look; setLook: (l: Look) => void }) {
   const progress = useProgress();
+  const [tab, setTab] = useState<DressTab>('hat');
+  const items: { id: string; name: string; icon: string; locked?: string }[] =
+    tab === 'hat'
+      ? HATS.map((h) => ({ id: h.id, name: h.name, icon: h.icon, locked: h.unlocked(progress) ? undefined : h.how }))
+      : tab === 'face'
+        ? FACES
+        : tab === 'neck'
+          ? NECKS
+          : tab === 'back'
+            ? BACKS
+            : PETS;
+  const current = (look[tab] ?? null) as string | null;
+  const choose = (id: string | null) => setLook({ ...look, [tab]: id });
   return (
-    <div className="join-hats" role="radiogroup" aria-label="Hat">
-      <button className={`join-hat ${!look.hat ? 'on' : ''}`} onClick={() => setLook({ ...look, hat: null })} role="radio" aria-checked={!look.hat} title="No hat">
-        <span>🚫</span>
-      </button>
-      {HATS.map((h) => {
-        const open = h.unlocked(progress);
-        return (
-          <button
-            key={h.id}
-            className={`join-hat ${look.hat === h.id ? 'on' : ''} ${open ? '' : 'locked'}`}
-            onClick={() => open && setLook({ ...look, hat: h.id })}
-            role="radio"
-            aria-checked={look.hat === h.id}
-            aria-disabled={!open}
-            title={open ? h.name : `${h.name}: ${h.how}`}
-          >
-            <span>{h.icon}</span>
-            {!open && <i>🔒</i>}
+    <div className="dress-up">
+      <div className="dress-tabs" role="tablist">
+        {TABS.map((t) => (
+          <button key={t.id} role="tab" aria-selected={tab === t.id} className={`dress-tab ${tab === t.id ? 'on' : ''} ${look[t.id] ? 'has' : ''}`} onClick={() => setTab(t.id)}>
+            <span>{t.icon}</span> {t.label}
           </button>
-        );
-      })}
+        ))}
+      </div>
+      <div className="join-hats" role="radiogroup" aria-label={TABS.find((t) => t.id === tab)?.label}>
+        <button className={`join-hat ${!current ? 'on' : ''}`} onClick={() => choose(null)} role="radio" aria-checked={!current} title="None">
+          <span>🚫</span>
+        </button>
+        {items.map((it) => (
+          <button
+            key={it.id}
+            className={`join-hat ${current === it.id ? 'on' : ''} ${it.locked ? 'locked' : ''}`}
+            onClick={() => !it.locked && choose(it.id)}
+            role="radio"
+            aria-checked={current === it.id}
+            aria-disabled={Boolean(it.locked)}
+            title={it.locked ? `${it.name}: ${it.locked}` : it.name}
+          >
+            <span>{it.icon}</span>
+            {it.locked && <i>🔒</i>}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -133,7 +161,8 @@ function AnimalPicker({ name, look, setLook, onBack, onDone }: { name: string; l
   const colors = [...info.colors, ...EXTRA_COLORS.filter((c) => !info.colors.includes(c))];
   const pick = (id: AnimalId) => {
     const next = animalInfo(id);
-    setLook({ animal: id, color: next.colors[0], hat: look.hat ?? null });
+    // A new animal keeps its outfit.
+    setLook({ ...look, animal: id, color: next.colors[0] });
   };
   return (
     <div className="join-card cosy-panel join-animal">
@@ -161,7 +190,7 @@ function AnimalPicker({ name, look, setLook, onBack, onDone }: { name: string; l
               />
             ))}
           </div>
-          <HatRow look={look} setLook={setLook} />
+          <DressUp look={look} setLook={setLook} />
         </div>
         <div className="join-grid" role="radiogroup" aria-label="Animal">
           {choices.map((a) => (

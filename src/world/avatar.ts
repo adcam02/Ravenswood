@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+import * as Animals from './animals';
 import { buildAnimal, buildStoryteller, type Rig } from './animals';
-import type { Anim, HatId, Item, Look } from './types';
+import type { Anim, BackId, FaceId, HatId, Item, Look, NeckId, PetId } from './types';
 
 export interface AvatarInfo {
   name: string;
@@ -91,7 +92,18 @@ const BLOB_TEX = (() => {
 })();
 
 /** Rig features that arrive with the animals pass: called only if the rig has them. */
-type RigExtras = { setHat?: (hat: HatId | null) => void; setDetail?: (level: 'high' | 'low') => void };
+type RigExtras = {
+  setHat?: (hat: HatId | null) => void;
+  setDetail?: (level: 'high' | 'low') => void;
+  setDressUp?: (d: { face?: FaceId | null; neck?: NeckId | null; back?: BackId | null }) => void;
+};
+interface Pet {
+  root: THREE.Object3D;
+  update(dt: number, t: number, moving: boolean): void;
+  setGhost(on: boolean): void;
+  dispose(): void;
+}
+const buildPet = (Animals as unknown as { buildPet?: (pet: PetId) => Pet }).buildPet;
 
 const lookKey = (info: AvatarInfo) => (info.storyteller ? 'st' : `${info.look?.animal}:${info.look?.color}`);
 
@@ -115,6 +127,11 @@ export class AvatarView {
   private blob: THREE.Mesh;
   private blobMat: THREE.MeshBasicMaterial;
   private hatKey: string | undefined = undefined;
+  private dressKey: string | undefined = undefined;
+  private petKey = '';
+  private pet: Pet | null = null;
+  private petPos = new THREE.Vector3();
+  private petRy = 0;
   private detail: 'high' | 'low' = 'high';
   private hand: THREE.Group | null = null;
 
@@ -174,6 +191,7 @@ export class AvatarView {
     this.scene.add(rig.root);
     this.itemKey = '';
     this.hatKey = undefined;
+    this.dressKey = undefined;
     this.detail = 'high';
     rig.root.userData.avatar = this;
     AvatarView.noShadows(rig.root);
@@ -200,13 +218,36 @@ export class AvatarView {
       this.rig.setGhost(ghost);
       AvatarView.noShadows(this.rig.root);
     }
-    // The hat they've chosen, if the rig can wear one.
-    const hat = info.storyteller ? null : (info.look?.hat ?? null);
+    // The hat and the rest of the outfit they've chosen, if the rig can wear them.
+    const look = info.storyteller ? null : info.look;
+    const hat = look?.hat ?? null;
     if ((hat ?? '') !== this.hatKey) {
       this.hatKey = hat ?? '';
       (this.rig as unknown as RigExtras).setHat?.(hat);
       AvatarView.noShadows(this.rig.root);
     }
+    const dress = { face: look?.face ?? null, neck: look?.neck ?? null, back: look?.back ?? null };
+    const dressKey = `${dress.face}|${dress.neck}|${dress.back}`;
+    if (dressKey !== this.dressKey) {
+      this.dressKey = dressKey;
+      (this.rig as unknown as RigExtras).setDressUp?.(dress);
+      AvatarView.noShadows(this.rig.root);
+    }
+    // A pet that trots along beside them.
+    const petId = look?.pet ?? null;
+    if ((petId ?? '') !== this.petKey) {
+      this.petKey = petId ?? '';
+      this.pet?.root.removeFromParent();
+      this.pet?.dispose();
+      this.pet = petId && buildPet ? buildPet(petId) : null;
+      if (this.pet) {
+        AvatarView.noShadows(this.pet.root);
+        this.petPos.set(this.x - 0.6, 0, this.z + 0.6);
+        this.pet.root.position.copy(this.petPos);
+        this.scene.add(this.pet.root);
+      }
+    }
+    this.pet?.setGhost(ghost);
     const voting = Boolean(info.voting) && !info.storyteller;
     if (voting && (!this.hand || this.hand.parent !== this.rig.root)) {
       this.hand?.removeFromParent();
@@ -346,6 +387,36 @@ export class AvatarView {
     this.blob.position.set(this.x, 0.025, this.z);
     this.blob.scale.setScalar(Math.max(0.5, 0.95 - lift * 0.25));
     this.blobMat.opacity = (this.ghost ? 0.35 : 1) * Math.max(0.25, 1 - lift * 0.6);
+    if (this.pet) {
+      // The pet keeps a little behind and to the side of its owner, catching up with a lag.
+      const side = 0.55;
+      const behind = 0.55;
+      const wantX = this.x - Math.sin(this.ry) * behind + Math.cos(this.ry) * side;
+      const wantZ = this.z - Math.cos(this.ry) * behind - Math.sin(this.ry) * side;
+      const dx = wantX - this.petPos.x;
+      const dz = wantZ - this.petPos.z;
+      const gap = Math.hypot(dx, dz);
+      if (gap > 6) this.petPos.set(wantX, 0, wantZ);
+      else {
+        const k = 1 - Math.exp(-dt * 4.5);
+        this.petPos.x += dx * k;
+        this.petPos.z += dz * k;
+      }
+      const moving = gap > 0.12;
+      if (moving) this.petRy = Math.atan2(dx, dz);
+      else {
+        // Standing still, it turns to look at its owner.
+        this.petRy = Math.atan2(this.x - this.petPos.x, this.z - this.petPos.z);
+      }
+      const root = this.pet.root;
+      root.visible = !this.away;
+      root.position.set(this.petPos.x, 0, this.petPos.z);
+      let d = this.petRy - root.rotation.y;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      root.rotation.y += d * Math.min(1, dt * 8);
+      this.pet.update(dt, t, moving);
+    }
     if (this.away) return;
     root.position.set(this.x, this.y, this.z);
     root.rotation.y = this.ry;
@@ -383,6 +454,9 @@ export class AvatarView {
     if (this.bubbleTimer) clearTimeout(this.bubbleTimer);
     this.blob.removeFromParent();
     this.blobMat.dispose();
+    this.pet?.root.removeFromParent();
+    this.pet?.dispose();
+    this.pet = null;
     this.star?.removeFromParent();
     this.star = null;
     this.hand?.removeFromParent();

@@ -120,6 +120,57 @@ export interface Look {
   color: string;
   /** A hat earned in earlier games, worn on the head. */
   hat?: HatId | null;
+  /** Dress-up, free for everyone: something on the face, round the neck, on the back, and a pet. */
+  face?: FaceId | null;
+  neck?: NeckId | null;
+  back?: BackId | null;
+  pet?: PetId | null;
+}
+
+// ---------------------------------------------------------------- dress-up, free for everyone
+
+export type FaceId = 'glasses' | 'shades' | 'hearts' | 'monocle' | 'moustache' | 'mask';
+export type NeckId = 'bowtie' | 'scarf' | 'bandana' | 'bell' | 'lei' | 'pearls';
+export type BackId = 'backpack' | 'cape' | 'wings' | 'butterfly' | 'balloon' | 'satchel';
+export type PetId = 'chick' | 'slime' | 'ghost' | 'mouse' | 'bee' | 'snail';
+
+export const FACES: { id: FaceId; name: string; icon: string }[] = [
+  { id: 'glasses', name: 'Round glasses', icon: '👓' },
+  { id: 'shades', name: 'Sunnies', icon: '🕶️' },
+  { id: 'hearts', name: 'Heart glasses', icon: '😍' },
+  { id: 'monocle', name: 'Monocle', icon: '🧐' },
+  { id: 'moustache', name: 'Moustache', icon: '🥸' },
+  { id: 'mask', name: 'Hero mask', icon: '🦸' },
+];
+export const NECKS: { id: NeckId; name: string; icon: string }[] = [
+  { id: 'bowtie', name: 'Bow tie', icon: '🎀' },
+  { id: 'scarf', name: 'Scarf', icon: '🧣' },
+  { id: 'bandana', name: 'Bandana', icon: '🤠' },
+  { id: 'bell', name: 'Bell collar', icon: '🔔' },
+  { id: 'lei', name: 'Flower lei', icon: '🌺' },
+  { id: 'pearls', name: 'Pearls', icon: '📿' },
+];
+export const BACKS: { id: BackId; name: string; icon: string }[] = [
+  { id: 'backpack', name: 'Backpack', icon: '🎒' },
+  { id: 'cape', name: 'Cape', icon: '🦹' },
+  { id: 'wings', name: 'Angel wings', icon: '🪽' },
+  { id: 'butterfly', name: 'Butterfly wings', icon: '🦋' },
+  { id: 'balloon', name: 'Balloon', icon: '🎈' },
+  { id: 'satchel', name: 'Satchel', icon: '👜' },
+];
+export const PETS: { id: PetId; name: string; icon: string }[] = [
+  { id: 'chick', name: 'Chick', icon: '🐤' },
+  { id: 'slime', name: 'Slime', icon: '🟢' },
+  { id: 'ghost', name: 'Little ghost', icon: '👻' },
+  { id: 'mouse', name: 'Mouse', icon: '🐭' },
+  { id: 'bee', name: 'Bee', icon: '🐝' },
+  { id: 'snail', name: 'Tiny snail', icon: '🐌' },
+];
+
+const pickFrom = <T extends string>(list: { id: T }[], v: unknown): T | null => (list.some((x) => x.id === v) ? (v as T) : null);
+/** Keeps only known dress-up pieces. */
+export function fixDressUp(look: Partial<Look> | null | undefined): Pick<Look, 'face' | 'neck' | 'back' | 'pet'> {
+  return { face: pickFrom(FACES, look?.face), neck: pickFrom(NECKS, look?.neck), back: pickFrom(BACKS, look?.back), pet: pickFrom(PETS, look?.pet) };
 }
 
 // ---------------------------------------------------------------- hats, earned and kept between games
@@ -156,11 +207,11 @@ export function isJarrod(name: string): boolean {
 export function fixLook(name: string, look: Partial<Look> | null | undefined): Look {
   if (isJarrod(name)) {
     const color = look?.animal === 'bunny' && look.color ? look.color : animalInfo('bunny').colors[0];
-    return { animal: 'bunny', color, hat: fixHat(look?.hat) };
+    return { animal: 'bunny', color, hat: fixHat(look?.hat), ...fixDressUp(look) };
   }
   const info = ANIMALS.find((a) => a.id === look?.animal && !a.reservedFor) ?? ANIMALS[0];
   const color = /^#[0-9a-f]{6}$/i.test(look?.color ?? '') ? look!.color! : info.colors[0];
-  return { animal: info.id, color, hat: fixHat(look?.hat) };
+  return { animal: info.id, color, hat: fixHat(look?.hat), ...fixDressUp(look) };
 }
 
 /** A known hat or none. (Unlocks are checked in the player's own browser; this is a friendly game.) */
