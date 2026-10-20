@@ -20,15 +20,17 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.prepend(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(view === 'night' ? '#1b2040' : '#9fd0f0');
-scene.add(new THREE.HemisphereLight('#fff8ee', '#6a8a50', view === 'night' ? 0.5 : 1.6));
+/** ?bg=#b8774a sets a plain studio backdrop (and floor) instead of sky and grass, for comparing with the reference. */
+const bg = q.get('bg');
+scene.background = new THREE.Color(bg ?? (view === 'night' ? '#1b2040' : '#9fd0f0'));
+scene.add(new THREE.HemisphereLight('#fff8ee', bg ? new THREE.Color(bg).multiplyScalar(0.7) : '#6a8a50', view === 'night' ? 0.5 : 1.6));
 const sun = new THREE.DirectionalLight('#fff2dc', view === 'night' ? 0.3 : 2.2);
 sun.position.set(6, 12, 8);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, far: 60 });
 scene.add(sun);
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshLambertMaterial({ color: '#8cc464' }));
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshLambertMaterial({ color: bg ? new THREE.Color(bg).multiplyScalar(0.92) : '#8cc464' }));
 ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
@@ -84,12 +86,27 @@ if (view === 'grid' || view === 'night') {
   place(buildStoryteller(), 0, 0, 'idle', 0, 0.3);
   camera.position.set(0, 7.7, 9.2);
   camera.lookAt(0, 0.5, 0);
+} else if (view === 'ref') {
+  // Big and close, at about the reference picture's angle: ?animal=raccoon,fox&anim=sit&ry=-0.5
+  const ids = (q.get('animal') ?? 'raccoon').split(',');
+  const anim = (q.get('anim') ?? 'sit') as Anim;
+  const gap = Number(q.get('gap') ?? 1.05);
+  ids.forEach((id, i) => {
+    const info = ANIMALS.find((a) => a.id === id)!;
+    const r = place(buildAnimal({ animal: id as AnimalId, color: q.get('color') ?? info.colors[Number(q.get('c') ?? 0)] ?? info.colors[0] }), (i - (ids.length - 1) / 2) * gap, 0, anim, anim === 'run' ? 4 : anim === 'walk' ? 1.6 : 0, Number(q.get('ry') ?? -0.5));
+    const it = q.get('item');
+    if (it) r.setItem({ k: it as ItemKind });
+  });
+  const span = Math.max(1, ids.length * gap * 0.75);
+  camera.position.set(0, 0.62 + span * 0.32, 0.25 + span * 1.6);
+  camera.lookAt(0, 0.44, 0);
 } else if (view === 'close') {
   const start = Number(q.get('from') ?? 0);
   const ids = q.get('animal') ? q.get('animal')!.split(',') : list.slice(start, start + 6);
   ids.forEach((id, i) => {
     const info = ANIMALS.find((a) => a.id === id)!;
-    place(buildAnimal({ animal: id as AnimalId, color: q.get('color') ?? info.colors[Number(q.get('c') ?? 0)] ?? info.colors[0] }), (i - (ids.length - 1) / 2) * 1.25, 0, 'idle', 0, Number(q.get('ry') ?? 0.25));
+    const anim = (q.get('anim') ?? 'idle') as Anim;
+    place(buildAnimal({ animal: id as AnimalId, color: q.get('color') ?? info.colors[Number(q.get('c') ?? 0)] ?? info.colors[0] }), (i - (ids.length - 1) / 2) * 1.25, 0, anim, anim === 'run' ? 4 : anim === 'walk' ? 1.6 : 0, Number(q.get('ry') ?? 0.25));
   });
   camera.position.set(0, 1.9, 7);
   camera.lookAt(0, 0.6, 0);

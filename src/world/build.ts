@@ -128,17 +128,17 @@ export const SMOOTH_DEG = 38;
 export const matte = () => new THREE.MeshLambertMaterial({ vertexColors: true });
 
 /**
- * How the animals are shaded. 'toon' (the default) is soft painted bands of light with warm shadows and a
- * gentle rim of light round the edges, like a storybook; 'matte' is plain and flat-lit; 'shiny' is the old
- * glossy look. `?look=matte` (or toon, shiny) switches it, for comparing.
+ * How the animals are shaded. 'card' (the default) is flat-lit folded card with a faint grain; 'toon' is the
+ * older storybook cel shading, 'matte' plain, 'shiny' the old glossy look and 'paper' the simplified preview.
+ * `?look=toon` (or matte, shiny, paper) switches it, for comparing.
  */
-type CharacterLook = 'toon' | 'matte' | 'shiny' | 'paper';
+type CharacterLook = 'card' | 'toon' | 'matte' | 'shiny' | 'paper';
 const LOOK: CharacterLook = (() => {
   try {
     const v = new URLSearchParams(location.search).get('look');
-    return v === 'matte' || v === 'shiny' || v === 'paper' ? v : 'toon';
+    return v === 'toon' || v === 'matte' || v === 'shiny' || v === 'paper' ? v : 'card';
   } catch {
-    return 'toon';
+    return 'card';
   }
 })();
 
@@ -254,9 +254,11 @@ export function card(wetSheen = false): THREE.MeshLambertMaterial {
   return m;
 }
 
-/** The characters' material (see LOOK above). */
+/** The characters' material: folded card (see LOOK above for the older looks, kept for comparing). */
 export const soft = (): THREE.Material =>
-  LOOK === 'paper'
+  LOOK === 'card'
+    ? card()
+    : LOOK === 'paper'
     ? paperMaterial()
     : LOOK === 'toon'
     ? storybook(false)
@@ -266,7 +268,9 @@ export const soft = (): THREE.Material =>
 
 /** Aquatic animals: the same, with a little wet glint (or the old glossy clearcoat with ?look=shiny). */
 export const wet = (): THREE.Material =>
-  LOOK === 'paper'
+  LOOK === 'card'
+    ? card(true)
+    : LOOK === 'paper'
     ? paperMaterial()
     : LOOK === 'toon'
     ? storybook(true)
