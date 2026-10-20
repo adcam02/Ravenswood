@@ -269,6 +269,7 @@ export class Engine {
     host.appendChild(this.labels.domElement);
 
     this.town = createTown(this.scene, this.renderer);
+    this.town.setLowDetail(this.quality === 'low');
     this.town.show('town');
     for (const station of this.town.stations) {
       const text = SIGN_TEXT[station.job];
@@ -354,6 +355,8 @@ export class Engine {
     const low = this.quality === 'low';
     this.renderer.setPixelRatio(low ? 1 : Math.min(window.devicePixelRatio, 1.6));
     this.renderer.shadowMap.enabled = !low;
+    // The town exists after the first call (from the constructor), so this only applies on a later switch.
+    (this as unknown as { town?: TownWorld }).town?.setLowDetail(low);
     // Materials compiled with shadows need rebuilding once they're off.
     this.scene.traverse((o) => {
       const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;

@@ -64,6 +64,8 @@ export interface TownWorld {
   follow(x: number, z: number): void;
   update(dt: number, t: number): void;
   bellRing(): void;
+  /** Low graphics: the forest beyond the fence, the night glows, the birds and the mist sheets are left out. */
+  setLowDetail(on: boolean): void;
   /** Rain, mist or clear skies, fading in over a couple of seconds. */
   setWeather(w: Weather): void;
   /** How far through the day it is, 0 (morning) to 1 (evening). The sun moves with it, and from about 0.75 the light turns golden. */
@@ -1070,6 +1072,13 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         const age = f.at ? (now - f.at) / 30000 : 1;
         const g = smooth(THREE.MathUtils.clamp(age, 0, 1));
         f.obj.scale.setScalar(0.45 + 0.55 * g);
+      });
+    },
+
+    setLowDetail(on) {
+      const extras = new Set(['forest', 'night-glow', 'birds', 'mist']);
+      scene.traverse((o) => {
+        if (extras.has(o.name)) o.visible = !on;
       });
     },
 
