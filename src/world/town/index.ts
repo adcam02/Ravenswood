@@ -50,7 +50,7 @@ export interface TownWorld {
   /** The sign above the bed: "<name>'s home", or any lines you like. */
   setHomeOwner(name: string, lines?: string[]): void;
   setTown(state: TownState, now: number): void;
-  setMeeting(m: { n: number; nominee: number | null; hand: number | null; active: boolean; votes: number[]; label?: string }): void;
+  setMeeting(m: { n: number; nominee: number | null; nominator?: number | null; hand: number | null; active: boolean; votes: number[]; label?: string }): void;
   /** Gravestones for the dead, by seat name. */
   setGraves(names: string[]): void;
   /** Buildings that can be faded when they hide a player. */
@@ -426,39 +426,44 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     const ring = b.mesh(matte(), { cast: false });
     outdoor.group.add(ring);
   }
-  // The vote hand: a brass clock hand on a jewelled boss, pointing along +z at rest.
-  const brass = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.55, roughness: 0.32, emissive: '#5a3c08', emissiveIntensity: 0.35, flatShading: true });
-  const hand = (() => {
+  // The clock hands from the grimoire's vote clock, laid on the cobbles: an antique spade hand each for the
+  // nominator (blue) and the nominee (red), and the gold hand that sweeps round as the votes are taken.
+  const handMat = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.25, roughness: 0.45, flatShading: true });
+  const spadeHand = (colour: string, L: number, y: number) => {
     const b = new Builder();
-    const gold = '#e8b84a';
-    const dark = '#8a6a1e';
-    const ruby = '#d8303c';
-    // The shaft tapers from the boss to the head, with a dark fillet along its length.
-    b.add(G.box(), gold, { pos: [0, 0.05, 0.9], scale: [0.2, 0.06, 1.5] });
-    b.add(G.box(), gold, { pos: [0, 0.05, 1.9], scale: [0.14, 0.06, 0.6] });
-    b.add(G.box(), dark, { pos: [0, 0.085, 1.0], scale: [0.05, 0.012, 1.6] });
-    // A diamond head with a ruby at its heart and a spear tip.
-    b.add(G.cone(4), gold, { pos: [0, 0.05, 2.55], rot: [Math.PI / 2, Math.PI / 4, 0], scale: [0.36, 0.9, 0.09] });
-    b.add(G.cone(4), gold, { pos: [0, 0.05, 2.3], rot: [-Math.PI / 2, Math.PI / 4, 0], scale: [0.36, 0.5, 0.09] });
-    b.add(G.sphere(12, 8), ruby, { pos: [0, 0.1, 2.38], scale: [0.09, 0.07, 0.09] });
-    b.add(G.cone(6), gold, { pos: [0, 0.05, 3.25], rot: [Math.PI / 2, 0, 0], scale: [0.1, 0.5, 0.08] });
-    // A little ring on the shaft, and a teardrop counterweight behind the boss.
-    b.add(G.torus(0.09, 6, 16), dark, { pos: [0, 0.05, 1.55], rot: [Math.PI / 2, 0, 0], scale: [0.26, 0.26, 1] });
-    b.add(G.box(), gold, { pos: [0, 0.05, -0.55], scale: [0.14, 0.06, 0.6] });
-    b.add(G.sphere(12, 8), gold, { pos: [0, 0.06, -0.95], scale: [0.2, 0.09, 0.26] });
-    b.add(G.sphere(12, 8), ruby, { pos: [0, 0.12, -0.95], scale: [0.06, 0.05, 0.06] });
-    // The boss: a brass drum with a dark band and a jewel on top.
-    b.add(G.cyl(24), gold, { pos: [0, 0.04, 0], scale: [0.5, 0.08, 0.5] });
-    b.add(G.cyl(24), dark, { pos: [0, 0.085, 0], scale: [0.4, 0.02, 0.4] });
-    b.add(G.cyl(24), gold, { pos: [0, 0.1, 0], scale: [0.3, 0.02, 0.3] });
-    b.add(G.sphere(12, 8), ruby, { pos: [0, 0.13, 0], scale: [0.1, 0.06, 0.1] });
-    const m = new THREE.Mesh(b.geometry(), brass);
+    const dark = '#1a1410';
+    const s = L - 1.1; // where the spade starts
+    // A slim stem from the pin to the spade, a small collar part way, and a ring round the pin.
+    b.add(G.box(), colour, { pos: [0, 0.03, (s + 0.1) / 2], scale: [0.11, 0.05, s + 0.1] });
+    b.add(G.box(), colour, { pos: [0, 0.03, s * 0.42], scale: [0.26, 0.05, 0.14] });
+    b.add(G.torus(0.09, 6, 18), colour, { pos: [0, 0.03, -0.45], rot: [Math.PI / 2, 0, 0], scale: [0.2, 0.2, 1] });
+    // The spade: a leaf with a dark hole in it, then a little point at the tip.
+    b.add(G.sphere(16, 8), colour, { pos: [0, 0.03, s + 0.45], scale: [0.34, 0.05, 0.52] });
+    b.add(G.sphere(16, 8), dark, { pos: [0, 0.065, s + 0.42], scale: [0.12, 0.02, 0.24] });
+    b.add(G.cone(6), colour, { pos: [0, 0.03, L - 0.2], rot: [Math.PI / 2, 0, 0], scale: [0.08, 0.4, 0.05] });
+    const m = new THREE.Mesh(b.geometry(), handMat);
     m.castShadow = true;
-    m.position.set(MEETING_CENTRE.x, 0.1, MEETING_CENTRE.z);
+    m.position.set(MEETING_CENTRE.x, y, MEETING_CENTRE.z);
     m.visible = false;
+    meeting.add(m);
     return m;
-  })();
-  meeting.add(hand);
+  };
+  const nominatorHand = spadeHand('#4c94ea', STOOL_R - 1.05, 0.1);
+  const nomineeHand = spadeHand('#d4334a', STOOL_R - 0.75, 0.12);
+  const hand = spadeHand('#e8c778', STOOL_R - 0.45, 0.14);
+  {
+    // The pin they all turn on: gold with a dark edge.
+    const b = new Builder();
+    b.add(G.cyl(24), '#2a1d12', { pos: [0, 0.08, 0], scale: [0.34, 0.16, 0.34] });
+    b.add(G.cyl(24), '#e8c778', { pos: [0, 0.17, 0], scale: [0.28, 0.04, 0.28] });
+    const pin = new THREE.Mesh(b.geometry(), handMat);
+    pin.position.set(MEETING_CENTRE.x, 0, MEETING_CENTRE.z);
+    meeting.add(pin);
+  }
+  const angleOf = (i: number, n: number) => {
+    const spot = meetingSpot(i, n);
+    return Math.atan2(spot.x - MEETING_CENTRE.x, spot.z - MEETING_CENTRE.z);
+  };
   let handVel = 0;
   // The arc the hand has swept since the nominee: a gold band of small tiles just inside the stools.
   const SWEEP_N = 72;
@@ -676,6 +681,13 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         voteMarks[i].position.set(spot.x, 0.12, spot.z);
         s.material = i === m.nominee ? nomineeMat : stoolMat;
       });
+      // The fixed hands: blue to the nominator, red to the nominee.
+      const nomineeIdx = m.nominee !== null && m.nominee >= 0 && m.nominee < m.n ? m.nominee : null;
+      const nominatorIdx = m.nominator !== null && m.nominator !== undefined && m.nominator >= 0 && m.nominator < m.n ? m.nominator : null;
+      nomineeHand.visible = m.active && nomineeIdx !== null;
+      if (nomineeIdx !== null) nomineeHand.rotation.y = angleOf(nomineeIdx, m.n);
+      nominatorHand.visible = m.active && nominatorIdx !== null;
+      if (nominatorIdx !== null) nominatorHand.rotation.y = angleOf(nominatorIdx, m.n);
       if (m.hand !== null && m.hand >= 0 && m.hand < m.n) {
         const spot = meetingSpot(m.hand, m.n);
         const angle = Math.atan2(spot.x - MEETING_CENTRE.x, spot.z - MEETING_CENTRE.z);
@@ -754,7 +766,6 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         handVel += d * 42 * dt;
         handVel *= Math.max(0, 1 - 9 * dt);
         hand.rotation.y += handVel * dt;
-        hand.position.y = 0.1 + Math.abs(Math.sin(t * 2.2)) * 0.01;
         placeSweep(hand.rotation.y, true);
         const pulse = 1 + Math.sin(t * 5) * 0.06;
         handRing.scale.set(pulse, pulse, 1);

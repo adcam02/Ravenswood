@@ -388,6 +388,7 @@ export class Engine {
       n: v.seats.length,
       active: meeting,
       nominee: nom ? seatIndex(nom.nomineeId) : null,
+      nominator: nom?.nominatorId ? seatIndex(nom.nominatorId) : null,
       hand: handOn ? seatIndex(handOn) : null,
       votes: nom ? nom.votes.map(seatIndex).filter((i) => i >= 0) : [],
       label,
@@ -444,6 +445,7 @@ export class Engine {
       role: role ? { name: role.name, icon: iconUrl(role, s?.evil ? 'evil' : 'good'), evil: Boolean(s?.evil) } : null,
       badge,
       star: Boolean(s?.star),
+      voting: Boolean(v.nomination && v.nomination.status !== 'done' && v.nomination.votes.includes(key)),
     };
   }
 
