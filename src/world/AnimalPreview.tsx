@@ -90,7 +90,7 @@ export function AnimalPreview({ look, size = 260, spin = true, anim = 'idle', cl
     const top = Math.max(rig.headHeight, 1.1);
     st.camera.position.set(0, 0.55 + top * 0.65, 1.6 + top * 1.35);
     st.camera.lookAt(0, top * 0.52, 0);
-  }, [look.animal, look.color, size]);
+  }, [look.animal, look.color, look.hat, look.face, look.neck, look.back, size]);
 
   if (fallback) return <img src={fallback} alt="" className={className} width={size} height={size} style={{ width: size, height: size }} />;
   return <canvas ref={canvas} className={className} width={size} height={size} style={{ width: size, height: size }} />;
