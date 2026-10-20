@@ -426,17 +426,69 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     const ring = b.mesh(matte(), { cast: false });
     outdoor.group.add(ring);
   }
+  // The vote hand: a brass clock hand on a jewelled boss, pointing along +z at rest.
+  const brass = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.55, roughness: 0.32, emissive: '#5a3c08', emissiveIntensity: 0.35, flatShading: true });
   const hand = (() => {
     const b = new Builder();
-    b.add(G.box(), '#2a211c', { pos: [0, 0, 1.3], scale: [0.22, 0.05, 2.2] });
-    b.add(G.cone(3), '#2a211c', { pos: [0, 0, 2.75], rot: [Math.PI / 2, 0, 0], scale: [0.45, 0.9, 0.4] });
-    b.add(G.cyl(10), '#2a211c', { pos: [0, 0, 0], scale: [0.5, 0.05, 0.5] });
-    const m = new THREE.Mesh(b.geometry(), matte());
-    m.position.set(MEETING_CENTRE.x, 0.13, MEETING_CENTRE.z);
+    const gold = '#e8b84a';
+    const dark = '#8a6a1e';
+    const ruby = '#d8303c';
+    // The shaft tapers from the boss to the head, with a dark fillet along its length.
+    b.add(G.box(), gold, { pos: [0, 0.05, 0.9], scale: [0.2, 0.06, 1.5] });
+    b.add(G.box(), gold, { pos: [0, 0.05, 1.9], scale: [0.14, 0.06, 0.6] });
+    b.add(G.box(), dark, { pos: [0, 0.085, 1.0], scale: [0.05, 0.012, 1.6] });
+    // A diamond head with a ruby at its heart and a spear tip.
+    b.add(G.cone(4), gold, { pos: [0, 0.05, 2.55], rot: [Math.PI / 2, Math.PI / 4, 0], scale: [0.36, 0.9, 0.09] });
+    b.add(G.cone(4), gold, { pos: [0, 0.05, 2.3], rot: [-Math.PI / 2, Math.PI / 4, 0], scale: [0.36, 0.5, 0.09] });
+    b.add(G.sphere(12, 8), ruby, { pos: [0, 0.1, 2.38], scale: [0.09, 0.07, 0.09] });
+    b.add(G.cone(6), gold, { pos: [0, 0.05, 3.25], rot: [Math.PI / 2, 0, 0], scale: [0.1, 0.5, 0.08] });
+    // A little ring on the shaft, and a teardrop counterweight behind the boss.
+    b.add(G.torus(0.09, 6, 16), dark, { pos: [0, 0.05, 1.55], rot: [Math.PI / 2, 0, 0], scale: [0.26, 0.26, 1] });
+    b.add(G.box(), gold, { pos: [0, 0.05, -0.55], scale: [0.14, 0.06, 0.6] });
+    b.add(G.sphere(12, 8), gold, { pos: [0, 0.06, -0.95], scale: [0.2, 0.09, 0.26] });
+    b.add(G.sphere(12, 8), ruby, { pos: [0, 0.12, -0.95], scale: [0.06, 0.05, 0.06] });
+    // The boss: a brass drum with a dark band and a jewel on top.
+    b.add(G.cyl(24), gold, { pos: [0, 0.04, 0], scale: [0.5, 0.08, 0.5] });
+    b.add(G.cyl(24), dark, { pos: [0, 0.085, 0], scale: [0.4, 0.02, 0.4] });
+    b.add(G.cyl(24), gold, { pos: [0, 0.1, 0], scale: [0.3, 0.02, 0.3] });
+    b.add(G.sphere(12, 8), ruby, { pos: [0, 0.13, 0], scale: [0.1, 0.06, 0.1] });
+    const m = new THREE.Mesh(b.geometry(), brass);
+    m.castShadow = true;
+    m.position.set(MEETING_CENTRE.x, 0.1, MEETING_CENTRE.z);
     m.visible = false;
     return m;
   })();
   meeting.add(hand);
+  let handVel = 0;
+  // The arc the hand has swept since the nominee: a gold band of small tiles just inside the stools.
+  const SWEEP_N = 72;
+  const sweepGeo = new THREE.BoxGeometry(0.22, 0.04, 0.34);
+  const sweepMat = new THREE.MeshStandardMaterial({ color: '#f2c14e', emissive: '#c98a12', emissiveIntensity: 0.5, roughness: 0.4, metalness: 0.3, transparent: true, opacity: 0.85 });
+  const sweep = new THREE.InstancedMesh(sweepGeo, sweepMat, SWEEP_N);
+  sweep.position.set(MEETING_CENTRE.x, 0.1, MEETING_CENTRE.z);
+  sweep.visible = false;
+  meeting.add(sweep);
+  let sweepFrom = 0;
+  let sweepDir = 1;
+  const sweepTmp = new THREE.Object3D();
+  const sweepAngle = (i: number) => (i / SWEEP_N) * Math.PI * 2;
+  const placeSweep = (upTo: number, lit: boolean) => {
+    const r = STOOL_R - 0.75;
+    let arc = ((upTo - sweepFrom) * sweepDir) % (Math.PI * 2);
+    if (arc < 0) arc += Math.PI * 2;
+    for (let i = 0; i < SWEEP_N; i++) {
+      const a = sweepAngle(i);
+      let off = ((a - sweepFrom) * sweepDir) % (Math.PI * 2);
+      if (off < 0) off += Math.PI * 2;
+      const on = lit && off > 0.05 && off <= arc + 0.02;
+      sweepTmp.position.set(Math.sin(a) * r, 0, Math.cos(a) * r);
+      sweepTmp.rotation.set(0, a, 0);
+      sweepTmp.scale.setScalar(on ? 1 : 0.0001);
+      sweepTmp.updateMatrix();
+      sweep.setMatrixAt(i, sweepTmp.matrix);
+    }
+    sweep.instanceMatrix.needsUpdate = true;
+  };
   outdoor.group.add(meeting);
 
   // The state the world keeps between calls.
@@ -627,14 +679,30 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       if (m.hand !== null && m.hand >= 0 && m.hand < m.n) {
         const spot = meetingSpot(m.hand, m.n);
         const angle = Math.atan2(spot.x - MEETING_CENTRE.x, spot.z - MEETING_CENTRE.z);
-        if (!hand.visible) hand.rotation.y = angle;
+        if (!hand.visible) {
+          hand.rotation.y = angle;
+          handVel = 0;
+        }
         handTarget = angle;
         hand.visible = true;
         handRing.visible = true;
         handRing.position.set(spot.x, 0.11, spot.z);
+        // The sweep runs from the nominee's stool, the way the seats go round.
+        const nomSpot = meetingSpot(m.nominee ?? m.hand, m.n);
+        sweepFrom = Math.atan2(nomSpot.x - MEETING_CENTRE.x, nomSpot.z - MEETING_CENTRE.z);
+        if (m.n > 1) {
+          const s0 = meetingSpot(0, m.n);
+          const s1 = meetingSpot(1, m.n);
+          let d = Math.atan2(s1.x - MEETING_CENTRE.x, s1.z - MEETING_CENTRE.z) - Math.atan2(s0.x - MEETING_CENTRE.x, s0.z - MEETING_CENTRE.z);
+          while (d > Math.PI) d -= Math.PI * 2;
+          while (d < -Math.PI) d += Math.PI * 2;
+          sweepDir = d >= 0 ? 1 : -1;
+        }
+        sweep.visible = true;
       } else {
         hand.visible = false;
         handRing.visible = false;
+        sweep.visible = false;
       }
       signEl.textContent = m.label ?? '';
       sign.visible = Boolean(m.label);
@@ -678,12 +746,19 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       }
       pos.needsUpdate = true;
       w.material.opacity = 0.88 + Math.sin(t * 0.8) * 0.03;
-      // The hand swings round to the next stool rather than jumping.
+      // The hand swings round to the next stool on a spring, with a little overshoot, and the band follows it.
       if (hand.visible) {
         let d = handTarget - hand.rotation.y;
         while (d > Math.PI) d -= Math.PI * 2;
         while (d < -Math.PI) d += Math.PI * 2;
-        hand.rotation.y += d * Math.min(1, dt * 5);
+        handVel += d * 42 * dt;
+        handVel *= Math.max(0, 1 - 9 * dt);
+        hand.rotation.y += handVel * dt;
+        hand.position.y = 0.1 + Math.abs(Math.sin(t * 2.2)) * 0.01;
+        placeSweep(hand.rotation.y, true);
+        const pulse = 1 + Math.sin(t * 5) * 0.06;
+        handRing.scale.set(pulse, pulse, 1);
+        sweepMat.emissiveIntensity = 0.45 + Math.sin(t * 3) * 0.15;
       }
       // The flag, the clock and the bell.
       outdoor.flag.rotation.y = Math.sin(t * 1.7) * 0.25 + Math.sin(t * 4.1) * 0.08;

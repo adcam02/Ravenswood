@@ -994,7 +994,7 @@ export class Engine {
 
   private loop = () => {
     this.raf = requestAnimationFrame(this.loop);
-    const cap = this.view?.dim ? 4 : FPS_CAP;
+    const cap = FPS_CAP;
     if (cap) {
       const now = performance.now();
       if (now - this.lastFrameAt < 1000 / cap) return;

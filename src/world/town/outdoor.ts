@@ -444,7 +444,8 @@ function clockTower(p: Paint): { faces: THREE.Matrix4[] } {
   const faces: THREE.Matrix4[] = [];
   for (let k = 0; k < 4; k++) {
     // The face sits flat against the wall: a moulded bezel, a dial and painted-on hour marks.
-    const f = p.at(0, 9.8, 1.9, (k * Math.PI) / 2);
+    // Turn to the wall first, then step out to it, so each side gets its own dial.
+    const f = p.at(0, 0, 0, (k * Math.PI) / 2).at(0, 9.8, 1.9);
     f.torus('#3b2f2a', 1.12, 0.05, 0, 0, 0.005, 0, 0);
     f.cyl('#e8c35a', 1.1, 0.02, 0, 0, 0.0, 24, Math.PI / 2);
     f.cyl('#f6ecd2', 1.0, 0.03, 0, 0, 0.02, 24, Math.PI / 2);

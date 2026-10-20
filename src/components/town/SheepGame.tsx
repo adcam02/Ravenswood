@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { game, useHud } from '../../game/hud';
+import { useClient } from '../../net/client';
 
 /**
  * Counting sheep, in bed at night. Sheep (and a few goats) run across and jump the fence; keep the count in your
@@ -131,6 +132,10 @@ export function SheepGame() {
   const [guess, setGuess] = useState('');
   const [result, setResult] = useState<{ right: boolean; answer: number } | null>(null);
   const planRef = useRef(plan(Date.now()));
+  // The Storyteller is talking to them (a wake is open): the sheep wait, and keys are left alone.
+  const awake = useClient((s) => Boolean(s.priv?.wake));
+  const startRef = useRef(0);
+  const pausedAtRef = useRef<number | null>(null);
   // For the headless tests: the answer, when the page runs with ?debug.
   if (location.search.includes('debug')) (window as unknown as { __sheepAnswer: number }).__sheepAnswer = planRef.current.answer;
 
@@ -144,7 +149,16 @@ export function SheepGame() {
     el.width = W * dpr;
     el.height = H * dpr;
     const { runners, length } = planRef.current;
-    const start = performance.now();
+    if (awake) {
+      // Hold the clock while they're being woken; the sheep pick up where they left off.
+      pausedAtRef.current ??= performance.now();
+      return;
+    }
+    if (pausedAtRef.current !== null) {
+      startRef.current += performance.now() - pausedAtRef.current;
+      pausedAtRef.current = null;
+    }
+    const start = startRef.current;
     let raf = 0;
     const draw = () => {
       const t = (performance.now() - start) / 1000;
@@ -211,10 +225,10 @@ export function SheepGame() {
     };
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [stage]);
+  }, [stage, awake]);
 
   useEffect(() => {
-    if (stage !== 'guess') return;
+    if (stage !== 'guess' || awake) return;
     const down = (e: KeyboardEvent) => {
       if (/^[0-9]$/.test(e.key)) setGuess((g) => (g.length < 2 ? g + e.key : g));
       else if (e.key === 'Backspace') setGuess((g) => g.slice(0, -1));
@@ -262,12 +276,26 @@ export function SheepGame() {
             <li>If a sheep jumps back over the other way, take it off the count again.</li>
           </ol>
           <p>They come in bunches and speed up. No pausing, no second go.</p>
-          <button className="cosy-btn primary" onClick={() => setStage('run')} autoFocus>
+          <button
+            className="cosy-btn primary"
+            onClick={() => {
+              startRef.current = performance.now();
+              pausedAtRef.current = null;
+              setStage('run');
+            }}
+            autoFocus
+          >
             Start counting
           </button>
         </div>
       )}
-      {stage === 'run' && <canvas ref={canvas} className="sheep-canvas" style={{ width: W, height: H }} />}
+      {stage === 'run' && (
+        <div className="sheep-stage">
+          <canvas ref={canvas} className="sheep-canvas" style={{ width: W, height: H }} />
+          {awake && <div className="sheep-paused">Paused while the Storyteller talks to you</div>}
+        </div>
+      )}
+      {stage === 'guess' && awake && <div className="sheep-paused inline">Paused while the Storyteller talks to you</div>}
       {stage === 'guess' && (
         <div className="sheep-guess">
           <p>How many sheep jumped the fence?</p>

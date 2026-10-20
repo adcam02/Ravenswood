@@ -1486,3 +1486,25 @@
   font-size: 22px;
   line-height: 1;
 }
+.sheep-stage {
+  position: relative;
+}
+.sheep-paused {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(20, 27, 63, 0.72);
+  color: #fff;
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  padding: 20px;
+}
+.sheep-paused.inline {
+  position: static;
+  margin: 6px 0;
+  padding: 10px;
+  font-size: 16px;
+}
