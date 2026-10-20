@@ -7,6 +7,7 @@ import { buildInteriors, type Room } from './interiors';
 import {
   BED,
   BED_H,
+  COTTAGE_NAMES,
   GALLOWS,
   GRAVEYARD,
   LINE_Y,
@@ -727,5 +728,6 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
 
   world.show('town');
   world.setTime(0);
+  world.setHouses(COTTAGE_NAMES.map((name) => ({ name, dead: false })));
   return world;
 }

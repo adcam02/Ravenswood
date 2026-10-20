@@ -15,7 +15,10 @@ export const STOOL_R = 4.2;
 export const MEETING_R = 12.5;
 export const HOUSE_R = 29;
 export const RING_ROAD_R = 25.5;
-export const HOUSES = 20;
+/** A few cottages for scenery, in the gaps between the public buildings. Bedrooms are elsewhere. */
+export const HOUSES = 5;
+export const COTTAGE_ANGLES = [40, 68, 118, 296, 326];
+export const COTTAGE_NAMES = ['Bramble Cottage', 'Ferncroft', 'The Old Mill', 'Rose Cottage', 'Hollow Oak'];
 /** The gallows, just to the side of the meeting circle, facing it. */
 export const GALLOWS = { x: 8.0, z: 7.4, ry: -Math.PI / 2 };
 /** The churchyard beside the church. */
@@ -147,7 +150,7 @@ export const HOUSE_W = 5.2;
 export const HOUSE_D = 4.6;
 
 export const houseSlots: HouseSlot[] = Array.from({ length: HOUSES }, (_, i) => {
-  const a = (((i + 0.5) * 360) / HOUSES) * (Math.PI / 180);
+  const a = COTTAGE_ANGLES[i] * (Math.PI / 180);
   const x = HOUSE_R * Math.sin(a);
   const z = -HOUSE_R * Math.cos(a);
   const ry = face(x, z, 0, 0);
@@ -223,10 +226,6 @@ export function makeDoors(): Door[] {
     const ex = ROOM_DOOR[kind].exit;
     doors.push({ id: `${kind}-out`, zone: kind, x: ex.x, z: ex.z, r: ex.r, to: 'town', spawn: { ...outside, ry: b.ry }, label: 'Outside' });
   }
-  houseSlots.forEach((h, slot) => {
-    const trigger = local(h.x, h.z, h.ry, 0, HOUSE_D / 2 + 0.55);
-    doors.push({ id: `house-${slot}`, zone: 'town', x: trigger.x, z: trigger.z, r: 1.0, to: 'house', slot, spawn: ROOM_DOOR.house.arrive, label: 'Home' });
-  });
   const ex = ROOM_DOOR.house.exit;
   doors.push({ id: 'house-out', zone: 'house', x: ex.x, z: ex.z, r: ex.r, to: 'town', spawn: { x: 0, z: 0, ry: 0 }, label: 'Outside' });
   return doors;

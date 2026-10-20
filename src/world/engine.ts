@@ -304,7 +304,6 @@ export class Engine {
     this.view = v;
     const seatIndex = (id: string | null) => v.seats.findIndex((s) => s.id === id);
 
-    this.town.setHouses(Array.from({ length: this.town.houseSlots.length }, (_, i) => (v.seats[i] ? { name: v.seats[i].name || `Seat ${i + 1}`, dead: v.seats[i].dead } : null)));
     if (!prev || prev.town !== v.town) this.town.setTown(v.town, Date.now());
 
     const nom = v.nomination;
@@ -417,9 +416,7 @@ export class Engine {
   private spawn(v: WorldView) {
     if (v.mode === 'player' && v.started && v.phase === 'night' && v.mySeatId) this.goHome(false);
     else {
-      const s = this.town.spawn;
-      const a = Math.random() * Math.PI * 2;
-      this.place('town', s.x + Math.cos(a) * 1.5, s.z + Math.sin(a) * 1.5, s.ry, false);
+      this.goToSquareSpawn(false);
     }
   }
 
@@ -434,13 +431,15 @@ export class Engine {
       this.goHome(true);
     } else if (v.phase === 'day' && zoneKind(local.zone) === 'house') {
       this.stopEverything();
-      this.goOutsideHouse(houseOwner(local.zone), true);
+      this.goToSquareSpawn(true);
     }
   }
 
-  private slotOf(seatId: string | null): number {
-    const i = this.view?.seats.findIndex((s) => s.id === seatId) ?? -1;
-    return i < 0 ? -1 : i % this.town.houseSlots.length;
+  /** The morning arrival point by the square, spread out a little so nobody lands on anyone. */
+  private goToSquareSpawn(fade: boolean) {
+    const s = this.town.spawn;
+    const a = Math.random() * Math.PI * 2;
+    this.place('town', s.x + Math.cos(a) * 1.8, s.z + Math.sin(a) * 1.2, s.ry, fade);
   }
 
   private goHome(fade: boolean) {
@@ -448,12 +447,6 @@ export class Engine {
     if (!id) return;
     const h = this.town.homeSpawn;
     this.place(houseZone(id), h.x, h.z, h.ry, fade);
-  }
-
-  private goOutsideHouse(owner: string | null, fade: boolean) {
-    const slot = this.slotOf(owner);
-    const spot = slot >= 0 ? this.town.houseSlots[slot].door : this.town.spawn;
-    this.place('town', spot.x, spot.z, spot.ry, fade);
   }
 
   /** Moves the local animal somewhere, optionally through a fade to black. */
@@ -495,7 +488,7 @@ export class Engine {
       const seat = this.view?.seats.find((s) => s.id === owner);
       const name = seat?.name || 'Someone';
       this.town.setHomeOwner(name);
-      place = owner === this.view?.mySeatId ? 'Your home' : `${name}’s home`;
+      place = owner === this.view?.mySeatId ? 'Your bedroom' : `${name}’s bedroom`;
     }
     useHud.setState({ place });
   }
@@ -968,17 +961,10 @@ export class Engine {
   private doorTarget(door: Door, v: WorldView): { zone: ZoneId; x: number; z: number; ry: number } | { locked: string } {
     const st = v.mode === 'st';
     const nightLocked = !st && v.started && v.phase === 'night';
-    if (door.to === 'house') {
-      const seat = door.slot !== undefined ? v.seats[door.slot] : undefined;
-      if (!seat) return { locked: 'Nobody lives here yet' };
-      if (nightLocked) return { locked: 'It’s night. Stay home' };
-      return { zone: houseZone(seat.id), x: door.spawn.x, z: door.spawn.z, ry: door.spawn.ry };
-    }
+    if (door.to === 'house') return { locked: 'Nobody lives here' };
     if (door.zone === 'house' && door.to === 'town') {
-      if (nightLocked) return { locked: 'It’s night. Stay home until morning' };
-      const slot = this.slotOf(houseOwner(local.zone));
-      const spot = slot >= 0 ? this.town.houseSlots[slot].door : this.town.spawn;
-      return { zone: 'town', ...spot };
+      if (nightLocked) return { locked: 'It’s night. Stay in bed until morning' };
+      return { zone: 'town', ...this.town.spawn };
     }
     if (nightLocked) return { locked: 'It’s night. Stay home' };
     return { zone: door.to, x: door.spawn.x, z: door.spawn.z, ry: door.spawn.ry };

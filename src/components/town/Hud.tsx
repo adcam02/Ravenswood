@@ -332,7 +332,7 @@ export function HomeMusic() {
   const place = useHud((s) => s.place);
   const muted = useUI((s) => s.muted);
   const awake = useClient((s) => Boolean(s.priv?.wake));
-  const on = view.mode === 'player' && view.phase === 'night' && place === 'Your home' && !muted;
+  const on = view.mode === 'player' && view.phase === 'night' && place === 'Your bedroom' && !muted;
   useEffect(() => {
     if (on) {
       nightMusic.setLevel(0.35);

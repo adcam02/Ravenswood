@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { local } from '../../game/local';
 import { presence } from '../../game/presence';
 import { useView } from '../../state/view';
-import { BAKERY, CHURCH, GALLOWS, GRAVEYARD, HOUSES, MEETING_CENTRE, POND, SQUARE_R, STOOL_R, TAVERN, TOWN_R, WASHHOUSE, WELL, houseSlots } from '../../world/town/layout';
+import { BAKERY, CHURCH, GALLOWS, GRAVEYARD, MEETING_CENTRE, POND, SQUARE_R, STOOL_R, TAVERN, TOWN_R, WASHHOUSE, WELL, houseSlots } from '../../world/town/layout';
 import { houseOwner, zoneKind, type Look } from '../../world/types';
 
 const SIZE = 172;
@@ -18,9 +18,9 @@ function placeOf(zone: string, x: number, z: number, seatIndex: (id: string) => 
     case 'church':
       return [CHURCH.x, CHURCH.z];
     case 'house': {
-      const i = seatIndex(houseOwner(zone) ?? '');
-      const h = houseSlots[i >= 0 ? i % HOUSES : 0];
-      return [h.x, h.z];
+      // Bedrooms aren't on the map: sleepers line up along the bottom edge.
+      const i = Math.max(0, seatIndex(houseOwner(zone) ?? ''));
+      return [-14 + (i % 10) * 3.1, 30.5 - Math.floor(i / 10) * 3.2];
     }
     default:
       return [x, z];
@@ -98,10 +98,7 @@ export function MiniMap() {
       ctx.arc(px(0), pz(0), 1.8 * SCALE, 0, Math.PI * 2);
       ctx.fillStyle = '#6b6b78';
       ctx.fill();
-      houseSlots.forEach((h, i) => {
-        const seat = seats.current[i];
-        box(h.x, h.z, 5.2, 4.6, seat ? '#e0605a' : '#d8c8a8', h.ry);
-      });
+      for (const h of houseSlots) box(h.x, h.z, 5.2, 4.6, '#d8c8a8', h.ry);
       // Everyone.
       const dot = (x: number, z: number, look: Look | null, me: boolean, st: boolean, dead: boolean, name: string) => {
         const cx = px(x);
