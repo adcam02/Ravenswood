@@ -11,8 +11,8 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
 
 1. **The Storyteller opens the site** and chooses **Host a game**. The invite link is under the room
    code at the top left.
-2. **Players open the link**, type their name and pick an animal and colour. Aquatic animals are a
-   little bit wet. Anyone named Jarrod is the bunny, skips the picker, and nobody else can be the bunny.
+2. **Players open the link**, type their name and pick an animal and colour (32 to choose from, from
+   wolf to axolotl, capybara and highland cow). Aquatic animals are a little bit wet. Anyone named Jarrod is the bunny, skips the picker, and nobody else can be the bunny.
    Then they turn on their microphone (or just listen).
 3. **Wander around town.** Talk to whoever is near you. Step into the tavern, the bakery, the church or
    anyone's house to talk privately.
@@ -31,10 +31,18 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      tools as the Grimoire, and can float into a house to talk to its owner privately.
    - **Day**: everyone comes back outside. Deaths in the night are announced at dawn, and dead players
      become ghosts of their animal: they can still walk around and talk.
-   - **Ring the bell** to call everyone to the square. Arriving counts as being there. During a
-     meeting everyone around the clock tower hears everyone else, and **Take your seat** hops you onto
-     your stool. Nominations and votes work like the Grimoire: the clock hand goes round and players
-     raise a paw.
+   - **Ring the bell** and everyone is taken to their stool around the clock tower, in the same order
+     as the grimoire. During a meeting everyone at the square hears everyone else. Nominations and
+     votes play out in 3D: a sign over the tower says who is nominated and the count, the needle on
+     the cobbles swings from stool to stool, and players raise a paw. Executing the player on the block
+     (mark them, then Kill) plays out at the gallows for the whole town.
+   - **The Spy** sees a snapshot of the grimoire when woken from the night order; add one to any wake
+     with the book button in the wake screen.
+   - **Waking someone at night** drifts you to their bedside; the player sees a dream bubble beside
+     their bed and you're told when they've read it.
+   - **Around town**: signs float over the things to do, the well gives water, the noticeboard has the
+     day's news, the churchyard gains a stone for each of the dead, and the little speaker by a name
+     shows who can hear you.
    - **Hold B** (or the megaphone button) to speak to the whole town at once.
 
 ### Controls
