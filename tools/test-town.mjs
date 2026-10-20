@@ -1,0 +1,468 @@
+// A whole game in headless Chrome: a Storyteller and four players with fake microphones, a local
+// PeerJS lobby, and screenshots along the way. Run with `node tools/test-town.mjs` (needs `npm install`).
+//
+//   OUT=/some/folder  where screenshots go (default ./test-results)
+//   ONLY=join,voice   run only checks whose names contain one of these words
+import { spawn } from 'node:child_process';
+import { mkdirSync } from 'node:fs';
+import { chromium } from 'playwright';
+
+const OUT = process.env.OUT || 'test-results';
+const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
+const PORT = 5190;
+const PEER = 9000;
+mkdirSync(OUT, { recursive: true });
+
+const procs = [];
+function run(cmd, args) {
+  const p = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  procs.push(p);
+  return p;
+}
+async function waitFor(url, ms = 30000) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    try {
+      const r = await fetch(url);
+      if (r.status < 500) return;
+    } catch {
+      /* not up yet */
+    }
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  throw new Error(`Timed out waiting for ${url}`);
+}
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+run('npx', ['peerjs', '--port', String(PEER), '--path', '/', '--host', '127.0.0.1']);
+run('npx', ['vite', '--port', String(PORT), '--strictPort']);
+await waitFor(`http://127.0.0.1:${PEER}/`);
+await waitFor(`http://localhost:${PORT}/`);
+
+const browser = await chromium.launch({
+  args: [
+    '--use-angle=swiftshader',
+    '--enable-unsafe-swiftshader',
+    '--ignore-gpu-blocklist',
+    '--use-fake-ui-for-media-stream',
+    '--use-fake-device-for-media-stream',
+    '--autoplay-policy=no-user-gesture-required',
+  ],
+});
+
+const errors = [];
+const results = [];
+async function open(name, path) {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, permissions: ['microphone'] });
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
+  page.on('console', (m) => {
+    if (m.type() === 'error' && !/favicon|WebGL|GPU stall|ERR_CONNECTION_REFUSED|net::/.test(m.text())) errors.push(`${name} console: ${m.text()}`);
+  });
+  await page.goto(`http://localhost:${PORT}/${path}${path.includes('?') ? '&' : '?'}peer=127.0.0.1:${PEER}`);
+  page.label = name;
+  return page;
+}
+async function check(name, fn) {
+  if (ONLY.length && !ONLY.some((w) => name.toLowerCase().includes(w))) return;
+  try {
+    await fn();
+    results.push(['PASS', name]);
+    console.log('PASS', name);
+  } catch (e) {
+    results.push(['FAIL', name, e.message]);
+    console.log('FAIL', name, '-', e.message);
+  }
+}
+function expect(cond, msg) {
+  if (!cond) throw new Error(msg);
+}
+async function until(page, fn, arg, ms = 15000, what = 'condition') {
+  try {
+    await page.waitForFunction(fn, arg, { timeout: ms, polling: 200 });
+  } catch {
+    throw new Error(`timed out waiting for ${what} on ${page.label}`);
+  }
+}
+const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png` });
+
+// ---------------------------------------------------------------- the Storyteller opens a room
+
+const st = await open('Storyteller', '?st');
+await until(st, () => window.__host && window.__engine, null, 30000, 'storyteller to load');
+const room = await st.evaluate(() => window.__host.getState().g.room);
+console.log('Room', room);
+await until(st, () => window.__hostNet?.getState().status === 'open', null, 20000, 'lobby to open');
+
+// ---------------------------------------------------------------- players arrive
+
+async function join(name, animal, color) {
+  const p = await open(name, `?room=${room}`);
+  await p.waitForSelector('.join-name input', { timeout: 30000 });
+  await p.fill('.join-name input', name);
+  await p.click('.join-name button');
+  if (animal) {
+    await p.waitForSelector('.join-animal');
+    await p.click(`.join-tile[title="${animal}"]`);
+    if (color) await p.click(`.join-color[aria-label="${color}"]`);
+    await p.click('.join-animal .cosy-btn.primary');
+  }
+  await p.waitForSelector('.join-mic');
+  await p.click('.join-mic .cosy-btn.big:not(.primary)');
+  await p.waitForSelector('.mic-meter', { timeout: 10000 });
+  await p.click('.join-mic .cosy-btn.primary');
+  await p.waitForSelector('.place-chip', { timeout: 15000 });
+  return p;
+}
+
+const players = {};
+await check('join: Abbey picks a fox, Colter a shark, Steele an owl', async () => {
+  players.abbey = await join('Abbey', 'Fox');
+  players.colter = await join('Colter', 'Shark');
+  players.steele = await join('Steele', 'Owl', '#8fc1e8');
+});
+
+await check('join: the bunny is not on offer to anyone but Jarrod', async () => {
+  const p = await open('Peeker', `?room=${room}`);
+  await p.waitForSelector('.join-name input', { timeout: 30000 });
+  await p.fill('.join-name input', 'Peeker');
+  await p.click('.join-name button');
+  await p.waitForSelector('.join-animal');
+  const bunny = await p.$('.join-tile[title="Bunny"]');
+  const tiles = await p.$$eval('.join-tile', (els) => els.map((e) => e.getAttribute('title')));
+  await shot(p, '01-animal-picker');
+  expect(!bunny, 'a Bunny tile is offered');
+  expect(tiles.length >= 20, `only ${tiles.length} animals offered`);
+  await p.context().close();
+});
+
+await check('join: Jarrod skips the picker and is the bunny', async () => {
+  const p = await open('Jarrod', `?room=${room}`);
+  await p.waitForSelector('.join-name input', { timeout: 30000 });
+  await p.fill('.join-name input', 'jarrod');
+  await p.click('.join-name button');
+  await p.waitForSelector('.join-mic', { timeout: 5000 });
+  expect(!(await p.$('.join-animal')), 'Jarrod saw the animal picker');
+  await shot(p, '02-jarrod-mic');
+  await p.click('.join-mic .cosy-btn.primary');
+  await p.waitForSelector('.place-chip', { timeout: 15000 });
+  players.jarrod = p;
+  const look = await st.evaluate(() => window.__host.getState().g.seats.find((s) => s.name.toLowerCase() === 'jarrod')?.look);
+  expect(look?.animal === 'bunny', `Jarrod is a ${look?.animal}`);
+});
+
+await check('join: the host records everyone’s animals', async () => {
+  const seats = await st.evaluate(() => window.__host.getState().g.seats.map((s) => [s.name, s.look?.animal, s.look?.color]));
+  const by = Object.fromEntries(seats.map(([n, a, c]) => [n, [a, c]]));
+  expect(by.Abbey?.[0] === 'fox' && by.Colter?.[0] === 'shark' && by.Steele?.[0] === 'owl', JSON.stringify(seats));
+  expect(by.Steele?.[1] === '#8fc1e8', `Steele's colour is ${by.Steele?.[1]}`);
+});
+
+const all = () => Object.values(players);
+
+await check('presence: everyone sees everyone else in town', async () => {
+  for (const p of all()) await until(p, () => window.__presence.others.size >= 4, null, 15000, 'four others');
+  await until(st, () => window.__presence.others.size >= 4, null, 15000, 'four players');
+  await sleep(1500);
+  await shot(players.abbey, '03-town-arrivals');
+  await shot(st, '04-storyteller-town');
+});
+
+// ---------------------------------------------------------------- moving and talking
+
+const place = (p, zone, x, z, ry = 0) => p.evaluate(([zone, x, z, ry]) => window.__engine.place(zone, x, z, ry, false), [zone, x, z, ry]);
+const me = (p) => p.evaluate(() => ({ ...window.__local }));
+const seatOf = (name) => st.evaluate((n) => window.__host.getState().g.seats.find((s) => s.name.toLowerCase() === n.toLowerCase())?.id, name);
+
+await check('move: walking with W moves Abbey for everyone', async () => {
+  const p = players.abbey;
+  await place(p, 'town', 0, 22, 0);
+  await sleep(500);
+  const before = await me(p);
+  await p.keyboard.down('w');
+  await sleep(1200);
+  await p.keyboard.up('w');
+  const after = await me(p);
+  expect(Math.hypot(after.x - before.x, after.z - before.z) > 2, `only moved ${Math.hypot(after.x - before.x, after.z - before.z).toFixed(2)}m`);
+  const id = await seatOf('Abbey');
+  await until(st, ([id, x, z]) => {
+    const o = window.__presence.others.get(id);
+    return o && Math.hypot(o.x - x, o.z - z) < 0.6;
+  }, [id, after.x, after.z], 5000, 'host to see the new position');
+});
+
+async function voiceGain(listener, speakerName) {
+  const id = await seatOf(speakerName);
+  return listener.evaluate((id) => {
+    const p = window.__presence.others.get(id);
+    if (!p?.voiceId) return { gain: null, why: 'no voice id' };
+    const links = window.__voiceLinks?.() ?? [];
+    const link = links.find((l) => l.id === p.voiceId);
+    return { gain: link ? link.volume : null, open: link?.open ?? false, why: link ? '' : `no link (have ${links.length})` };
+  }, id);
+}
+
+await check('voice: players close together hear each other at full volume', async () => {
+  await place(players.abbey, 'town', 4, 24, 0);
+  await place(players.colter, 'town', 5, 24, 0);
+  await until(players.abbey, () => (window.__voiceLinks?.() ?? []).some((l) => l.open), null, 20000, 'a voice link to open');
+  await sleep(1200);
+  const g = await voiceGain(players.abbey, 'Colter');
+  expect(g.gain !== null && g.gain > 0.9, `Abbey hears Colter at ${g.gain} (${g.why})`);
+});
+
+await check('voice: far away is silent, and walls are absolute', async () => {
+  await place(players.colter, 'town', -30, 30, 0);
+  await sleep(1200);
+  let g = await voiceGain(players.abbey, 'Colter');
+  expect(g.gain !== null && g.gain < 0.05, `far away gain ${g.gain} (${g.why})`);
+  await place(players.colter, 'town', 10, 24, 0);
+  await sleep(1200);
+  g = await voiceGain(players.abbey, 'Colter');
+  expect(g.gain !== null && g.gain > 0.1 && g.gain < 0.95, `mid-distance gain ${g.gain}`);
+  await place(players.colter, 'tavern', 0, 0, 0);
+  await sleep(1200);
+  g = await voiceGain(players.abbey, 'Colter');
+  expect(g.gain === null || g.gain < 0.01, `through a wall gain ${g.gain}`);
+});
+
+await check('voice: the Storyteller can speak to everyone', async () => {
+  await place(st, 'church', 0, 0, 0);
+  await st.evaluate(() => (window.__presence.announce = true));
+  await sleep(1500);
+  const g = await players.steele.evaluate(() => {
+    const p = window.__presence.others.get('st');
+    const link = (window.__voiceLinks?.() ?? []).find((l) => l.id === p?.voiceId);
+    return link ? link.volume : null;
+  });
+  await st.evaluate(() => (window.__presence.announce = false));
+  expect(g !== null && g > 0.9, `announce gain ${g}`);
+});
+
+// ---------------------------------------------------------------- doors, jobs and items
+
+const stationFor = (p, job) => p.evaluate((job) => window.__engine.town.stations.find((s) => s.job === job), job);
+
+await check('doors: walking into the tavern door goes inside', async () => {
+  const p = players.abbey;
+  const door = await p.evaluate(() => window.__engine.town.doors.find((d) => d.zone === 'town' && d.to === 'tavern'));
+  expect(door, 'no tavern door');
+  // Stand a couple of metres out from the door, facing it, and walk in.
+  const dx = door.spawn.x - door.x;
+  const dz = door.spawn.z - door.z;
+  const len = Math.hypot(dx, dz) || 1;
+  await place(p, 'town', door.x + (dx / len) * 2.2, door.z + (dz / len) * 2.2, Math.atan2(-dx, -dz));
+  await sleep(300);
+  const start = await me(p);
+  await p.evaluate(([x, z]) => {
+    window.__engine.moveTarget = { x, z, y: 0 };
+  }, [door.x, door.z]);
+  await until(p, () => window.__local.zone === 'tavern', null, 6000, 'to be inside the tavern');
+  await sleep(800);
+  await shot(p, '05-tavern-inside');
+  void start;
+});
+
+await check('jobs: bartending puts a drink on the bar', async () => {
+  const p = players.abbey;
+  const s = await stationFor(p, 'bartender');
+  expect(s, 'no bartender station');
+  await place(p, 'tavern', s.stand.x, s.stand.z, s.stand.ry);
+  await sleep(400);
+  await p.keyboard.press('e');
+  await p.waitForSelector('.job', { timeout: 5000 });
+  await shot(p, '06-bartender-game');
+  const before = await st.evaluate(() => window.__host.getState().g.town.drinks.length);
+  await p.evaluate(() => window.__game.jobDone({ kind: 'cocoa', stars: 3 }));
+  await until(st, (n) => window.__host.getState().g.town.drinks.length > n, before, 5000, 'a drink on the bar');
+  await sleep(800);
+  await shot(p, '07-drink-on-bar');
+});
+
+await check('jobs: the minigame can actually be played (pour)', async () => {
+  const p = players.abbey;
+  const s = await stationFor(p, 'bartender');
+  await place(p, 'tavern', s.stand.x, s.stand.z, s.stand.ry);
+  await p.keyboard.press('e');
+  await p.waitForSelector('.job', { timeout: 5000 });
+  const before = await st.evaluate(() => window.__host.getState().g.town.drinks.length);
+  // Pick the first drink, then hold to pour and let go part way.
+  await p.keyboard.press('Space');
+  await sleep(300);
+  await p.keyboard.down('Space');
+  await sleep(1600);
+  await p.keyboard.up('Space');
+  await sleep(600);
+  await p.keyboard.down('Space');
+  await sleep(500);
+  await p.keyboard.up('Space');
+  await until(st, (n) => window.__host.getState().g.town.drinks.length > n, before, 15000, 'the poured drink');
+});
+
+await check('items: Colter takes a drink from the bar and gives it to Abbey', async () => {
+  const c = players.colter;
+  const s = await stationFor(c, 'takeDrink');
+  expect(s, 'no takeDrink station');
+  await place(c, 'tavern', s.stand.x, s.stand.z, s.stand.ry);
+  await sleep(400);
+  await c.keyboard.press('e');
+  await until(c, () => window.__local.item, null, 5000, 'a drink in paw');
+  const a = players.abbey;
+  await place(a, 'tavern', s.stand.x + 1, s.stand.z, s.stand.ry);
+  await sleep(1200);
+  await c.keyboard.press('g');
+  await until(a, () => window.__local.item, null, 5000, 'Abbey to receive it');
+  await sleep(500);
+  await shot(a, '08-gift-received');
+});
+
+for (const [job, where] of [
+  ['laundry', 'town'],
+  ['fishing', 'town'],
+  ['baking', 'bakery'],
+  ['gardening', 'town'],
+]) {
+  await check(`jobs: ${job} opens its minigame and records the result`, async () => {
+    const p = players.steele;
+    const s = await stationFor(p, job);
+    expect(s, `no ${job} station`);
+    await place(p, where, s.stand.x, s.stand.z, s.stand.ry);
+    await sleep(500);
+    await p.keyboard.press('e');
+    await p.waitForSelector('.job', { timeout: 5000 });
+    await sleep(400);
+    await shot(p, `09-${job}`);
+    const results = {
+      laundry: { kind: 'shirt', color: '#e05a8a', stars: 3 },
+      fishing: { kind: 'Golden Carp', cm: 41, stars: 3 },
+      baking: { kind: 'pie', stars: 2 },
+      gardening: { kind: 'sunflower', color: '#f6c445', stars: 3 },
+    };
+    const key = { laundry: 'clothes', fishing: 'fish', baking: 'loaves', gardening: 'flowers' }[job];
+    const before = await st.evaluate((k) => window.__host.getState().g.town[k].length, key);
+    await p.evaluate((r) => window.__game.jobDone(r), results[job]);
+    await until(st, ([k, n]) => window.__host.getState().g.town[k].length > n, [key, before], 5000, `${key} to update`);
+  });
+}
+
+await check('town: the washing line, flowers and bakes show up for others', async () => {
+  const p = players.jarrod;
+  const line = await stationFor(p, 'laundry');
+  await place(p, 'town', line.stand.x + 2, line.stand.z + 3, Math.PI);
+  await sleep(1500);
+  await shot(p, '10-washing-line');
+  const bed = await stationFor(p, 'gardening');
+  await place(p, 'town', bed.stand.x, bed.stand.z + 3, Math.PI);
+  await sleep(1500);
+  await shot(p, '11-flower-bed');
+});
+
+// ---------------------------------------------------------------- the game itself
+
+await check('game: dealing and night sends everyone home with doors locked', async () => {
+  await st.evaluate(() => {
+    const { st: s } = window.__st;
+    s.setBag(['washerwoman', 'empath', 'scarletwoman', 'imp']);
+    s.dealRandom();
+    s.reveal(true);
+    s.setPhase('night');
+  });
+  for (const p of all()) await until(p, () => window.__local.zone.startsWith('house:'), null, 8000, 'to be home');
+  const a = players.abbey;
+  const id = await seatOf('Abbey');
+  const zone = (await me(a)).zone;
+  expect(zone === `house:${id}`, `Abbey is in ${zone}`);
+  await sleep(2500);
+  await shot(a, '12-home-at-night');
+  const exit = await a.evaluate(() => window.__engine.town.doors.find((d) => d.zone === 'house'));
+  await place(a, zone, exit.x, exit.z - 0.3, 0);
+  await sleep(300);
+  await a.keyboard.down('s');
+  await sleep(700);
+  await a.keyboard.up('s');
+  expect((await me(a)).zone === zone, 'Abbey left home at night');
+  await a.waitForSelector('.action-prompt.locked', { timeout: 3000 });
+});
+
+await check('game: the Storyteller floats into a house to talk', async () => {
+  const id = await seatOf('Steele');
+  await st.evaluate((id) => window.__engine.goTo(id), id);
+  await until(st, (id) => window.__local.zone === `house:${id}`, id, 5000, 'the Storyteller to be in Steele’s house');
+  await sleep(1500);
+  const g = await voiceGain(players.steele, 'Storyteller').catch(() => null);
+  void g;
+  await shot(players.steele, '13-storyteller-visit');
+  await shot(st, '14-storyteller-in-house');
+});
+
+await check('game: a night death shows at dawn and the dead walk as ghosts', async () => {
+  const id = await seatOf('Colter');
+  await st.evaluate((id) => window.__st.st.toggleDead(id), id);
+  await sleep(500);
+  const early = await players.abbey.evaluate((id) => window.__client.getState().pub.seats.find((s) => s.id === id).dead, id);
+  expect(!early, 'players saw the death before dawn');
+  await st.evaluate(() => window.__st.st.setPhase('day'));
+  for (const p of all()) await until(p, () => window.__local.zone === 'town', null, 8000, 'to be back outside');
+  await players.abbey.waitForSelector('.phase-banner', { timeout: 4000 });
+  const banner = await players.abbey.textContent('.phase-banner');
+  expect(/Colter died/.test(banner), `banner said "${banner}"`);
+  await sleep(1000);
+  const c = players.colter;
+  await place(c, 'town', 2, 20, Math.PI);
+  await place(players.abbey, 'town', 0, 22, Math.PI);
+  await sleep(1500);
+  await shot(players.abbey, '15-ghost-in-town');
+});
+
+await check('game: ringing the bell gathers everyone at the square', async () => {
+  await st.evaluate(() => window.__st.st.callTownHall());
+  await players.abbey.waitForSelector('.bell-call', { timeout: 5000 });
+  await shot(players.abbey, '16-bell');
+  for (const p of all()) {
+    await p.click('.bell-call .cosy-btn');
+  }
+  await until(st, () => !window.__host.getState().g.townHall, null, 10000, 'everyone to arrive');
+});
+
+await check('game: nominations and votes raise paws round the clock', async () => {
+  const nominee = await seatOf('Steele');
+  const nominator = await seatOf('Abbey');
+  await st.evaluate(([a, b]) => window.__st.st.nominate(a, b), [nominator, nominee]);
+  await players.abbey.waitForSelector('.vote-bar', { timeout: 5000 });
+  for (const p of [players.abbey, players.jarrod]) {
+    await p.click('.meeting-seat').catch(() => {});
+  }
+  await sleep(800);
+  await players.abbey.click('.vote-bar .btn');
+  await players.jarrod.click('.vote-bar .btn');
+  await sleep(1200);
+  const votes = await st.evaluate(() => window.__host.getState().g.nomination.votes.length);
+  expect(votes === 2, `${votes} votes`);
+  await shot(players.abbey, '17-voting');
+  await st.evaluate(() => window.__st.st.startVote());
+  await until(st, () => window.__host.getState().g.nomination?.status === 'done', null, 20000, 'the vote to finish');
+  await shot(st, '18-storyteller-vote');
+});
+
+await check('game: the grimoire opens over the town for the Storyteller', async () => {
+  await st.keyboard.press('Tab');
+  await st.waitForSelector('.grimoire-layer .town', { timeout: 3000 });
+  await sleep(500);
+  await shot(st, '19-grimoire');
+  await st.keyboard.press('Tab');
+});
+
+await check('game: the reveal shows everyone’s characters over their heads', async () => {
+  await st.evaluate(() => window.__st.st.revealGrimoire(true));
+  await sleep(1500);
+  const n = await players.abbey.$$eval('.tag-role.on', (els) => els.length);
+  expect(n >= 3, `${n} characters shown`);
+  await shot(players.abbey, '20-reveal');
+});
+
+console.log('\n' + results.map((r) => r.join('  ')).join('\n'));
+console.log(`\n${results.filter((r) => r[0] === 'PASS').length} of ${results.length} passed`);
+if (errors.length) console.log('\nErrors:\n' + [...new Set(errors)].slice(0, 30).join('\n'));
+await browser.close();
+for (const p of procs) p.kill();
+process.exit(results.some((r) => r[0] === 'FAIL') || errors.length ? 1 : 0);

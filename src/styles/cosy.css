@@ -1,0 +1,134 @@
+/*
+ * The town's own look: soft, rounded and warm, like a storybook village. The Storyteller's grimoire
+ * keeps its darker gothic style (base.css and friends); everything players see while walking around
+ * uses these tokens.
+ */
+:root {
+  --cosy-font: 'Fredoka', 'Nunito', system-ui, sans-serif;
+  --cosy-bg: #fff8ea;
+  --cosy-bg-2: #f6ead2;
+  --cosy-ink: #5a4434;
+  --cosy-ink-soft: #8a7360;
+  --cosy-line: #e7d3b0;
+  --cosy-accent: #ff9a62;
+  --cosy-accent-ink: #fff;
+  --cosy-green: #6fbf73;
+  --cosy-blue: #6fb0e0;
+  --cosy-pink: #f39ab5;
+  --cosy-gold: #f2c14e;
+  --cosy-red: #e0605a;
+  --cosy-night: #2b2f55;
+  --cosy-radius: 20px;
+  --cosy-shadow: 0 6px 0 rgba(90, 68, 52, 0.18), 0 14px 30px rgba(40, 30, 20, 0.22);
+}
+
+.cosy {
+  font-family: var(--cosy-font);
+  color: var(--cosy-ink);
+}
+
+.cosy-panel {
+  background: var(--cosy-bg);
+  border: 3px solid var(--cosy-line);
+  border-radius: var(--cosy-radius);
+  box-shadow: var(--cosy-shadow);
+  font-family: var(--cosy-font);
+  color: var(--cosy-ink);
+}
+
+.cosy-btn {
+  font-family: var(--cosy-font);
+  font-weight: 600;
+  font-size: 1rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.6em 1.2em;
+  background: var(--cosy-bg-2);
+  color: var(--cosy-ink);
+  box-shadow: 0 4px 0 rgba(90, 68, 52, 0.22);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45em;
+  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease;
+  user-select: none;
+}
+
+.cosy-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: #fff1d6;
+}
+
+.cosy-btn:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 rgba(90, 68, 52, 0.22);
+}
+
+.cosy-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.cosy-btn.primary {
+  background: var(--cosy-accent);
+  color: var(--cosy-accent-ink);
+  box-shadow: 0 4px 0 #d9733f;
+}
+
+.cosy-btn.primary:hover:not(:disabled) {
+  background: #ffa874;
+}
+
+.cosy-btn.big {
+  font-size: 1.15rem;
+  padding: 0.75em 1.6em;
+}
+
+.cosy-btn.small {
+  font-size: 0.85rem;
+  padding: 0.45em 0.9em;
+}
+
+.cosy-btn svg {
+  width: 1.1em;
+  height: 1.1em;
+}
+
+.cosy-input {
+  font-family: var(--cosy-font);
+  font-size: 1.1rem;
+  border: 3px solid var(--cosy-line);
+  border-radius: 14px;
+  padding: 0.6em 0.9em;
+  background: #fffdf7;
+  color: var(--cosy-ink);
+  outline: none;
+}
+
+.cosy-input:focus {
+  border-color: var(--cosy-accent);
+}
+
+.cosy-key {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.7em;
+  height: 1.7em;
+  padding: 0 0.35em;
+  border-radius: 7px;
+  background: #fff;
+  border: 2px solid var(--cosy-line);
+  border-bottom-width: 4px;
+  font-family: var(--cosy-font);
+  font-weight: 700;
+  font-size: 0.8em;
+  color: var(--cosy-ink);
+}
+
+.cosy-stars {
+  color: var(--cosy-gold);
+  letter-spacing: 0.1em;
+  font-size: 1.3em;
+  text-shadow: 0 2px 0 rgba(90, 68, 52, 0.2);
+}
