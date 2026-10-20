@@ -36,8 +36,11 @@ const ALL = {
   well: 'x=-6.5&z=-13&t=0&dist=10',
   graveyard: 'x=-8&z=-20&t=0&dist=14',
   'tower-top': 'x=0&z=4&t=0&dist=30&pitch=0.35',
-  gallows: 'x=7.3&z=-7.3&t=0&dist=10&gallows=1&yaw=0.5',
-  'gallows-shut': 'x=7.3&z=-7.3&t=0&dist=10&gallows=0&yaw=0.5',
+  'tower-north': 'x=0&z=-4&t=0&dist=26&pitch=0.3&yaw=2.6',
+  'cottage-close': 'x=25.6&z=13.6&t=0&dist=11&yaw=0.6',
+  gallows: 'x=8.6&z=6.2&t=0&dist=12&gallows=1&yaw=0.9',
+  'gallows-shut': 'x=8.6&z=6.2&t=0&dist=12&gallows=0&yaw=0.9',
+  'cottage-gable': 'x=25.6&z=13.6&t=0&dist=11&yaw=2.3&pitch=0.45',
 };
 
 const views = process.env.VIEWS ? Object.fromEntries(process.env.VIEWS.split(',').map((k) => [k, ALL[k]])) : ALL;

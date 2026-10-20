@@ -20,15 +20,17 @@ function prismGeometry(): THREE.BufferGeometry {
   const d = [0.5, 0, -0.5];
   const e = [0.5, 0, 0.5];
   const f = [0.5, 1, 0];
+  // Wound counter-clockwise seen from outside, so every face shows (the gable ends used to face inward
+  // and were culled, which let you see straight through the roof sides).
   const tris = [
-    [a, c, b],
-    [d, e, f],
-    [b, c, f],
-    [b, f, e],
-    [a, d, f],
-    [a, f, c],
-    [a, b, e],
-    [a, e, d],
+    [a, b, c],
+    [d, f, e],
+    [b, e, f],
+    [b, f, c],
+    [a, f, d],
+    [a, c, f],
+    [a, e, b],
+    [a, d, e],
   ];
   const pos = new Float32Array(tris.length * 9);
   tris.forEach((t, i) => t.forEach((v, j) => pos.set(v, i * 9 + j * 3)));

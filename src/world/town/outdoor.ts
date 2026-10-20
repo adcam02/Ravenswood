@@ -837,7 +837,7 @@ function cottage(p: Paint, r: () => number, slot: number, smoke: (v: THREE.Vecto
       // The rafter's centre sits a little inside the slope, so it stays under the eave line.
       const cx = side * (halfD / 2) * 0.86;
       const cy = base + (rise / 2) * 0.86 + 0.05;
-      g.box(trim, 0.1, slopeLen * 0.8, 0.06, cx, cy, 0, 0, 0, -side * tilt);
+      g.box(trim, 0.1, slopeLen * 0.8, 0.06, cx, cy, 0, 0, 0, side * tilt);
     }
     wallWindow(g.at(0, 3.45, 0), 0.4, 0.4, trim, GLASS, false);
   }
