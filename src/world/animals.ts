@@ -927,10 +927,10 @@ const RECIPES: Record<AnimalId, Recipe> = {
         k.head.add(G.box, '#f4efe6', { pos: [side * 0.14, s.hc[1] - 0.05 + tilt * 0.1, headZ(s, 0.1, -0.05, 0.03)], rot: [0, side * 0.3, side * tilt], scale: [0.12, 0.006, 0.006] });
       }
     }
-    for (const [x, y, z] of [
-      [0.14, 0.12, 0.02],
-      [-0.1, 0.16, 0.0],
-    ] as Vec3[]) {
+    for (const [x, y] of [
+      [0.14, 0.12],
+      [-0.1, 0.16],
+    ]) {
       ell(k.head, c.dark, [x, s.hc[1] + y, headZ(s, x, y, 0.005)], 0.02);
     }
     eyes(k, { dy: 0.04, x: 0.11, size: 1.35 });
