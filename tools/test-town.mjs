@@ -268,21 +268,17 @@ const stationFor = (p, job) => p.evaluate((job) => window.__engine.town.stations
 await check('doors: walking into the tavern door goes inside', async () => {
   const p = players.abbey;
   const door = await p.evaluate(() => window.__engine.town.doors.find((d) => d.zone === 'town' && d.to === 'tavern'));
-  expect(door, 'no tavern door');
-  // Stand a couple of metres out from the door, facing it, and walk in.
-  const dx = door.spawn.x - door.x;
-  const dz = door.spawn.z - door.z;
-  const len = Math.hypot(dx, dz) || 1;
-  await place(p, 'town', door.x + (dx / len) * 2.2, door.z + (dz / len) * 2.2, Math.atan2(-dx, -dz));
-  await sleep(300);
-  const start = await me(p);
+  // The spot just outside the tavern, where you land on the way out, faces away from the door.
+  const outside = await p.evaluate(() => window.__engine.town.doors.find((d) => d.id === 'tavern-out').spawn);
+  expect(door && outside, 'no tavern door');
+  await place(p, 'town', outside.x, outside.z, outside.ry + Math.PI);
+  await sleep(500);
   await p.evaluate(([x, z]) => {
     window.__engine.moveTarget = { x, z, y: 0 };
   }, [door.x, door.z]);
   await until(p, () => window.__local.zone === 'tavern', null, 30000, 'to be inside the tavern');
   await sleep(800);
   await shot(p, '05-tavern-inside');
-  void start;
 });
 
 await check('jobs: bartending puts a drink on the bar', async () => {
@@ -292,7 +288,7 @@ await check('jobs: bartending puts a drink on the bar', async () => {
   await place(p, 'tavern', s.stand.x, s.stand.z, s.stand.ry);
   await sleep(400);
   await p.keyboard.press('e');
-  await p.waitForSelector('.job', { timeout: 20000 });
+  await p.waitForSelector('.job-dock', { timeout: 20000 });
   await shot(p, '06-bartender-game');
   const before = await st.evaluate(() => window.__host.getState().g.town.drinks.length);
   await p.evaluate(() => window.__game.jobDone({ kind: 'cocoa', stars: 3 }));
@@ -306,7 +302,7 @@ await check('jobs: the minigame can actually be played (pour)', async () => {
   const s = await stationFor(p, 'bartender');
   await place(p, 'tavern', s.stand.x, s.stand.z, s.stand.ry);
   await p.keyboard.press('e');
-  await p.waitForSelector('.job', { timeout: 20000 });
+  await p.waitForSelector('.job-dock', { timeout: 20000 });
   const before = await st.evaluate(() => window.__host.getState().g.town.drinks.length);
   // Pick the first drink, then hold to pour and let go part way.
   await p.keyboard.press('Space');
@@ -351,7 +347,7 @@ for (const [job, where] of [
     await place(p, where, s.stand.x, s.stand.z, s.stand.ry);
     await sleep(500);
     await p.keyboard.press('e');
-    await p.waitForSelector('.job', { timeout: 20000 });
+    await p.waitForSelector('.job-dock', { timeout: 20000 });
     await sleep(400);
     await shot(p, `09-${job}`);
     const results = {
@@ -389,7 +385,14 @@ await check('game: dealing and night sends everyone home with doors locked', asy
     s.reveal(true);
     s.setPhase('night');
   });
-  for (const p of all()) await until(p, () => window.__local.zone.startsWith('house:'), null, 8000, 'to be home');
+  for (const p of all()) await until(p, () => window.__local.zone.startsWith('house:'), null, 30000, 'to be home');
+  // Each player gets a "You are the…" card, which they'd read and close.
+  for (const p of all()) {
+    await p.waitForSelector('.reveal-overlay .btn', { timeout: 20000 });
+    await p.click('.reveal-overlay .btn', { noWaitAfter: true });
+    await p.waitForSelector('.reveal-overlay', { state: 'detached', timeout: 20000 });
+  }
+  await shot(players.abbey, '12a-after-reveal');
   const a = players.abbey;
   const id = await seatOf('Abbey');
   const zone = (await me(a)).zone;
