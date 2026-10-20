@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { Builder, matte, rng } from '../build';
+import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { Builder, SMOOTH_DEG, matte, rng } from '../build';
 import type { Collider } from '../types';
 import { G, Paint, frame, local, pick, shade, type Layers } from './kit';
 import {
@@ -114,11 +115,30 @@ class Tris {
     this.tri(a, b, c, color);
     this.tri(a, c, d, color);
   }
-  geometry(): THREE.BufferGeometry {
-    const g = new THREE.BufferGeometry();
+  /** A triangle with a colour at each corner, so neighbouring triangles blend instead of showing as patches. */
+  triC(a: THREE.Vector3Like, b: THREE.Vector3Like, c: THREE.Vector3Like, ca: THREE.Color, cb: THREE.Color, cc: THREE.Color) {
+    const d = c;
+    const ux = b.x - a.x;
+    const uz = b.z - a.z;
+    const vx = d.x - a.x;
+    const vz = d.z - a.z;
+    const ny = uz * vx - ux * vz;
+    const list: [THREE.Vector3Like, THREE.Color][] = ny >= 0 ? [[a, ca], [b, cb], [d, cc]] : [[a, ca], [d, cc], [b, cb]];
+    for (const [p, col] of list) {
+      this.pos.push(p.x, p.y, p.z);
+      this.col.push(col.r, col.g, col.b);
+    }
+  }
+  /** The mesh. `smoothDeg` > 0 smooths normals across edges gentler than that (rolling ground, water); 0 keeps facets (cobbles). */
+  geometry(smoothDeg = 0): THREE.BufferGeometry {
+    let g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));
-    g.computeVertexNormals();
+    if (smoothDeg > 0 && this.pos.length) {
+      const smoothed = toCreasedNormals(g, THREE.MathUtils.degToRad(smoothDeg));
+      g.dispose();
+      g = smoothed;
+    } else g.computeVertexNormals();
     g.computeBoundingSphere();
     return g;
   }
@@ -145,22 +165,31 @@ function groundMesh(): THREE.Mesh {
   const t = new Tris();
   const grass = ['#8bc366', '#86bf62', '#92c86c', '#80b95e', '#8fc568'];
   const far = ['#6fa957', '#78b05c', '#679f52', '#82b660'];
+  // One colour per vertex (not per triangle), so the grass mottles softly instead of showing as a patchwork.
+  const colAt = (i: number, j: number) => {
+    const jj = ((j % seg) + seg) % seg;
+    const list = rings[Math.min(i, rings.length - 1)] < TOWN_R ? grass : far;
+    return new THREE.Color(shade(list[Math.floor(hash(jj, i * 3) * list.length)], (hash(i * 7, jj) - 0.5) * 0.05));
+  };
   for (let i = 0; i < rings.length - 1; i++) {
     for (let j = 0; j < seg; j++) {
       const a = pt(i, j);
       const b = pt(i, j + 1);
       const c = pt(i + 1, j + 1);
       const d = pt(i + 1, j);
-      const list = rings[i] < TOWN_R ? grass : far;
-      const col = shade(list[Math.floor(hash(j, i * 3) * list.length)], (hash(i * 7, j) - 0.5) * 0.04);
-      if (i === 0) t.tri(a, c, d, col);
+      const ca = colAt(i, j);
+      const cb = colAt(i, j + 1);
+      const cc = colAt(i + 1, j + 1);
+      const cd = colAt(i + 1, j);
+      if (i === 0) t.triC(a, c, d, ca, cc, cd);
       else {
-        t.tri(a, b, c, col);
-        t.tri(a, c, d, shade(col, (hash(i, j * 5) - 0.5) * 0.03));
+        t.triC(a, b, c, ca, cb, cc);
+        t.triC(a, c, d, ca, cc, cd);
       }
     }
   }
-  const mesh = new THREE.Mesh(t.geometry(), matte());
+  // Rolling ground: smooth across the gentle slopes of the hills.
+  const mesh = new THREE.Mesh(t.geometry(70), matte());
   mesh.receiveShadow = true;
   mesh.name = 'ground';
   return mesh;
@@ -1011,35 +1040,40 @@ function pond(group: THREE.Group, p: Paint, r: () => number): Outdoor['water'] {
   for (let k = 0; k < n; k++) {
     t.quad(pt(k, 0.95, 0.03), pt(k + 1, 0.95, 0.03), pt(k + 1, 1.16, 0.03), pt(k, 1.16, 0.03), shade('#d8c89a', (hash(k, 3) - 0.5) * 0.06));
   }
-  const bank = new THREE.Mesh(t.geometry(), matte());
+  const bank = new THREE.Mesh(t.geometry(SMOOTH_DEG), matte());
   bank.receiveShadow = true;
   group.add(bank);
-  // The water itself, rippling gently.
+  // The water itself: a smooth sheet of shared vertices, so the ripples (set every frame by the town) light
+  // smoothly. Normals are refreshed just before each draw.
   const geo = new THREE.BufferGeometry();
-  const rings = 5;
+  const rings = 9;
   const pos: number[] = [];
-  const ring = (i: number, k: number) => {
+  const index: number[] = [];
+  const vid = (i: number, k: number) => (i === 0 ? 0 : 1 + (i - 1) * n + (((k % n) + n) % n));
+  pos.push(POND.x, 0.045, POND.z);
+  for (let i = 1; i <= rings; i++) {
     const s = i / rings;
-    const a = (k / n) * Math.PI * 2 + (i % 2 ? Math.PI / n : 0);
-    const wob = 1 + Math.sin(a * 3) * 0.04 + Math.cos(a * 5) * 0.03;
-    return [POND.x + Math.cos(a) * POND.rx * s * wob * 0.99, 0.045, POND.z + Math.sin(a) * POND.rz * s * wob * 0.99];
-  };
-  for (let i = 0; i < rings; i++) {
     for (let k = 0; k < n; k++) {
-      const a = ring(i, k);
-      const b = ring(i, k + 1);
-      const c = ring(i + 1, k + 1);
-      const d = ring(i + 1, k);
-      if (i > 0) pos.push(...a, ...b, ...c);
-      pos.push(...a, ...c, ...d);
+      const a = (k / n) * Math.PI * 2;
+      const wob = 1 + Math.sin(a * 3) * 0.04 + Math.cos(a * 5) * 0.03;
+      pos.push(POND.x + Math.cos(a) * POND.rx * s * wob * 0.99, 0.045, POND.z + Math.sin(a) * POND.rz * s * wob * 0.99);
+    }
+  }
+  for (let k = 0; k < n; k++) index.push(vid(0, 0), vid(1, k), vid(1, k + 1));
+  for (let i = 1; i < rings; i++) {
+    for (let k = 0; k < n; k++) {
+      index.push(vid(i, k), vid(i + 1, k), vid(i + 1, k + 1));
+      index.push(vid(i, k), vid(i + 1, k + 1), vid(i, k + 1));
     }
   }
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setIndex(index);
   geo.computeVertexNormals();
-  const material = new THREE.MeshPhongMaterial({ color: '#5fb6cf', specular: '#ffffff', shininess: 70, flatShading: true, transparent: true, opacity: 0.9 });
+  const material = new THREE.MeshPhongMaterial({ color: '#5fb6cf', specular: '#cfe9f6', shininess: 55, transparent: true, opacity: 0.9 });
   const mesh = new THREE.Mesh(geo, material);
   mesh.receiveShadow = true;
   mesh.name = 'pond';
+  mesh.onBeforeRender = () => geo.computeVertexNormals();
   group.add(mesh);
   // Lily pads, reeds and stones around the edge. Pads keep clear of each other and of the pier.
   const pads: { x: number; z: number; rad: number }[] = [];
@@ -1079,8 +1113,8 @@ function pond(group: THREE.Group, p: Paint, r: () => number): Outdoor['water'] {
     const ell = (color: THREE.ColorRepresentation, geo: THREE.BufferGeometry, sx: number, sy: number, sz: number, y: number, rx = 0) =>
       boat.geo(geo, color, new THREE.Matrix4().compose(new THREE.Vector3(0, y, 0), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, 0, 0)), new THREE.Vector3(sx, sy, sz)));
     // A pointed hull (a four-sided bowl turned over), the rim and floor planked, two thwarts, and a mooring rope.
-    ell('#8a5a36', G.dome(4), 0.62, 0.55, 1.4, 0.5, Math.PI);
-    ell('#6e4a30', G.cyl(4), 0.62, 0.05, 1.4, 0.5);
+    ell('#8a5a36', G.dome(12), 0.62, 0.55, 1.4, 0.5, Math.PI);
+    ell('#6e4a30', G.cyl(12), 0.62, 0.05, 1.4, 0.5);
     ell('#a8784a', G.cyl(4), 0.5, 0.04, 1.2, 0.5);
     for (let k = -2; k <= 2; k++) boat.box(shade('#a8784a', -0.1), 0.03, 0.02, 1.15 - Math.abs(k) * 0.25, k * 0.1, 0.53, 0);
     boat.box('#c49a6c', 0.8, 0.06, 0.2, 0, 0.5, 0.45);
@@ -1545,10 +1579,10 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   bell.position.set(0, 13.3, 0);
   {
     const b = new Builder();
-    b.add(G.taper(0.55, 12), '#d8a845', { pos: [0, -0.5, 0], scale: [0.55, 0.8, 0.55] });
-    b.add(G.cyl(12), '#b88a35', { pos: [0, -0.92, 0], scale: [0.6, 0.08, 0.6] });
-    b.add(G.sphere(6, 4), '#d8a845', { pos: [0, -0.08, 0], scale: [0.32, 0.18, 0.32] });
-    b.add(G.sphere(6, 4), '#6b5a3a', { pos: [0, -0.95, 0], scale: [0.1, 0.1, 0.1] });
+    b.add(G.taper(0.55, 18), '#d8a845', { pos: [0, -0.5, 0], scale: [0.55, 0.8, 0.55] });
+    b.add(G.cyl(18), '#b88a35', { pos: [0, -0.92, 0], scale: [0.6, 0.08, 0.6] });
+    b.add(G.sphere(16, 10), '#d8a845', { pos: [0, -0.08, 0], scale: [0.32, 0.18, 0.32] });
+    b.add(G.sphere(12, 8), '#6b5a3a', { pos: [0, -0.95, 0], scale: [0.1, 0.1, 0.1] });
     bell.add(b.mesh(matte()));
   }
   group.add(bell);

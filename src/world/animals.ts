@@ -34,24 +34,26 @@ export interface Rig {
 
 // Rounder shapes than the town uses: these are seen close up. Small details pick a lighter sphere
 // automatically (see `ell`), so the extra polygons go where they show.
+// Normals are smoothed across edges gentler than 38 degrees (see build.ts), so every round shape needs
+// enough sides for its facets to fall under that: 12 or more round a cylinder, 10 or more round a sphere.
 const G = {
   sph: new THREE.SphereGeometry(1, 16, 12),
-  sphS: new THREE.SphereGeometry(1, 10, 8),
-  sphXS: new THREE.SphereGeometry(1, 6, 5),
-  head: new THREE.SphereGeometry(1, 22, 16),
+  sphS: new THREE.SphereGeometry(1, 12, 9),
+  sphXS: new THREE.SphereGeometry(1, 8, 6),
+  head: new THREE.SphereGeometry(1, 26, 18),
   ico: new THREE.IcosahedronGeometry(1, 1),
   ico1: new THREE.IcosahedronGeometry(1, 2),
   cone4: new THREE.ConeGeometry(1, 1, 4),
-  cone6: new THREE.ConeGeometry(1, 1, 8),
-  cone8: new THREE.ConeGeometry(1, 1, 12),
-  cyl: new THREE.CylinderGeometry(1, 1, 1, 12),
-  cyl6: new THREE.CylinderGeometry(1, 1, 1, 8),
-  taper: new THREE.CylinderGeometry(0.55, 1, 1, 12),
+  cone6: new THREE.ConeGeometry(1, 1, 12),
+  cone8: new THREE.ConeGeometry(1, 1, 16),
+  cyl: new THREE.CylinderGeometry(1, 1, 1, 16),
+  cyl6: new THREE.CylinderGeometry(1, 1, 1, 12),
+  taper: new THREE.CylinderGeometry(0.55, 1, 1, 16),
   box: new THREE.BoxGeometry(1, 1, 1),
-  smile: new THREE.TorusGeometry(1, 0.11, 6, 16, Math.PI),
-  halfDisc: new THREE.SphereGeometry(1, 16, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
-  torus: new THREE.TorusGeometry(1, 0.32, 8, 18),
-  ring: new THREE.TorusGeometry(1, 0.2, 6, 18),
+  smile: new THREE.TorusGeometry(1, 0.11, 8, 22, Math.PI),
+  halfDisc: new THREE.SphereGeometry(1, 20, 7, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
+  torus: new THREE.TorusGeometry(1, 0.32, 10, 24),
+  ring: new THREE.TorusGeometry(1, 0.2, 8, 24),
 };
 
 const col = (c: THREE.ColorRepresentation) => new THREE.Color(c);
@@ -1726,7 +1728,6 @@ class AnimalRig implements Rig {
       transparent: true,
       opacity: 0.6,
       depthWrite: true,
-      flatShading: true,
       roughness: 1,
     });
     this.owned.push(this.ghostMaterial);
@@ -1740,9 +1741,9 @@ class AnimalRig implements Rig {
     this.body.add(this.wisp);
 
     if (p.aquatic) {
-      const dripMat = new THREE.MeshStandardMaterial({ color: '#a8d8ff', transparent: true, opacity: 0.75, roughness: 0.1, flatShading: true });
+      const dripMat = new THREE.MeshStandardMaterial({ color: '#a8d8ff', transparent: true, opacity: 0.75, roughness: 0.1 });
       this.owned.push(dripMat);
-      const dg = new THREE.SphereGeometry(1, 5, 4);
+      const dg = new THREE.SphereGeometry(1, 8, 6);
       dg.scale(0.018, 0.028, 0.018);
       this.drips = new THREE.InstancedMesh(dg, dripMat, 4);
       this.drips.frustumCulled = false;
@@ -2098,7 +2099,7 @@ export function buildAnimal(look: Look): Rig {
   return new AnimalRig({
     parts: k,
     material: res.jelly ? jelly() : aquatic ? wet() : soft(),
-    eyeMaterial: res.jelly ? soft() : undefined,
+    eyeMaterial: glossy(),
     ghostColor: mix(coat, '#e6f0ff', 0.75),
     floats: Boolean(res.hover),
     hover: res.hover,
@@ -2109,11 +2110,13 @@ export function buildAnimal(look: Look): Rig {
   });
 }
 
+/** Wet-looking eyes: smooth and a little reflective, so the catchlights read as a shine. */
+const glossy = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.22, metalness: 0.05 });
+
 /** See-through and glossy, for the jellyfish. */
 const jelly = () =>
   new THREE.MeshPhysicalMaterial({
     vertexColors: true,
-    flatShading: true,
     roughness: 0.2,
     metalness: 0,
     clearcoat: 1,
@@ -2130,8 +2133,8 @@ const TRIM = '#e8c26a';
 export function buildStoryteller(): Rig {
   const k = newKit();
   // A tall robe that narrows into wisps, a deep hood, and sleeves for arms.
-  k.torso.add(new THREE.CylinderGeometry(0.16, 0.3, 0.7, 9), ROBE, { pos: [0, 0.42, 0] });
-  k.torso.add(new THREE.CylinderGeometry(0.305, 0.31, 0.04, 9), TRIM, { pos: [0, 0.08, 0] });
+  k.torso.add(new THREE.CylinderGeometry(0.16, 0.3, 0.7, 16), ROBE, { pos: [0, 0.42, 0] });
+  k.torso.add(new THREE.CylinderGeometry(0.305, 0.31, 0.04, 16), TRIM, { pos: [0, 0.08, 0] });
   k.torso.add(G.box, TRIM, { pos: [0, 0.45, 0.2], rot: [-0.18, 0, 0], scale: [0.04, 0.6, 0.02] });
   ell(k.torso, ROBE, [0, 0.74, 0], [0.24, 0.12, 0.2]);
   // The hood: an outer shell with a dark hollow where the face should be.

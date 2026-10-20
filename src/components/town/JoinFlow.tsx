@@ -169,15 +169,43 @@ function queueThumbnail(job: () => void): () => void {
   };
 }
 
+/** Thumbnails are kept in the browser between visits, keyed by the build, so a return visit skips 36 renders. */
+const thumbKey = (id: AnimalId, color: string) => `ravenswood:thumb:${__BUILD__}:${id}:${color}`;
+function loadThumb(id: AnimalId, color: string): string | null {
+  try {
+    return localStorage.getItem(thumbKey(id, color));
+  } catch {
+    return null;
+  }
+}
+function saveThumb(id: AnimalId, color: string, url: string) {
+  try {
+    // Older builds' thumbnails are cleared out the first time a new build stores one.
+    if (!localStorage.getItem('ravenswood:thumbs-for') || localStorage.getItem('ravenswood:thumbs-for') !== __BUILD__) {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k?.startsWith('ravenswood:thumb:') && !k.startsWith(`ravenswood:thumb:${__BUILD__}:`)) localStorage.removeItem(k);
+      }
+      localStorage.setItem('ravenswood:thumbs-for', __BUILD__);
+    }
+    localStorage.setItem(thumbKey(id, color), url);
+  } catch {
+    /* storage full or blocked: thumbnails just render each visit */
+  }
+}
+
 function AnimalTile({ id, on, onPick }: { id: AnimalId; on: boolean; onPick: () => void }) {
   const info = animalInfo(id);
-  const [src, setSrc] = useState<string | null>(null);
+  const [src, setSrc] = useState<string | null>(() => loadThumb(id, info.colors[0]));
   useEffect(() => {
+    if (src) return;
     let live = true;
     const cancel = queueThumbnail(() => {
       if (!live) return;
       try {
-        setSrc(animalThumbnail({ animal: id, color: info.colors[0] }, 96) || null);
+        const url = animalThumbnail({ animal: id, color: info.colors[0] }, 96) || null;
+        setSrc(url);
+        if (url) saveThumb(id, info.colors[0], url);
       } catch {
         setSrc(null);
       }
@@ -186,7 +214,7 @@ function AnimalTile({ id, on, onPick }: { id: AnimalId; on: boolean; onPick: () 
       live = false;
       cancel();
     };
-  }, [id, info.colors]);
+  }, [id, info.colors, src]);
   return (
     <button className={`join-tile ${on ? 'on' : ''} ${info.aquatic ? 'wet' : ''}`} onClick={onPick} role="radio" aria-checked={on} title={info.name}>
       {src ? <img src={src} alt="" /> : <span className="join-tile-blank" />}

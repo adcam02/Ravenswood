@@ -37,8 +37,8 @@ export function roundTree(p: Paint, r: () => number, autumn = false, detail = tr
     const size = (i === 0 ? 1.25 : 0.75 + r() * 0.35) * (0.9 + r() * 0.2);
     const c = shade(green, (r() - 0.5) * 0.12);
     const y = trunkH + 0.7 + (i === 0 ? 0.3 : r() * 0.6);
-    if (detail) p.blob(c, size, Math.cos(a) * d, y, Math.sin(a) * d, Math.floor(r() * 6), 0.9, r() * 3, r() * 3);
-    else p.ico(c, size, Math.cos(a) * d, y, Math.sin(a) * d, 0, 0.9, r() * 3);
+    if (detail) p.blob(c, size, Math.cos(a) * d, y, Math.sin(a) * d, Math.floor(r() * 6), 0.9, r() * 3, r() * 3, true);
+    else p.blob(c, size, Math.cos(a) * d, y, Math.sin(a) * d, Math.floor(r() * 6), 0.9, r() * 3);
   }
   // A few apples or blossoms on some trees.
   if (!autumn && r() < 0.3) {
@@ -75,8 +75,7 @@ export function bush(p: Paint, r: () => number, flowers = false, detail = true) 
   for (let i = 0; i < n; i++) {
     const a = r() * Math.PI * 2;
     const c = shade(green, (r() - 0.5) * 0.1);
-    if (detail) p.blob(c, 0.45 + r() * 0.25, Math.cos(a) * 0.35, 0.35, Math.sin(a) * 0.35, Math.floor(r() * 6), 0.8, r() * 3);
-    else p.ico(c, 0.45 + r() * 0.25, Math.cos(a) * 0.35, 0.35, Math.sin(a) * 0.35, 0, 0.8, r() * 3);
+    p.blob(c, 0.45 + r() * 0.25, Math.cos(a) * 0.35, 0.35, Math.sin(a) * 0.35, Math.floor(r() * 6), 0.8, r() * 3, 0, detail);
   }
   if (flowers) {
     const c = pick(r, ['#f2a7b8', '#f6d55c', '#ffffff', '#b494dd', '#e4553f']);
@@ -176,7 +175,7 @@ export function bench(p: Paint) {
     p.box(IRON, 0.07, 0.05, 0.5, x, 0.72, -0.02);
     p.box(IRON, 0.07, 0.24, 0.05, x, 0.6, 0.2);
   }
-  for (let i = 0; i < 3; i++) p.box(WOOD_LIGHT, 2.0, 0.06, 0.14, 0, 0.46, -0.17 + i * 0.17);
+  for (let i = 0; i < 3; i++) p.rbox(WOOD_LIGHT, 2.0, 0.06, 0.14, 0, 0.46, -0.17 + i * 0.17, 0.015);
   for (let i = 0; i < 2; i++) p.box(WOOD_LIGHT, 2.0, 0.13, 0.05, 0, 0.68 + i * 0.2, -0.27, -0.12);
   for (const x of [-0.6, 0, 0.6]) for (const z of [-0.17, 0, 0.17]) p.cyl(IRON, 0.012, 0.015, x, 0.495, z, 6);
 }

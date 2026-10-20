@@ -7,15 +7,16 @@ import type { Item } from './types';
  * stands upright, a little in front of the paw. The rig keeps the hand anchor level, so mugs don't spill.
  */
 
-const SPH = new THREE.SphereGeometry(1, 16, 12);
-const CYL = new THREE.CylinderGeometry(1, 1, 1, 16);
-const CYL6 = new THREE.CylinderGeometry(1, 1, 1, 8);
-const CONE = new THREE.ConeGeometry(1, 1, 12);
+// Round enough that the smoothed normals read as smooth (edges under the crease angle).
+const SPH = new THREE.SphereGeometry(1, 18, 12);
+const CYL = new THREE.CylinderGeometry(1, 1, 1, 18);
+const CYL6 = new THREE.CylinderGeometry(1, 1, 1, 12);
+const CONE = new THREE.ConeGeometry(1, 1, 14);
 const BOX = new THREE.BoxGeometry(1, 1, 1);
-const TORUS = new THREE.TorusGeometry(1, 0.28, 8, 18);
-const THIN_TORUS = new THREE.TorusGeometry(1, 0.1, 6, 18);
-const BASKET = new THREE.CylinderGeometry(1, 0.8, 1, 16);
-const ICO = new THREE.IcosahedronGeometry(1, 1);
+const TORUS = new THREE.TorusGeometry(1, 0.28, 10, 24);
+const THIN_TORUS = new THREE.TorusGeometry(1, 0.1, 8, 24);
+const BASKET = new THREE.CylinderGeometry(1, 0.8, 1, 18);
+const ICO = new THREE.IcosahedronGeometry(1, 2);
 
 const DRINK: Record<string, { cup: string; band: string; top: string; foam?: string }> = {
   ale: { cup: '#a8743f', band: '#5d5a5a', top: '#d98c2b', foam: '#fbf3df' },

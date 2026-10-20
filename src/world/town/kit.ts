@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { Builder, jitter } from '../build';
 
 /** Unit primitives, made once and copied into builders. */
@@ -56,8 +57,14 @@ export const G = {
   torus: (r = 0.15, rs = 8, ts = 24) => cached(`tor${r}:${rs}:${ts}`, () => new THREE.TorusGeometry(1, r, rs, ts)),
   prism: () => cached('prism', prismGeometry),
   plane: () => cached('plane', () => new THREE.PlaneGeometry(1, 1)),
-  /** A lumpy ball for tree crowns, bushes and rocks; a handful of fixed variants so the town looks the same everywhere. */
-  blob: (k = 0) => cached(`blob${k % 6}`, () => jitter(new THREE.IcosahedronGeometry(1, 1), 0.22, 11 + (k % 6) * 7)),
+  /**
+   * A lumpy ball for tree crowns, bushes and rocks; a handful of fixed variants so the town looks the same
+   * everywhere. The gentle jitter keeps every crease under the smoothing angle, so blobs read as soft, not
+   * crystalline. `fine` is a denser ball for the trees and bushes in town.
+   */
+  blob: (k = 0, fine = false) => cached(`blob${fine ? 'f' : ''}${k % 6}`, () => jitter(new THREE.IcosahedronGeometry(1, fine ? 2 : 1), fine ? 0.1 : 0.12, 11 + (k % 6) * 7)),
+  /** A box with softened edges, for table tops, seats and counters. `r` is the edge radius as a fraction of the smallest side. */
+  rbox: (r = 0.12) => cached(`rbox${r}`, () => new RoundedBoxGeometry(1, 1, 1, 2, r)),
   /** A half sphere, flat side down. */
   dome: (w = 16) => cached(`dome${w}`, () => new THREE.SphereGeometry(1, w, 5, 0, Math.PI * 2, 0, Math.PI / 2)),
 };
@@ -135,9 +142,17 @@ export class Paint {
     return this.geo(G.ico(detail), color, mat(x, y, z, 0, ry, 0, r, r * sy, r));
   }
 
-  /** A lumpy ball: tree crowns, bushes, rocks. `k` picks one of a few shapes. */
-  blob(color: THREE.ColorRepresentation, r: number, x: number, y: number, z: number, k = 0, sy = 1, ry = 0, rx = 0): this {
-    return this.geo(G.blob(k), color, mat(x, y, z, rx, ry, 0, r, r * sy, r));
+  /** A lumpy ball: tree crowns, bushes, rocks. `k` picks one of a few shapes; `fine` for the ones seen up close. */
+  blob(color: THREE.ColorRepresentation, r: number, x: number, y: number, z: number, k = 0, sy = 1, ry = 0, rx = 0, fine = false): this {
+    return this.geo(G.blob(k, fine), color, mat(x, y, z, rx, ry, 0, r, r * sy, r));
+  }
+
+  /** A box with softened edges (centre at x, y, z). The edge radius is `edge` metres, capped at a third of the smallest side. */
+  rbox(color: THREE.ColorRepresentation, w: number, h: number, d: number, x: number, y: number, z: number, edge = 0.03, ry = 0): this {
+    const minSide = Math.min(w, h, d);
+    const r = Math.min(edge / minSide, 0.33);
+    // Rounded boxes don't scale evenly, so the radius is set for the smallest side and the rest stretch a touch.
+    return this.geo(G.rbox(Math.round(r * 100) / 100), color, mat(x, y, z, 0, ry, 0, w, h, d));
   }
 
   /** A half sphere sitting on y, flat side down. */

@@ -227,6 +227,9 @@ export class Engine {
     this.hooks = hooks;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // Filmic tone mapping keeps the bright cobbles and the dark rooms from clipping, for a richer picture.
+    this.renderer.toneMapping = THREE.NeutralToneMapping;
+    this.renderer.toneMappingExposure = 1.06;
     this.applyQuality();
     this.renderer.domElement.className = 'world-canvas';
     host.appendChild(this.renderer.domElement);

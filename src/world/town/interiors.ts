@@ -216,7 +216,7 @@ function tavern(p: Paint, glow: Builder, r: () => number) {
   const cx = (BAR.x0 + BAR.x1) / 2;
   p.block('#5e3d27', len, BAR.h - 0.08, BAR.depth, cx, 0, BAR.z);
   for (let x = BAR.x0 + 0.5; x < BAR.x1; x += 1.0) p.box('#6e4a30', 0.8, 0.7, 0.04, x, 0.5, BAR.z + BAR.depth / 2 + 0.02);
-  p.block('#a87a4f', len + 0.2, 0.09, BAR.depth + 0.25, cx, BAR.h - 0.08, BAR.z + 0.05);
+  p.rbox('#a87a4f', len + 0.2, 0.09, BAR.depth + 0.25, cx, BAR.h - 0.08 + 0.045, BAR.z + 0.05, 0.025);
   p.cyl('#d8a845', 0.04, len, cx, 0.2, BAR.z + BAR.depth / 2 + 0.25, 6, 0, 0, Math.PI / 2);
   // Taps, with porcelain handles and a drip tray.
   for (const x of [-4.6, -2.2, 0.2]) {
@@ -698,7 +698,7 @@ function home(p: Paint, glow: Builder, r: () => number, sign: TextSign): THREE.O
     new THREE.CircleGeometry(0.55, 24),
     new THREE.MeshLambertMaterial({ map: sign.texture, emissive: '#ffffff', emissiveMap: sign.texture, emissiveIntensity: 0.25 }),
   );
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.57, 0.04, 6, 24), new THREE.MeshLambertMaterial({ color: '#c49a6c', flatShading: true }));
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.57, 0.04, 10, 32), new THREE.MeshLambertMaterial({ color: '#c49a6c' }));
   hoop.add(face, ring);
   hoop.position.set(BED.x, 2.3, -hd + 0.05);
   const extra = new THREE.Group();
