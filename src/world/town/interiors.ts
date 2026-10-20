@@ -30,12 +30,17 @@ export interface PointSpec {
   flicker?: boolean;
 }
 
-export interface Interior {
-  group: THREE.Group;
+export interface RoomLight {
   lights: PointSpec[];
   /** Warm or cool fill for the room. */
   hemi: { sky: string; ground: string; intensity: number };
   sun: { color: string; intensity: number; dir: [number, number, number] };
+}
+
+export interface Interior extends RoomLight {
+  group: THREE.Group;
+  /** The same room with the fire out and moonlight through the window, for bedrooms at night. */
+  night?: RoomLight;
 }
 
 export interface Interiors {
@@ -113,21 +118,22 @@ function fireplace(p: Paint, glow: Builder, stone: string) {
   p.block(shade(stone, -0.1), 2.2, 0.16, 0.95, 0, 1.5, 0.05);
   p.block(stone, 1.2, 1.6, 0.6, 0, 1.66, -0.1);
   for (const x of [-0.25, 0.1]) p.cyl(WOOD_DARK, 0.09, 0.7, x, 0.2, 0.45, 6, 0, 0.4, Math.PI / 2);
-  glow.add(new THREE.ConeGeometry(0.22, 0.5, 5), '#ffb347', { pos: [-0.1, 0.48, 0.45] });
-  glow.add(new THREE.ConeGeometry(0.16, 0.38, 5), '#ffd76b', { pos: [0.15, 0.42, 0.5] });
-  glow.add(new THREE.ConeGeometry(0.1, 0.28, 4), '#fff1b0', { pos: [0, 0.38, 0.55] });
+  // The flames go through the fireplace's own frame, so they sit in the grate and not in the middle of the room.
+  glow.add(new THREE.ConeGeometry(0.22, 0.5, 5), '#ffb347', { pos: [-0.1, 0.48, 0.45] }, p.m);
+  glow.add(new THREE.ConeGeometry(0.16, 0.38, 5), '#ffd76b', { pos: [0.15, 0.42, 0.5] }, p.m);
+  glow.add(new THREE.ConeGeometry(0.1, 0.28, 4), '#fff1b0', { pos: [0, 0.38, 0.55] }, p.m);
   p.box('#b85f4a', 1.5, 0.03, 0.8, 0, 0.015, 1.0);
 }
 
 function candle(p: Paint, glow: Builder, x: number, y: number, z: number, h = 0.25) {
   p.post('#f6efe0', 0.04, h, x, y, z, 6);
-  glow.add(new THREE.ConeGeometry(0.035, 0.1, 4), '#ffd76b', { pos: [x, y + h + 0.06, z] });
+  glow.add(new THREE.ConeGeometry(0.035, 0.1, 4), '#ffd76b', { pos: [x, y + h + 0.06, z] }, p.m);
 }
 
 function hangingLamp(p: Paint, glow: Builder, x: number, y: number, z: number) {
   p.cyl(IRON, 0.01, 0.8, x, y + 0.6, z, 3);
   p.cone(IRON, 0.3, 0.18, x, y + 0.12, z, 6);
-  glow.add(new THREE.IcosahedronGeometry(0.14, 0), '#ffe2a0', { pos: [x, y + 0.05, z] });
+  glow.add(new THREE.IcosahedronGeometry(0.14, 0), '#ffe2a0', { pos: [x, y + 0.05, z] }, p.m);
 }
 
 function chair(p: Paint, color: string) {
@@ -407,7 +413,40 @@ function home(p: Paint, glow: Builder, r: () => number, sign: TextSign): THREE.O
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.57, 0.04, 6, 24), new THREE.MeshLambertMaterial({ color: '#c49a6c', flatShading: true }));
   hoop.add(face, ring);
   hoop.position.set(BED.x, 2.3, -hd + 0.05);
-  return hoop;
+  const extra = new THREE.Group();
+  extra.add(hoop, nightWindow(0.5, 2.0, -hd + 0.093, 1.1, 1.0));
+  return extra;
+}
+
+/** What the bedroom window shows at night: a deep blue sky, a crescent moon and a scatter of stars. */
+function nightWindow(x: number, y: number, z: number, w: number, h: number): THREE.Group {
+  const g = new THREE.Group();
+  g.name = 'nightWindow';
+  const sky = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: '#141b3f' }));
+  sky.position.set(x, y, z);
+  g.add(sky);
+  const moonMat = new THREE.MeshBasicMaterial({ color: '#f8efc4' });
+  const moon = new THREE.Mesh(new THREE.CircleGeometry(0.14, 24), moonMat);
+  moon.position.set(x + 0.28, y + 0.26, z + 0.004);
+  const bite = new THREE.Mesh(new THREE.CircleGeometry(0.12, 24), new THREE.MeshBasicMaterial({ color: '#141b3f' }));
+  bite.position.set(x + 0.36, y + 0.3, z + 0.008);
+  g.add(moon, bite);
+  const starMat = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+  const star = new THREE.CircleGeometry(0.014, 6);
+  const r = rng(7);
+  for (let i = 0; i < 22; i++) {
+    const m = new THREE.Mesh(star, starMat);
+    const s = 0.5 + r() * 1.1;
+    m.scale.setScalar(s);
+    m.position.set(x - w / 2 + 0.06 + r() * (w - 0.12), y - h / 2 + 0.06 + r() * (h - 0.12), z + 0.004);
+    g.add(m);
+  }
+  // A glow around the moon, so the room gets a little moonlight through the glass.
+  const halo = new THREE.Mesh(new THREE.CircleGeometry(0.26, 24), new THREE.MeshBasicMaterial({ color: '#f8efc4', transparent: true, opacity: 0.12 }));
+  halo.position.set(x + 0.28, y + 0.26, z + 0.002);
+  g.add(halo);
+  g.visible = false;
+  return g;
 }
 
 // ---------------------------------------------------------------- assembly
@@ -426,7 +465,11 @@ export function buildInteriors(): Interiors {
     g.name = room;
     g.add(main.mesh(matte()));
     if (!glass.empty) g.add(glass.mesh(glassMaterial, { cast: false, receive: false }));
-    if (!glow.empty) g.add(glow.mesh(glowMaterial, { cast: false, receive: false }));
+    if (!glow.empty) {
+      const flames = glow.mesh(glowMaterial, { cast: false, receive: false });
+      flames.name = 'glow';
+      g.add(flames);
+    }
     if (extra) g.add(extra);
     g.visible = false;
     return g;
@@ -475,6 +518,15 @@ export function buildInteriors(): Interiors {
         { pos: [0.4, 2.6, 0.6], color: '#ffe8c0', intensity: 8, distance: 9 },
         { pos: [-3.6, 2.2, 2.4], color: '#ffe8c0', intensity: 3, distance: 6 },
       ],
+      night: {
+        hemi: { sky: '#2b3660', ground: '#0e0b16', intensity: 0.32 },
+        sun: { color: '#8fa6e8', intensity: 0.35, dir: [0.15, 1, -0.7] },
+        lights: [
+          // Moonlight falling in through the window, and the last embers in the grate.
+          { pos: [0.5, 2.0, -3.4], color: '#a9bcff', intensity: 6, distance: 9 },
+          { pos: [-2.4, 0.5, -3.3], color: '#ff6a2a', intensity: 1.2, distance: 3, flicker: true },
+        ],
+      },
     },
   };
   return { rooms, glassMaterial, ownerSign };

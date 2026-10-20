@@ -13,7 +13,26 @@ export interface AvatarInfo {
   role: { name: string; icon: string; evil: boolean } | null;
   /** A small badge by the name: "on the block", "nominated". */
   badge: string | null;
+  /** A gold star over their head today, for counting the sheep right last night. */
+  star?: boolean;
 }
+
+const STAR_GEO = (() => {
+  const shape = new THREE.Shape();
+  for (let i = 0; i < 10; i++) {
+    const r = i % 2 === 0 ? 0.16 : 0.07;
+    const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+    const x = Math.cos(a) * r;
+    const y = Math.sin(a) * r;
+    if (i === 0) shape.moveTo(x, y);
+    else shape.lineTo(x, y);
+  }
+  shape.closePath();
+  const g = new THREE.ExtrudeGeometry(shape, { depth: 0.05, bevelEnabled: true, bevelThickness: 0.015, bevelSize: 0.012, bevelSegments: 2 });
+  g.center();
+  return g;
+})();
+const STAR_MAT = new THREE.MeshStandardMaterial({ color: '#f6c445', emissive: '#c98a12', emissiveIntensity: 0.55, metalness: 0.35, roughness: 0.35, flatShading: true });
 
 const lookKey = (info: AvatarInfo) => (info.storyteller ? 'st' : `${info.look?.animal}:${info.look?.color}`);
 
@@ -33,6 +52,7 @@ export class AvatarView {
   private itemKey = '';
   private ghost = false;
   private away = false;
+  private star: THREE.Mesh | null = null;
 
   x = 0;
   z = 0;
@@ -91,6 +111,8 @@ export class AvatarView {
     this.info = info;
     if (lookKey(info) !== this.key) {
       this.rig.root.remove(this.label);
+      this.star?.removeFromParent();
+      this.star = null;
       this.scene.remove(this.rig.root);
       this.rig.dispose();
       this.rig = this.build(info);
@@ -101,10 +123,21 @@ export class AvatarView {
     if (ghost !== this.ghost) {
       this.ghost = ghost;
       this.rig.setGhost(ghost);
-      // Ghosts float, so their name floats with them.
-      this.label.position.y = this.rig.headHeight + 0.28 + (ghost ? 0.35 : 0);
     }
-    this.nameEl.textContent = info.storyteller ? 'The Storyteller' : info.name || 'Someone';
+    const star = Boolean(info.star) && !info.storyteller;
+    if (star && (!this.star || this.star.parent !== this.rig.root)) {
+      this.star?.removeFromParent();
+      this.star = new THREE.Mesh(STAR_GEO, STAR_MAT);
+      this.star.castShadow = true;
+      this.rig.root.add(this.star);
+    } else if (!star && this.star) {
+      this.star.removeFromParent();
+      this.star = null;
+    }
+    // Ghosts float, so their name floats with them; a star needs headroom too.
+    this.label.position.y = this.rig.headHeight + 0.28 + (ghost ? 0.35 : 0) + (star ? 0.32 : 0);
+    if (this.star) this.star.position.set(0, this.rig.headHeight + 0.26 + (ghost ? 0.35 : 0), 0);
+    this.nameEl.textContent = (star ? '⭐ ' : '') + (info.storyteller ? 'The Storyteller' : info.name || 'Someone');
     this.el.classList.toggle('is-ghost', ghost);
     this.el.classList.toggle('is-st', info.storyteller);
     this.el.classList.toggle('is-me', info.isMe);
@@ -195,6 +228,10 @@ export class AvatarView {
     if ((a === 'walk' || a === 'run') && this.speed < 0.3) a = 'idle';
     if (a === 'idle' && this.speed > 0.6) a = this.speed > 4.2 ? 'run' : 'walk';
     this.rig.update({ anim: a, speed: this.speed, dt, t, speaking });
+    if (this.star) {
+      this.star.rotation.y = t * 1.6;
+      this.star.position.y = this.rig.headHeight + 0.26 + (this.ghost ? 0.35 : 0) + Math.sin(t * 2.2) * 0.04;
+    }
     this.el.classList.toggle('talking', speaking);
   }
 
@@ -213,6 +250,8 @@ export class AvatarView {
 
   dispose() {
     if (this.bubbleTimer) clearTimeout(this.bubbleTimer);
+    this.star?.removeFromParent();
+    this.star = null;
     this.rig.root.remove(this.label);
     this.el.remove();
     this.scene.remove(this.rig.root);

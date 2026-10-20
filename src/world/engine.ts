@@ -4,7 +4,8 @@ import { getRole, iconUrl } from '../data';
 import { game, useHud, type Prompt } from '../game/hud';
 import { local, setItem } from '../game/local';
 import { presence } from '../game/presence';
-import type { GameJob, JobResults } from '../jobs';
+import { SCORE_OF, type GameJob, type JobResults } from '../jobs';
+import { rememberBest } from '../game/bests';
 import type { Execution, Nomination, TownAction, TownHall } from '../state/types';
 import { drumroll, gavel } from '../lib/audio';
 import { ui } from '../state/ui';
@@ -40,6 +41,8 @@ export interface WorldSeat {
   /** A character to show over their head, if this viewer may see it. */
   roleId: string | null;
   evil: boolean;
+  /** Wearing the gold star for counting the sheep. */
+  star: boolean;
 }
 
 /** Everything the 3D world needs from the game, refreshed whenever it changes. */
@@ -84,6 +87,12 @@ const JOB_GAMES: Partial<Record<Station['job'], GameJob>> = {
   fishing: 'fishing',
   baking: 'baking',
   gardening: 'gardening',
+  darts: 'darts',
+  bread: 'bread',
+  wine: 'wine',
+  firewood: 'firewood',
+  skimming: 'skimming',
+  coin: 'coin',
 };
 
 const JOB_LOOK: Record<GameJob, { anim: Anim; item: Item | null }> = {
@@ -92,10 +101,16 @@ const JOB_LOOK: Record<GameJob, { anim: Anim; item: Item | null }> = {
   fishing: { anim: 'fish', item: { k: 'rod' } },
   baking: { anim: 'work', item: null },
   gardening: { anim: 'water', item: { k: 'can' } },
+  darts: { anim: 'hand', item: null },
+  bread: { anim: 'work', item: null },
+  wine: { anim: 'water', item: null },
+  firewood: { anim: 'work', item: null },
+  skimming: { anim: 'hand', item: null },
+  coin: { anim: 'wave', item: null },
 };
 
 const EMOTE_TIME: Partial<Record<Anim, number>> = { wave: 2.4, cheer: 2.6, laugh: 2.6, cry: 3.2, dance: 8, drink: 1.6 };
-const SIPPABLE = new Set(['ale', 'cider', 'milk', 'cocoa', 'loaf', 'pie', 'bun', 'water']);
+const SIPPABLE = new Set(['ale', 'cider', 'milk', 'cocoa', 'loaf', 'pie', 'bun', 'water', 'wine']);
 
 /** What the signs over the stations say. */
 const SIGN_TEXT: Partial<Record<Station['job'], string>> = {
@@ -107,7 +122,13 @@ const SIGN_TEXT: Partial<Record<Station['job'], string>> = {
   takeBread: '🍞 Fresh bakes',
   gardening: '🌷 Gardening',
   well: '🪣 The well',
+  coin: '🪙 Make a wish',
   notice: '📜 Noticeboard',
+  darts: '🎯 Darts',
+  bread: '🍞 Break the bread',
+  wine: '🍷 Pour the wine',
+  firewood: '🪓 Chop firewood',
+  skimming: '🪨 Skim stones',
 };
 
 const PLACE_NAMES: Record<Exclude<ZoneKind, 'house'>, string> = {
@@ -166,6 +187,9 @@ export class Engine {
   /** Doors stay shut for a moment after arriving somewhere, so you don't bounce straight back through. */
   private doorsShutUntil = 0;
   private frozen = false;
+  /** Tucked up in bed for the night: no getting up until morning. */
+  private inBed = false;
+  private meetingSeated = false;
   private lastVoice = 0;
   private lastFish = -1;
   private wasJoined = false;
@@ -245,6 +269,13 @@ export class Engine {
     game.goToSquare = () => this.goToSquare();
     game.jobDone = (r) => this.finishJob(r);
     game.jobCancel = () => this.finishJob(undefined);
+    game.sheepDone = (correct) => {
+      useHud.setState({ sheep: 'done' });
+      if (correct) {
+        this.hooks.townAction({ k: 'star' });
+        this.me?.bubble('Counted them all!', 3000);
+      } else this.me?.bubble('Zzz…', 2000);
+    };
 
     this.loop();
   }
@@ -255,7 +286,7 @@ export class Engine {
     if (this.wellTimer) clearTimeout(this.wellTimer);
     for (const s of this.signs) s.el.remove();
     for (const k of ['interact', 'sip', 'give', 'putAway', 'takeMeetingSeat', 'goToSquare', 'jobCancel'] as const) game[k] = () => {};
-    game.emote = game.goTo = game.jobDone = () => {};
+    game.emote = game.goTo = game.jobDone = game.sheepDone = () => {};
     this.ro.disconnect();
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
@@ -319,11 +350,16 @@ export class Engine {
     const newCall = v.townHall && (!prev?.townHall || prev.townHall.ring !== v.townHall.ring || prev.townHall.id !== v.townHall.id);
     if (newCall) {
       this.town.bellRing();
+      ui.banner('The bell is ringing', 'Everyone to the town square');
       // Players head to their stool on their own after a moment, so the circle matches the grimoire.
-      if (v.mode === 'player' && v.mySeatId && v.townHall && !v.townHall.back.includes(v.mySeatId)) {
+      if (v.mode === 'player' && v.mySeatId && !this.inBed && !(this.seated && this.seated.y === STOOL_Y)) {
         if (this.bellTimer) clearTimeout(this.bellTimer);
         this.bellTimer = setTimeout(() => this.goToSquare(), 2500);
       }
+    }
+    if (!v.townHall && !nom && this.bellTimer) {
+      clearTimeout(this.bellTimer);
+      this.bellTimer = null;
     }
     // What the meeting is about, on a sign over the tower.
     let label = '';
@@ -397,6 +433,7 @@ export class Engine {
       isMe: key === v.mySeatId,
       role: role ? { name: role.name, icon: iconUrl(role, s?.evil ? 'evil' : 'good'), evil: Boolean(s?.evil) } : null,
       badge,
+      star: Boolean(s?.star),
     };
   }
 
@@ -432,13 +469,23 @@ export class Engine {
     if (key === this.lastPhaseKey) return;
     const first = !this.lastPhaseKey;
     this.lastPhaseKey = key;
-    if (first || !this.me || v.mode !== 'player' || !prev) return;
+    if (!this.me || v.mode !== 'player') return;
+    if (first || !prev) {
+      // Joining (or reloading) in the night still means bed.
+      if (v.started && v.phase === 'night' && !this.inBed) this.goHome(false);
+      return;
+    }
     if (v.started && v.phase === 'night') {
       this.stopEverything();
       this.goHome(true);
     } else if (v.phase === 'day' && zoneKind(local.zone) === 'house') {
+      this.inBed = false;
+      useHud.setState({ sheep: null });
       this.stopEverything();
       this.goToSquareSpawn(true);
+    } else if (v.phase === 'day') {
+      this.inBed = false;
+      useHud.setState({ sheep: null });
     }
   }
 
@@ -449,15 +496,26 @@ export class Engine {
     this.place('town', s.x + Math.cos(a) * 1.8, s.z + Math.sin(a) * 1.2, s.ry, fade);
   }
 
+  /** Night: straight into bed, asleep, until morning. */
   private goHome(fade: boolean) {
     const id = this.view?.mySeatId;
     if (!id) return;
-    const h = this.town.homeSpawn;
-    this.place(houseZone(id), h.x, h.z, h.ry, fade);
+    const bed = this.town.stations.find((s) => s.id === 'bed');
+    const h = bed?.stand ?? this.town.homeSpawn;
+    this.inBed = true;
+    this.place(houseZone(id), h.x, h.z, h.ry, fade, () => {
+      if (!this.inBed) return;
+      this.seated = { y: bed?.y ?? 0.52, anim: 'sleep' };
+      if (this.me) {
+        this.me.setTarget(local.x, local.z, local.ry, this.seated.y);
+        this.me.snap();
+      }
+      useHud.setState({ sheep: 'offer' });
+    });
   }
 
   /** Moves the local animal somewhere, optionally through a fade to black. */
-  private place(zone: ZoneId, x: number, z: number, ry: number, fade: boolean) {
+  private place(zone: ZoneId, x: number, z: number, ry: number, fade: boolean, then?: () => void) {
     const go = () => {
       this.hoverY = 0;
       local.zone = zone;
@@ -474,6 +532,7 @@ export class Engine {
       }
       this.camTarget.set(x, 0, z);
       if (zoneKind(zone) !== 'town') this.yaw = this.yawTarget = 0;
+      then?.();
     };
     if (!fade) return go();
     this.frozen = true;
@@ -488,7 +547,8 @@ export class Engine {
 
   private showZone() {
     const kind = zoneKind(local.zone);
-    this.town.show(kind);
+    // A bedroom is only ever visited at night: fire out, moon in the window.
+    this.town.show(kind, kind === 'house' && cottageSlot(local.zone) === null);
     let place = kind === 'house' ? '' : PLACE_NAMES[kind];
     if (kind === 'house') {
       const slot = cottageSlot(local.zone);
@@ -518,6 +578,13 @@ export class Engine {
       return;
     }
     if (this.view?.paused || this.job) return;
+    if (this.inBed) {
+      if (k === 'e' || k === ' ' || k === 'enter') {
+        e.preventDefault();
+        this.interact();
+      }
+      return;
+    }
     if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'shift'].includes(k)) {
       this.keys.add(k);
       if (k.startsWith('arrow')) e.preventDefault();
@@ -554,7 +621,7 @@ export class Engine {
       if (zoneKind(local.zone) === 'town') this.dragging = { x: e.clientX, yaw: this.yawTarget };
       return;
     }
-    if (e.button !== 0 || !this.me || this.view?.paused || this.job) return;
+    if (e.button !== 0 || !this.me || this.view?.paused || this.job || this.inBed) return;
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
     const ray = new THREE.Raycaster();
@@ -595,7 +662,7 @@ export class Engine {
   }
 
   private startEmote(anim: Anim) {
-    if (!this.me || this.job) return;
+    if (!this.me || this.job || this.inBed) return;
     if (anim === 'sit') {
       this.seated = this.seated ? null : { y: 0, anim: 'sit' };
       this.emote = null;
@@ -680,6 +747,10 @@ export class Engine {
 
   private interact() {
     if (!this.me || this.view?.paused || this.job || this.frozen) return;
+    if (this.inBed) {
+      if (useHud.getState().sheep === 'offer') useHud.setState({ sheep: 'playing' });
+      return;
+    }
     const s = this.nearStation;
     if (!s) {
       if (local.item && SIPPABLE.has(local.item.k)) this.sip();
@@ -773,8 +844,48 @@ export class Engine {
           const x = r as NonNullable<JobResults['fishing']>;
           this.hooks.townAction({ k: 'fish', kind: x.kind, cm: x.cm });
           if (x.cm > 0) item = { k: 'fish' };
+          if (x.tier === 'rare' || x.tier === 'legendary') this.me?.bubble(`${x.tier === 'legendary' ? '🌙 Legendary' : '✨ Rare'}: ${x.kind}, ${x.cm}cm!`, 5000);
           break;
         }
+        case 'darts': {
+          const x = r as JobResults['darts'];
+          this.me?.bubble(`${x.score} at darts!`, 3000);
+          break;
+        }
+        case 'bread': {
+          const x = r as JobResults['bread'];
+          item = { k: 'bun' };
+          this.me?.bubble(`Broke the bread ${x.evenness}% even`, 3000);
+          break;
+        }
+        case 'wine': {
+          const x = r as JobResults['wine'];
+          item = { k: 'wine' };
+          this.me?.bubble(`Poured the wine: ${x.fill}% full`, 3000);
+          break;
+        }
+        case 'firewood': {
+          const x = r as JobResults['firewood'];
+          if (x.logs > 0) item = { k: 'firewood' };
+          this.me?.bubble(`${x.logs} of 5 logs split clean`, 3000);
+          break;
+        }
+        case 'skimming': {
+          const x = r as JobResults['skimming'];
+          this.me?.bubble(x.bounces ? `${x.bounces} ${x.bounces === 1 ? 'skip' : 'skips'}!` : 'Plop.', 3000);
+          break;
+        }
+        case 'coin': {
+          const x = r as JobResults['coin'];
+          this.me?.bubble(x.wish ? `✨ ${x.fortune}` : 'Clink. Not this time.', 6000);
+          break;
+        }
+      }
+      // Anything that beats the town's best is kept on the noticeboard for everyone.
+      const score = SCORE_OF?.[j.job]?.(r as never) ?? 0;
+      if (score > 0) {
+        this.hooks.townAction({ k: 'record', game: j.job, score });
+        rememberBest(j.job, score);
       }
     }
     setItem(item);
@@ -901,7 +1012,7 @@ export class Engine {
     // Keyboard direction, relative to the camera.
     let ix = 0;
     let iz = 0;
-    if (!v.paused && !this.job && !this.frozen) {
+    if (!v.paused && !this.job && !this.frozen && !this.inBed) {
       if (this.keys.has('w') || this.keys.has('arrowup')) iz -= 1;
       if (this.keys.has('s') || this.keys.has('arrowdown')) iz += 1;
       if (this.keys.has('a') || this.keys.has('arrowleft')) ix -= 1;
@@ -956,6 +1067,7 @@ export class Engine {
       local.ry = turnToward(local.ry, Math.atan2(dx, dz), dt * 12);
     }
 
+    if (!st && local.item?.k === 'grimoire') setItem(null);
     if (st) {
       const open = v.reading;
       if (!local.item || local.item.k === 'grimoire') local.item = { k: 'grimoire', c: open ? 'open' : undefined };
@@ -1063,7 +1175,10 @@ export class Engine {
     this.nearStation = best;
     let prompt: Prompt | null = null;
     if (this.job) prompt = null;
-    else if (this.nearDoor?.locked) prompt = { label: this.nearDoor.locked, key: '', locked: true };
+    else if (this.inBed) {
+      const sheep = useHud.getState().sheep;
+      prompt = sheep === 'offer' ? { label: 'Count the sheep', key: 'E' } : sheep === 'playing' ? null : { label: 'Fast asleep until morning', key: '', locked: true };
+    } else if (this.nearDoor?.locked) prompt = { label: this.nearDoor.locked, key: '', locked: true };
     else if (best) {
       let label = best.label;
       let locked = false;
@@ -1160,7 +1275,8 @@ export class Engine {
         anim = sp.anim;
         dangle = sp;
       } else av.setTarget(p.x, p.z, p.ry, sitting ? this.seatHeight(p.zone, p.anim, p.x, p.z) : 0);
-      av.setItem(p.item);
+      // Only the Storyteller carries the book.
+      av.setItem(key !== 'st' && p.item?.k === 'grimoire' ? null : p.item);
       av.update(dt, t, anim, p.speaking, true);
       av.rig.root.rotation.z = dangle?.swing ?? 0;
       av.rig.root.scale.setScalar(dangle?.scale ?? 1);
@@ -1276,6 +1392,11 @@ export class Engine {
     if (hearing !== this.hearing) {
       this.hearing = hearing;
       useHud.setState({ hearing });
+    }
+    const meetingSeated = Boolean(this.seated && this.seated.y === STOOL_Y && local.zone === 'town');
+    if (meetingSeated !== this.meetingSeated) {
+      this.meetingSeated = meetingSeated;
+      useHud.setState({ meetingSeated });
     }
     voice.sync(list);
   }

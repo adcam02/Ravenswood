@@ -78,6 +78,10 @@ export const FISHING = [
 ];
 
 export const WELL = { x: -6.5, z: -15.5 };
+/** A chopping block and a stack of logs beside the tavern. */
+export const WOODPILE = { x: -13.4, z: -3.6, ry: Math.PI / 2 };
+/** Where you stand to skim stones, on the pond's near bank. */
+export const SKIMMING = { x: 3.2, z: 20.6 };
 export const NOTICEBOARD = { x: 3.2, z: -13.6 };
 export const GATE_Z = TOWN_R + 0.6;
 
@@ -250,9 +254,13 @@ export function makeStations(): Station[] {
       st.push({ id: `chair-${ti}-${i}`, zone: 'tavern', x: c.x, z: c.z, r: 0.9, job: 'sit', stand: c, y: 0.47, label: 'Sit' }),
     ),
   );
+  st.push({ id: 'darts', zone: 'tavern', x: 5.4, z: -0.5, r: 1.6, job: 'darts', stand: { x: 5.4, z: -0.5, ry: Math.PI / 2 }, label: 'Throw some darts' });
   // Bakery.
   st.push({ id: 'oven', zone: 'bakery', x: OVEN.x, z: OVEN.z + 1.7, r: 1.8, job: 'baking', stand: { x: OVEN.x, z: OVEN.z + 1.7, ry: Math.PI }, label: 'Bake something' });
   st.push({ id: 'shelf', zone: 'bakery', x: 3.0, z: -3.3, r: 2.0, job: 'takeBread', stand: { x: 3.0, z: -3.4, ry: Math.PI }, label: 'Take a bake' });
+  // The altar: bread on the left, wine on the right.
+  st.push({ id: 'bread', zone: 'church', x: -0.9, z: -6.3, r: 1.4, job: 'bread', stand: { x: -0.9, z: -6.3, ry: Math.PI }, label: 'Break the bread' });
+  st.push({ id: 'wine', zone: 'church', x: 0.9, z: -6.3, r: 1.4, job: 'wine', stand: { x: 0.9, z: -6.3, ry: Math.PI }, label: 'Pour the wine' });
   // Church pews.
   PEW_ROWS.forEach((z, row) =>
     [-PEW_X - 0.9, -PEW_X + 0.9, PEW_X - 0.9, PEW_X + 0.9].forEach((x, k) =>
@@ -272,6 +280,12 @@ export function makeStations(): Station[] {
     st.push({ id: `bed-${i}`, zone: 'town', x: p.x, z: p.z, r: 2.7, job: 'gardening', stand: { x: p.x, z: p.z, ry: b.ry + Math.PI }, bed: i, label: 'Plant a flower' });
   });
   st.push({ id: 'well', zone: 'town', x: WELL.x, z: WELL.z + 1.6, r: 1.5, job: 'well', stand: { x: WELL.x, z: WELL.z + 1.55, ry: Math.PI }, label: 'Draw some water' });
+  st.push({ id: 'coin', zone: 'town', x: WELL.x, z: WELL.z - 1.6, r: 1.5, job: 'coin', stand: { x: WELL.x, z: WELL.z - 1.55, ry: 0 }, label: 'Toss a coin and make a wish' });
+  {
+    const p = local(WOODPILE.x, WOODPILE.z, WOODPILE.ry, 0, 1.1);
+    st.push({ id: 'firewood', zone: 'town', x: p.x, z: p.z, r: 1.5, job: 'firewood', stand: { x: p.x, z: p.z, ry: WOODPILE.ry + Math.PI }, label: 'Chop firewood' });
+  }
+  st.push({ id: 'skimming', zone: 'town', x: SKIMMING.x, z: SKIMMING.z, r: 1.5, job: 'skimming', stand: { x: SKIMMING.x, z: SKIMMING.z, ry: face(SKIMMING.x, SKIMMING.z, POND.x, POND.z) }, label: 'Skim stones' });
   st.push({ id: 'notice', zone: 'town', x: NOTICEBOARD.x, z: NOTICEBOARD.z + 1.1, r: 1.6, job: 'notice', stand: { x: NOTICEBOARD.x, z: NOTICEBOARD.z + 1.0, ry: Math.PI }, label: 'Read the noticeboard' });
   benches.forEach((b, i) =>
     [-0.5, 0.5].forEach((lx, k) => {
@@ -320,6 +334,7 @@ export function townColliders(extra: Collider[]): Collider[] {
   for (const b of benches) c.push(box(b, 1.05, 0.35));
   for (const l of [...squareLamps, ...roadLamps, ...pathLamps]) c.push({ kind: 'circle', x: l.x, z: l.z, r: 0.22 });
   c.push({ kind: 'circle', x: WELL.x, z: WELL.z, r: 1.2 });
+  c.push({ kind: 'box', x: WOODPILE.x, z: WOODPILE.z, hw: 1.1, hd: 0.6, rot: WOODPILE.ry });
   c.push({ kind: 'box', x: GALLOWS.x, z: GALLOWS.z, hw: 1.5, hd: 1.5, rot: GALLOWS.ry });
   c.push({ kind: 'box', x: NOTICEBOARD.x, z: NOTICEBOARD.z, hw: 1.0, hd: 0.25, rot: 0 });
   for (const sx of [-1, 1]) c.push({ kind: 'circle', x: sx * 2.6, z: GATE_Z, r: 0.35 });

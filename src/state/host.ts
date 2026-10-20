@@ -93,6 +93,7 @@ function loadGame(): GameState | null {
   g.townHall ??= null;
   g.nightDeaths ??= [];
   g.town ??= emptyTown();
+  g.town.records ??= {};
   g.execution ??= null;
   for (const s of g.seats) s.look ??= null;
   setCustomRoles(g.script.custom);
@@ -168,6 +169,7 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
         roleId: show ? s.roleId : null,
         alignment: g.grimoireRevealed ? seatAlignment(s) : null,
         look: s.look,
+        star: s.star ?? null,
       };
     }),
     fabled: g.fabled,
@@ -387,6 +389,14 @@ export function townAction(by: string, a: TownAction): Item | null {
       case 'fish': {
         t.fish.push({ by: clip(by), kind: clip(a.kind, 30), cm: Math.max(0, Math.min(500, Math.round(Number(a.cm) || 0))), at: Date.now() });
         if (t.fish.length > MAX_FISH_LOG) t.fish.splice(0, t.fish.length - MAX_FISH_LOG);
+        break;
+      }
+      case 'record': {
+        const game = clip(a.game, 20);
+        const score = Math.max(0, Math.min(100000, Math.round(Number(a.score) || 0)));
+        if (!/^[a-z]+$/.test(game) || score <= 0) return;
+        const prev = t.records[game];
+        if (!prev || score > prev.score) t.records = { ...t.records, [game]: { by: clip(by), score, at: Date.now() } };
         break;
       }
     }
@@ -832,7 +842,16 @@ export const st = {
     /** Whatever a player did around town. Returns an item when it ends up in their paw. */
     town(playerId: string, action: TownAction): Item | null {
       const s = hostGame().seats.find((x) => x.playerId === playerId);
-      return s ? townAction(s.name || 'Someone', action) : null;
+      if (!s) return null;
+      if (action.k === 'star') {
+        // Only at night, and the star is worn through the day that follows.
+        update((g) => {
+          const seat = g.seats.find((x) => x.id === s.id);
+          if (seat && g.phase === 'night') seat.star = g.day;
+        });
+        return null;
+      }
+      return townAction(s.name || 'Someone', action);
     },
     ack(playerId: string, wakeId: string) {
       update((g) => {

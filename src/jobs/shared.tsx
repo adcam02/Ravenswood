@@ -216,3 +216,46 @@ export function SettleRing({ ms, label }: { ms: number; label: string }) {
 
 export const pickOne = <T,>(list: readonly T[]): T => list[Math.floor(Math.random() * list.length)];
 export const clamp = (n: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, n));
+
+/** Little floating words over a scene ("Perfect!", "Miss"): call `pop`, render `pops` inside the scene. */
+export function usePops() {
+  const [pops, setPops] = useState<{ id: number; text: string; tone: number }[]>([]);
+  const { later } = useLater();
+  const pop = (text: string, tone: number) => {
+    const id = Math.random();
+    setPops((p) => [...p.slice(-2), { id, text, tone }]);
+    later(() => setPops((p) => p.filter((x) => x.id !== id)), 800);
+  };
+  return {
+    pop,
+    pops: pops.map((p) => (
+      <span key={p.id} className={`job-pop tone-${p.tone}`}>
+        {p.text}
+      </span>
+    )),
+  };
+}
+
+/** A set of rings spreading on water; push with `ripple`, step with `step`, draw with `draw`. */
+export interface Ripple {
+  id: number;
+  x: number;
+  y: number;
+  t: number;
+  big: number;
+}
+
+export function stepRipples(list: Ripple[], dt: number): Ripple[] {
+  for (const r of list) r.t += dt;
+  return list.filter((r) => r.t < 1.3);
+}
+
+export function RippleRings({ list, color = '#ffffff' }: { list: Ripple[]; color?: string }) {
+  return (
+    <g fill="none" stroke={color}>
+      {list.map((r) => (
+        <ellipse key={r.id} cx={r.x} cy={r.y} rx={(3 + r.t * 24) * r.big} ry={(1.2 + r.t * 9) * r.big} strokeOpacity={0.75 * (1 - r.t / 1.3)} strokeWidth="1.5" />
+      ))}
+    </g>
+  );
+}

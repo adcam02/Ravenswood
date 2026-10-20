@@ -49,6 +49,7 @@ export function MiniGrimoire() {
               <em>{s.label}</em>
               {s.awake && <b className="mini-eye">👁</b>}
               {voted && <b className="mini-paw">✋</b>}
+              {s.star && <b className="mini-star" title="Counted the sheep">⭐</b>}
             </span>
           );
         })}

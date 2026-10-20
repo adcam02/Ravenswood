@@ -1141,6 +1141,13 @@
   right: auto;
   left: 0;
 }
+.mini-star {
+  position: absolute;
+  bottom: 14px;
+  left: 0;
+  font-size: 11px;
+  font-style: normal;
+}
 .mini-hand {
   position: absolute;
   left: 50%;
@@ -1338,4 +1345,122 @@
   left: auto;
   right: 112px;
   bottom: 96px;
+}
+
+/* ---------------------------------------------------------------- the bigger minimap */
+.minimap {
+  padding: 8px;
+}
+.minimap canvas {
+  width: min(430px, 34vw);
+  height: min(430px, 34vw);
+}
+@media (max-height: 700px) {
+  .minimap canvas {
+    width: min(430px, 34vw, 40vh);
+    height: min(430px, 34vw, 40vh);
+  }
+}
+
+/* ---------------------------------------------------------------- counting sheep, in bed */
+.sheep-game {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 62;
+  transform: translate(-50%, -50%);
+  width: min(680px, calc(100vw - 24px));
+  padding: 14px 16px 16px;
+  animation: bell-in 0.4s var(--ease-spring);
+}
+.sheep-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.sheep-head div {
+  display: grid;
+}
+.sheep-head strong {
+  font-size: 20px;
+}
+.sheep-head span {
+  color: var(--cosy-ink-soft);
+  font-size: 14px;
+}
+.sheep-icon {
+  font-size: 34px;
+}
+.sheep-rules ol {
+  margin: 0 0 8px;
+  padding-left: 22px;
+  display: grid;
+  gap: 6px;
+  font-size: 16px;
+}
+.sheep-rules p {
+  margin: 0 0 12px;
+  color: var(--cosy-ink-soft);
+}
+.sheep-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+  max-width: 100%;
+}
+.sheep-guess {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+.sheep-guess p {
+  margin: 0;
+  font-size: 17px;
+}
+.sheep-number {
+  font-size: 44px;
+  font-weight: 700;
+  min-width: 90px;
+  text-align: center;
+  padding: 2px 14px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.06);
+}
+.sheep-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 64px);
+  gap: 6px;
+}
+.sheep-pad .cosy-btn {
+  height: 46px;
+  font-size: 20px;
+  justify-content: center;
+}
+.sheep-result {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 10px 0 4px;
+  text-align: center;
+}
+.sheep-result strong {
+  font-size: 22px;
+}
+.sheep-result span {
+  color: var(--cosy-ink-soft);
+}
+.sheep-big {
+  font-size: 52px;
+  line-height: 1;
+}
+.sheep-result.is-right .sheep-big {
+  animation: sheep-star 0.8s var(--ease-spring);
+}
+@keyframes sheep-star {
+  from {
+    transform: scale(0.2) rotate(-40deg);
+    opacity: 0;
+  }
 }

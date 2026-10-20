@@ -478,6 +478,194 @@
 
 /* ---------------------------------------------------------------- small screens */
 
+/* ---------------------------------------------------------------- records and celebrations */
+
+.job-caption {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 14px;
+  margin-top: 8px;
+  font-size: 0.78rem;
+  color: var(--cosy-ink-soft);
+}
+
+.job-caption b {
+  color: var(--cosy-ink);
+}
+
+.job-lures {
+  flex-direction: column;
+}
+
+.job-rarity {
+  display: inline-block;
+  padding: 2px 12px;
+  margin-bottom: 4px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  animation: job-pop-in 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) 0.1s backwards;
+}
+
+.job-rarity.rare {
+  background: #e9ddff;
+  color: #6b3fc2;
+  box-shadow: 0 0 0 2px #c9b4f0 inset;
+}
+
+.job-rarity.legendary {
+  background: linear-gradient(90deg, #2b2a4a, #4b3a6e);
+  color: #ffe9a8;
+  box-shadow: 0 0 14px rgba(255, 220, 120, 0.7);
+  animation:
+    job-pop-in 0.5s cubic-bezier(0.2, 1.6, 0.4, 1) 0.1s backwards,
+    job-legend-glow 1.2s ease-in-out 0.6s infinite alternate;
+}
+
+.job-result.is-legendary {
+  background: rgba(43, 42, 74, 0.88);
+}
+
+.job-result.is-legendary .job-result-title {
+  color: #ffe28a;
+}
+
+.job-result.is-legendary p,
+.job-result.is-legendary .job-record {
+  color: #f4f0ff;
+}
+
+.job-result.is-legendary .job-stars .off {
+  color: rgba(255, 255, 255, 0.25);
+}
+
+.job-record {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.95rem;
+  font-style: normal;
+  font-weight: 700;
+  color: #3f9a49;
+  animation: job-pop-in 0.45s cubic-bezier(0.2, 1.6, 0.4, 1) 0.4s backwards;
+}
+
+.job-record + .job-record {
+  margin-top: 2px;
+  animation-delay: 0.55s;
+}
+
+.job-result.is-celebrate {
+  background: rgba(255, 244, 214, 0.9);
+}
+
+.job-confetti {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.job-confetti i {
+  position: absolute;
+  left: -4px;
+  top: -6px;
+  width: 8px;
+  height: 12px;
+  border-radius: 2px;
+  background: var(--c);
+  animation: job-confetti 1.7s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+.job-confetti i:nth-child(3n) {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.job-confetti i:nth-child(4n) {
+  width: 6px;
+  height: 14px;
+}
+
+/* ---------------------------------------------------------------- the pond, the board, the church, the yard, the well */
+
+.job-dots {
+  animation: job-blink 0.9s ease-in-out infinite;
+}
+
+.job-shake {
+  animation: job-shake 0.12s linear infinite;
+}
+
+.job-sight {
+  animation: job-sight 1.2s ease-in-out infinite;
+}
+
+.job-dart-in {
+  transform-box: fill-box;
+  transform-origin: 0 0;
+  animation: job-dart-in 0.25s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+
+.job-flame {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: job-flame 0.35s ease-in-out infinite alternate;
+}
+
+.job-jug {
+  transition: transform 0.15s ease;
+}
+
+.job-jug.on {
+  transform: rotate(-24deg);
+}
+
+.job-half-l,
+.job-half-r {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.job-half-l {
+  animation: job-half-l 0.6s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+.job-half-r {
+  animation: job-half-r 0.6s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+.job-chip {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: job-chip 0.5s ease-out forwards;
+}
+
+.job-log-jump {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: job-log-jump 0.3s ease-out;
+}
+
+.job-axe-swing {
+  filter: drop-shadow(0 6px 4px rgba(0, 0, 0, 0.25));
+}
+
+.job-pop-in {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: job-pop-in 0.4s cubic-bezier(0.2, 1.6, 0.4, 1);
+}
+
+.job-wish text {
+  animation: job-twinkle 0.6s ease-in-out infinite alternate;
+}
+
 @media (max-width: 480px) {
   .job-panel {
     padding: 10px;
@@ -523,6 +711,19 @@
   .job-result-title {
     font-size: 1.6rem;
   }
+
+  .job-caption {
+    font-size: 0.72rem;
+    gap: 2px 10px;
+  }
+
+  .job-record {
+    font-size: 0.85rem;
+  }
+
+  .job-rarity {
+    font-size: 0.72rem;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -531,7 +732,11 @@
   .job-target,
   .job-sparkle,
   .job-glint,
-  .job-bang {
+  .job-bang,
+  .job-shake,
+  .job-sight,
+  .job-confetti i,
+  .job-rarity.legendary {
     animation: none;
   }
 }
@@ -753,5 +958,104 @@
   to {
     transform: translateY(60px);
     opacity: 0.2;
+  }
+}
+
+@keyframes job-confetti {
+  0% {
+    transform: translate(0, 0) rotate(0deg) scale(0.6);
+    opacity: 1;
+  }
+  55% {
+    transform: translate(var(--x), var(--y)) rotate(var(--r)) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(var(--x) * 1.15), calc(var(--y) + 110px)) rotate(calc(var(--r) * 2.2)) scale(0.9);
+    opacity: 0;
+  }
+}
+
+@keyframes job-legend-glow {
+  from {
+    box-shadow: 0 0 10px rgba(255, 220, 120, 0.5);
+  }
+  to {
+    box-shadow: 0 0 22px rgba(255, 230, 150, 1);
+  }
+}
+
+@keyframes job-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@keyframes job-sight {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@keyframes job-dart-in {
+  from {
+    transform: scale(2.2);
+    opacity: 0.4;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes job-flame {
+  from {
+    transform: scaleY(0.9) scaleX(1.05);
+  }
+  to {
+    transform: scaleY(1.1) scaleX(0.92);
+  }
+}
+
+@keyframes job-half-l {
+  to {
+    transform: translate(-30px, 24px) rotate(-24deg);
+  }
+}
+
+@keyframes job-half-r {
+  to {
+    transform: translate(30px, 24px) rotate(24deg);
+  }
+}
+
+@keyframes job-chip {
+  from {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  to {
+    transform: translate(var(--dx, 20px), -34px) rotate(200deg);
+    opacity: 0;
+  }
+}
+
+@keyframes job-log-jump {
+  0% {
+    transform: translateY(0) rotate(0deg);
+  }
+  40% {
+    transform: translateY(-7px) rotate(-2deg);
+  }
+  100% {
+    transform: translateY(0) rotate(0deg);
   }
 }

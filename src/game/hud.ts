@@ -32,6 +32,10 @@ interface Hud {
   hearing: number;
   /** The noticeboard is open. */
   notice: boolean;
+  /** Sitting on your stool at the town meeting. */
+  meetingSeated: boolean;
+  /** Night in bed: the counting-sheep game is on offer, being played, or done for tonight. */
+  sheep: 'offer' | 'playing' | 'done' | null;
 }
 
 export const useHud = create<Hud>(() => ({
@@ -46,6 +50,8 @@ export const useHud = create<Hud>(() => ({
   canSip: false,
   hearing: 0,
   notice: false,
+  meetingSeated: false,
+  sheep: null,
 }));
 
 /** Commands from the on-screen buttons to the 3D world. The world fills these in when it starts. */
@@ -63,6 +69,8 @@ export const game = {
   goToSquare: () => {},
   jobDone: (_result: unknown) => {},
   jobCancel: () => {},
+  /** The counting-sheep game is over; right earns tomorrow's gold star. */
+  sheepDone: (_correct: boolean) => {},
   /** The item in your paw, as the HUD shows it. */
   item: null as Item | null,
 };

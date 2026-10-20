@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Builder } from '../build';
+import { Builder, jitter } from '../build';
 
 /** Unit primitives, made once and copied into builders. */
 const cache = new Map<string, THREE.BufferGeometry>();
@@ -38,18 +38,26 @@ function prismGeometry(): THREE.BufferGeometry {
   return g;
 }
 
+/** Round things get at least this many sides; 3, 4 and 5 are kept, since those are shapes on purpose. */
+const SIDES = 14;
+const round = (n: number) => (n <= 5 ? n : Math.max(n, SIDES));
+
 export const G = {
   box: () => cached('box', () => new THREE.BoxGeometry(1, 1, 1)),
-  cyl: (n = 8) => cached(`cyl${n}`, () => new THREE.CylinderGeometry(1, 1, 1, n)),
+  cyl: (n = SIDES) => cached(`cyl${n}`, () => new THREE.CylinderGeometry(1, 1, 1, n)),
   /** A cylinder that narrows to `top` (as a fraction of the bottom radius). */
-  taper: (top: number, n = 8) => cached(`taper${top}:${n}`, () => new THREE.CylinderGeometry(top, 1, 1, n)),
-  cone: (n = 8) => cached(`cone${n}`, () => new THREE.ConeGeometry(1, 1, n)),
+  taper: (top: number, n = SIDES) => cached(`taper${top}:${n}`, () => new THREE.CylinderGeometry(top, 1, 1, n)),
+  cone: (n = SIDES) => cached(`cone${n}`, () => new THREE.ConeGeometry(1, 1, n)),
   ico: (d = 0) => cached(`ico${d}`, () => new THREE.IcosahedronGeometry(1, d)),
   dodeca: () => cached('dodeca', () => new THREE.DodecahedronGeometry(1, 0)),
-  sphere: (w = 8, h = 6) => cached(`sph${w}:${h}`, () => new THREE.SphereGeometry(1, w, h)),
-  torus: (r = 0.15, rs = 6, ts = 12) => cached(`tor${r}:${rs}:${ts}`, () => new THREE.TorusGeometry(1, r, rs, ts)),
+  sphere: (w = 16, h = 10) => cached(`sph${w}:${h}`, () => new THREE.SphereGeometry(1, w, h)),
+  torus: (r = 0.15, rs = 8, ts = 24) => cached(`tor${r}:${rs}:${ts}`, () => new THREE.TorusGeometry(1, r, rs, ts)),
   prism: () => cached('prism', prismGeometry),
   plane: () => cached('plane', () => new THREE.PlaneGeometry(1, 1)),
+  /** A lumpy ball for tree crowns, bushes and rocks; a handful of fixed variants so the town looks the same everywhere. */
+  blob: (k = 0) => cached(`blob${k % 6}`, () => jitter(new THREE.IcosahedronGeometry(1, 1), 0.22, 11 + (k % 6) * 7)),
+  /** A half sphere, flat side down. */
+  dome: (w = 16) => cached(`dome${w}`, () => new THREE.SphereGeometry(1, w, 8, 0, Math.PI * 2, 0, Math.PI / 2)),
 };
 
 export interface Layers {
@@ -103,30 +111,73 @@ export class Paint {
     return this.box(color, w, h, d, x, y + h / 2, z, 0, ry, 0);
   }
 
-  cyl(color: THREE.ColorRepresentation, r: number, h: number, x: number, y: number, z: number, n = 8, rx = 0, ry = 0, rz = 0): this {
-    return this.geo(G.cyl(n), color, mat(x, y, z, rx, ry, rz, r, h, r));
+  cyl(color: THREE.ColorRepresentation, r: number, h: number, x: number, y: number, z: number, n = SIDES, rx = 0, ry = 0, rz = 0): this {
+    return this.geo(G.cyl(round(n)), color, mat(x, y, z, rx, ry, rz, r, h, r));
   }
 
   /** A cylinder standing on y. */
-  post(color: THREE.ColorRepresentation, r: number, h: number, x: number, y: number, z: number, n = 6): this {
+  post(color: THREE.ColorRepresentation, r: number, h: number, x: number, y: number, z: number, n = SIDES): this {
     return this.cyl(color, r, h, x, y + h / 2, z, n);
   }
 
-  taper(color: THREE.ColorRepresentation, top: number, r: number, h: number, x: number, y: number, z: number, n = 8): this {
-    return this.geo(G.taper(top, n), color, mat(x, y + h / 2, z, 0, 0, 0, r, h, r));
+  taper(color: THREE.ColorRepresentation, top: number, r: number, h: number, x: number, y: number, z: number, n = SIDES): this {
+    return this.geo(G.taper(top, round(n)), color, mat(x, y + h / 2, z, 0, 0, 0, r, h, r));
   }
 
   /** A cone standing on y. */
-  cone(color: THREE.ColorRepresentation, r: number, h: number, x: number, y: number, z: number, n = 8, ry = 0): this {
-    return this.geo(G.cone(n), color, mat(x, y + h / 2, z, 0, ry, 0, r, h, r));
+  cone(color: THREE.ColorRepresentation, r: number, h: number, x: number, y: number, z: number, n = SIDES, ry = 0): this {
+    return this.geo(G.cone(round(n)), color, mat(x, y + h / 2, z, 0, ry, 0, r, h, r));
   }
 
   ico(color: THREE.ColorRepresentation, r: number, x: number, y: number, z: number, detail = 0, sy = 1, ry = 0): this {
     return this.geo(G.ico(detail), color, mat(x, y, z, 0, ry, 0, r, r * sy, r));
   }
 
-  sphere(color: THREE.ColorRepresentation, rx: number, ry: number, rz: number, x: number, y: number, z: number, w = 8, h = 6): this {
-    return this.geo(G.sphere(w, h), color, mat(x, y, z, 0, 0, 0, rx, ry, rz));
+  /** A lumpy ball: tree crowns, bushes, rocks. `k` picks one of a few shapes. */
+  blob(color: THREE.ColorRepresentation, r: number, x: number, y: number, z: number, k = 0, sy = 1, ry = 0, rx = 0): this {
+    return this.geo(G.blob(k), color, mat(x, y, z, rx, ry, 0, r, r * sy, r));
+  }
+
+  /** A half sphere sitting on y, flat side down. */
+  dome(color: THREE.ColorRepresentation, r: number, x: number, y: number, z: number, sy = 1, w = 16): this {
+    return this.geo(G.dome(w), color, mat(x, y, z, 0, 0, 0, r, r * sy, r));
+  }
+
+  sphere(color: THREE.ColorRepresentation, rx: number, ry: number, rz: number, x: number, y: number, z: number, w = 16, h = 10): this {
+    const ww = w <= 5 ? w : Math.max(w, 16);
+    const hh = h <= 4 ? h : Math.max(h, 10);
+    return this.geo(G.sphere(ww, hh), color, mat(x, y, z, 0, 0, 0, rx, ry, rz));
+  }
+
+  /** A short rod between two points, for ropes, rails and branches. */
+  rod(color: THREE.ColorRepresentation, r: number, ax: number, ay: number, az: number, bx: number, by: number, bz: number, n = 8): this {
+    const dx = bx - ax;
+    const dy = by - ay;
+    const dz = bz - az;
+    const len = Math.hypot(dx, dy, dz);
+    if (len < 1e-5) return this;
+    const dir = new THREE.Vector3(dx, dy, dz).normalize();
+    const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    const m = new THREE.Matrix4().compose(new THREE.Vector3((ax + bx) / 2, (ay + by) / 2, (az + bz) / 2), quat, new THREE.Vector3(r, len, r));
+    return this.geo(G.cyl(round(n)), color, m);
+  }
+
+  /** A sagging rope between two points, in a few straight pieces. */
+  rope(color: THREE.ColorRepresentation, r: number, ax: number, ay: number, az: number, bx: number, by: number, bz: number, sag = 0.15, pieces = 6): this {
+    let px = ax;
+    let py = ay;
+    let pz = az;
+    for (let i = 1; i <= pieces; i++) {
+      const t = i / pieces;
+      const x = ax + (bx - ax) * t;
+      const y = ay + (by - ay) * t - Math.sin(t * Math.PI) * sag;
+      const z = az + (bz - az) * t;
+      this.rod(color, r, px, py, pz, x, y, z, 6);
+      px = x;
+      py = y;
+      pz = z;
+    }
+    return this;
   }
 
   /** A gable: triangular prism `len` long (x), `base` wide (z), `h` tall, standing on y. */
@@ -135,17 +186,19 @@ export class Paint {
   }
 
   torus(color: THREE.ColorRepresentation, r: number, tube: number, x: number, y: number, z: number, rx = 0, ry = 0): this {
-    return this.geo(G.torus(tube / r, 6, 14), color, mat(x, y, z, rx, ry, 0, r, r, r));
+    return this.geo(G.torus(Math.round((tube / r) * 100) / 100, 8, 24), color, mat(x, y, z, rx, ry, 0, r, r, r));
   }
 
   /**
    * A pitched roof over a rectangle `len` (x) by `depth` (z) whose eaves sit at `y`, rising `h` to the
-   * ridge, with an overhang. Two slabs meeting along a ridge that runs along x.
+   * ridge, with an overhang. Two slabs meeting along a ridge that runs along x, laid with rows of tiles
+   * and a row of rounded ridge caps.
    */
-  roof(color: THREE.ColorRepresentation, len: number, depth: number, h: number, y: number, overhang = 0.4, thick = 0.18, x = 0, z = 0, ry = 0): this {
+  roof(color: THREE.ColorRepresentation, len: number, depth: number, h: number, y: number, overhang = 0.4, thick = 0.18, x = 0, z = 0, ry = 0, tiles = true): this {
     const half = depth / 2;
     const slope = Math.hypot(h, half);
     const ang = Math.atan2(h, half);
+    const width = len + overhang * 1.4;
     for (const side of [1, -1]) {
       const p = this.at(x, 0, z, ry + (side < 0 ? Math.PI : 0));
       const length = slope + overhang;
@@ -155,10 +208,37 @@ export class Paint {
       // Lift the slab off the gable along its normal so the wall doesn't poke through.
       const nz = Math.sin(ang) * thick * 0.5;
       const ny = Math.cos(ang) * thick * 0.5;
-      p.box(color, len + overhang * 1.4, thick, length, 0, cy + ny, cz + nz, ang);
+      p.box(color, width, thick, length, 0, cy + ny, cz + nz, ang);
+      if (!tiles) continue;
+      // Rows of tiles down the slope, each row staggered by half a tile.
+      const rows = Math.max(3, Math.round(length / 0.42));
+      const cols = Math.max(2, Math.round(width / 0.4));
+      const tw = width / cols;
+      const tl = length / rows;
+      const tt = 0.045;
+      const lift = thick + tt * 0.5 + 0.01;
+      for (let i = 0; i < rows; i++) {
+        const d = (i + 0.5) * tl;
+        const rz = Math.cos(ang) * d + Math.sin(ang) * lift;
+        const ryy = y + h - Math.sin(ang) * d + Math.cos(ang) * lift;
+        const stagger = i % 2 ? tw / 2 : 0;
+        for (let j = 0; j < cols + (i % 2 ? 1 : 0); j++) {
+          const cx = -width / 2 + (j + 0.5) * tw - stagger;
+          const w = Math.min(tw - 0.03, width / 2 - Math.abs(cx) + tw / 2 - 0.03);
+          if (w < 0.08) continue;
+          const t = ((i * 7 + j * 13 + side * 3) % 9) / 9 - 0.5;
+          p.box(shade(color, t * 0.09), w, tt, tl + 0.04, Math.max(-width / 2 + w / 2, Math.min(width / 2 - w / 2, cx)), ryy, rz, ang);
+        }
+      }
     }
-    // A ridge beam to close the seam.
-    this.at(x, 0, z, ry).box(shade(color, -0.12), len + overhang * 1.5, thick * 1.2, thick * 1.6, 0, y + h + thick * 0.75, 0);
+    // Ridge caps: a row of rounded tiles along the top.
+    const top = this.at(x, 0, z, ry);
+    const capLen = len + overhang * 1.5;
+    const caps = Math.max(2, Math.round(capLen / 0.45));
+    const cw = capLen / caps;
+    for (let j = 0; j < caps; j++) {
+      top.cyl(shade(color, j % 2 ? -0.14 : -0.1), thick * 1.1, cw - 0.03, -capLen / 2 + (j + 0.5) * cw, y + h + thick * 0.8, 0, 10, 0, 0, Math.PI / 2);
+    }
     return this;
   }
 }

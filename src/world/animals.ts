@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Builder, glow, soft, wet, type Vec3 } from './build';
+import { Builder, glow, placeMatrix, soft, wet, type Vec3 } from './build';
 import { buildItem, disposeObject } from './items';
 import { animalInfo, type Anim, type AnimalId, type Item, type Look } from './types';
 
@@ -32,22 +32,26 @@ export interface Rig {
 
 // ---------------------------------------------------------------- shapes
 
+// Rounder shapes than the town uses: these are seen close up. Small details pick a lighter sphere
+// automatically (see `ell`), so the extra polygons go where they show.
 const G = {
-  sph: new THREE.SphereGeometry(1, 10, 8),
-  head: new THREE.SphereGeometry(1, 14, 10),
-  ico: new THREE.IcosahedronGeometry(1, 0),
-  ico1: new THREE.IcosahedronGeometry(1, 1),
+  sph: new THREE.SphereGeometry(1, 16, 12),
+  sphS: new THREE.SphereGeometry(1, 10, 8),
+  sphXS: new THREE.SphereGeometry(1, 6, 5),
+  head: new THREE.SphereGeometry(1, 22, 16),
+  ico: new THREE.IcosahedronGeometry(1, 1),
+  ico1: new THREE.IcosahedronGeometry(1, 2),
   cone4: new THREE.ConeGeometry(1, 1, 4),
-  cone6: new THREE.ConeGeometry(1, 1, 6),
-  cone8: new THREE.ConeGeometry(1, 1, 8),
-  cyl: new THREE.CylinderGeometry(1, 1, 1, 8),
-  cyl6: new THREE.CylinderGeometry(1, 1, 1, 6),
-  taper: new THREE.CylinderGeometry(0.55, 1, 1, 8),
+  cone6: new THREE.ConeGeometry(1, 1, 8),
+  cone8: new THREE.ConeGeometry(1, 1, 12),
+  cyl: new THREE.CylinderGeometry(1, 1, 1, 12),
+  cyl6: new THREE.CylinderGeometry(1, 1, 1, 8),
+  taper: new THREE.CylinderGeometry(0.55, 1, 1, 12),
   box: new THREE.BoxGeometry(1, 1, 1),
-  smile: new THREE.TorusGeometry(1, 0.11, 4, 10, Math.PI),
-  halfDisc: new THREE.SphereGeometry(1, 12, 4, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
-  torus: new THREE.TorusGeometry(1, 0.32, 5, 12),
-  ring: new THREE.TorusGeometry(1, 0.2, 4, 12),
+  smile: new THREE.TorusGeometry(1, 0.11, 6, 16, Math.PI),
+  halfDisc: new THREE.SphereGeometry(1, 16, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
+  torus: new THREE.TorusGeometry(1, 0.32, 8, 18),
+  ring: new THREE.TorusGeometry(1, 0.2, 6, 18),
 };
 
 const col = (c: THREE.ColorRepresentation) => new THREE.Color(c);
@@ -121,8 +125,89 @@ function colorsFor(coat: string): Colors {
 
 // ---------------------------------------------------------------- building blocks
 
-function ell(b: Builder, color: THREE.ColorRepresentation, pos: Vec3, r: Vec3 | number, rot?: Vec3, geo: THREE.BufferGeometry = G.sph) {
+function ell(b: Builder, color: THREE.ColorRepresentation, pos: Vec3, r: Vec3 | number, rot?: Vec3, geo?: THREE.BufferGeometry) {
+  if (!geo) {
+    // Little things (eyes, nostrils, toes) don't need a full sphere's worth of triangles.
+    const big = typeof r === 'number' ? r : Math.max(r[0], r[1], r[2]);
+    geo = big < 0.03 ? G.sphXS : big < 0.075 ? G.sphS : G.sph;
+  }
   b.add(geo, color, { pos, scale: r, rot });
+}
+
+/** Two small brows above the eyes, raised a touch so they catch the light. */
+function brows(k: Kit, color: THREE.ColorRepresentation, opts: { x?: number; dy?: number; w?: number; tilt?: number } = {}) {
+  const s = k.shape;
+  const x = opts.x ?? 0.1;
+  const dy = opts.dy ?? 0.1;
+  const w = opts.w ?? 0.045;
+  for (const side of [-1, 1]) {
+    ell(k.head, color, [side * x, s.hc[1] + dy, headZ(s, x, dy, 0.008)], [w, 0.014, 0.018], [0, side * 0.3, side * (opts.tilt ?? 0.18)]);
+  }
+}
+
+/** Two whiskers a side, poking out from the muzzle. */
+function whiskers(k: Kit, color: THREE.ColorRepresentation, opts: { x?: number; dy?: number; len?: number; z?: number; dz?: number } = {}) {
+  const s = k.shape;
+  const x = opts.x ?? 0.14;
+  const dy = opts.dy ?? -0.06;
+  const len = opts.len ?? 0.12;
+  const z = opts.z ?? headZ(s, 0.1, dy, 0.03) + (opts.dz ?? 0);
+  for (const side of [-1, 1]) {
+    for (const tilt of [-0.14, 0.1]) {
+      k.head.add(G.box, color, { pos: [side * x, s.hc[1] + dy + tilt * 0.12, z], rot: [0, side * 0.3, side * tilt], scale: [len, 0.005, 0.005] });
+    }
+  }
+}
+
+/** Two tiny nostrils on a nose. */
+function nostrils(k: Kit, color: THREE.ColorRepresentation, pos: Vec3, gap = 0.014, r = 0.007) {
+  for (const side of [-1, 1]) ell(k.head, color, [pos[0] + side * gap, pos[1], pos[2]], [r, r * 0.8, r * 0.6]);
+}
+
+/** Three little toes along the front of a foot or paw. */
+function toes(b: Builder, color: THREE.ColorRepresentation, pos: Vec3, spread = 0.04, r = 0.02, rot?: Vec3) {
+  for (const i of [-1, 0, 1]) ell(b, color, [pos[0] + i * spread, pos[1], pos[2] - Math.abs(i) * spread * 0.25], [r, r * 0.8, r * 1.1], rot);
+}
+
+/** Three little claws at the end of a paw. */
+function claws(b: Builder, color: THREE.ColorRepresentation, pos: Vec3, spread = 0.028, len = 0.045) {
+  for (const i of [-1, 0, 1]) b.add(G.cone6, color, { pos: [pos[0] + i * spread, pos[1], pos[2] + len * 0.4], rot: [Math.PI / 2 + 0.25, 0, 0], scale: [0.011, len, 0.009] });
+}
+
+/** A cylinder between two points. */
+function bone(b: Builder, color: THREE.ColorRepresentation, from: Vec3, to: Vec3, r: number, parent?: THREE.Matrix4) {
+  const a = new THREE.Vector3(...from);
+  const c = new THREE.Vector3(...to);
+  const d = c.clone().sub(a);
+  const m = new THREE.Matrix4().compose(a.add(c).multiplyScalar(0.5), new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize()), new THREE.Vector3(r, d.length(), r));
+  b.add(G.cyl6, color, m, parent);
+}
+
+/** A flat double-sided sheet: triangles fanning from `centre` round the `rim` points, both windings. */
+function fan(centre: Vec3, rim: Vec3[]): THREE.BufferGeometry {
+  const pos: number[] = [];
+  for (let i = 0; i < rim.length - 1; i++) {
+    const a = rim[i];
+    const b = rim[i + 1];
+    pos.push(...centre, ...a, ...b, ...centre, ...b, ...a);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return g;
+}
+
+/** Flat spots scattered over a body part, lying on its surface. */
+function spots(b: Builder, color: THREE.ColorRepresentation, centre: Vec3, r: Vec3, n: number, seed: number, size = 0.03, minZ = -1, maxZ = 1) {
+  for (let i = 0; i < n; i++) {
+    const theta = 0.35 + ((i * 7 + seed) % n) * (1.9 / n);
+    const phi = i * 2.4 + seed * 1.7;
+    const dir = new THREE.Vector3(Math.sin(theta) * Math.cos(phi), Math.cos(theta), Math.sin(theta) * Math.sin(phi));
+    if (dir.z < minZ || dir.z > maxZ) continue;
+    const p = new THREE.Vector3(centre[0] + dir.x * r[0], centre[1] + dir.y * r[1], centre[2] + dir.z * r[2]);
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir.normalize());
+    const sz = size * (0.75 + ((i * 5 + seed) % 4) * 0.12);
+    b.add(sz < 0.03 ? G.sphXS : G.sphS, color, new THREE.Matrix4().compose(p, q, new THREE.Vector3(sz, sz * 0.85, sz * 0.35)));
+  }
 }
 
 function torso(k: Kit, coat: THREE.ColorRepresentation, belly?: THREE.ColorRepresentation) {
@@ -167,12 +252,14 @@ function eyes(k: Kit, opts: { style?: EyeStyle; x?: number; dy?: number; ring?: 
       ell(k.eyes, opts.iris ?? '#e8a23a', [ex, ey, z + 0.006], [0.05 * size, 0.05 * size, 0.022], [0, side * 0.25, 0]);
       ell(k.eyes, INK, [ex, ey, z + 0.016], [0.032 * size, 0.034 * size, 0.018], [0, side * 0.25, 0]);
       ell(k.eyes, '#fff', [ex + 0.014, ey + 0.016, z + 0.03], 0.011);
+      ell(k.eyes, '#fff', [ex - 0.012, ey - 0.014, z + 0.03], 0.005);
       continue;
     }
     const sc = style === 'small' ? 0.75 : 1;
     if (opts.ring) ell(k.eyes, opts.ring, [ex, ey, z - 0.012], [0.05 * sc * size, 0.058 * sc * size, 0.022], [0, side * 0.3, 0]);
     ell(k.eyes, INK, [ex, ey, z], [0.036 * sc * size, 0.046 * sc * size, 0.024], [0, side * 0.3, 0]);
     ell(k.eyes, '#fff', [ex + 0.012, ey + 0.016, z + 0.02], 0.011 * sc);
+    ell(k.eyes, '#fff', [ex - 0.009 * sc, ey - 0.014 * sc, z + 0.02], 0.005 * sc);
   }
 }
 
@@ -201,9 +288,13 @@ function muzzle(k: Kit, color: THREE.ColorRepresentation, noseColor: THREE.Color
   const h = opts.h ?? 0.08;
   const d = opts.d ?? 0.08;
   ell(k.head, color, [0, s.hc[1] + dy, z], [w, h, d]);
-  nose(k, noseColor, [0, s.hc[1] + dy + h * 0.55, z + d * 0.85], opts.noseR ?? [0.035, 0.025, 0.025]);
-  // A little mouth under the nose.
-  k.head.add(G.smile, INK, { pos: [0, s.hc[1] + dy - h * 0.2, z + d * 0.92], rot: [0, 0, Math.PI], scale: [0.022, 0.018, 0.02] });
+  const nr = opts.noseR ?? [0.035, 0.025, 0.025];
+  const np: Vec3 = [0, s.hc[1] + dy + h * 0.55, z + d * 0.85];
+  nose(k, noseColor, np, nr);
+  nostrils(k, mix(noseColor, '#000', 0.35), [np[0], np[1] - nr[1] * 0.25, np[2] + nr[2] * 0.8], nr[0] * 0.42, nr[0] * 0.16);
+  // A little mouth under the nose, with the line down from the nose that gives a muzzle its split.
+  k.head.add(G.box, mix(noseColor, color, 0.45), { pos: [0, s.hc[1] + dy + h * 0.15, z + d * 0.98], scale: [0.006, h * 0.5, 0.006] });
+  k.head.add(G.smile, INK, { pos: [0, s.hc[1] + dy - h * 0.2, z + d * 0.92], rot: [0, 0, Math.PI], scale: [0.024, 0.018, 0.02] });
 }
 
 /** A pointed muzzle, for foxes and wolves. */
@@ -212,6 +303,9 @@ function snout(k: Kit, color: THREE.ColorRepresentation, noseColor: THREE.ColorR
   const z = headZ(s, 0, dy, 0.07);
   k.head.add(G.cone8, color, { pos: [0, s.hc[1] + dy, z + len / 2], rot: [Math.PI / 2, 0, 0], scale: [r, len, r * 0.85] });
   nose(k, noseColor, [0, s.hc[1] + dy + 0.01, z + len - 0.005], [0.035, 0.028, 0.03]);
+  nostrils(k, mix(noseColor, '#000', 0.4), [0, s.hc[1] + dy + 0.004, z + len + 0.02], 0.013, 0.006);
+  // A faint mouth line under the snout.
+  k.head.add(G.smile, mix(color, INK, 0.5), { pos: [0, s.hc[1] + dy - r * 0.55, z + len * 0.75], rot: [0.3, 0, Math.PI], scale: [0.02, 0.012, 0.016] });
 }
 
 function pointyEars(k: Kit, outer: THREE.ColorRepresentation, inner: THREE.ColorRepresentation, opts: { x?: number; h?: number; r?: number; tilt?: number; y?: number; tip?: THREE.ColorRepresentation } = {}) {
@@ -252,8 +346,13 @@ function arms(k: Kit, c: THREE.ColorRepresentation, paw: THREE.ColorRepresentati
     if (style === 'wing') {
       ell(b, c, [side * 0.02, -0.1, -0.01], [0.04, 0.15, 0.1], [0.1, 0, side * 0.1]);
       ell(b, paw, [side * 0.03, -0.2, -0.03], [0.035, 0.07, 0.07], [0.2, 0, side * 0.1]);
+      // Three feather tips fanning from the end of the wing.
+      for (const [i, a] of [-0.35, 0, 0.35].entries()) {
+        b.add(G.cone4, i === 1 ? paw : c, { pos: [side * 0.032, -0.26 - Math.abs(a) * 0.02, -0.04 - a * 0.1], rot: [Math.PI + a * 0.6, 0, side * 0.08], scale: [0.02, 0.07, 0.012] });
+      }
     } else if (style === 'flipper') {
       ell(b, c, [side * 0.02, -0.12, 0], [0.035, 0.16, 0.075], [0, 0, side * 0.15]);
+      ell(b, mix(c, '#000', 0.2), [side * 0.03, -0.2, 0.02], [0.02, 0.07, 0.05], [0, 0, side * 0.15]);
     } else if (style === 'tentacle') {
       for (let i = 0; i < 4; i++) {
         const t = i / 3;
@@ -262,6 +361,7 @@ function arms(k: Kit, c: THREE.ColorRepresentation, paw: THREE.ColorRepresentati
     } else {
       ell(b, c, [side * 0.015, -0.09, 0], [0.06, 0.11, 0.06]);
       ell(b, paw, [side * 0.025, -0.19, 0.01], 0.064);
+      toes(b, mix(paw, '#000', 0.18), [side * 0.025, -0.225, 0.045], 0.03, 0.019);
     }
   }
 }
@@ -272,19 +372,28 @@ function legs(k: Kit, c: THREE.ColorRepresentation, foot: THREE.ColorRepresentat
     if (style === 'webbed') {
       b.add(G.cone4, foot, { pos: [0, -0.2, 0.06], rot: [Math.PI / 2, Math.PI / 4, 0], scale: [0.1, 0.16, 0.035] });
       ell(b, foot, [0, -0.18, 0.0], [0.06, 0.04, 0.07]);
+      // Ridges along the toes of the webbed foot.
+      for (const i of [-1, 0, 1]) b.add(G.box, mix(foot, '#000', 0.15), { pos: [i * 0.03, -0.185, 0.07], rot: [0, i * 0.3, 0], scale: [0.008, 0.012, 0.11] });
     } else {
       ell(b, foot, [0, -0.175, 0.03], [0.075, 0.05, 0.095]);
+      toes(b, mix(foot, '#000', 0.15), [0, -0.19, 0.11], 0.034, 0.021);
     }
   }
 }
 
 function bushyTail(k: Kit, c: THREE.ColorRepresentation, tip?: THREE.ColorRepresentation, size = 1) {
   ell(k.tail, c, [0, 0.1 * size, -0.16 * size], [0.1 * size, 0.1 * size, 0.2 * size], [-0.75, 0, 0], G.ico1);
+  // Tufts of fur along the top, so it reads as a brush rather than a sausage.
+  for (let i = 0; i < 5; i++) {
+    const t = i / 4;
+    const a = (i % 2 ? 1 : -1) * 0.45;
+    ell(k.tail, i % 2 ? c : mix(c, '#fff', 0.12), [Math.sin(a) * 0.06 * size, (0.04 + t * 0.2) * size, (-0.06 - t * 0.22) * size], [0.045 * size, 0.04 * size, 0.06 * size], [-0.75, a, 0], G.ico);
+  }
   if (tip) ell(k.tail, tip, [0, 0.22 * size, -0.3 * size], [0.07 * size, 0.07 * size, 0.08 * size], [-0.75, 0, 0], G.ico1);
 }
 
 function thinTail(k: Kit, c: THREE.ColorRepresentation, len = 0.32, r = 0.025, curl = 1) {
-  const n = 5;
+  const n = 8;
   let y = 0;
   let z = 0;
   let a = 0.4;
@@ -295,14 +404,26 @@ function thinTail(k: Kit, c: THREE.ColorRepresentation, len = 0.32, r = 0.025, c
     k.tail.add(G.cyl6, c, { pos: [0, (y + ny) / 2, (z + nz) / 2], rot: [Math.PI / 2 + a, 0, 0], scale: [r, seg * 1.15, r] });
     y = ny;
     z = nz;
-    a += 0.28 * curl;
+    a += (0.28 * 5 / n) * curl;
   }
   ell(k.tail, c, [0, y, z], r * 1.15);
 }
 
 // ---------------------------------------------------------------- species
 
-type Recipe = (k: Kit, c: Colors, coat: string) => { aquatic?: boolean; legs?: 'none' | 'tentacles'; sleepy?: boolean };
+interface RecipeResult {
+  aquatic?: boolean;
+  legs?: 'none' | 'tentacles';
+  sleepy?: boolean;
+  /** Hovers this high off the ground (the bat, the jellyfish). */
+  hover?: number;
+  /** The arms are wings that beat while idling and moving. */
+  flaps?: boolean;
+  /** Translucent, like a jellyfish. */
+  jelly?: boolean;
+}
+
+type Recipe = (k: Kit, c: Colors, coat: string) => RecipeResult;
 
 /** Shaggy fur: a scatter of little lumps over a body part. */
 function shag(b: Builder, color: THREE.Color, centre: Vec3, r: Vec3, n: number, seed: number, minZ = -1) {
@@ -324,13 +445,22 @@ const RECIPES: Record<AnimalId, Recipe> = {
     ell(k.head, c.light, [0, s.hc[1] - 0.08, headZ(s, 0, -0.08, 0.08)], [0.18, 0.1, 0.08]);
     snout(k, c.light, INK, 0.21, 0.1);
     eyes(k, { dy: 0.04, ring: luminance(c.coat) < 0.12 ? WHITE : undefined });
+    brows(k, c.dark, { dy: 0.11, w: 0.05, tilt: 0.3 });
     pointyEars(k, c.coat, c.dark, { h: 0.22, r: 0.1, tilt: 0.25 });
+    // A darker saddle down the back and cheek tufts either side of the face.
+    ell(k.torso, c.dark, [0, 0.52, -0.08], [0.16, 0.1, 0.13]);
+    for (const side of [-1, 1]) {
+      ell(k.head, c.light, [side * 0.25, s.hc[1] - 0.06, s.hc[2] + 0.04], [0.07, 0.06, 0.05], [0, side * 0.6, -side * 0.4], G.ico);
+      ell(k.head, c.light, [side * 0.22, s.hc[1] - 0.12, s.hc[2] + 0.08], [0.05, 0.045, 0.04], [0, side * 0.6, -side * 0.9], G.ico);
+    }
     // A shaggy ruff around the neck.
     for (let i = 0; i < 7; i++) {
       const a = (i / 6 - 0.5) * 2.4;
       ell(k.torso, c.light, [Math.sin(a) * 0.17, 0.56, Math.cos(a) * 0.13], [0.07, 0.06, 0.05], [0, a, 0], G.ico);
     }
     arms(k, c.coat, c.light);
+    claws(k.armL, '#e8e0d0', [0.025, -0.23, 0.04]);
+    claws(k.armR, '#e8e0d0', [-0.025, -0.23, 0.04]);
     legs(k, c.coat, c.dark);
     bushyTail(k, c.coat, c.light, 1.1);
     return {};
@@ -343,6 +473,13 @@ const RECIPES: Record<AnimalId, Recipe> = {
     ell(k.head, WHITE, [0, s.hc[1] - 0.09, headZ(s, 0, -0.09, 0.09)], [0.2, 0.1, 0.08]);
     snout(k, WHITE, INK, 0.19, 0.095);
     eyes(k, { dy: 0.04 });
+    // Sly brows and fluffy white cheek fur.
+    brows(k, c.dark, { dy: 0.1, w: 0.04, tilt: 0.35 });
+    for (const side of [-1, 1]) {
+      ell(k.head, WHITE, [side * 0.24, s.hc[1] - 0.08, s.hc[2] + 0.06], [0.075, 0.06, 0.05], [0, side * 0.5, -side * 0.5], G.ico);
+      ell(k.head, WHITE, [side * 0.2, s.hc[1] - 0.14, s.hc[2] + 0.1], [0.05, 0.04, 0.04], [0, side * 0.5, -side * 1.0], G.ico);
+    }
+    whiskers(k, '#f4ede0', { x: 0.13, dy: -0.08, len: 0.1, dz: 0.06 });
     pointyEars(k, c.coat, WHITE, { h: 0.25, r: 0.12, tilt: 0.3, tip: '#3a2a24' });
     blush(k);
     arms(k, c.coat, '#3a2a24');
@@ -358,9 +495,15 @@ const RECIPES: Record<AnimalId, Recipe> = {
     head(k, c.coat);
     muzzle(k, c.light, INK, { w: 0.12, h: 0.085, d: 0.085, noseR: [0.045, 0.03, 0.03] });
     eyes(k, { dy: 0.05, ring: luminance(c.coat) < 0.12 ? WHITE : undefined });
+    brows(k, c.dark, { dy: 0.12, w: 0.045, tilt: 0.1 });
     roundEars(k, c.coat, c.dark, { x: 0.19, r: 0.085 });
+    // A fuzzy chin and a shaggy chest.
+    ell(k.head, c.light, [0, s.hc[1] - 0.17, headZ(s, 0, -0.17, 0.02)], [0.07, 0.035, 0.04], undefined, G.ico);
+    for (let i = 0; i < 5; i++) ell(k.torso, c.light, [(i - 2) * 0.05, 0.5 - Math.abs(i - 2) * 0.012, 0.16], [0.035, 0.03, 0.03], [0, i, 0], G.ico);
     blush(k);
     arms(k, c.coat, c.coat);
+    claws(k.armL, '#e8e0d0', [0.025, -0.23, 0.04], 0.03, 0.05);
+    claws(k.armR, '#e8e0d0', [-0.025, -0.23, 0.04], 0.03, 0.05);
     legs(k, c.coat, c.dark);
     ell(k.tail, c.coat, [0, 0, -0.03], 0.06, undefined, G.ico1);
     return {};
@@ -372,17 +515,21 @@ const RECIPES: Record<AnimalId, Recipe> = {
     const z = headZ(s, 0, -0.06, 0.02);
     for (const side of [-1, 1]) ell(k.head, c.light, [side * 0.035, s.hc[1] - 0.075, z], [0.045, 0.035, 0.03]);
     k.head.add(G.cone4, PINK, { pos: [0, s.hc[1] - 0.045, z + 0.02], rot: [Math.PI, Math.PI / 4, 0], scale: [0.025, 0.025, 0.02] });
-    for (const side of [-1, 1]) {
-      for (const tilt of [-0.15, 0.12]) {
-        k.head.add(G.box, luminance(c.coat) < 0.12 ? WHITE : INK, { pos: [side * 0.13, s.hc[1] - 0.07 + tilt * 0.12, z - 0.02], rot: [0, side * 0.35, tilt * side], scale: [0.11, 0.006, 0.006] });
-      }
-    }
+    whiskers(k, luminance(c.coat) < 0.12 ? WHITE : INK, { x: 0.13, dy: -0.07, len: 0.11, z: z - 0.02 });
     eyes(k, { dy: 0.04, ring: luminance(c.coat) < 0.12 ? '#d7e66a' : undefined });
     pointyEars(k, c.coat, PINK, { h: 0.19, r: 0.11, tilt: 0.28, x: 0.16 });
+    // Tabby stripes over the brow and down the back, and a collar with a little bell.
+    for (const [i, x] of [-0.08, 0, 0.08].entries()) {
+      ell(k.head, c.dark, [x, s.hc[1] + 0.16 - Math.abs(x) * 0.3, headZ(s, x, 0.16, 0.005) - 0.02], [0.016, 0.06 + (i === 1 ? 0.02 : 0), 0.02], [0.4, 0, 0]);
+    }
+    for (const zz of [-0.02, -0.09, -0.15]) ell(k.torso, c.dark, [0, 0.56 + zz * 0.3, zz], [0.09, 0.012, 0.025]);
+    k.torso.add(G.ring, '#d94a4a', { pos: [0, 0.52, 0], rot: [Math.PI / 2, 0, 0], scale: [0.2, 0.19, 0.08] });
+    ell(k.torso, '#f2c14e', [0, 0.48, 0.19], 0.028);
     blush(k);
     arms(k, c.coat, c.light);
     legs(k, c.coat, c.light);
     thinTail(k, c.coat, 0.4, 0.03, 1.2);
+    for (const t of [0.3, 0.55, 0.8]) ell(k.tail, c.dark, [0, Math.sin(0.4 + t * 1.6) * 0.4 * t, -Math.cos(0.4 + t * 1.6) * 0.4 * t], [0.034, 0.012, 0.034]);
     return {};
   },
   dog(k, c) {
@@ -391,49 +538,22 @@ const RECIPES: Record<AnimalId, Recipe> = {
     head(k, c.coat);
     muzzle(k, c.light, INK, { w: 0.12, h: 0.085, d: 0.1, noseR: [0.045, 0.032, 0.032] });
     eyes(k, { dy: 0.05 });
+    // Light eyebrow spots, floppy ears with a lighter inside, and the tongue.
     for (const side of [-1, 1]) {
+      ell(k.head, c.light, [side * 0.1, s.hc[1] + 0.12, headZ(s, 0.1, 0.12, 0.006)], [0.03, 0.02, 0.018]);
       ell(k.head, c.dark, [side * 0.28, s.hc[1] - 0.02, s.hc[2] - 0.01], [0.055, 0.15, 0.1], [0, 0, side * 0.28]);
+      ell(k.head, mix(c.dark, PINK, 0.35), [side * 0.3, s.hc[1] - 0.06, s.hc[2] + 0.02], [0.03, 0.09, 0.06], [0, 0, side * 0.28]);
     }
     k.head.add(G.cone8, PINK, { pos: [0.02, s.hc[1] - 0.15, headZ(s, 0, -0.1, -0.06)], rot: [Math.PI / 2 + 0.4, 0, 0], scale: [0.035, 0.05, 0.015] });
+    // A collar with a tag, and a patch over one side of the back.
+    k.torso.add(G.ring, '#3a6fb0', { pos: [0, 0.52, 0], rot: [Math.PI / 2, 0, 0], scale: [0.2, 0.19, 0.08] });
+    k.torso.add(G.cyl6, '#f2c14e', { pos: [0, 0.465, 0.19], rot: [Math.PI / 2, 0, 0], scale: [0.03, 0.01, 0.03] });
+    ell(k.torso, c.dark, [0.1, 0.5, -0.08], [0.1, 0.08, 0.1]);
     blush(k);
     arms(k, c.coat, c.light);
     legs(k, c.coat, c.light);
     ell(k.tail, c.coat, [0, 0.1, -0.08], [0.05, 0.05, 0.14], [-1.0, 0, 0]);
-    return {};
-  },
-  pig(k, c) {
-    const s = k.shape;
-    s.tr = [0.22, 0.22, 0.2];
-    torso(k, c.coat, mix(c.coat, '#fff', 0.25));
-    head(k, c.coat);
-    const z = headZ(s, 0, -0.05, 0.02);
-    k.head.add(G.cyl, mix(c.coat, '#d06a80', 0.35), { pos: [0, s.hc[1] - 0.05, z + 0.03], rot: [Math.PI / 2, 0, 0], scale: [0.085, 0.07, 0.07] });
-    for (const side of [-1, 1]) ell(k.head, '#7a3a48', [side * 0.03, s.hc[1] - 0.05, z + 0.067], [0.016, 0.026, 0.01]);
-    eyes(k, { dy: 0.06, x: 0.12, style: 'small' });
-    for (const side of [-1, 1]) {
-      k.head.add(G.cone4, c.coat, { pos: [side * 0.17, s.hc[1] + 0.2, s.hc[2] + 0.04], rot: [0.7, Math.PI / 4, -side * 0.5], scale: [0.08, 0.13, 0.05] });
-    }
-    blush(k, '#f07a90');
-    arms(k, c.coat, mix(c.coat, '#5a3a3a', 0.4));
-    legs(k, c.coat, mix(c.coat, '#5a3a3a', 0.4));
-    k.tail.add(G.ring, c.coat, { pos: [0, 0.03, -0.06], rot: [0, Math.PI / 2, 0], scale: 0.045 });
-    return {};
-  },
-  mouse(k, c) {
-    const s = k.shape;
-    s.hr = [0.26, 0.24, 0.25];
-    torso(k, c.coat, c.light);
-    head(k, c.coat);
-    snout(k, c.light, '#e47a90', 0.12, 0.09, -0.06);
-    for (const side of [-1, 1]) {
-      k.head.add(G.box, INK, { pos: [side * 0.12, s.hc[1] - 0.06, headZ(s, 0.08, -0.06, 0.0)], rot: [0, side * 0.3, side * 0.1], scale: [0.12, 0.005, 0.005] });
-    }
-    eyes(k, { dy: 0.04, x: 0.095 });
-    roundEars(k, c.coat, PINK, { x: 0.2, r: 0.13, y: 0.22, depth: 0.35 });
-    blush(k);
-    arms(k, c.coat, PINK);
-    legs(k, c.coat, PINK);
-    thinTail(k, PINK, 0.42, 0.016, 1.4);
+    ell(k.tail, c.light, [0, 0.19, -0.13], [0.035, 0.035, 0.05], [-1.0, 0, 0]);
     return {};
   },
   raccoon(k, c) {
@@ -447,7 +567,16 @@ const RECIPES: Record<AnimalId, Recipe> = {
     snout(k, WHITE, INK, 0.13, 0.085, -0.075);
     eyes(k, { dy: 0.03, ring: WHITE, out: 0.03 });
     pointyEars(k, c.coat, WHITE, { h: 0.15, r: 0.1, tilt: 0.35, x: 0.17 });
+    whiskers(k, '#e8e0d8', { x: 0.12, dy: -0.07, len: 0.1, dz: 0.05 });
+    // Little hands: raccoons have fingers, and a darker stripe down the back.
     arms(k, c.coat, mask);
+    for (const [b, side] of [
+      [k.armL, 1],
+      [k.armR, -1],
+    ] as const) {
+      for (const i of [-1.5, -0.5, 0.5, 1.5]) ell(b, mask, [side * 0.025 + i * 0.022, -0.24, 0.045], [0.011, 0.03, 0.011], [-0.3, 0, 0]);
+    }
+    ell(k.torso, mask, [0, 0.56, -0.06], [0.05, 0.05, 0.16]);
     legs(k, c.coat, mask);
     for (let i = 0; i < 5; i++) {
       const t = i / 4;
@@ -484,9 +613,13 @@ const RECIPES: Record<AnimalId, Recipe> = {
       ell(k.head, antler, [ax + side * 0.06, ay + 0.2, s.hc[2] - 0.02], 0.022);
     }
     blush(k);
+    // A tuft between the antlers and little hooves.
+    for (const i of [-1, 0, 1]) ell(k.head, c.light, [i * 0.04, s.hc[1] + 0.24, s.hc[2] + 0.03 - Math.abs(i) * 0.02], [0.03, 0.045, 0.03], [0.2, 0, i * 0.5], G.ico);
     arms(k, c.coat, c.dark);
     legs(k, c.coat, '#3a2a24');
+    for (const b of [k.legL, k.legR]) b.add(G.box, '#2a1e18', { pos: [0, -0.21, 0.08], scale: [0.06, 0.03, 0.05] });
     ell(k.tail, WHITE, [0, 0.05, -0.04], [0.045, 0.06, 0.04], [-0.5, 0, 0]);
+    ell(k.tail, c.coat, [0, 0.07, -0.03], [0.03, 0.035, 0.02], [-0.5, 0, 0]);
     return {};
   },
   owl(k, c) {
@@ -507,9 +640,16 @@ const RECIPES: Record<AnimalId, Recipe> = {
     eyes(k, { style: 'big', x: 0.105, dy: 0.02, ring: '#fbf3dc', iris: '#f2b33a' });
     for (const side of [-1, 1]) {
       k.head.add(G.cone4, c.dark, { pos: [side * 0.19, s.hc[1] + 0.25, s.hc[2]], rot: [0, Math.PI / 4, -side * 0.45], scale: [0.06, 0.15, 0.04] });
+      // Feathery brows over the big eyes.
+      ell(k.head, c.dark, [side * 0.12, s.hc[1] + 0.12, headZ(s, 0.12, 0.12, 0.012)], [0.07, 0.016, 0.02], [0, side * 0.3, side * 0.35]);
+    }
+    // Rows of darker feathers over the wings and back.
+    for (let i = 0; i < 3; i++) {
+      for (const x of [-0.12, 0, 0.12]) ell(k.torso, c.dark, [x, 0.5 - i * 0.07, -0.16 + i * 0.01], [0.04, 0.03, 0.02], [0.4, 0, 0]);
     }
     arms(k, c.dark, c.dark, 'wing');
     legs(k, '#e8a23a', '#e8a23a');
+    for (const b of [k.legL, k.legR]) claws(b, '#4a3a30', [0, -0.2, 0.09], 0.028, 0.04);
     for (const a of [-0.35, 0, 0.35]) k.tail.add(G.cone4, c.dark, { pos: [a * 0.12, -0.04, -0.08], rot: [-2.2, 0, a], scale: [0.05, 0.13, 0.02] });
     return {};
   },
@@ -525,9 +665,20 @@ const RECIPES: Record<AnimalId, Recipe> = {
       const p: Vec3 = [side * 0.28, s.hc[1] + 0.17, s.hc[2] - 0.03];
       ell(k.head, c.coat, p, [0.15, 0.14, 0.07], undefined, G.ico1);
       ell(k.head, WHITE, [p[0] - side * 0.01, p[1] - 0.01, p[2] + 0.04], [0.1, 0.1, 0.04], undefined, G.ico1);
+      // Wispy fur round the edge of each ear.
+      for (let i = 0; i < 6; i++) {
+        const a = -0.6 + i * 0.5;
+        ell(k.head, i % 2 ? WHITE : c.light, [p[0] + side * Math.cos(a) * 0.15, p[1] + Math.sin(a) * 0.14, p[2] - 0.01], [0.035, 0.03, 0.03], [0, 0, a], G.ico);
+      }
     }
+    // Fluffy white chest and a eucalyptus leaf tucked behind one ear.
+    for (let i = 0; i < 6; i++) ell(k.torso, WHITE, [(i % 3 - 1) * 0.07, 0.5 - Math.floor(i / 3) * 0.06, 0.16], [0.04, 0.03, 0.03], [0, i, 0], G.ico);
+    ell(k.head, '#5fae55', [0.3, s.hc[1] + 0.24, s.hc[2] + 0.05], [0.025, 0.07, 0.012], [0.2, 0, -0.6]);
+    nostrils(k, '#1a1618', [0, s.hc[1] - 0.09, headZ(s, 0, -0.09, -0.015)], 0.022, 0.009);
     blush(k);
     arms(k, c.coat, c.dark);
+    claws(k.armL, '#2f2a30', [0.025, -0.23, 0.04], 0.026, 0.04);
+    claws(k.armR, '#2f2a30', [-0.025, -0.23, 0.04], 0.026, 0.04);
     legs(k, c.coat, c.dark);
     return {};
   },
@@ -558,40 +709,13 @@ const RECIPES: Record<AnimalId, Recipe> = {
     };
     spikes(k.head, s.hc, s.hr, 6, c.coat, 0.05);
     spikes(k.torso, s.tc, s.tr, 7, c.coat, 0.0);
+    // A little apple stuck on the spikes, as is proper.
+    ell(k.torso, '#d94a4a', [0.06, 0.6, -0.12], 0.05);
+    k.torso.add(G.cyl6, '#5a3a24', { pos: [0.06, 0.66, -0.12], scale: [0.006, 0.03, 0.006] });
+    ell(k.torso, '#5fae55', [0.08, 0.665, -0.11], [0.022, 0.006, 0.012], [0, 0.5, 0]);
+    whiskers(k, '#3a2a24', { x: 0.1, dy: -0.06, len: 0.07, dz: 0.08 });
     arms(k, face, face);
     legs(k, face, c.dark);
-    return {};
-  },
-  sheep(k, c, coat) {
-    const s = k.shape;
-    const face = luminance(coat) > 0.35 ? '#3d3436' : '#f0e6d8';
-    torso(k, c.coat);
-    for (let i = 0; i < 16; i++) {
-      const a = (i / 16) * Math.PI * 2;
-      const y = 0.3 + (i % 3) * 0.1;
-      ell(k.torso, c.coat, [Math.cos(a) * 0.19, y, Math.sin(a) * 0.16], 0.075, [i, i * 2, 0], G.ico);
-    }
-    k.head.add(G.head, face, { pos: [0, s.hc[1] - 0.02, s.hc[2] + 0.02], scale: [0.22, 0.22, 0.22] });
-    // The woolly cap on top.
-    for (let i = 0; i < 9; i++) {
-      const a = (i / 9) * Math.PI * 2;
-      ell(k.head, c.coat, [Math.cos(a) * 0.15, s.hc[1] + 0.17 + (i % 2) * 0.03, s.hc[2] - 0.02 + Math.sin(a) * 0.13], 0.09, [i, i, 0], G.ico);
-    }
-    ell(k.head, c.coat, [0, s.hc[1] + 0.22, s.hc[2] - 0.02], 0.12, undefined, G.ico);
-    for (const side of [-1, 1]) {
-      ell(k.head, face, [side * 0.25, s.hc[1] + 0.06, s.hc[2] - 0.02], [0.11, 0.04, 0.06], [0, 0, side * 0.5]);
-      ell(k.head, PINK, [side * 0.26, s.hc[1] + 0.06, s.hc[2] + 0.01], [0.07, 0.022, 0.03], [0, 0, side * 0.5]);
-    }
-    const sh = { ...s, hr: [0.22, 0.22, 0.22] as Vec3, hc: [0, s.hc[1] - 0.02, s.hc[2] + 0.02] as Vec3 };
-    const z = headZ(sh, 0, -0.08, 0.01);
-    ell(k.head, mix(face, '#fff', 0.15), [0, s.hc[1] - 0.1, z], [0.06, 0.045, 0.03]);
-    const kk = { ...k, shape: sh };
-    eyes(kk, { dy: 0.03, x: 0.08, ring: luminance(face) < 0.3 ? WHITE : undefined });
-    k.eyeY = kk.eyeY;
-    blush(kk, BLUSH, 0.13, -0.05);
-    arms(k, c.coat, face);
-    legs(k, face, face);
-    ell(k.tail, c.coat, [0, 0.03, -0.04], 0.07, undefined, G.ico);
     return {};
   },
   panda(k, c) {
@@ -605,6 +729,10 @@ const RECIPES: Record<AnimalId, Recipe> = {
     muzzle(k, c.coat, INK, { w: 0.1, h: 0.07, d: 0.07, noseR: [0.04, 0.026, 0.026] });
     eyes(k, { dy: 0.02, ring: '#ffffff' });
     roundEars(k, black, black, { x: 0.2, r: 0.085 });
+    // A sprig of bamboo leaves on the head, and a black tuft of chest fur peeking from the band.
+    k.head.add(G.cyl6, '#5fae55', { pos: [0.1, s.hc[1] + 0.3, s.hc[2]], rot: [0, 0, -0.5], scale: [0.006, 0.1, 0.006] });
+    for (const [i, a] of [-0.4, 0.3, 1.0].entries()) ell(k.head, i === 1 ? '#6fbf5a' : '#4e9a48', [0.13 + i * 0.015, s.hc[1] + 0.33 + i * 0.01, s.hc[2] + (i - 1) * 0.02], [0.012, 0.045, 0.006], [0.2, a, -0.8]);
+    for (let i = 0; i < 4; i++) ell(k.torso, black, [(i - 1.5) * 0.08, 0.45, 0.16 + (i % 2) * 0.01], [0.03, 0.025, 0.02], [0, i, 0], G.ico);
     blush(k);
     arms(k, black, black);
     legs(k, black, black);
@@ -621,7 +749,11 @@ const RECIPES: Record<AnimalId, Recipe> = {
     head(k, c.coat);
     for (const side of [-1, 1]) ell(k.head, WHITE, [side * 0.085, s.hc[1] + 0.0, headZ(s, 0.085, 0, 0.1)], [0.13, 0.15, 0.115]);
     k.head.add(G.cone4, ORANGE, { pos: [0, s.hc[1] - 0.05, headZ(s, 0, -0.05, -0.05)], rot: [Math.PI / 2, Math.PI / 4, 0], scale: [0.055, 0.11, 0.04] });
+    k.head.add(G.cone4, mix(ORANGE, '#a04a10', 0.4), { pos: [0, s.hc[1] - 0.075, headZ(s, 0, -0.075, -0.04)], rot: [Math.PI / 2, Math.PI / 4, 0], scale: [0.045, 0.09, 0.025] });
     eyes(k, { dy: 0.03, x: 0.095, out: 0.022 });
+    // Golden cheek patches, like an emperor penguin, and a light tummy ring.
+    for (const side of [-1, 1]) ell(k.head, '#f2c14e', [side * 0.21, s.hc[1] - 0.02, headZ(s, 0.21, -0.02, 0.02)], [0.05, 0.07, 0.03], [0, side * 0.5, 0]);
+    ell(k.torso, '#f6dc93', [0, 0.56, 0.12], [0.1, 0.03, 0.08]);
     blush(k);
     arms(k, c.coat, c.coat, 'flipper');
     legs(k, ORANGE, ORANGE, 'webbed');
@@ -635,17 +767,18 @@ const RECIPES: Record<AnimalId, Recipe> = {
     head(k, c.coat);
     ell(k.head, c.light, [0, s.hc[1] - 0.05, headZ(s, 0, -0.05, 0.08)], [0.19, 0.12, 0.1]);
     muzzle(k, c.light, INK, { w: 0.11, h: 0.07, d: 0.08, noseR: [0.045, 0.03, 0.03] });
-    for (const side of [-1, 1]) {
-      for (const tilt of [-0.12, 0.1]) {
-        k.head.add(G.box, mix(c.coat, '#fff', 0.7), { pos: [side * 0.15, s.hc[1] - 0.06 + tilt * 0.1, headZ(s, 0.1, -0.06, 0.03)], rot: [0, side * 0.3, side * tilt], scale: [0.12, 0.006, 0.006] });
-      }
-    }
+    whiskers(k, mix(c.coat, '#fff', 0.7), { x: 0.15, dy: -0.06, len: 0.12, z: headZ(s, 0.1, -0.06, 0.03) });
     eyes(k, { dy: 0.04 });
     roundEars(k, c.coat, c.dark, { x: 0.22, r: 0.05, y: 0.15 });
+    // A favourite shell kept on the belly, and a lighter throat.
+    ell(k.torso, c.light, [0, 0.52, 0.15], [0.09, 0.05, 0.04]);
+    ell(k.torso, '#e8c8a8', [0.02, 0.36, 0.17], [0.05, 0.03, 0.045], [0.4, 0, 0.2]);
+    for (const a of [-0.5, 0, 0.5]) k.torso.add(G.box, '#c8a080', { pos: [0.02 + Math.sin(a) * 0.03, 0.365, 0.19 + Math.cos(a) * 0.02], rot: [0.4, a, 0.2], scale: [0.005, 0.02, 0.045] });
     blush(k);
     arms(k, c.coat, c.dark);
     legs(k, c.coat, c.dark, 'webbed');
     ell(k.tail, c.coat, [0, -0.02, -0.18], [0.075, 0.06, 0.22], [0.35, 0, 0]);
+    ell(k.tail, c.dark, [0, -0.08, -0.36], [0.04, 0.03, 0.06], [0.35, 0, 0]);
     return { aquatic: true };
   },
   frog(k, c) {
@@ -659,8 +792,14 @@ const RECIPES: Record<AnimalId, Recipe> = {
     eyes(k, { style: 'top', x: 0.13 });
     k.head.add(G.smile, '#3a2a2a', { pos: [0, s.hc[1] - 0.04, headZ(s, 0, -0.04, 0.03)], rot: [0.2, 0, Math.PI], scale: [0.17, 0.1, 0.12] });
     blush(k, BLUSH, 0.19, -0.02);
+    // Darker spots down the back, a pale throat and round toe pads.
+    spots(k.torso, c.dark, s.tc, s.tr, 9, 2, 0.028, -1, 0.3);
+    spots(k.head, c.dark, s.hc, s.hr, 6, 5, 0.026, -1, 0.1);
+    ell(k.torso, belly, [0, 0.54, 0.12], [0.11, 0.05, 0.07]);
+    nostrils(k, '#3a2a2a', [0, s.hc[1] + 0.02, headZ(s, 0, 0.02, -0.004)], 0.03, 0.008);
     arms(k, c.coat, belly);
     legs(k, c.coat, c.coat, 'webbed');
+    for (const b of [k.legL, k.legR]) toes(b, mix(c.coat, '#fff', 0.3), [0, -0.19, 0.13], 0.045, 0.02);
     return { aquatic: true };
   },
   axolotl(k, c) {
@@ -690,8 +829,12 @@ const RECIPES: Record<AnimalId, Recipe> = {
     eyes(k, { dy: 0.03, x: 0.13, style: 'small' });
     smile(k, '#7a3a50', -0.07, 0.07);
     blush(k, '#f07a98', 0.19, -0.05);
+    // Pale freckles over the head and back, and long slim toes.
+    spots(k.head, mix(c.coat, '#fff', 0.5), s.hc, s.hr, 7, 3, 0.02, -0.3, 0.6);
+    spots(k.torso, mix(c.coat, '#fff', 0.5), s.tc, s.tr, 6, 8, 0.022, -1, 0.4);
     arms(k, c.coat, c.coat);
     legs(k, c.coat, c.coat);
+    for (const b of [k.legL, k.legR]) toes(b, mix(c.coat, '#fff', 0.25), [0, -0.19, 0.12], 0.04, 0.016);
     ell(k.tail, c.coat, [0, 0.0, -0.2], [0.07, 0.08, 0.22], [0.25, 0, 0]);
     ell(k.tail, mix(c.coat, '#fff', 0.45), [0, 0.06, -0.26], [0.015, 0.13, 0.2], [0.25, 0, 0]);
     return { aquatic: true };
@@ -719,6 +862,13 @@ const RECIPES: Record<AnimalId, Recipe> = {
       for (let i = 0; i < 3; i++) k.head.add(G.box, c.dark, { pos: [side * 0.25, s.hc[1] - 0.03, s.hc[2] - 0.01 - i * 0.045], rot: [0, side * 0.45, 0], scale: [0.008, 0.08, 0.01] });
     }
     blush(k, BLUSH, 0.19, 0.0);
+    // A ridged brow over each eye, speckles on the back and little side fins on the body.
+    for (const side of [-1, 1]) {
+      ell(k.head, c.dark, [side * 0.13, s.hc[1] + 0.12, headZ(s, 0.13, 0.12, 0.01)], [0.06, 0.016, 0.02], [0, side * 0.3, side * 0.2]);
+      k.torso.add(G.cone4, c.coat, { pos: [side * 0.22, 0.33, -0.02], rot: [0, 0, side * 1.9], scale: [0.03, 0.14, 0.09] });
+    }
+    spots(k.torso, mix(c.coat, '#fff', 0.3), s.tc, s.tr, 7, 4, 0.02, -1, -0.2);
+    spots(k.head, mix(c.coat, '#fff', 0.3), s.hc, s.hr, 5, 9, 0.018, -1, -0.3);
     arms(k, c.coat, c.coat, 'flipper');
     legs(k, c.coat, belly);
     k.tail.add(G.cone4, c.coat, { pos: [0, 0.02, -0.12], rot: [-Math.PI / 2, 0, 0], scale: [0.07, 0.24, 0.07] });
@@ -748,6 +898,8 @@ const RECIPES: Record<AnimalId, Recipe> = {
       ell(k.head, light, [p.x, s.hc[1] + p.y, z], [0.035, 0.035, 0.012], [-y * 2, x * 2, 0]);
     }
     eyes(k, { dy: -0.04, x: 0.12, out: 0.004 });
+    for (const side of [-1, 1]) ell(k.head, c.coat, [side * 0.12, s.hc[1] + 0.02, headZ(s, 0.12, 0.02, 0.0)], [0.06, 0.02, 0.025], [0, side * 0.3, side * 0.1]);
+    spots(k.head, light, s.hc, s.hr, 8, 6, 0.024, -1, -0.1);
     smile(k, '#5a2a3a', -0.13, 0.04);
     blush(k, BLUSH, 0.2, -0.11);
     arms(k, c.coat, light, 'tentacle');
@@ -783,10 +935,16 @@ const RECIPES: Record<AnimalId, Recipe> = {
     ell(k.head, mix(ORANGE, '#a04a10', 0.3), [0, s.hc[1] - 0.085, z + 0.06], [0.1, 0.022, 0.09]);
     eyes(k, { dy: 0.05, x: 0.1 });
     blush(k);
+    nostrils(k, mix(ORANGE, '#000', 0.4), [0, s.hc[1] - 0.035, z + 0.12], 0.025, 0.008);
     ell(k.head, c.coat, [0, s.hc[1] + 0.25, s.hc[2]], [0.03, 0.06, 0.03], [0.4, 0, 0]);
+    ell(k.head, c.coat, [0.03, s.hc[1] + 0.23, s.hc[2] - 0.03], [0.025, 0.05, 0.025], [0.6, 0, -0.4]);
+    // Wing feathers laid along the back.
+    for (const side of [-1, 1]) for (let i = 0; i < 3; i++) ell(k.torso, mix(c.coat, '#000', 0.12), [side * 0.14, 0.44 - i * 0.05, -0.1 - i * 0.03], [0.05, 0.02, 0.07], [0.3, 0, side * 0.3]);
     arms(k, c.coat, c.coat, 'wing');
     legs(k, ORANGE, ORANGE, 'webbed');
     k.tail.add(G.cone4, c.coat, { pos: [0, 0.06, -0.06], rot: [-0.8, Math.PI / 4, 0], scale: [0.08, 0.14, 0.04] });
+    // The drake's curl at the tail.
+    k.tail.add(G.ring, c.coat, { pos: [0, 0.12, -0.1], rot: [0, Math.PI / 2, 0], scale: 0.03 });
     return { aquatic: true };
   },
   platypus(k, c) {
@@ -800,6 +958,9 @@ const RECIPES: Record<AnimalId, Recipe> = {
     for (const side of [-1, 1]) ell(k.head, '#2a2428', [side * 0.03, s.hc[1] - 0.015, z + 0.2], [0.012, 0.006, 0.01]);
     eyes(k, { dy: 0.06, x: 0.11, style: 'small' });
     blush(k, BLUSH, 0.17, -0.0);
+    // Wet-look fur: a few tufts over the head and back, and a lighter stripe under the bill.
+    for (let i = 0; i < 6; i++) ell(k.torso, mix(c.coat, '#000', 0.12), [(i % 3 - 1) * 0.1, 0.52 - Math.floor(i / 3) * 0.1, -0.1], [0.04, 0.03, 0.04], [0, i, 0], G.ico);
+    ell(k.head, c.light, [0, s.hc[1] - 0.12, z + 0.02], [0.1, 0.03, 0.08]);
     arms(k, c.coat, bill);
     legs(k, c.coat, bill, 'webbed');
     // The flat beaver tail.
@@ -822,9 +983,17 @@ const RECIPES: Record<AnimalId, Recipe> = {
     // Half-closed lids make it look unbothered.
     for (const side of [-1, 1]) ell(k.head, c.coat, [side * 0.14, s.hc[1] + 0.085, headZ(s, 0.14, 0.085, 0.004)], [0.045, 0.022, 0.025], [0, side * 0.3, 0]);
     for (const side of [-1, 1]) ell(k.head, c.coat, [side * 0.21, s.hc[1] + 0.18, s.hc[2] - 0.05], [0.045, 0.05, 0.03]);
-    // A mandarin, as is traditional.
+    // A mandarin, as is traditional, and a tiny yellow bird keeping it company.
     ell(k.head, '#f5a623', [0.07, s.hc[1] + 0.27, s.hc[2] - 0.02], 0.05);
     ell(k.head, '#5fae55', [0.09, s.hc[1] + 0.32, s.hc[2] - 0.02], [0.035, 0.01, 0.018], [0, 0.6, 0]);
+    const bird: Vec3 = [-0.12, s.hc[1] + 0.27, s.hc[2] - 0.04];
+    ell(k.head, '#f2c14e', bird, [0.04, 0.035, 0.05]);
+    ell(k.head, '#f2c14e', [bird[0], bird[1] + 0.04, bird[2] + 0.03], 0.03);
+    k.head.add(G.cone4, '#3a2a24', { pos: [bird[0], bird[1] + 0.035, bird[2] + 0.065], rot: [Math.PI / 2, Math.PI / 4, 0], scale: [0.01, 0.025, 0.008] });
+    ell(k.head, INK, [bird[0] + 0.018, bird[1] + 0.045, bird[2] + 0.05], 0.006);
+    ell(k.head, INK, [bird[0] - 0.018, bird[1] + 0.045, bird[2] + 0.05], 0.006);
+    k.head.add(G.cone4, '#d8a030', { pos: [bird[0], bird[1], bird[2] - 0.06], rot: [-1.3, Math.PI / 4, 0], scale: [0.02, 0.05, 0.01] });
+    whiskers(k, mix(c.coat, '#fff', 0.5), { x: 0.14, dy: -0.04, len: 0.09, z: mz + 0.1 });
     blush(k, BLUSH, 0.2, -0.04);
     arms(k, c.coat, c.dark);
     legs(k, c.coat, c.dark);
@@ -845,6 +1014,8 @@ const RECIPES: Record<AnimalId, Recipe> = {
     muzzle(k, WHITE, INK, { w: 0.09, h: 0.065, d: 0.07, noseR: [0.04, 0.028, 0.028] });
     eyes(k, { dy: 0.04, x: 0.1 });
     pointyEars(k, WHITE, c.coat, { h: 0.17, r: 0.12, tilt: 0.5, x: 0.19, y: 0.16 });
+    for (const side of [-1, 1]) ell(k.head, WHITE, [side * 0.26, s.hc[1] + 0.2, s.hc[2] + 0.01], [0.035, 0.04, 0.03], [0, 0, side * 0.5], G.ico);
+    whiskers(k, '#f4ede0', { x: 0.11, dy: -0.08, len: 0.09, dz: 0.04 });
     blush(k, BLUSH, 0.2, -0.1);
     arms(k, dark, dark);
     legs(k, dark, dark);
@@ -867,6 +1038,10 @@ const RECIPES: Record<AnimalId, Recipe> = {
     k.head.add(G.smile, INK, { pos: [0, s.hc[1] - 0.07, headZ(s, 0, -0.07, -0.03)], rot: [0.2, 0, Math.PI], scale: [0.1, 0.07, 0.05] });
     eyes(k, { dy: 0.06, x: 0.12, size: 1.1 });
     roundEars(k, c.coat, PINK, { x: 0.22, r: 0.065, y: 0.17, depth: 0.45 });
+    whiskers(k, '#f4ede0', { x: 0.16, dy: -0.07, len: 0.11, dz: 0.04 });
+    // A leaf being nibbled at the corner of the grin.
+    k.head.add(G.cyl6, '#4e9a48', { pos: [0.1, s.hc[1] - 0.1, headZ(s, 0.1, -0.1, -0.05)], rot: [0.3, 0, -0.9], scale: [0.004, 0.04, 0.004] });
+    ell(k.head, '#6fbf5a', [0.135, s.hc[1] - 0.085, headZ(s, 0.1, -0.1, -0.07)], [0.04, 0.02, 0.008], [0.3, 0.2, -0.9]);
     blush(k, BLUSH, 0.2, -0.03);
     arms(k, c.coat, c.dark);
     legs(k, c.coat, c.dark);
@@ -888,6 +1063,10 @@ const RECIPES: Record<AnimalId, Recipe> = {
     smile(k, INK, -0.1, 0.05);
     eyes(k, { dy: 0.03, x: 0.1, style: 'small' });
     blush(k, BLUSH, 0.19, -0.07);
+    // A bit of green growing on the back, with a tiny flower in it.
+    for (let i = 0; i < 5; i++) ell(k.torso, i % 2 ? '#7aa860' : '#5f9a50', [(i % 3 - 1) * 0.08, 0.5 - (i % 2) * 0.06, -0.15], [0.045, 0.03, 0.03], [0, i * 1.3, 0], G.ico);
+    ell(k.torso, '#f4a9c0', [0.06, 0.56, -0.14], 0.02);
+    ell(k.torso, '#f6d55c', [0.06, 0.57, -0.13], 0.008);
     // Long arms ending in three claws.
     for (const [b, side] of [
       [k.armL, 1],
@@ -935,7 +1114,15 @@ const RECIPES: Record<AnimalId, Recipe> = {
     }
     eyes(k, { dy: 0.04, x: 0.11, size: 1.35 });
     blush(k, BLUSH, 0.19, -0.03);
+    for (const side of [-1, 1]) ell(k.head, c.dark, [side * 0.12, s.hc[1] + 0.12, headZ(s, 0.12, 0.12, 0.012)], [0.05, 0.014, 0.018], [0, side * 0.3, side * 0.25]);
+    ell(k.head, c.dark, [0.02, s.hc[1] + 0.2, headZ(s, 0.02, 0.2, 0.005)], [0.02, 0.016, 0.01]);
     arms(k, c.coat, c.coat, 'flipper');
+    for (const [b, side] of [
+      [k.armL, 1],
+      [k.armR, -1],
+    ] as const) {
+      claws(b, '#3a3a40', [side * 0.025, -0.26, 0.015], 0.02, 0.03);
+    }
     // The tail flipper: two lobes splayed out behind, resting on the ground.
     for (const side of [-1, 1]) ell(k.tail, c.coat, [side * 0.08, -0.29, -0.13], [0.065, 0.02, 0.12], [0, -side * 0.45, 0]);
     return { aquatic: true, legs: 'none' };
@@ -958,6 +1145,9 @@ const RECIPES: Record<AnimalId, Recipe> = {
     // The dark eye mark trailing back, like eyeliner.
     for (const side of [-1, 1]) ell(k.head, '#2a2a30', [side * 0.17, s.hc[1] + 0.05, headZ(s, 0.17, 0.05, 0.005)], [0.05, 0.012, 0.015], [0, side * 0.4, side * 0.5]);
     blush(k);
+    // Grooves across the beak and a cheeky little tuft at the back of the head.
+    for (const d of [0.095, 0.115]) k.head.add(G.ring, '#2a2a30', { pos: [0, s.hc[1] - 0.04, bz + d], scale: [0.06 - (d - 0.095) * 0.5, 0.065 - (d - 0.095) * 0.5, 0.02] });
+    for (const i of [-1, 0, 1]) ell(k.head, c.coat, [i * 0.04, s.hc[1] + 0.22, s.hc[2] - 0.08], [0.02, 0.05, 0.02], [-0.5, 0, i * 0.4]);
     arms(k, c.coat, c.coat, 'wing');
     legs(k, ORANGE, ORANGE, 'webbed');
     k.tail.add(G.cone4, c.coat, { pos: [0, -0.04, -0.08], rot: [-2.0, Math.PI / 4, 0], scale: [0.07, 0.1, 0.03] });
@@ -985,6 +1175,12 @@ const RECIPES: Record<AnimalId, Recipe> = {
       ell(k.torso, shellLine, [side * 0.26, sc[1] + 0.03, sc[2] + 0.03], [0.015, 0.035, 0.035]);
     }
     k.torso.add(G.ring, shellLine, { pos: sc, rot: [Math.PI / 2, 0, 0], scale: [0.25, 0.24, 0.05] });
+    // Freckles over the shell, a glint on top, a leaf hitching a ride, and a pale stripe along the foot.
+    spots(k.torso, mix(shell, '#fff', 0.3), sc, [0.25, 0.24, 0.21], 10, 4, 0.022, -1, 0.5);
+    ell(k.torso, mix(shell, '#fff', 0.6), [-0.08, sc[1] + 0.2, sc[2] + 0.06], [0.035, 0.012, 0.02], [0, 0.4, 0.3]);
+    ell(k.torso, '#6fbf5a', [0.12, sc[1] + 0.22, sc[2] - 0.08], [0.06, 0.008, 0.03], [0, 0.7, 0.2]);
+    k.torso.add(G.box, '#4e9a48', { pos: [0.12, sc[1] + 0.225, sc[2] - 0.08], rot: [0, 0.7, 0.2], scale: [0.1, 0.003, 0.004] });
+    ell(k.torso, mix(body, '#fff', 0.35), [0, 0.03, 0.12], [0.1, 0.02, 0.3]);
     // The neck joins the head to the foot.
     ell(k.torso, body, [0, 0.26, 0.28], [0.12, 0.12, 0.14]);
     head(k, body);
@@ -1012,6 +1208,11 @@ const RECIPES: Record<AnimalId, Recipe> = {
     snout(k, WHITE, INK, 0.13, 0.085, -0.07);
     eyes(k, { dy: 0.04, x: 0.1, size: 1.1 });
     pointyEars(k, c.coat, PINK, { h: 0.38, r: 0.16, tilt: 0.55, x: 0.17, y: 0.14 });
+    // Cream fur tufts inside the huge ears, and whiskers.
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 3; i++) ell(k.head, c.light, [side * (0.19 + i * 0.03), s.hc[1] + 0.22 + i * 0.06, s.hc[2] + 0.03], [0.03, 0.04, 0.02], [0, 0, side * (0.5 + i * 0.1)], G.ico);
+    }
+    whiskers(k, '#f4ede0', { x: 0.12, dy: -0.08, len: 0.1, dz: 0.05 });
     blush(k);
     arms(k, c.coat, c.light);
     legs(k, c.coat, c.dark);
@@ -1026,13 +1227,13 @@ const RECIPES: Record<AnimalId, Recipe> = {
     head(k, c.coat);
     ell(k.head, c.light, [0, s.hc[1] - 0.07, headZ(s, 0, -0.07, 0.06)], [0.14, 0.09, 0.07]);
     nose(k, '#e47a90', [0, s.hc[1] - 0.045, headZ(s, 0, -0.045, -0.008)], [0.03, 0.022, 0.022]);
-    for (const side of [-1, 1]) {
-      for (const tilt of [-0.12, 0.1]) {
-        k.head.add(G.box, luminance(c.coat) < 0.2 ? WHITE : INK, { pos: [side * 0.13, s.hc[1] - 0.05 + tilt * 0.1, headZ(s, 0.09, -0.05, 0.0)], rot: [0, side * 0.3, side * tilt], scale: [0.13, 0.005, 0.005] });
-      }
-    }
+    whiskers(k, luminance(c.coat) < 0.2 ? WHITE : INK, { x: 0.13, dy: -0.05, len: 0.13, z: headZ(s, 0.09, -0.05, 0.0) });
     eyes(k, { dy: 0.04, x: 0.11 });
     roundEars(k, c.coat, PINK, { x: 0.21, r: 0.14, y: 0.2, depth: 0.3 });
+    // Extra-fluffy cheeks.
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 4; i++) ell(k.head, i % 2 ? c.light : c.coat, [side * (0.22 + (i % 2) * 0.03), s.hc[1] - 0.06 - i * 0.04, s.hc[2] + 0.05 + i * 0.02], [0.05, 0.04, 0.04], [0, side * 0.5, i], G.ico);
+    }
     blush(k);
     // Tiny paws held in front.
     for (const [b, side] of [
@@ -1073,8 +1274,263 @@ const RECIPES: Record<AnimalId, Recipe> = {
     }
     arms(k, c.coat, c.dark);
     legs(k, c.coat, '#3a2a24');
+    for (const b of [k.legL, k.legR]) for (let i = 0; i < 4; i++) ell(b, i % 2 ? c.coat : mix(c.coat, '#fff', 0.1), [Math.cos(i * 1.6) * 0.05, -0.06 - (i % 2) * 0.04, Math.sin(i * 1.6) * 0.05], [0.04, 0.05, 0.035], [0, i, 0], G.ico);
+    nostrils(k, '#1a1214', [0, s.hc[1] - 0.075, headZ(s, 0, -0.08, -0.055)], 0.03, 0.01);
     thinTail(k, c.coat, 0.26, 0.022, 0.5);
     ell(k.tail, c.dark, [0, 0.06, -0.26], 0.05, undefined, G.ico1);
+    return {};
+  },
+  squid(k, c) {
+    const s = k.shape;
+    const light = mix(c.coat, '#fff', 0.45);
+    const dark = mix(c.coat, '#3a1a30', 0.35);
+    // The mantle is the head: tall and pointed, with a fin either side near the top.
+    s.hr = [0.22, 0.34, 0.22];
+    s.hc = [0, 0.17, 0];
+    s.tr = [0.16, 0.1, 0.16];
+    s.tc = [0, 0.38, 0];
+    torso(k, c.coat);
+    head(k, c.coat);
+    k.head.add(G.cone8, c.coat, { pos: [0, s.hc[1] + 0.4, 0], scale: [0.14, 0.26, 0.14] });
+    // Swept fins either side of the top of the mantle, lighter along the edge.
+    for (const side of [-1, 1]) {
+      k.head.add(G.cone4, c.coat, { pos: [side * 0.215, s.hc[1] + 0.265, -0.03], rot: [0.15, 0, -side * 1.35], scale: [0.015, 0.24, 0.14] });
+      k.head.add(G.cone4, light, { pos: [side * 0.23, s.hc[1] + 0.262, -0.03], rot: [0.15, 0, -side * 1.35], scale: [0.006, 0.2, 0.11] });
+    }
+    // A paler face and chromatophore freckles over the mantle.
+    ell(k.head, light, [0, s.hc[1] - 0.06, headZ(s, 0, -0.06, 0.1)], [0.15, 0.2, 0.1]);
+    spots(k.head, dark, s.hc, s.hr, 14, 3, 0.022, -1, 0.35);
+    eyes(k, { style: 'big', x: 0.13, dy: -0.1, ring: '#f4f4f0', iris: dark, size: 1.15 });
+    smile(k, dark, -0.26, 0.03);
+    blush(k, BLUSH, 0.16, -0.21);
+    arms(k, c.coat, light, 'tentacle');
+    // The two long feeding tentacles, with paddles at the ends.
+    for (const [b, side] of [
+      [k.armL, 1],
+      [k.armR, -1],
+    ] as const) {
+      b.add(G.cyl6, c.coat, { pos: [side * 0.05, -0.2, 0.03], rot: [0.1, 0, side * 0.15], scale: [0.016, 0.3, 0.016] });
+      ell(b, light, [side * 0.075, -0.36, 0.045], [0.03, 0.05, 0.02]);
+      for (const y of [-0.3, -0.34, -0.38]) ell(b, mix(light, '#fff', 0.4), [side * 0.072, y, 0.063], 0.009);
+    }
+    // Eight short arms hanging under the body instead of legs.
+    for (const [b, side] of [
+      [k.legL, 1],
+      [k.legR, -1],
+    ] as const) {
+      for (let j = 0; j < 3; j++) {
+        const ang = (j - 1) * 0.8;
+        const dx = side * Math.cos(ang);
+        const dz = Math.sin(ang);
+        const n = 6;
+        for (let i = 0; i < n; i++) {
+          const t = i / (n - 1);
+          const out = t * 0.12;
+          const y = -0.04 - t * 0.2;
+          ell(b, i === n - 1 ? light : c.coat, [dx * out - side * 0.02, y, dz * out * 0.8], [0.045 - t * 0.022, 0.04, 0.045 - t * 0.022]);
+          if (i > 0 && i < n - 1) ell(b, light, [dx * out - side * 0.02, y, dz * out * 0.8 + 0.03], [0.016, 0.012, 0.012]);
+        }
+      }
+    }
+    return { aquatic: true, legs: 'tentacles' };
+  },
+  bat(k, c) {
+    const s = k.shape;
+    const membrane = mix(c.coat, '#f0a8b8', 0.6);
+    const belly = mix(c.coat, '#c8a890', 0.45);
+    s.hr = [0.28, 0.25, 0.26];
+    s.tr = [0.18, 0.2, 0.16];
+    torso(k, c.coat, belly);
+    for (let i = 0; i < 6; i++) ell(k.torso, belly, [((i % 3) - 1) * 0.07, 0.5 - Math.floor(i / 3) * 0.06, 0.14], [0.04, 0.03, 0.03], [0, i, 0], G.ico);
+    head(k, c.coat);
+    // A short upturned snout with a leaf nose, a grin and two tiny fangs.
+    const z = headZ(s, 0, -0.05, 0.04);
+    ell(k.head, belly, [0, s.hc[1] - 0.06, z], [0.1, 0.07, 0.06]);
+    k.head.add(G.cone4, '#3a2a30', { pos: [0, s.hc[1] - 0.02, z + 0.06], rot: [-0.4, Math.PI / 4, 0], scale: [0.03, 0.045, 0.02] });
+    nostrils(k, '#1a1014', [0, s.hc[1] - 0.035, z + 0.068], 0.012, 0.006);
+    smile(k, INK, -0.1, 0.04, z + 0.045);
+    for (const side of [-1, 1]) k.head.add(G.cone4, WHITE, { pos: [side * 0.03, s.hc[1] - 0.125, z + 0.045], rot: [Math.PI, 0, 0], scale: [0.009, 0.03, 0.008] });
+    eyes(k, { dy: 0.04, x: 0.11, size: 1.15, ring: luminance(c.coat) < 0.2 ? '#f6e7b8' : undefined });
+    pointyEars(k, c.coat, mix(c.coat, PINK, 0.5), { h: 0.34, r: 0.15, tilt: 0.4, x: 0.17, y: 0.15 });
+    blush(k, BLUSH, 0.18, -0.06);
+    // Wings: a bone to the elbow, four finger bones, and a scalloped membrane stretched between them and
+    // back to the flank. The membrane is a real double-sided sheet, tilted so it faces the game camera.
+    for (const [b, side] of [
+      [k.armL, 1],
+      [k.armR, -1],
+    ] as const) {
+      const fingers = [0.45, 0.1, -0.3, -0.7];
+      const len = 0.28;
+      const E: Vec3 = [0, -0.16, 0];
+      // The leading and trailing edges curl up a little (local x is "up" once the arm is spread), so the
+      // sheet is a shallow cup and some of it faces the camera from any side.
+      const lift = (a: number) => side * 0.04 * Math.abs(a - (fingers[0] + fingers[fingers.length - 1]) / 2) / 0.6;
+      const tip = (a: number): Vec3 => [lift(a), E[1] - Math.cos(a) * len, Math.sin(a) * len];
+      const tilt = placeMatrix({ rot: [0, -side * 0.35, 0] });
+      b.add(G.cyl6, c.coat, { pos: [0, -0.08, 0], scale: [0.024, 0.16, 0.024] }, tilt);
+      b.add(G.sphS, c.coat, { pos: E, scale: 0.032 }, tilt);
+      b.add(G.cone6, '#e8e0d0', { pos: [0, E[1] + 0.01, 0.04], rot: [Math.PI / 2 + 0.3, 0, 0], scale: [0.008, 0.035, 0.008] }, tilt);
+      for (const a of fingers) {
+        bone(b, c.coat, E, tip(a), 0.013, tilt);
+        b.add(G.sphXS, c.coat, { pos: tip(a), scale: 0.015 }, tilt);
+      }
+      // The rim of the membrane: from the thumb round the fingertips (scalloped between them) to the flank.
+      const T: Vec3 = [side * 0.03, -0.05, -0.15];
+      const rim: Vec3[] = [[0, E[1] + 0.02, 0.05]];
+      const between = (p: Vec3, q: Vec3, pull: number): Vec3 => [((p[0] + q[0]) / 2) * (1 - pull), ((p[1] + q[1]) / 2) * (1 - pull) + E[1] * pull, ((p[2] + q[2]) / 2) * (1 - pull) + E[2] * pull];
+      fingers.forEach((a, i) => {
+        rim.push(tip(a));
+        if (i < fingers.length - 1) rim.push(between(tip(a), tip(fingers[i + 1]), 0.22));
+      });
+      rim.push(between(tip(fingers[fingers.length - 1]), T, 0.2), T, [0, 0, -0.02]);
+      b.add(fan(E, rim), membrane, {}, tilt);
+    }
+    legs(k, c.coat, c.coat);
+    ell(k.tail, membrane, [0, 0.0, -0.06], [0.06, 0.012, 0.08]);
+    return { hover: 0.22, flaps: true };
+  },
+  raven(k, c) {
+    const s = k.shape;
+    const sheen = mix(c.coat, '#6a7ad0', 0.3);
+    const beak = luminance(c.coat) > 0.5 ? '#c9b7a0' : '#2a2a30';
+    s.tr = [0.21, 0.24, 0.2];
+    s.tc = [0, 0.4, 0];
+    s.hr = [0.27, 0.25, 0.26];
+    torso(k, c.coat);
+    // Shaggy throat feathers and a sheen across the back.
+    for (let i = 0; i < 6; i++) ell(k.torso, mix(c.coat, '#000', 0.15), [((i % 3) - 1) * 0.06, 0.5 - Math.floor(i / 3) * 0.06, 0.16], [0.035, 0.045, 0.025], [0.3, i, 0], G.ico);
+    ell(k.torso, sheen, [0, 0.52, -0.08], [0.17, 0.09, 0.13]);
+    head(k, c.coat);
+    // The big beak: a long upper cone with a lower one tucked under it.
+    const bz = headZ(s, 0, -0.03, 0.02);
+    k.head.add(G.cone8, beak, { pos: [0, s.hc[1] - 0.02, bz + 0.16], rot: [Math.PI / 2 - 0.1, 0, 0], scale: [0.08, 0.36, 0.075] });
+    k.head.add(G.cone8, mix(beak, '#000', 0.25), { pos: [0, s.hc[1] - 0.07, bz + 0.13], rot: [Math.PI / 2 + 0.08, 0, 0], scale: [0.06, 0.28, 0.04] });
+    k.head.add(G.box, mix(beak, '#fff', 0.3), { pos: [0, s.hc[1] + 0.045, bz + 0.12], rot: [-0.1, 0, 0], scale: [0.012, 0.008, 0.2] });
+    for (let i = 0; i < 4; i++) ell(k.head, c.coat, [i % 2 ? 0.025 : -0.025, s.hc[1] + 0.035, bz + 0.02 + i * 0.03], [0.03, 0.022, 0.03], undefined, G.ico);
+    nostrils(k, '#101014', [0, s.hc[1] + 0.005, bz + 0.1], 0.016, 0.006);
+    eyes(k, { dy: 0.05, x: 0.13, ring: luminance(c.coat) < 0.4 ? '#e8e0d8' : undefined, size: 1.1 });
+    brows(k, mix(c.coat, '#000', 0.3), { x: 0.13, dy: 0.12, w: 0.045, tilt: 0.35 });
+    for (const i of [-1, 0, 1]) ell(k.head, c.coat, [i * 0.05, s.hc[1] + 0.23, s.hc[2] - 0.06], [0.025, 0.06, 0.03], [-0.4, 0, i * 0.3]);
+    arms(k, c.coat, sheen, 'wing');
+    legs(k, '#3a3a40', '#3a3a40');
+    for (const b of [k.legL, k.legR]) claws(b, '#1a1a20', [0, -0.2, 0.09], 0.028, 0.04);
+    // A fan of tail feathers.
+    for (const a of [-0.5, -0.25, 0, 0.25, 0.5]) k.tail.add(G.cone4, a === 0 ? sheen : c.coat, { pos: [a * 0.2, -0.02, -0.14 - Math.abs(a) * 0.02], rot: [-2.0, 0, a], scale: [0.045, 0.2, 0.015] });
+    return {};
+  },
+  wombat(k, c) {
+    const s = k.shape;
+    s.tr = [0.25, 0.22, 0.23];
+    s.tc = [0, 0.37, 0];
+    s.hr = [0.31, 0.25, 0.28];
+    torso(k, c.coat, c.light);
+    // The famously square rump.
+    k.torso.add(G.box, c.coat, { pos: [0, 0.34, -0.12], scale: [0.34, 0.28, 0.24] });
+    head(k, c.coat);
+    // A big flat nose pad, chubby cheeks and small round ears.
+    const nz = headZ(s, 0, -0.04, 0.03);
+    ell(k.head, c.light, [0, s.hc[1] - 0.08, nz - 0.02], [0.17, 0.11, 0.1]);
+    ell(k.head, '#3a2a28', [0, s.hc[1] - 0.02, nz + 0.07], [0.085, 0.055, 0.04]);
+    nostrils(k, '#140e10', [0, s.hc[1] - 0.03, nz + 0.105], 0.03, 0.011);
+    k.head.add(G.smile, INK, { pos: [0, s.hc[1] - 0.11, nz + 0.07], rot: [0, 0, Math.PI], scale: [0.035, 0.025, 0.02] });
+    whiskers(k, mix(c.coat, '#fff', 0.5), { x: 0.14, dy: -0.06, len: 0.1, z: nz + 0.03 });
+    eyes(k, { dy: 0.06, x: 0.14, style: 'small' });
+    roundEars(k, c.coat, c.dark, { x: 0.22, r: 0.07, y: 0.18, depth: 0.5 });
+    blush(k, BLUSH, 0.2, -0.04);
+    arms(k, c.coat, c.dark);
+    claws(k.armL, '#2a2020', [0.025, -0.23, 0.04], 0.028, 0.045);
+    claws(k.armR, '#2a2020', [-0.025, -0.23, 0.04], 0.028, 0.045);
+    legs(k, c.coat, c.dark);
+    ell(k.tail, c.coat, [0, 0, -0.03], 0.03);
+    return {};
+  },
+  jellyfish(k, c) {
+    const s = k.shape;
+    const light = mix(c.coat, '#fff', 0.5);
+    const deep = mix(c.coat, '#3a2a60', 0.35);
+    // The bell is the head, on a short stalk of a body.
+    s.hr = [0.34, 0.36, 0.34];
+    s.hc = [0, 0.02, 0];
+    s.tr = [0.1, 0.1, 0.1];
+    s.tc = [0, 0.46, 0];
+    torso(k, light);
+    k.head.add(new THREE.SphereGeometry(1, 24, 14, 0, Math.PI * 2, 0, Math.PI / 2), c.coat, { pos: s.hc, scale: s.hr });
+    k.head.add(G.cyl, light, { pos: [0, s.hc[1] + 0.004, 0], scale: [0.33, 0.008, 0.33] });
+    k.head.add(G.torus, light, { pos: [0, s.hc[1] + 0.015, 0], rot: [Math.PI / 2, 0, 0], scale: [0.33, 0.33, 0.1] });
+    // Scallops round the rim and glowing dots up the dome.
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      ell(k.head, light, [Math.cos(a) * 0.33, s.hc[1] - 0.012, Math.sin(a) * 0.33], [0.05, 0.03, 0.05]);
+    }
+    for (let i = 0; i < 9; i++) {
+      const a = i * 2.4;
+      const u = 0.35 + (i % 3) * 0.22;
+      const dir = new THREE.Vector3(Math.cos(a) * Math.sqrt(1 - u * u), u, Math.sin(a) * Math.sqrt(1 - u * u));
+      if (dir.z > 0.45) continue;
+      ell(k.head, '#fff6d0', [dir.x * s.hr[0], s.hc[1] + dir.y * s.hr[1], dir.z * s.hr[2]], [0.03, 0.03, 0.012], [Math.atan2(dir.y, dir.z), 0, 0]);
+    }
+    eyes(k, { dy: 0.1, x: 0.11, size: 1.1 });
+    smile(k, deep, 0.035, 0.04);
+    blush(k, BLUSH, 0.19, 0.05);
+    // Frilly oral arms under the bell, and long trailing tentacles instead of legs.
+    arms(k, light, c.coat, 'tentacle');
+    for (const [b, side] of [
+      [k.legL, 1],
+      [k.legR, -1],
+    ] as const) {
+      for (let j = 0; j < 5; j++) {
+        const ang = (j - 2) * 0.6;
+        const x = side * Math.cos(ang) * 0.15;
+        const z = Math.sin(ang) * 0.15;
+        const len = 0.3 + (j % 2) * 0.1;
+        // Each tentacle is a wavy chain of beads, so they don't hang like sticks.
+        const n = 7;
+        for (let i = 0; i < n; i++) {
+          const t = i / (n - 1);
+          const wave = Math.sin(t * 5 + j) * 0.025;
+          ell(b, i === n - 1 ? light : mix(c.coat, light, t * 0.5), [x + side * wave, -0.02 - t * len, z + Math.cos(t * 4 + j) * 0.02], [0.016, 0.04, 0.016], undefined, G.sphXS);
+        }
+      }
+    }
+    return { aquatic: true, legs: 'tentacles', hover: 0.3, jelly: true };
+  },
+  gecko(k, c) {
+    const s = k.shape;
+    const belly = mix(c.coat, '#fff8e0', 0.55);
+    const spot = mix(c.coat, '#3a2a20', 0.5);
+    s.hr = [0.3, 0.2, 0.3];
+    s.hc = [0, 0.2, 0.03];
+    s.tr = [0.2, 0.18, 0.19];
+    s.tc = [0, 0.34, 0];
+    torso(k, c.coat, belly);
+    head(k, c.coat);
+    // Big round eyes with slit pupils, set on bumps either side of the head.
+    const ey = s.hc[1] + 0.07;
+    k.eyeY = ey;
+    for (const side of [-1, 1]) {
+      const ex = side * 0.15;
+      const ez = headZ(s, 0.15, 0.07, 0.03);
+      ell(k.head, c.coat, [ex, ey, ez - 0.02], [0.085, 0.08, 0.06]);
+      ell(k.eyes, '#f6e7b8', [ex, ey, ez + 0.015], [0.065, 0.065, 0.04], [0, side * 0.3, 0]);
+      ell(k.eyes, '#c89a30', [ex + side * 0.008, ey, ez + 0.035], [0.045, 0.045, 0.03], [0, side * 0.3, 0]);
+      ell(k.eyes, INK, [ex + side * 0.012, ey, ez + 0.05], [0.012, 0.038, 0.02], [0, side * 0.3, 0]);
+      ell(k.eyes, '#fff', [ex + side * 0.025, ey + 0.02, ez + 0.06], 0.01);
+      ell(k.head, spot, [ex, ey + 0.07, ez - 0.03], [0.07, 0.015, 0.03], [0, side * 0.5, side * 0.15]);
+    }
+    // A wide happy mouth, nostrils at the tip of the snout.
+    k.head.add(G.smile, '#5a3a30', { pos: [0, s.hc[1] - 0.04, headZ(s, 0, -0.04, 0.04)], rot: [0.15, 0, Math.PI], scale: [0.15, 0.07, 0.08] });
+    nostrils(k, '#3a2a20', [0, s.hc[1] + 0.03, headZ(s, 0, 0.03, -0.004)], 0.035, 0.008);
+    blush(k, BLUSH, 0.2, -0.05);
+    spots(k.head, spot, s.hc, s.hr, 8, 7, 0.026, -1, 0.2);
+    spots(k.torso, spot, s.tc, s.tr, 10, 4, 0.028, -1, 0.4);
+    arms(k, c.coat, belly);
+    legs(k, c.coat, belly);
+    // The fat ringed tail.
+    for (let i = 0; i < 7; i++) {
+      const t = i / 6;
+      const r = 0.075 - Math.abs(t - 0.35) * 0.08;
+      ell(k.tail, i % 2 ? spot : c.coat, [Math.sin(t * 2.2) * 0.08, 0.02 + t * 0.06, -0.05 - t * 0.3], [r, r * 0.8, 0.06]);
+    }
     return {};
   },
   bunny(k, c) {
@@ -1084,6 +1540,8 @@ const RECIPES: Record<AnimalId, Recipe> = {
     for (const side of [-1, 1]) ell(k.head, mix(c.coat, '#fff', 0.5), [side * 0.04, s.hc[1] - 0.07, headZ(s, 0.04, -0.07, 0.02)], [0.05, 0.04, 0.035]);
     ell(k.head, '#e47a90', [0, s.hc[1] - 0.035, headZ(s, 0, -0.035, -0.012)], [0.03, 0.022, 0.02]);
     for (const side of [-1, 1]) k.head.add(G.box, WHITE, { pos: [side * 0.012, s.hc[1] - 0.12, headZ(s, 0, -0.12, 0.0)], scale: [0.02, 0.035, 0.012] });
+    whiskers(k, luminance(c.coat) < 0.3 ? WHITE : '#9a8a80', { x: 0.13, dy: -0.06, len: 0.1, dz: 0.03 });
+    for (const side of [-1, 1]) ell(k.head, mix(c.coat, '#fff', 0.5), [side * 0.2, s.hc[1] - 0.12, headZ(s, 0.2, -0.12, 0.03)], [0.06, 0.05, 0.045], [0, side * 0.5, 0], G.ico);
     eyes(k, { dy: 0.04, ring: luminance(c.coat) < 0.12 ? WHITE : undefined });
     for (const side of [-1, 1]) {
       const p: Vec3 = [side * 0.09, s.hc[1] + 0.4, s.hc[2] - 0.04];
@@ -1093,6 +1551,7 @@ const RECIPES: Record<AnimalId, Recipe> = {
     blush(k);
     arms(k, c.coat, c.coat);
     legs(k, c.coat, mix(c.coat, '#fff', 0.5));
+    for (const b of [k.legL, k.legR]) ell(b, PINK, [0, -0.215, 0.05], [0.03, 0.01, 0.035]);
     ell(k.tail, WHITE, [0, 0.0, -0.04], 0.075, undefined, G.ico1);
     return {};
   },
@@ -1162,6 +1621,10 @@ interface RigParts {
   tentacles: boolean;
   aquatic: boolean;
   noLegs?: boolean;
+  /** How high a floating rig hovers. */
+  hover?: number;
+  /** The arms are wings and beat on their own. */
+  flaps?: boolean;
   /** Slower, droopier idling with half-closed eyes (the sloth). */
   sleepy?: boolean;
   /** Extra things that hang off the body group (the Storyteller's lantern). */
@@ -1200,6 +1663,8 @@ class AnimalRig implements Rig {
   private blinkT = -1;
   private seed = Math.random() * 100;
   private floats: boolean;
+  private hover: number;
+  private flaps: boolean;
   private tentacles: boolean;
   private noLegs: boolean;
   private sleepy: boolean;
@@ -1208,6 +1673,8 @@ class AnimalRig implements Rig {
   constructor(p: RigParts) {
     const k = p.parts;
     this.floats = p.floats;
+    this.hover = p.hover ?? 0.35;
+    this.flaps = Boolean(p.flaps);
     this.tentacles = p.tentacles;
     this.noLegs = Boolean(p.noLegs);
     this.sleepy = Boolean(p.sleepy);
@@ -1295,7 +1762,7 @@ class AnimalRig implements Rig {
     this.applyPose(1);
     this.root.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(this.neck);
-    this.headHeight = box.max.y + (this.floats ? 0.35 : 0);
+    this.headHeight = box.max.y + (this.floats ? this.hover : 0);
   }
 
   setItem(item: Item | null) {
@@ -1494,6 +1961,18 @@ class AnimalRig implements Rig {
       P.llx *= 0.4;
       P.lrx *= 0.4;
     }
+    if (this.flaps && (s.anim === 'idle' || s.anim === 'walk' || s.anim === 'run' || s.anim === 'sit' || s.anim === 'fish')) {
+      // Wings beat on their own: quicker on the move, lazier when sitting, and the right wing keeps
+      // still enough to hold whatever is in it.
+      const rate = s.anim === 'run' ? 16 : s.anim === 'walk' ? 12 : s.anim === 'sit' ? 4 : 9;
+      const amp = s.anim === 'sit' ? 0.2 : 0.45;
+      const beat = sin(t * rate);
+      P.alz = 1.5 + beat * amp;
+      P.arz = -(1.5 + beat * (this.item ? amp * 0.3 : amp));
+      P.alx = P.arx = -0.1;
+      P.sl = P.sr = 1;
+      P.by += Math.max(0, beat) * 0.02;
+    }
     return P;
   }
 
@@ -1527,7 +2006,8 @@ class AnimalRig implements Rig {
 
     // Floating: ghosts and the Storyteller hover with a gentle bob.
     const floating = this.floats || this.ghost;
-    const fy = floating ? 0.35 + Math.sin(s.t * 2 + this.seed) * 0.06 : 0;
+    const h = s.anim === 'sleep' ? 0.03 : this.floats ? this.hover : 0.35;
+    const fy = floating ? h + Math.sin(s.t * 2 + this.seed) * 0.06 : 0;
     this.float.position.y += (fy - this.float.position.y) * (1 - Math.exp(-dt * 6));
     if (floating) this.wisp.rotation.z = Math.sin(s.t * 3 + this.seed) * 0.15;
 
@@ -1617,14 +2097,30 @@ export function buildAnimal(look: Look): Rig {
   const aquatic = res.aquatic ?? info.aquatic;
   return new AnimalRig({
     parts: k,
-    material: aquatic ? wet() : soft(),
+    material: res.jelly ? jelly() : aquatic ? wet() : soft(),
+    eyeMaterial: res.jelly ? soft() : undefined,
     ghostColor: mix(coat, '#e6f0ff', 0.75),
-    floats: false,
+    floats: Boolean(res.hover),
+    hover: res.hover,
+    flaps: res.flaps,
     tentacles: res.legs === 'tentacles',
     aquatic,
     sleepy: res.sleepy,
   });
 }
+
+/** See-through and glossy, for the jellyfish. */
+const jelly = () =>
+  new THREE.MeshPhysicalMaterial({
+    vertexColors: true,
+    flatShading: true,
+    roughness: 0.2,
+    metalness: 0,
+    clearcoat: 1,
+    clearcoatRoughness: 0.1,
+    transparent: true,
+    opacity: 0.8,
+  });
 
 // ---------------------------------------------------------------- the Storyteller
 

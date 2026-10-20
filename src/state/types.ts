@@ -25,6 +25,8 @@ export interface Seat {
   reminders: Reminder[];
   /** The player's animal and colour. */
   look: Look | null;
+  /** The day they wear a gold star, for counting the sheep right the night before. */
+  star?: number | null;
 }
 
 export type NominationStatus = 'idle' | 'countdown' | 'running' | 'paused' | 'done';
@@ -172,6 +174,8 @@ export interface PublicSeat {
   roleId: string | null;
   alignment: Alignment | null;
   look: Look | null;
+  /** The day number they wear a gold star. */
+  star?: number | null;
 }
 
 export interface PublicState {
@@ -213,7 +217,11 @@ export type TownAction =
   | { k: 'plant'; bed: number; kind: FlowerKind; color: string; stars: number }
   | { k: 'bake'; kind: BakeKind; stars: number }
   | { k: 'takeBake'; id: string }
-  | { k: 'fish'; kind: string; cm: number };
+  | { k: 'fish'; kind: string; cm: number }
+  /** A score at one of the games; the host keeps it if it beats the town record. */
+  | { k: 'record'; game: string; score: number }
+  /** Counted the sheep right tonight: a gold star to wear tomorrow. */
+  | { k: 'star' };
 
 export type HostMessage =
   | { t: 'state'; s: PublicState; now?: number; v?: string }

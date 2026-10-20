@@ -43,7 +43,8 @@ export interface TownWorld {
   homeSpawn: Spot;
   meetingSpot(i: number, n: number): Spot;
   meetingRadius: number;
-  show(kind: ZoneKind): void;
+  /** Shows a place. `night` is for bedrooms: the fire out, the lamps off, moon and stars in the window. */
+  show(kind: ZoneKind, night?: boolean): void;
   setTime(t: number): void;
   setHouses(list: ({ name: string; dead: boolean } | null)[]): void;
   /** The sign above the bed: "<name>'s home", or any lines you like. */
@@ -447,6 +448,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     house: interiors.rooms.house.group,
   };
   let zone: ZoneKind = 'town';
+  let homeNight = false;
   let time = 0;
   let housesKey = '';
   let ownerKey = '';
@@ -459,7 +461,15 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   function applyLight() {
     const room = zone === 'town' ? null : interiors.rooms[zone as Room];
     const t = smooth(time);
-    if (!room) {
+    const dark = Boolean(room?.night && homeNight);
+    const light = room ? (dark && room.night ? room.night : room) : null;
+    if (room) {
+      const flames = room.group.getObjectByName('glow');
+      if (flames) flames.visible = !dark;
+      const win = room.group.getObjectByName('nightWindow');
+      if (win) win.visible = dark;
+    }
+    if (!room || !light) {
       scene.fog = fogTown;
       (scene.background as THREE.Color | null)?.copy(lerpColor(DAY.sky, NIGHT.sky, t)) ?? (scene.background = lerpColor(DAY.sky, NIGHT.sky, t).clone());
       fogTown.color.copy(lerpColor(DAY.fog, NIGHT.fog, t));
@@ -491,16 +501,16 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     } else {
       scene.fog = null;
       scene.background = (scene.background as THREE.Color | null)?.set('#100d16') ?? new THREE.Color('#100d16');
-      hemi.color.set(room.hemi.sky);
-      hemi.groundColor.set(room.hemi.ground);
-      hemi.intensity = room.hemi.intensity;
-      sun.color.set(room.sun.color);
-      sun.intensity = room.sun.intensity;
-      sun.position.set(room.sun.dir[0] * 40, room.sun.dir[1] * 40, room.sun.dir[2] * 40);
+      hemi.color.set(light.hemi.sky);
+      hemi.groundColor.set(light.hemi.ground);
+      hemi.intensity = light.hemi.intensity;
+      sun.color.set(light.sun.color);
+      sun.intensity = light.sun.intensity;
+      sun.position.set(light.sun.dir[0] * 40, light.sun.dir[1] * 40, light.sun.dir[2] * 40);
       sun.target.position.set(0, 0, 0);
       sun.target.updateMatrixWorld();
       lamps.forEach((l, i) => {
-        const spec = room.lights[i];
+        const spec = light.lights[i];
         if (!spec) {
           lampSpecs[i] = { base: 0, flicker: false };
           return;
@@ -511,7 +521,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         lampSpecs[i] = { base: spec.intensity, flicker: Boolean(spec.flicker) };
       });
       // Outside the windows it's day or night.
-      interiors.glassMaterial.color.setScalar(1 - 0.85 * t);
+      interiors.glassMaterial.color.setScalar(dark ? 0.08 : 1 - 0.85 * t);
       sky.visible = false;
     }
     lamps.forEach((l, i) => (l.intensity = lampSpecs[i].base));
@@ -549,8 +559,9 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     meetingSpot,
     meetingRadius: MEETING_R,
 
-    show(kind) {
+    show(kind, night = false) {
       zone = kind;
+      homeNight = night;
       for (const [k, g] of Object.entries(groups)) g.visible = k === kind;
       applyLight();
     },

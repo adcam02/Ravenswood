@@ -197,6 +197,15 @@ const place = (p, zone, x, z, ry = 0) => p.evaluate(([zone, x, z, ry]) => window
 const me = (p) => p.evaluate(() => ({ ...window.__local }));
 const seatOf = (name) => st.evaluate((n) => window.__host.getState().g.seats.find((s) => s.name.toLowerCase() === n.toLowerCase())?.id, name);
 
+await check('items: nobody but the Storyteller carries the book', async () => {
+  for (const p of all()) expect((await me(p)).item === null, `${p.label} is holding ${JSON.stringify((await me(p)).item)}`);
+  const id = await seatOf('Abbey');
+  const book = await players.colter.evaluate((id) => Boolean(window.__engine.others.get(id)?.rig.root.getObjectByName('item:grimoire')), id);
+  expect(!book, 'Colter sees Abbey holding the grimoire');
+  const stBook = await players.colter.evaluate(() => Boolean(window.__engine.others.get('st')?.rig.root.getObjectByName('item:grimoire')));
+  expect(stBook, 'the Storyteller has no grimoire in hand');
+});
+
 await check('move: walking with W moves Abbey for everyone', async () => {
   const p = players.abbey;
   await place(p, 'town', 0, 22, 0);
@@ -402,16 +411,42 @@ await check('game: dealing and night sends everyone home with doors locked', asy
   const id = await seatOf('Abbey');
   const zone = (await me(a)).zone;
   expect(zone === `house:${id}`, `Abbey is in ${zone}`);
-  await sleep(2500);
+  await until(a, () => window.__local.anim === 'sleep', null, 10000, 'Abbey to be asleep in bed');
+  await sleep(2000);
   await shot(a, '12-home-at-night');
-  const exit = await a.evaluate(() => window.__engine.town.doors.find((d) => d.zone === 'house'));
-  await place(a, zone, exit.x, exit.z - 0.3, 0);
-  await sleep(300);
+  // Tucked in: the keys do nothing until morning.
+  const before = await me(a);
   await a.keyboard.down('s');
-  await sleep(2500);
+  await sleep(1500);
   await a.keyboard.up('s');
-  expect((await me(a)).zone === zone, 'Abbey left home at night');
-  await a.waitForSelector('.action-prompt.locked', { timeout: 15000 });
+  const after = await me(a);
+  expect(Math.hypot(after.x - before.x, after.z - before.z) < 0.05 && after.anim === 'sleep', 'Abbey got out of bed at night');
+  await a.waitForSelector('.action-prompt', { timeout: 15000 });
+  const prompt = await a.$eval('.action-prompt', (el) => el.textContent);
+  expect(/count the sheep/i.test(prompt), `the bedside prompt says "${prompt}"`);
+});
+
+await check('night: counting the sheep right earns a gold star for the morning', async () => {
+  const a = players.abbey;
+  await a.keyboard.press('e');
+  await a.waitForSelector('.sheep-game', { timeout: 10000 });
+  await shot(a, '12b-sheep-rules');
+  await jsClick(a, '.sheep-rules .cosy-btn', 5000);
+  await a.waitForSelector('.sheep-canvas', { timeout: 5000 });
+  await sleep(4000);
+  await shot(a, '12c-sheep-run');
+  await a.waitForSelector('.sheep-guess', { timeout: 70000 });
+  const answer = await a.evaluate(() => window.__sheepAnswer);
+  expect(Number.isInteger(answer), `no answer on the page (${answer})`);
+  for (const ch of String(answer)) await a.keyboard.press(ch);
+  await a.keyboard.press('Enter');
+  await a.waitForSelector('.sheep-result.is-right', { timeout: 5000 });
+  await shot(a, '12d-sheep-right');
+  const id = await seatOf('Abbey');
+  await until(st, (id) => {
+    const g = window.__host.getState().g;
+    return g.seats.find((s) => s.id === id)?.star === g.day;
+  }, id, 10000, 'the host to award Abbey a star');
 });
 
 await check('game: the Storyteller floats into a house to talk', async () => {
@@ -445,15 +480,20 @@ await check('game: a night death shows at dawn and the dead walk as ghosts', asy
 });
 
 await check('game: ringing the bell gathers everyone at the square', async () => {
-  for (const p of all()) await place(p, 'town', -20, 20, 0);
+  // Abbey is already standing in the square, the others are off by the washhouse: all of them must get the call.
+  await place(players.abbey, 'town', 1, 9, 0);
+  for (const p of all().filter((q) => q !== players.abbey)) await place(p, 'town', -20, 20, 0);
   await sleep(1500);
   await st.evaluate(() => window.__st.st.callTownHall());
-  await sleep(1200);
+  for (const p of all()) await p.waitForSelector('.bell-call', { timeout: 8000 }).catch(() => expect(false, `${p.label} never saw the bell`));
   await shot(players.abbey, '16-bell');
   // Everyone is taken to their stool on their own; the host sees them arrive.
+  for (const p of all()) await until(p, () => window.__hud.getState().meetingSeated, null, 30000, 'to be seated at the meeting');
   await until(st, () => !window.__host.getState().g.townHall, null, 60000, 'everyone to arrive at the square');
+  for (const p of all()) expect(!(await p.$('.bell-call')), `${p.label} still sees the bell call after sitting`);
   const me = await players.abbey.evaluate(() => ({ ...window.__local }));
   expect(Math.hypot(me.x, me.z) < 13, `Abbey ended up ${Math.hypot(me.x, me.z).toFixed(1)}m from the tower`);
+  await shot(players.colter, '16b-seated-minimap');
 });
 
 await check('game: nominations and votes raise paws round the clock', async () => {
@@ -489,6 +529,30 @@ await check('game: waking a player at night takes the Storyteller to their bedsi
   await st.evaluate(() => window.__st.st.setPhase('day'));
   for (const p of all()) await until(p, () => window.__local.zone === 'town', null, 30000, 'to be back outside');
   for (const p of all()) await p.$('.reveal-overlay .btn').then((b) => b && jsClick(p, '.reveal-overlay .btn', 10000)).catch(() => {});
+});
+
+await check('day: the gold star shows on the sheep counter for everyone', async () => {
+  // Abbey earned hers on the first night; it's worn through that day, and a fresh one needs a fresh night.
+  await st.evaluate(() => window.__st.st.setPhase('night'));
+  for (const p of all()) await until(p, () => window.__local.anim === 'sleep', null, 30000, 'to be in bed');
+  const a = players.abbey;
+  await a.keyboard.press('e');
+  await a.waitForSelector('.sheep-game', { timeout: 10000 });
+  await jsClick(a, '.sheep-rules .cosy-btn', 5000);
+  await a.waitForSelector('.sheep-guess', { timeout: 70000 });
+  const answer = await a.evaluate(() => window.__sheepAnswer);
+  for (const ch of String(answer)) await a.keyboard.press(ch);
+  await a.keyboard.press('Enter');
+  await a.waitForSelector('.sheep-result', { timeout: 5000 });
+  await st.evaluate(() => window.__st.st.setPhase('day'));
+  for (const p of all()) await until(p, () => window.__local.zone === 'town', null, 30000, 'to be back outside');
+  for (const p of all()) await p.$('.reveal-overlay .btn').then((b) => b && jsClick(p, '.reveal-overlay .btn', 10000)).catch(() => {});
+  const id = await seatOf('Abbey');
+  await until(players.colter, (id) => Boolean(window.__engine.others.get(id)?.star), id, 15000, 'Colter to see Abbey’s star');
+  await place(players.colter, 'town', 0, 9, 0);
+  await place(players.abbey, 'town', 0, 7, 0);
+  await sleep(1500);
+  await shot(players.colter, '21b-gold-star');
 });
 
 await check('game: an execution plays out at the gallows for everyone', async () => {

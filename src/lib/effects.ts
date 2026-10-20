@@ -7,6 +7,7 @@ import { getRole } from '../data';
 import { countBeat, dawn, gavel, nightfall, primeAudio, tick, townBells, wakeChime } from './audio';
 import { notify } from './notify';
 import { joinNames } from './util';
+import { JOB_TITLES, SCORE_LABEL, type GameJob } from '../jobs';
 
 /** Sounds, banners and notices that follow from changes in the game. */
 export function useEffects(view: View | null) {
@@ -57,6 +58,11 @@ export function useEffects(view: View | null) {
       }
     }
     if (view.grimoireRevealed && !p.grimoireRevealed) ui.banner('The grimoire is revealed', 'Every character, face up');
+    // A new town record is news for everyone.
+    for (const [game, r] of Object.entries(view.town.records)) {
+      const before = p.town.records[game];
+      if (!before || before.at !== r.at) ui.toast(`🏆 ${r.by} set the ${JOB_TITLES[game as GameJob]?.toLowerCase() ?? game} record: ${SCORE_LABEL[game as GameJob]?.(r.score) ?? r.score}`, 'good');
+    }
   }, [view]);
 
   // A player being woken.

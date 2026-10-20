@@ -32,6 +32,8 @@ export interface SeatView {
   /** Storyteller only: killed tonight, so players won't see it until day. */
   diesAtDawn: boolean;
   look: Look | null;
+  /** Wearing a gold star today, for counting the sheep right last night. */
+  star: boolean;
 }
 
 export interface View {
@@ -84,6 +86,7 @@ export function useStorytellerView(): View {
         traveller: isTraveller(s.roleId),
         diesAtDawn: g.phase === 'night' && g.nightDeaths.includes(s.id),
         look: s.look,
+        star: s.star != null && s.star === g.day,
       })),
       fabled: g.fabled,
       nomination: g.nomination,
@@ -132,6 +135,7 @@ export function usePlayerView(): View | null {
           traveller: isTraveller(s.roleId),
           diesAtDawn: false,
           look: s.look ?? null,
+          star: s.star != null && s.star === pub.day,
         };
       }),
       fabled: pub.fabled,

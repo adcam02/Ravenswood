@@ -182,6 +182,26 @@ function bucket(b: Builder) {
   b.add(TORUS, '#9aa0a8', { pos: [o[0], o[1] + 0.16, o[2]], rot: [0, 0, 0], scale: [0.08, 0.08, 0.03] });
 }
 
+function goblet(b: Builder) {
+  const o: Vec3 = [0, 0.02, 0.08];
+  b.add(CYL, '#c9a24f', { pos: [o[0], o[1] + 0.01, o[2]], scale: [0.05, 0.02, 0.05] });
+  b.add(CYL6, '#c9a24f', { pos: [o[0], o[1] + 0.06, o[2]], scale: [0.012, 0.08, 0.012] });
+  b.add(BASKET, '#c9a24f', { pos: [o[0], o[1] + 0.14, o[2]], scale: [0.055, 0.09, 0.055] });
+  b.add(CYL, '#7a1f2e', { pos: [o[0], o[1] + 0.175, o[2]], scale: [0.048, 0.006, 0.048] });
+}
+
+function firewood(b: Builder) {
+  const o: Vec3 = [0, 0.03, 0.1];
+  for (const [dx, dy] of [
+    [-0.03, 0],
+    [0.03, 0],
+    [0, 0.05],
+  ]) {
+    b.add(CYL6, '#9a6a43', { pos: [o[0] + dx, o[1] + dy, o[2]], rot: [Math.PI / 2, 0, 0], scale: [0.028, 0.22, 0.028] });
+  }
+  b.add(TORUS, '#d8c8a0', { pos: [o[0], o[1] + 0.02, o[2]], rot: [Math.PI / 2, 0, 0], scale: [0.06, 0.06, 0.02] });
+}
+
 export function buildItem(item: Item): THREE.Object3D {
   if (item.k === 'grimoire') return grimoire(item.c === 'open');
   const b = new Builder();
@@ -214,6 +234,12 @@ export function buildItem(item: Item): THREE.Object3D {
       break;
     case 'water':
       bucket(b);
+      break;
+    case 'wine':
+      goblet(b);
+      break;
+    case 'firewood':
+      firewood(b);
       break;
   }
   const mesh = b.mesh(soft(), { cast: true, receive: false });

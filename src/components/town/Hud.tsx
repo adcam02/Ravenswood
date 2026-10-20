@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { JobGame } from '../../jobs';
+import { JobGame, JOB_TITLES, SCORE_LABEL, type GameJob } from '../../jobs';
+import { useBests } from '../../game/bests';
 import { game, useHud } from '../../game/hud';
 import { local, useLocal } from '../../game/local';
 import { presence } from '../../game/presence';
@@ -11,6 +12,7 @@ import { useView } from '../../state/view';
 import { useVoice, voice } from '../../voice/voice';
 import { EMOTES, type Item } from '../../world/types';
 import { Icon } from '../Icon';
+import { SheepGame } from './SheepGame';
 
 const ITEM_NAMES: Record<Item['k'], [string, string]> = {
   ale: ['🍺', 'an ale'],
@@ -27,6 +29,8 @@ const ITEM_NAMES: Record<Item['k'], [string, string]> = {
   washing: ['🧺', 'the washing'],
   grimoire: ['📖', 'the grimoire'],
   water: ['🪣', 'a bucket of well water'],
+  wine: ['🍷', 'a goblet of wine'],
+  firewood: ['🪵', 'a bundle of firewood'],
 };
 
 export const itemName = (item: Item) => ITEM_NAMES[item.k]?.[1] ?? 'something';
@@ -181,17 +185,22 @@ export function EmoteBar() {
 export function BellCall() {
   const view = useView();
   const call = view.townHall;
+  const seated = useHud((s) => s.meetingSeated);
+  const sheep = useHud((s) => s.sheep);
   const me = view.seats.find((s) => s.isMe);
-  if (!call || !me || call.back.includes(me.id)) return null;
+  if (!call || !me || seated || sheep) return null;
+  const here = view.seats.filter((s) => call.back.includes(s.id)).length;
   return (
     <div className="bell-call cosy-panel" key={`${call.id}${call.ring}`}>
       <span className="bell-emoji">🔔</span>
       <div>
         <strong>The bell is ringing!</strong>
-        <span>Taking you to your seat at the square…</span>
+        <span>
+          Everyone to the square · {here} of {view.seats.length} there
+        </span>
       </div>
       <button className="cosy-btn primary" onClick={game.goToSquare}>
-        Go now
+        Take my seat
       </button>
     </div>
   );
@@ -202,8 +211,10 @@ export function MeetingSeat() {
   const view = useView();
   const me = view.seats.find((s) => s.isMe);
   const job = useHud((s) => s.job);
-  if (!me || job || !(view.nomination || view.townHall)) return null;
-  if (view.townHall && !view.townHall.back.includes(me.id)) return null;
+  const seated = useHud((s) => s.meetingSeated);
+  const sheep = useHud((s) => s.sheep);
+  if (!me || job || seated || sheep || !(view.nomination || view.townHall)) return null;
+  if (view.townHall) return null;
   return (
     <button className="meeting-seat cosy-btn" onClick={game.takeMeetingSeat}>
       🪵 Take your seat
@@ -213,8 +224,19 @@ export function MeetingSeat() {
 
 export function JobLayer() {
   const job = useHud((s) => s.job);
+  const view = useView();
+  const personal = useBests((s) => s.bests);
   if (!job) return null;
-  return <JobGame key={job.station} job={job.job} onDone={(r) => game.jobDone(r)} onCancel={() => game.jobCancel()} />;
+  const town = view.town.records[job.job];
+  const bests = { personal: personal[job.job], town: town ? { by: town.by, score: town.score } : undefined };
+  return <JobGame key={job.station} job={job.job} bests={bests} onDone={(r) => game.jobDone(r)} onCancel={() => game.jobCancel()} />;
+}
+
+/** In bed at night: the counting-sheep game, once it's been taken up. */
+export function SheepLayer() {
+  const sheep = useHud((s) => s.sheep);
+  if (sheep !== 'playing') return null;
+  return <SheepGame />;
 }
 
 export function Fade() {
@@ -382,6 +404,20 @@ export function NoticeBoard() {
           <section>
             <h3>Earlier days</h3>
             <ul>{earlier.slice(-6).map(line)}</ul>
+          </section>
+        )}
+        {Object.keys(view.town.records).length > 0 && (
+          <section>
+            <h3>Town records</h3>
+            <ul>
+              {Object.entries(view.town.records)
+                .sort((a, b) => b[1].at - a[1].at)
+                .map(([game, r]) => (
+                  <li key={game}>
+                    <b>{JOB_TITLES[game as GameJob] ?? game}</b>: {r.by}, {SCORE_LABEL[game as GameJob]?.(r.score) ?? r.score}
+                  </li>
+                ))}
+            </ul>
           </section>
         )}
         <section>

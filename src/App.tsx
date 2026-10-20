@@ -25,6 +25,7 @@ import {
   MeetingSeat,
   NoticeBoard,
   PlaceChip,
+  SheepLayer,
   VoiceDock,
   WorldFailed,
 } from './components/town/Hud';
@@ -213,6 +214,7 @@ function Player({ room }: { room: string }) {
                 <EmoteBar />
               </div>
               <JobLayer />
+              <SheepLayer />
               <NoticeBoard />
               <HelpCard />
               <Modals />

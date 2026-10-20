@@ -54,6 +54,7 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
       // Characters float over heads for the Storyteller, and for everyone once the grimoire is revealed.
       roleId: mode === 'st' || view.grimoireRevealed ? s.roleId : null,
       evil: s.alignment === 'evil',
+      star: s.star,
     })),
     nomination: view.nomination,
     marked: view.marked,

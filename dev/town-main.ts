@@ -15,7 +15,7 @@ document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(num('fov', 40), innerWidth / innerHeight, 0.3, 400);
 const town = createTown(scene, renderer);
-town.show(zone);
+town.show(zone, q.has('night'));
 town.setTime(num('t', 0));
 
 const tx = num('x', 0);
@@ -75,7 +75,12 @@ function loop() {
   frames++;
   if (frames === 10) {
     (window as unknown as { done: boolean }).done = true;
-    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles };
+    let total = 0;
+    scene.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.isMesh && m.geometry) total += (m.geometry.index ? m.geometry.index.count : m.geometry.getAttribute('position').count) / 3;
+    });
+    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, total: Math.round(total) };
   }
 }
 loop();

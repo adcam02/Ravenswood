@@ -50,19 +50,20 @@ if (view === 'grid' || view === 'night') {
     const z = Math.floor(i / cols) * 1.8 - 1.8;
     place(buildAnimal({ animal: id as AnimalId, color: ANIMALS[i].colors[0] }), x, z, 'idle', 0, 0);
   });
-  const st = place(buildStoryteller(), -4, 3.6);
+  const zr = Math.ceil(list.length / cols) * 1.8 - 1.8 + 0.6;
+  const st = place(buildStoryteller(), -4, zr);
   void st;
-  const g1 = place(buildAnimal({ animal: 'fox', color: '#e2793a' }), 0, 3.6);
+  const g1 = place(buildAnimal({ animal: 'fox', color: '#e2793a' }), 0, zr);
   g1.setGhost(true);
-  const g2 = place(buildAnimal({ animal: 'penguin', color: '#2e3340' }), 2, 3.6);
+  const g2 = place(buildAnimal({ animal: 'penguin', color: '#2e3340' }), 2, zr);
   g2.setGhost(true);
-  const w = place(buildAnimal({ animal: 'bear', color: '#8a5a36' }), 4, 3.6, 'walk', 1.8);
+  const w = place(buildAnimal({ animal: 'bear', color: '#8a5a36' }), 4, zr, 'walk', 1.8);
   w.setItem({ k: 'ale' });
-  camera.position.set(0, 11, 13.5);
-  camera.lookAt(0, 0, 0.8);
+  camera.position.set(0, 12, 14.5);
+  camera.lookAt(0, 0, 1.4);
 } else if (view === 'game') {
   // About what the game camera sees: a small crowd, about 12m away, looking down at 40 degrees.
-  const pick: AnimalId[] = ['wolf', 'bunny', 'shark', 'fox', 'octopus', 'penguin', 'sheep', 'deer', 'hedgehog', 'axolotl'];
+  const pick: AnimalId[] = ['wolf', 'bunny', 'shark', 'fox', 'octopus', 'penguin', 'bat', 'deer', 'squid', 'axolotl'];
   pick.forEach((id, i) => {
     const a = (i / pick.length) * Math.PI * 2;
     const r = place(buildAnimal({ animal: id, color: ANIMALS.find((x) => x.id === id)!.colors[0] }), Math.cos(a) * 3.2, Math.sin(a) * 2.4, i % 3 === 0 ? 'walk' : i % 3 === 1 ? 'idle' : 'wave', i % 3 === 0 ? 1.6 : 0, -a + Math.PI / 2);
@@ -73,7 +74,7 @@ if (view === 'grid' || view === 'night') {
   camera.lookAt(0, 0.5, 0);
 } else if (view === 'close') {
   const start = Number(q.get('from') ?? 0);
-  const ids = list.slice(start, start + 6);
+  const ids = q.get('animal') ? q.get('animal')!.split(',') : list.slice(start, start + 6);
   ids.forEach((id, i) => {
     const info = ANIMALS.find((a) => a.id === id)!;
     place(buildAnimal({ animal: id as AnimalId, color: q.get('color') ?? info.colors[Number(q.get('c') ?? 0)] ?? info.colors[0] }), (i - (ids.length - 1) / 2) * 1.25, 0, 'idle', 0, Number(q.get('ry') ?? 0.25));
@@ -125,17 +126,31 @@ if (q.has('thumbs')) {
 const t0 = performance.now();
 let last = t0;
 const fixedT = q.get('t');
+let frames = 0;
+/** Triangles in a rig, counting every mesh hung off its root. */
+function triangles(rig: Rig): number {
+  let n = 0;
+  rig.root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (m.isMesh && m.visible) n += (m.geometry.getAttribute('position')?.count ?? 0) / 3;
+  });
+  return Math.round(n);
+}
 function frame(now: number) {
   const dt = Math.min((now - last) / 1000, 0.1);
   last = now;
   const t = fixedT ? Number(fixedT) : (now - t0) / 1000;
   for (const r of rigs) {
     r.rig.update({ anim: r.anim, speed: r.speed, dt, t });
-    if (r.anim === 'walk' || r.anim === 'run') {
-      // Walk on the spot.
-    }
   }
   renderer.render(scene, camera);
+  frames++;
+  if (frames === 12) {
+    const tris: Record<string, number> = {};
+    rigs.forEach((r, i) => (tris[`${i}`] = triangles(r.rig)));
+    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, rigs: tris };
+    (window as unknown as { done: boolean }).done = true;
+  }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
