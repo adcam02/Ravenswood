@@ -203,17 +203,11 @@ export class Engine {
   private time = 0;
   private litAt = -1;
   private yaw = 0;
-  private yawTarget = 0;
   private dist = 14;
   private camTarget = new THREE.Vector3();
   private camPos = new THREE.Vector3(0, 12, 14);
   private camLook = new THREE.Vector3();
   private bookOpen = 0;
-  private dragging: { x: number; yaw: number } | null = null;
-  /** A left button held but not yet dragged: a click walks there, a drag turns the camera. */
-  private pendingClick: { x: number; y: number; yaw: number } | null = null;
-  /** When the keys started walking us (clock seconds), for the camera to swing round behind; -1 when still. */
-  private keyWalkSince = -1;
   private weather: Weather = 'clear';
   private dayProgressAt = -1;
   private lastShadowAt = -999;
@@ -300,8 +294,6 @@ export class Engine {
     window.addEventListener('blur', this.onBlur);
     const canvas = this.renderer.domElement;
     canvas.addEventListener('pointerdown', this.onPointerDown);
-    window.addEventListener('pointermove', this.onPointerMove);
-    window.addEventListener('pointerup', this.onPointerUp);
     canvas.addEventListener('wheel', this.onWheel, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -315,7 +307,6 @@ export class Engine {
     game.goToSquare = () => this.goToSquare();
     game.jobDone = (r) => this.finishJob(r);
     game.jobCancel = () => this.finishJob(undefined);
-    game.turnCamera = (dir) => this.turnCamera(dir);
     game.summoned = (zone, x, z) => {
       // Called over by the Storyteller: stand a step in front of them, facing them.
       this.stopEverything();
@@ -347,13 +338,11 @@ export class Engine {
     if (this.wellTimer) clearTimeout(this.wellTimer);
     for (const s of this.signs) s.el.remove();
     for (const k of ['interact', 'sip', 'give', 'putAway', 'takeMeetingSeat', 'goToSquare', 'jobCancel'] as const) game[k] = () => {};
-    game.emote = game.goTo = game.jobDone = game.sheepDone = game.turnCamera = () => {};
+    game.emote = game.goTo = game.jobDone = game.sheepDone = () => {};
     this.ro.disconnect();
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('blur', this.onBlur);
-    window.removeEventListener('pointermove', this.onPointerMove);
-    window.removeEventListener('pointerup', this.onPointerUp);
     for (const a of this.others.values()) a.dispose();
     this.me?.dispose();
     this.renderer.dispose();
@@ -599,7 +588,7 @@ export class Engine {
         this.me.snap();
       }
       this.camTarget.set(x, 0, z);
-      if (zoneKind(zone) !== 'town') this.yaw = this.yawTarget = 0;
+      if (zoneKind(zone) !== 'town') this.yaw = 0;
       then?.();
     };
     if (!fade) return go();
@@ -671,8 +660,6 @@ export class Engine {
       this.interact();
     } else if (k === 'g') this.give();
     else if (k === 'q') this.putAway();
-    else if (k === '[') this.yawTarget -= Math.PI / 4;
-    else if (k === ']') this.yawTarget += Math.PI / 4;
     else if (k === 'm') voice.setMuted(!useVoice.getState().muted);
     else {
       const emote = ({ '1': 'wave', '2': 'dance', '3': 'cheer', '4': 'laugh', '5': 'cry', '6': 'sit' } as Record<string, Anim>)[k];
@@ -693,13 +680,11 @@ export class Engine {
 
   private onPointerDown = (e: PointerEvent) => {
     this.wakeAmbience();
-    if (e.button === 2 || e.button === 1) {
-      if (zoneKind(local.zone) === 'town') this.dragging = { x: e.clientX, yaw: this.yawTarget };
-      return;
-    }
     if (e.button !== 0 || !this.me || this.view?.paused || this.job || this.inBed) return;
-    // Wait and see: a click walks there, a drag turns the camera.
-    this.pendingClick = { x: e.clientX, y: e.clientY, yaw: this.yawTarget };
+    // The Storyteller clicking a player opens their menu; anywhere else, a click walks there.
+    const seat = this.view?.mode === 'st' ? this.avatarAt(e.clientX, e.clientY) : null;
+    if (seat) game.pickSeat(seat, e.clientX, e.clientY);
+    else this.walkTo(e.clientX, e.clientY);
   };
 
   /** Walks to the ground under a screen point. */
@@ -715,32 +700,6 @@ export class Engine {
       this.standUp();
     }
   }
-
-  private onPointerMove = (e: PointerEvent) => {
-    const pending = this.pendingClick;
-    if (pending && !this.dragging) {
-      if (Math.hypot(e.clientX - pending.x, e.clientY - pending.y) > 6) {
-        // It's a drag: turn the camera (only outdoors, rooms keep their fixed view).
-        if (zoneKind(local.zone) === 'town') this.dragging = { x: pending.x, yaw: pending.yaw };
-        this.pendingClick = null;
-      }
-      return;
-    }
-    if (!this.dragging) return;
-    this.yawTarget = this.dragging.yaw - (e.clientX - this.dragging.x) * 0.008;
-  };
-
-  private onPointerUp = (e: PointerEvent) => {
-    if (this.pendingClick && e.button === 0) {
-      const { x, y } = this.pendingClick;
-      this.pendingClick = null;
-      // The Storyteller clicking a player opens their menu, instead of walking there.
-      const seat = this.view?.mode === 'st' ? this.avatarAt(x, y) : null;
-      if (seat) game.pickSeat(seat, x, y);
-      else if (!this.view?.paused && !this.job && !this.inBed) this.walkTo(x, y);
-    }
-    this.dragging = null;
-  };
 
   /** The seat of whoever is under a screen point, if anyone. */
   private avatarAt(clientX: number, clientY: number): string | null {
@@ -790,11 +749,6 @@ export class Engine {
     }
   }
 
-  /** Turns the camera a step round the player (the on-screen buttons). */
-  turnCamera(dir: -1 | 1) {
-    if (zoneKind(local.zone) !== 'town') return;
-    this.yawTarget += (dir * Math.PI) / 4;
-  }
 
   private onWheel = (e: WheelEvent) => {
     e.preventDefault();
@@ -1210,17 +1164,6 @@ export class Engine {
       const sin = Math.sin(this.yaw);
       dx = ix * cos + iz * sin;
       dz = -ix * sin + iz * cos;
-      // After a moment of walking, the camera swings gently round to follow behind.
-      if (this.keyWalkSince < 0) this.keyWalkSince = t;
-      if (t - this.keyWalkSince > 0.6 && !this.dragging && zoneKind(local.zone) === 'town') {
-        const want = Math.atan2(dx, dz) + Math.PI;
-        let diff = want - this.yawTarget;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        this.yawTarget += diff * Math.min(1, dt * 1.4);
-      }
-    } else {
-      this.keyWalkSince = -1;
     }
     if (!(ix || iz) && this.moveTarget && !this.frozen) {
       const tx = this.moveTarget.x - local.x;
@@ -1527,8 +1470,8 @@ export class Engine {
 
   private updateCamera(dt: number, t: number) {
     const inside = zoneKind(local.zone) !== 'town';
-    if (inside) this.yawTarget = 0;
-    this.yaw += (this.yawTarget - this.yaw) * Math.min(1, dt * 6);
+    // The camera always looks north from the south of the player; only the join screen drifts round.
+    this.yaw += (0 - this.yaw) * Math.min(1, dt * 6);
     let tx: number;
     let tz: number;
     if (this.me) {

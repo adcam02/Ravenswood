@@ -77,7 +77,7 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
 | 1 to 6 | Wave, dance, cheer, laugh, cry, sit |
 | G / Q | Give what you're holding / put it away |
 | M / V | Mute / hold to talk (if push-to-talk is on) |
-| Drag the ground, [ ], right-drag or the ↺ ↻ buttons; scroll | Turn the camera (it also follows behind you as you walk), zoom |
+| Scroll | Zoom in and out (the camera always looks across the town from the south) |
 | Tab | Storyteller: open or close the grimoire |
 | B | Storyteller: speak to everyone |
 

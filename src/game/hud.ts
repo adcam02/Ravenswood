@@ -71,8 +71,6 @@ export const game = {
   jobCancel: () => {},
   /** The counting-sheep game is over; right earns tomorrow's gold star. */
   sheepDone: (_correct: boolean) => {},
-  /** Turn the camera a step round the player. */
-  turnCamera: (_dir: -1 | 1) => {},
   /** The Storyteller has called this player over: go and stand beside them. */
   summoned: (_zone: string, _x: number, _z: number) => {},
   /** Storyteller: someone was clicked in the world, so open their seat menu there. */

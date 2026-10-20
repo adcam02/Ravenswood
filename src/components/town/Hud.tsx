@@ -238,24 +238,6 @@ export function JobLayer() {
   );
 }
 
-/** Two round buttons to turn the camera, for anyone who'd rather not drag. */
-export function CameraButtons() {
-  const place = useHud((s) => s.place);
-  const sheep = useHud((s) => s.sheep);
-  void place;
-  if (sheep) return null;
-  return (
-    <div className="cam-btns">
-      <button className="cosy-btn round" onClick={() => game.turnCamera(-1)} title="Turn the camera left ( [ )" aria-label="Turn the camera left">
-        ↺
-      </button>
-      <button className="cosy-btn round" onClick={() => game.turnCamera(1)} title="Turn the camera right ( ] )" aria-label="Turn the camera right">
-        ↻
-      </button>
-    </div>
-  );
-}
-
 /** In bed at night: the counting-sheep game, once it's been taken up. */
 export function SheepLayer() {
   const sheep = useHud((s) => s.sheep);
@@ -358,11 +340,7 @@ export function HelpCard() {
           <span className="cosy-key">G</span> give what you’re holding, <span className="cosy-key">Q</span> put it away
         </li>
         <li>
-          Drag the ground (or <span className="cosy-key">[</span> <span className="cosy-key">]</span>, or the ↺ ↻ buttons) to turn the camera, scroll to zoom. It follows behind you as you
-          walk.
-        </li>
-        <li>
-          <span className="cosy-key">M</span> mute
+          <span className="cosy-key">M</span> mute, scroll to zoom in and out
         </li>
       </ul>
       <p>Talk out loud: people nearby hear you, and buildings are private.</p>
