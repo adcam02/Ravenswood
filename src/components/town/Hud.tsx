@@ -259,7 +259,12 @@ export function SheepLayer() {
 
 export function Fade() {
   const fading = useHud((s) => s.fading);
-  return <div className={`world-fade ${fading ? 'on' : ''}`} aria-hidden="true" />;
+  return (
+    <>
+      <div className="world-vignette" aria-hidden="true" />
+      <div className={`world-fade ${fading ? 'on' : ''}`} aria-hidden="true" />
+    </>
+  );
 }
 
 /** "Abbey gave you a cocoa" */
