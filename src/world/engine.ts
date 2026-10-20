@@ -13,7 +13,10 @@ import { useVoice, voice, type Listener } from '../voice/voice';
 import { AvatarView, type AvatarInfo } from './avatar';
 import { resolve, turnToward } from './collide';
 import { createTown, type TownWorld } from './town';
+import { COTTAGE_NAMES } from './town/layout';
 import {
+  cottageSlot,
+  cottageZone,
   houseOwner,
   houseZone,
   zoneKind,
@@ -488,11 +491,18 @@ export class Engine {
     this.town.show(kind);
     let place = kind === 'house' ? '' : PLACE_NAMES[kind];
     if (kind === 'house') {
-      const owner = houseOwner(local.zone);
-      const seat = this.view?.seats.find((s) => s.id === owner);
-      const name = seat?.name || 'Someone';
-      this.town.setHomeOwner(name);
-      place = owner === this.view?.mySeatId ? 'Your bedroom' : `${name}’s bedroom`;
+      const slot = cottageSlot(local.zone);
+      if (slot !== null) {
+        const name = COTTAGE_NAMES[slot % COTTAGE_NAMES.length];
+        this.town.setHomeOwner(name, [name]);
+        place = name;
+      } else {
+        const owner = houseOwner(local.zone);
+        const seat = this.view?.seats.find((s) => s.id === owner);
+        const name = seat?.name || 'Someone';
+        this.town.setHomeOwner(name);
+        place = owner === this.view?.mySeatId ? 'Your bedroom' : `${name}’s bedroom`;
+      }
     }
     useHud.setState({ place });
   }
@@ -998,8 +1008,17 @@ export class Engine {
   private doorTarget(door: Door, v: WorldView): { zone: ZoneId; x: number; z: number; ry: number } | { locked: string } {
     const st = v.mode === 'st';
     const nightLocked = !st && v.started && v.phase === 'night';
-    if (door.to === 'house') return { locked: 'Nobody lives here' };
+    if (door.to === 'house') {
+      if (nightLocked) return { locked: 'It’s night. Everyone is in bed' };
+      return { zone: cottageZone(door.slot ?? 0), x: door.spawn.x, z: door.spawn.z, ry: door.spawn.ry };
+    }
     if (door.zone === 'house' && door.to === 'town') {
+      const slot = cottageSlot(local.zone);
+      if (slot !== null) {
+        if (nightLocked) return { locked: 'It’s night. Time for bed' };
+        const spot = this.town.houseSlots[slot % this.town.houseSlots.length].door;
+        return { zone: 'town', x: spot.x, z: spot.z, ry: spot.ry };
+      }
       if (nightLocked) return { locked: 'It’s night. Stay in bed until morning' };
       return { zone: 'town', ...this.town.spawn };
     }

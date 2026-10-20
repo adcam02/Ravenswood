@@ -46,7 +46,8 @@ export interface TownWorld {
   show(kind: ZoneKind): void;
   setTime(t: number): void;
   setHouses(list: ({ name: string; dead: boolean } | null)[]): void;
-  setHomeOwner(name: string): void;
+  /** The sign above the bed: "<name>'s home", or any lines you like. */
+  setHomeOwner(name: string, lines?: string[]): void;
   setTown(state: TownState, now: number): void;
   setMeeting(m: { n: number; nominee: number | null; hand: number | null; active: boolean; votes: number[]; label?: string }): void;
   /** Gravestones for the dead, by seat name. */
@@ -570,10 +571,11 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       });
     },
 
-    setHomeOwner(name) {
-      if (name === ownerKey) return;
-      ownerKey = name;
-      interiors.ownerSign.set([`${name}’s`, 'home']);
+    setHomeOwner(name, lines) {
+      const key = lines ? lines.join('|') : name;
+      if (key === ownerKey) return;
+      ownerKey = key;
+      interiors.ownerSign.set(lines ?? [`${name}’s`, 'home']);
     },
 
     setTown(state, now) {

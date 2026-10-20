@@ -3,7 +3,7 @@ import { local } from '../../game/local';
 import { presence } from '../../game/presence';
 import { useView } from '../../state/view';
 import { BAKERY, CHURCH, GALLOWS, GRAVEYARD, MEETING_CENTRE, POND, SQUARE_R, STOOL_R, TAVERN, TOWN_R, WASHHOUSE, WELL, houseSlots } from '../../world/town/layout';
-import { houseOwner, zoneKind, type Look } from '../../world/types';
+import { cottageSlot, houseOwner, zoneKind, type Look } from '../../world/types';
 
 const SIZE = 172;
 const SCALE = (SIZE / 2 - 6) / TOWN_R;
@@ -18,6 +18,11 @@ function placeOf(zone: string, x: number, z: number, seatIndex: (id: string) => 
     case 'church':
       return [CHURCH.x, CHURCH.z];
     case 'house': {
+      const slot = cottageSlot(zone);
+      if (slot !== null) {
+        const h = houseSlots[slot % houseSlots.length];
+        return [h.x, h.z];
+      }
       // Bedrooms aren't on the map: sleepers line up along the bottom edge.
       const i = Math.max(0, seatIndex(houseOwner(zone) ?? ''));
       return [-14 + (i % 10) * 3.1, 30.5 - Math.floor(i / 10) * 3.2];

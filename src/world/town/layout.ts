@@ -226,6 +226,10 @@ export function makeDoors(): Door[] {
     const ex = ROOM_DOOR[kind].exit;
     doors.push({ id: `${kind}-out`, zone: kind, x: ex.x, z: ex.z, r: ex.r, to: 'town', spawn: { ...outside, ry: b.ry }, label: 'Outside' });
   }
+  houseSlots.forEach((h, slot) => {
+    const trigger = local(h.x, h.z, h.ry, 0, HOUSE_D / 2 + 0.55);
+    doors.push({ id: `house-${slot}`, zone: 'town', x: trigger.x, z: trigger.z, r: 1.0, to: 'house', slot, spawn: ROOM_DOOR.house.arrive, label: COTTAGE_NAMES[slot] });
+  });
   const ex = ROOM_DOOR.house.exit;
   doors.push({ id: 'house-out', zone: 'house', x: ex.x, z: ex.z, r: ex.r, to: 'town', spawn: { x: 0, z: 0, ry: 0 }, label: 'Outside' });
   return doors;
