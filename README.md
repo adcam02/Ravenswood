@@ -57,6 +57,16 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      day's news, the churchyard gains a stone for each of the dead, and the little speaker by a name
      shows who can hear you. The big map in the corner shows where everyone is.
    - **Hold B** (or the megaphone button) to speak to the whole town at once.
+   - **The scene bar** (bottom left) puts everyone to bed, brings the dawn or calls a town meeting in
+     one press, sets the weather (clear, mist or rain) and starts a **day timer**. Everyone sees the
+     timer as a sun crossing a little arc at the top of the screen, and the bell can ring itself when
+     the sun sets.
+   - **Click anyone in the town** to open their seat menu right there (wake, mark, kill, float over),
+     including **Bring them to me**, which brings that player to stand beside you.
+6. **Hats.** Gold stars, town records, nights in bed and a walk as a ghost unlock hats (a beanie for
+   everyone, then a flower crown, party hat, witch hat, wizard hat, top hat, halo and crown). They're
+   remembered in each player's own browser and chosen under the colours in the animal picker; locked
+   ones say how to earn them.
 
 ### Controls
 
@@ -86,12 +96,20 @@ says so). Add `?fx=low` to the address to start that way.
 ## How the connection works
 
 Browsers find the Storyteller through the free [PeerJS](https://peerjs.com/) lobby server, then talk
-directly. Voice uses the same lobby: every browser connects to every other one, and each voice's volume
-is set from how far apart the two animals are. If the lobby is down, the game falls back to a pool of
+directly. Voice uses the same lobby: each browser opens a voice line only to people in or near earshot
+(and to the Storyteller), hangs up a little after they wander off, and sets each voice's volume from how
+far apart the two animals are, so a big group doesn't swamp anyone's connection. If the lobby is down, the game falls back to a pool of
 public Nostr relays (via [Trystero](https://github.com/dmotz/trystero)), but voice needs the lobby.
 Each player only ever receives their own character and information.
 
 If the lobby doesn't work for you, run your own PeerServer and put its address in `docs/config.js`.
+
+**A relay for strict networks.** Some networks (workplaces, universities, phone hotspots) block direct
+connections, and players on them can't reach anyone without a TURN relay. The game falls back to the
+free shared PeerJS relay, which is often busy. For a reliable one, make a free account with a TURN
+provider (for example [Metered](https://www.metered.ca/stun-turn) or Cloudflare Calls), and paste the
+username and credential into `relay` in `docs/config.js` (and `public/config.js`, so the next build keeps
+it). The file shows the format.
 
 ## Files
 
