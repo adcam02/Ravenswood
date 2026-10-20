@@ -4,6 +4,7 @@ import { setCustomRoles } from '../data';
 import { loadJSON, saveJSON, uid, debugHooks } from '../lib/util';
 import type { ClientMessage, HostMessage, PrivateState, PublicState, TownAction } from '../state/types';
 import { receiveItem } from '../game/local';
+import { game } from '../game/hud';
 import { presence } from '../game/presence';
 import type { Item, Look, Pose } from '../world/types';
 import { joinMesh, type Mesh } from './mesh';
@@ -188,6 +189,8 @@ class ClientLink {
       presence.announce = Boolean(msg.ann);
     } else if (msg.t === 'gift') {
       if (msg.item && typeof msg.item.k === 'string') receiveItem(msg.item, msg.from ?? null);
+    } else if (msg.t === 'summon') {
+      if (typeof msg.zone === 'string' && Number.isFinite(msg.x) && Number.isFinite(msg.z)) game.summoned(msg.zone, msg.x, msg.z);
     }
   }
 

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { JobGame, JOB_TITLES, SCORE_LABEL, type GameJob } from '../../jobs';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { JOB_TITLES, SCORE_LABEL, type GameJob } from '../../jobs/meta';
 import { useBests } from '../../game/bests';
 import { game, useHud } from '../../game/hud';
 import { local, useLocal } from '../../game/local';
@@ -12,7 +12,9 @@ import { useView } from '../../state/view';
 import { useVoice, voice } from '../../voice/voice';
 import { EMOTES, type Item } from '../../world/types';
 import { Icon } from '../Icon';
-import { SheepGame } from './SheepGame';
+// The minigames and the sheep load the first time they're needed, so the first visit downloads less.
+const JobGame = lazy(() => import('../../jobs').then((m) => ({ default: m.JobGame })));
+const SheepGame = lazy(() => import('./SheepGame').then((m) => ({ default: m.SheepGame })));
 
 const ITEM_NAMES: Record<Item['k'], [string, string]> = {
   ale: ['🍺', 'an ale'],
@@ -229,7 +231,11 @@ export function JobLayer() {
   if (!job) return null;
   const town = view.town.records[job.job];
   const bests = { personal: personal[job.job], town: town ? { by: town.by, score: town.score } : undefined };
-  return <JobGame key={job.station} job={job.job} bests={bests} onDone={(r) => game.jobDone(r)} onCancel={() => game.jobCancel()} />;
+  return (
+    <Suspense fallback={null}>
+      <JobGame key={job.station} job={job.job} bests={bests} onDone={(r) => game.jobDone(r)} onCancel={() => game.jobCancel()} />
+    </Suspense>
+  );
 }
 
 /** Two round buttons to turn the camera, for anyone who'd rather not drag. */
@@ -254,7 +260,11 @@ export function CameraButtons() {
 export function SheepLayer() {
   const sheep = useHud((s) => s.sheep);
   if (sheep !== 'playing') return null;
-  return <SheepGame />;
+  return (
+    <Suspense fallback={null}>
+      <SheepGame />
+    </Suspense>
+  );
 }
 
 export function Fade() {

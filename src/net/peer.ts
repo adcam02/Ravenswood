@@ -2,8 +2,22 @@ import type { PeerOptions } from 'peerjs';
 
 declare global {
   interface Window {
-    RAVENSWOOD_CONFIG?: { peer?: Partial<PeerOptions> | null };
+    RAVENSWOOD_CONFIG?: { peer?: Partial<PeerOptions> | null; relay?: RTCIceServer[] | null };
   }
+}
+
+/**
+ * How browsers reach each other. Direct first (STUN), then through a relay (TURN) when a network won't
+ * allow a direct line. A relay of your own in config.js comes first; the free shared PeerJS relay is the
+ * fallback.
+ */
+export function iceServers(): RTCIceServer[] {
+  const own = window.RAVENSWOOD_CONFIG?.relay ?? [];
+  return [
+    ...own,
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] },
+    { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
+  ];
 }
 
 /** Every room shares the public PeerJS server, so room ids carry a prefix of their own. */
@@ -18,7 +32,7 @@ export function peerOptions(): PeerOptions {
     const [host, port] = local.split(':');
     return { host, port: Number(port) || 9000, path: '/', secure: false, debug: 1 };
   }
-  return { ...(window.RAVENSWOOD_CONFIG?.peer ?? {}), debug: 1 };
+  return { ...(window.RAVENSWOOD_CONFIG?.peer ?? {}), config: { iceServers: iceServers() }, debug: 1 };
 }
 
 /** ?nopeer skips the PeerJS route, to test the backup route. */

@@ -7,7 +7,7 @@ import { getRole } from '../data';
 import { countBeat, dawn, gavel, nightfall, primeAudio, tick, townBells, wakeChime } from './audio';
 import { notify } from './notify';
 import { joinNames } from './util';
-import { JOB_TITLES, SCORE_LABEL, type GameJob } from '../jobs';
+import { JOB_TITLES, SCORE_LABEL, type GameJob } from '../jobs/meta';
 
 /** Sounds, banners and notices that follow from changes in the game. */
 export function useEffects(view: View | null) {

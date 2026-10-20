@@ -46,6 +46,7 @@ class HostLink {
   private broadcastTimer: ReturnType<typeof setTimeout> | null = null;
   private sweepTimer: ReturnType<typeof setInterval> | null = null;
   private worldTimer: ReturnType<typeof setInterval> | null = null;
+  private ticks = 0;
   private lastWorld = '';
   private lastWorldAt = 0;
 
@@ -62,7 +63,11 @@ class HostLink {
     else this.openPeer();
     this.openMesh();
     this.sweepTimer = setInterval(() => this.sweep(), 5000);
-    this.worldTimer = setInterval(() => this.sendWorld(), 100);
+    this.worldTimer = setInterval(() => {
+      this.sendWorld();
+      // About once a second, see whether the day's timer has run out.
+      if (++this.ticks % 10 === 0) st.checkDayTimer();
+    }, 100);
   }
 
   stop() {
@@ -278,6 +283,13 @@ class HostLink {
     const target = useHost.getState().g.seats.find((s) => s.id === to);
     if (!target?.playerId) return;
     for (const [link, meta] of this.links) if (meta.playerId === target.playerId) link.send({ t: 'gift', item, from: 'The Storyteller' });
+  }
+
+  /** Brings a player to stand beside the Storyteller, wherever they are. */
+  summon(to: string, zone: string, x: number, z: number) {
+    const target = useHost.getState().g.seats.find((s) => s.id === to);
+    if (!target?.playerId) return;
+    for (const [link, meta] of this.links) if (meta.playerId === target.playerId) link.send({ t: 'summon', zone, x, z });
   }
 
   /** Where everyone is, ten times a second, to everyone. */

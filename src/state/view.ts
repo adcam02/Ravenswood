@@ -3,8 +3,8 @@ import { defaultAlignment, getRole, type Alignment, type Script } from '../data'
 import { useClient } from '../net/client';
 import { useHostNet } from '../net/host';
 import { isTraveller, seatAlignment, useHost } from './host';
-import type { AwakeState, Execution, Nomination, Phase, Reminder, TownHall, VoteRecord } from './types';
-import type { Look, TownState } from '../world/types';
+import type { AwakeState, DayTimer, Execution, Nomination, Phase, Reminder, TownHall, VoteRecord } from './types';
+import type { Look, TownState, Weather } from '../world/types';
 import { useUI } from './ui';
 
 export type Mode = 'st' | 'player';
@@ -49,6 +49,9 @@ export interface View {
   history: VoteRecord[];
   townHall: TownHall | null;
   execution: Execution | null;
+  weather: Weather;
+  /** The day's countdown, in this browser's own clock. */
+  dayTimer: DayTimer | null;
   town: TownState;
   revealed: boolean;
   grimoireRevealed: boolean;
@@ -94,6 +97,8 @@ export function useStorytellerView(): View {
       history: g.history,
       townHall: g.townHall,
       execution: g.execution,
+      weather: g.weather ?? 'clear',
+      dayTimer: g.dayTimer ?? null,
       town: g.town,
       revealed: g.revealed,
       grimoireRevealed: g.grimoireRevealed,
@@ -106,6 +111,7 @@ export function useStorytellerView(): View {
 export function usePlayerView(): View | null {
   const pub = useClient((s) => s.pub);
   const priv = useClient((s) => s.priv);
+  const clockOffset = useClient((s) => s.clockOffset);
   return useMemo(() => {
     if (!pub) return null;
     return {
@@ -144,12 +150,14 @@ export function usePlayerView(): View | null {
       history: pub.history,
       townHall: pub.townHall ?? null,
       execution: pub.execution ?? null,
+      weather: pub.weather ?? 'clear',
+      dayTimer: pub.dayTimer ? { ...pub.dayTimer, start: pub.dayTimer.start - (clockOffset ?? 0), end: pub.dayTimer.end - (clockOffset ?? 0) } : null,
       town: pub.town,
       revealed: pub.revealed,
       grimoireRevealed: pub.grimoireRevealed,
       mySeatId: priv?.seatId ?? null,
     };
-  }, [pub, priv]);
+  }, [pub, priv, clockOffset]);
 }
 
 export const ViewContext = createContext<View | null>(null);

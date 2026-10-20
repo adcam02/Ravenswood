@@ -1,4 +1,5 @@
 import { joinRoom, type Room } from 'trystero';
+import { iceServers } from './peer';
 
 /**
  * The backup route. If the PeerJS lobby server is down, browsers can still find each other through
@@ -18,9 +19,7 @@ export function meshOptions() {
     config: {
       appId: 'ravenswood-town-v1',
       relayConfig: relay ? { urls: [relay], redundancy: 1 } : undefined,
-      turnConfig: [
-        { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
-      ],
+      turnConfig: iceServers().filter((s) => [s.urls].flat().some((u) => u.startsWith('turn'))),
     },
   };
 }

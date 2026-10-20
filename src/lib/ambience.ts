@@ -4,7 +4,7 @@
  * a fire in the tavern and the bakery, and a hush in the church. Everything sits well under the voices.
  */
 import { GALLOWS, POND } from '../world/town/layout';
-import { zoneKind } from '../world/types';
+import { zoneKind, type Weather } from '../world/types';
 
 /** How loud each layer can get at most (the master sits on top of these). */
 const LEVEL = {
@@ -22,6 +22,8 @@ const LEVEL = {
   crackle: 0.08,
   clink: 0.012,
   hum: 0.028,
+  rain: 0.09,
+  steps: 0.11,
 };
 
 const hz = (midi: number) => 440 * 2 ** ((midi - 69) / 12);
@@ -93,7 +95,12 @@ class Ambience {
     this.wet.connect(wetGain).connect(this.muffle);
     for (const name of ['wind', 'tune', 'pad', 'birds', 'crickets', 'owl', 'pond', 'frog', 'creak']) this.layer(name, this.muffle);
     for (const name of ['fire', 'crackle', 'clink', 'hum']) this.layer(name, this.master);
+    this.layer('rain', this.muffle);
+    this.layer('steps', this.master);
+    this.layers.steps.gain.value = LEVEL.steps;
+    this.stepNoise = this.noiseBuffer(1);
     this.wind();
+    this.rainBed();
     this.pondWater();
     this.fireBed();
     this.churchHum();
@@ -135,10 +142,15 @@ class Ambience {
       this.muffle!.frequency.setTargetAtTime(muffleHz, t, 0.3);
     }
     const outdoorLevel = outside ? 1 : kind === 'house' ? 0.12 : 0.3;
-    set('wind', LEVEL.wind * (0.6 + 0.4 * day) * outdoorLevel);
+    const rain = this.weather === 'rain' ? 1 : 0;
+    const mist = this.weather === 'mist' ? 1 : 0;
+    set('wind', LEVEL.wind * (0.6 + 0.4 * day) * (1 + rain * 0.6) * outdoorLevel);
     set('tune', LEVEL.tune * day * outdoorLevel);
     set('pad', LEVEL.pad * day * outdoorLevel);
-    set('birds', LEVEL.birds * day * outdoorLevel);
+    // Birds go quiet in the rain and hush a little in the mist.
+    set('birds', LEVEL.birds * day * (1 - rain) * (1 - mist * 0.6) * outdoorLevel);
+    // Rain on the roof is still heard (softer, through the walls) indoors.
+    set('rain', LEVEL.rain * rain * (outside ? 1 : 0.55), 1.8);
     set('crickets', LEVEL.crickets * s.night * outdoorLevel);
     set('owl', LEVEL.owl * s.night * outdoorLevel);
     // Positional sources only count outdoors.
@@ -206,6 +218,96 @@ class Ambience {
       const data = buf.getChannelData(ch);
       for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 3;
     }
+    return buf;
+  }
+
+  private weather: Weather = 'clear';
+  private stepNoise: AudioBuffer | null = null;
+
+  /** Rain, mist or clear: the rain bed fades in and out, birds hush. */
+  setWeather(w: Weather) {
+    this.weather = w;
+    this.lastUpdate = 0;
+  }
+
+  /** One footstep: a stone tap, a wooden knock or a soft swish of grass. `volume` is 0 to 1. */
+  footstep(surface: 'stone' | 'wood' | 'grass', volume = 1) {
+    const ctx = this.ctx;
+    if (!ctx || !this.stepNoise || !this.enabled || volume <= 0) return;
+    const at = ctx.currentTime + 0.005;
+    const src = ctx.createBufferSource();
+    src.buffer = this.stepNoise;
+    const filter = ctx.createBiquadFilter();
+    const g = ctx.createGain();
+    const v = volume * (0.75 + Math.random() * 0.4);
+    let len = 0.06;
+    if (surface === 'stone') {
+      filter.type = 'bandpass';
+      filter.frequency.value = 1500 + Math.random() * 600;
+      filter.Q.value = 1.4;
+      len = 0.05;
+    } else if (surface === 'wood') {
+      filter.type = 'lowpass';
+      filter.frequency.value = 900 + Math.random() * 200;
+      len = 0.07;
+      // The board answers with a little hollow knock.
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(170 + Math.random() * 40, at);
+      o.frequency.exponentialRampToValueAtTime(90, at + 0.08);
+      const og = ctx.createGain();
+      og.gain.setValueAtTime(0.0001, at);
+      og.gain.exponentialRampToValueAtTime(0.5 * v, at + 0.005);
+      og.gain.exponentialRampToValueAtTime(0.0001, at + 0.1);
+      o.connect(og).connect(this.layers.steps);
+      o.start(at);
+      o.stop(at + 0.12);
+    } else {
+      filter.type = 'highpass';
+      filter.frequency.value = 2200 + Math.random() * 800;
+      len = 0.11;
+    }
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(v * (surface === 'grass' ? 0.5 : 0.8), at + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+    src.connect(filter).connect(g).connect(this.layers.steps);
+    src.start(at, Math.random() * 0.8, len + 0.02);
+  }
+
+  /** Rain: two bands of noise, a soft hiss and a lower patter. */
+  private rainBed() {
+    const ctx = this.ctx!;
+    const hiss = this.noise(3);
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 1800;
+    const hg = ctx.createGain();
+    hg.gain.value = 0.55;
+    hiss.connect(hp).connect(hg).connect(this.layers.rain);
+    const patter = this.noise(2.2);
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 600;
+    bp.Q.value = 0.6;
+    const pg = ctx.createGain();
+    pg.gain.value = 0.5;
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = 0.13;
+    const lg = ctx.createGain();
+    lg.gain.value = 0.15;
+    lfo.connect(lg).connect(pg.gain);
+    patter.connect(bp).connect(pg).connect(this.layers.rain);
+    hiss.start();
+    patter.start();
+    lfo.start();
+  }
+
+  private noiseBuffer(seconds: number): AudioBuffer {
+    const ctx = this.ctx!;
+    const len = Math.floor(ctx.sampleRate * seconds);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
     return buf;
   }
 

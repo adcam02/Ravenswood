@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GameJob } from '../jobs';
+import type { GameJob } from '../jobs/meta';
 import type { Anim, Item } from '../world/types';
 
 export interface Prompt {
@@ -73,6 +73,10 @@ export const game = {
   sheepDone: (_correct: boolean) => {},
   /** Turn the camera a step round the player. */
   turnCamera: (_dir: -1 | 1) => {},
+  /** The Storyteller has called this player over: go and stand beside them. */
+  summoned: (_zone: string, _x: number, _z: number) => {},
+  /** Storyteller: someone was clicked in the world, so open their seat menu there. */
+  pickSeat: (_seatId: string, _clientX: number, _clientY: number) => {},
   /** The item in your paw, as the HUD shows it. */
   item: null as Item | null,
 };

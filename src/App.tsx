@@ -1,13 +1,25 @@
-import { useContext, useEffect, useState } from 'react';
-import { Square } from './components/Square';
+import { lazy, Suspense, useContext, useEffect, useState } from 'react';
 import { TopBar } from './components/TopBar';
 import { SidePanel } from './components/SidePanel';
-import { Modals } from './components/Modals';
+// The grimoire and the big dialogs load when first opened, so the first visit downloads less.
+const Square = lazy(() => import('./components/Square').then((m) => ({ default: m.Square })));
+const ModalsLazy = lazy(() => import('./components/Modals').then((m) => ({ default: m.Modals })));
+function Modals() {
+  const modal = useUI((s) => s.modal);
+  if (!modal) return null;
+  return (
+    <Suspense fallback={null}>
+      <ModalsLazy />
+    </Suspense>
+  );
+}
 import { Toasts } from './components/Toasts';
 import { BluffBar } from './components/BluffBar';
 import { PickBanner } from './components/PickBanner';
 import { MyCharacter, PlayerRail, VoteBar } from './components/PlayerBits';
 import { WakeOverlay } from './components/WakeOverlay';
+import { DayClock, ProgressWatcher, SceneBar } from './components/town/Scenes';
+import { WorldSeatMenu } from './components/town/WorldSeatMenu';
 import { UpdateNotice } from './components/UpdateNotice';
 import { Landing } from './components/Landing';
 import { JoinFlow, useJoin } from './components/town/JoinFlow';
@@ -121,7 +133,9 @@ function Storyteller() {
           {grimoire ? (
             pages && (
               <div className="grimoire-layer book">
-                <Square />
+                <Suspense fallback={null}>
+                  <Square />
+                </Suspense>
                 <BluffBar />
               </div>
             )
@@ -137,6 +151,9 @@ function Storyteller() {
                 <EmoteBar />
               </div>
               <MiniGrimoire />
+              <SceneBar />
+              <DayClock />
+              <WorldSeatMenu />
               <JobLayer />
               <CameraButtons />
               <NoticeBoard />
@@ -218,6 +235,8 @@ function Player({ room }: { room: string }) {
               <JobLayer />
               <SheepLayer />
               <CameraButtons />
+              <DayClock />
+              <ProgressWatcher />
               <NoticeBoard />
               <HelpCard />
               <Modals />

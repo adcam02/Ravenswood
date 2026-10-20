@@ -39,6 +39,9 @@ useVoice.subscribe((s, p) => {
   }
 });
 
+/** How long a line stays open after someone wanders out of range, so walking along the edge doesn't redial. */
+const LINGER_MS = 12000;
+
 export interface Listener {
   voiceId: string;
   /** 0 to 1, from distance and walls. */
@@ -68,6 +71,8 @@ class Voice {
   private loudUntil = 0;
   private sendStream: MediaStream | null = null;
   private wanted = new Map<string, number>();
+  /** When a line stopped being wanted: it stays open, silent, for a while in case they come back. */
+  private unwantedSince = new Map<string, number>();
   private answering = new WeakSet<Peer>();
 
   /** Starts answering calls on this peer. Safe to call again with the same or a new peer. */
@@ -196,8 +201,17 @@ class Voice {
         console.warn('Voice call failed', e);
       }
     }
+    // People who've wandered out of range go quiet at once, and the line is hung up a little later.
     for (const [id, link] of this.links) {
-      if (!this.wanted.has(id)) {
+      if (this.wanted.has(id)) {
+        this.unwantedSince.delete(id);
+        continue;
+      }
+      const since = this.unwantedSince.get(id) ?? now;
+      this.unwantedSince.set(id, since);
+      link.audio.volume = 0;
+      if (now - since > LINGER_MS) {
+        this.unwantedSince.delete(id);
         link.call.close();
         this.drop(id, link);
       }

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { buildAnimal, buildStoryteller, type Rig } from './animals';
-import type { Anim, Item, Look } from './types';
+import type { Anim, HatId, Item, Look } from './types';
 
 export interface AvatarInfo {
   name: string;
@@ -73,6 +73,26 @@ const STAR_GEO = (() => {
 })();
 const STAR_MAT = new THREE.MeshStandardMaterial({ color: '#f6c445', emissive: '#c98a12', emissiveIntensity: 0.55, metalness: 0.35, roughness: 0.35, flatShading: true });
 
+/** A soft round shadow under each animal (animals don't cast into the town's baked shadow map). */
+const BLOB_GEO = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+const BLOB_TEX = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(0,0,0,0.55)');
+  grad.addColorStop(0.55, 'rgba(0,0,0,0.3)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+})();
+
+/** Rig features that arrive with the animals pass: called only if the rig has them. */
+type RigExtras = { setHat?: (hat: HatId | null) => void; setDetail?: (level: 'high' | 'low') => void };
+
 const lookKey = (info: AvatarInfo) => (info.storyteller ? 'st' : `${info.look?.animal}:${info.look?.color}`);
 
 /** One animal in the world: its model, its name tag, and smooth movement toward where it's been reported. */
@@ -92,6 +112,10 @@ export class AvatarView {
   private ghost = false;
   private away = false;
   private star: THREE.Mesh | null = null;
+  private blob: THREE.Mesh;
+  private blobMat: THREE.MeshBasicMaterial;
+  private hatKey: string | undefined = undefined;
+  private detail: 'high' | 'low' = 'high';
   private hand: THREE.Group | null = null;
 
   x = 0;
@@ -132,6 +156,11 @@ export class AvatarView {
     this.el.append(this.bubbleEl, this.roleEl, plate);
     this.label = new CSS2DObject(this.el);
     this.label.center.set(0.5, 1);
+    this.blobMat = new THREE.MeshBasicMaterial({ map: BLOB_TEX, transparent: true, depthWrite: false, opacity: 1 });
+    this.blob = new THREE.Mesh(BLOB_GEO, this.blobMat);
+    this.blob.renderOrder = 1;
+    this.blob.scale.setScalar(info.storyteller ? 0 : 0.95);
+    scene.add(this.blob);
     this.rig = this.build(info);
     this.setInfo(info);
   }
@@ -144,6 +173,10 @@ export class AvatarView {
     this.label.position.set(0, rig.headHeight + 0.28, 0);
     this.scene.add(rig.root);
     this.itemKey = '';
+    this.hatKey = undefined;
+    this.detail = 'high';
+    rig.root.userData.avatar = this;
+    AvatarView.noShadows(rig.root);
     return rig;
   }
 
@@ -165,6 +198,14 @@ export class AvatarView {
     if (ghost !== this.ghost) {
       this.ghost = ghost;
       this.rig.setGhost(ghost);
+      AvatarView.noShadows(this.rig.root);
+    }
+    // The hat they've chosen, if the rig can wear one.
+    const hat = info.storyteller ? null : (info.look?.hat ?? null);
+    if ((hat ?? '') !== this.hatKey) {
+      this.hatKey = hat ?? '';
+      (this.rig as unknown as RigExtras).setHat?.(hat);
+      AvatarView.noShadows(this.rig.root);
     }
     const voting = Boolean(info.voting) && !info.storyteller;
     if (voting && (!this.hand || this.hand.parent !== this.rig.root)) {
@@ -237,6 +278,25 @@ export class AvatarView {
     if (k === this.itemKey) return;
     this.itemKey = k;
     this.rig.setItem(item);
+    AvatarView.noShadows(this.rig.root);
+  }
+
+  /** Animals keep their soft blob shadow instead of casting into the town's shadow map. */
+  private static noShadows(root: THREE.Object3D) {
+    root.traverse((o) => (o.castShadow = false));
+  }
+
+  /** Close up in full detail, far off in a lighter version (if the rig supports it). */
+  setDetail(level: 'high' | 'low') {
+    if (level === this.detail) return;
+    this.detail = level;
+    (this.rig as unknown as RigExtras).setDetail?.(level);
+  }
+
+  /** Name tags far away are hidden, to keep the screen (and the page) uncluttered. */
+  setTagShown(on: boolean) {
+    const show = on && !this.away;
+    if (this.label.visible !== show) this.label.visible = show;
   }
 
   /** In the same place as us, and drawn. */
@@ -280,6 +340,12 @@ export class AvatarView {
     const moved = dt > 0 ? Math.hypot(this.x - px, this.z - pz) / dt : 0;
     this.speed += (moved - this.speed) * Math.min(1, dt * 10);
     const root = this.rig.root;
+    // The blob shadow stays on the floor, fainter and smaller the higher they float or sit.
+    const lift = Math.max(0, this.y);
+    this.blob.visible = !this.away && !this.info.storyteller;
+    this.blob.position.set(this.x, 0.025, this.z);
+    this.blob.scale.setScalar(Math.max(0.5, 0.95 - lift * 0.25));
+    this.blobMat.opacity = (this.ghost ? 0.35 : 1) * Math.max(0.25, 1 - lift * 0.6);
     if (this.away) return;
     root.position.set(this.x, this.y, this.z);
     root.rotation.y = this.ry;
@@ -315,6 +381,8 @@ export class AvatarView {
 
   dispose() {
     if (this.bubbleTimer) clearTimeout(this.bubbleTimer);
+    this.blob.removeFromParent();
+    this.blobMat.dispose();
     this.star?.removeFromParent();
     this.star = null;
     this.hand?.removeFromParent();

@@ -7,7 +7,9 @@ import { useView, type SeatView } from '../state/view';
 import { Icon, type IconName } from './Icon';
 import type { Geometry } from './Square';
 import { game } from '../game/hud';
+import { local } from '../game/local';
 import { presence } from '../game/presence';
+import { hostLink } from '../net/host';
 import { useJoin } from './town/JoinFlow';
 
 function Popover({ geo, pt, children }: { geo: Geometry; pt: { x: number; y: number }; children: ReactNode }) {
@@ -110,6 +112,18 @@ export function SeatMenu({ seat, geo, pt }: { seat: SeatView; geo: Geometry; pt:
             }}
           >
             Float over to {seat.name || 'them'}
+          </Item>
+        )}
+        {presence.others.has(seat.id) && (
+          <Item
+            icon="hand"
+            onClick={() => {
+              close();
+              useUI.setState({ grimoireOpen: false });
+              hostLink.summon(seat.id, local.zone, local.x, local.z);
+            }}
+          >
+            Bring {seat.name || 'them'} to me
           </Item>
         )}
         <Item icon="wake" onClick={() => ui.wake([seat.id])}>

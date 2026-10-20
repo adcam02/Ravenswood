@@ -4,9 +4,9 @@ import { getRole, iconUrl } from '../data';
 import { game, useHud, type Prompt } from '../game/hud';
 import { local, setItem } from '../game/local';
 import { presence } from '../game/presence';
-import { SCORE_OF, type GameJob, type JobResults } from '../jobs';
+import { SCORE_OF, type GameJob, type JobResults } from '../jobs/meta';
 import { rememberBest } from '../game/bests';
-import type { Execution, Nomination, TownAction, TownHall } from '../state/types';
+import type { DayTimer, Execution, Nomination, TownAction, TownHall } from '../state/types';
 import { ambience } from '../lib/ambience';
 import { drumroll, gavel } from '../lib/audio';
 import { ui, useUI } from '../state/ui';
@@ -15,7 +15,33 @@ import { useVoice, voice, type Listener } from '../voice/voice';
 import { AvatarView, type AvatarInfo } from './avatar';
 import { resolve, turnToward } from './collide';
 import { createTown, type TownWorld } from './town';
-import { COTTAGE_NAMES } from './town/layout';
+import { COTTAGE_NAMES, DOCK, SQUARE_R } from './town/layout';
+
+/** Town features that arrive with the effects pass: called only if the town has them. */
+interface TownFx {
+  setWeather?: (w: Weather) => void;
+  setDayProgress?: (p: number) => void;
+  consumeShadowDirty?: () => boolean;
+  ripple?: (x: number, z: number, size?: number) => void;
+}
+
+/** What's underfoot, for the sound of footsteps. */
+function surfaceAt(zone: ZoneId, x: number, z: number): 'stone' | 'wood' | 'grass' {
+  const kind = zoneKind(zone);
+  if (kind === 'church') return 'stone';
+  if (kind !== 'town') return 'wood';
+  if (Math.abs(x - DOCK.x) < DOCK.w / 2 && z > DOCK.z0 && z < DOCK.z1) return 'wood';
+  if (Math.hypot(x, z) < SQUARE_R) return 'stone';
+  return 'grass';
+}
+const onDock = (zone: ZoneId, x: number, z: number) => zone === 'town' && Math.abs(x - DOCK.x) < DOCK.w / 2 && z > DOCK.z0 && z < DOCK.z1;
+
+/** Beyond this far from the camera's focus, animals switch to their lighter model; name tags hide beyond the next. */
+const LOD_FAR = 20;
+const LOD_NEAR = 16;
+const TAG_FAR = 26;
+/** Even with nothing changing, the shadow map is redrawn this often, just in case. */
+const SHADOW_SAFETY_S = 4;
 import {
   cottageSlot,
   cottageZone,
@@ -30,6 +56,7 @@ import {
   type Spot,
   type Station,
   type TownState,
+  type Weather,
   type ZoneId,
   type ZoneKind,
 } from './types';
@@ -60,6 +87,8 @@ export interface WorldView {
   marked: { seatId: string } | null;
   townHall: TownHall | null;
   execution: Execution | null;
+  weather: Weather;
+  dayTimer: DayTimer | null;
   town: TownState;
   /** A window or the grimoire is open, so keys belong to it. */
   paused: boolean;
@@ -77,6 +106,8 @@ export interface WorldHooks {
   give: (to: string, item: Item) => void;
 }
 
+/** Voice lines open to people within this distance in town (earshot fades out at 15 m). */
+const VOICE_CONNECT_R = 22;
 const WALK = 4.3;
 const RUN = 7.2;
 const FLOAT = 6;
@@ -183,6 +214,12 @@ export class Engine {
   private pendingClick: { x: number; y: number; yaw: number } | null = null;
   /** When the keys started walking us (clock seconds), for the camera to swing round behind; -1 when still. */
   private keyWalkSince = -1;
+  private weather: Weather = 'clear';
+  private dayProgressAt = -1;
+  private lastShadowAt = -999;
+  private stepAt = 0;
+  private othersStepAt = new Map<string, { at: number; x: number; z: number }>();
+  private rippleAt = 0;
   private unsubUI: (() => void) | null = null;
 
   private emote: { anim: Anim; until: number } | null = null;
@@ -279,6 +316,17 @@ export class Engine {
     game.jobDone = (r) => this.finishJob(r);
     game.jobCancel = () => this.finishJob(undefined);
     game.turnCamera = (dir) => this.turnCamera(dir);
+    game.summoned = (zone, x, z) => {
+      // Called over by the Storyteller: stand a step in front of them, facing them.
+      this.stopEverything();
+      this.inBed = false;
+      useHud.setState({ sheep: null });
+      const a = Math.random() * Math.PI * 2;
+      const sx = x + Math.cos(a) * 1.4;
+      const sz = z + Math.sin(a) * 1.4;
+      this.place(zone as ZoneId, sx, sz, Math.atan2(x - sx, z - sz), true);
+      this.me?.bubble('The Storyteller called you over', 2600);
+    };
     this.unsubUI = useUI.subscribe((s) => ambience.setEnabled(s.ambience && !s.muted));
     game.sheepDone = (correct) => {
       // The result stays up until they close it (or nod off); the HUD moves to 'done' then.
@@ -369,6 +417,11 @@ export class Engine {
         if (this.bellTimer) clearTimeout(this.bellTimer);
         this.bellTimer = setTimeout(() => this.goToSquare(), 2500);
       }
+    }
+    if (v.weather !== this.weather) {
+      this.weather = v.weather;
+      (this.town as TownWorld & TownFx).setWeather?.(v.weather);
+      ambience.setWeather(v.weather);
     }
     if (!v.townHall && !nom && this.bellTimer) {
       clearTimeout(this.bellTimer);
@@ -681,10 +734,61 @@ export class Engine {
     if (this.pendingClick && e.button === 0) {
       const { x, y } = this.pendingClick;
       this.pendingClick = null;
-      if (!this.view?.paused && !this.job && !this.inBed) this.walkTo(x, y);
+      // The Storyteller clicking a player opens their menu, instead of walking there.
+      const seat = this.view?.mode === 'st' ? this.avatarAt(x, y) : null;
+      if (seat) game.pickSeat(seat, x, y);
+      else if (!this.view?.paused && !this.job && !this.inBed) this.walkTo(x, y);
     }
     this.dragging = null;
   };
+
+  /** The seat of whoever is under a screen point, if anyone. */
+  private avatarAt(clientX: number, clientY: number): string | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, this.camera);
+    const roots: THREE.Object3D[] = [];
+    const keyOf = new Map<THREE.Object3D, string>();
+    for (const [key, av] of this.others) {
+      if (key === 'st' || !av.rig.root.visible) continue;
+      roots.push(av.rig.root);
+      keyOf.set(av.rig.root, key);
+    }
+    for (const hit of ray.intersectObjects(roots, true)) {
+      let o: THREE.Object3D | null = hit.object;
+      while (o && !keyOf.has(o)) o = o.parent;
+      if (o) return keyOf.get(o)!;
+    }
+    return null;
+  }
+
+  /** Footsteps for us and anyone walking close by, and ripples where people cross the pier. */
+  private footsteps(t: number, v: WorldView | null) {
+    if (!v || v.mode === 'preview') return;
+    const stride = this.keys.has('shift') ? 0.27 : 0.36;
+    const walking = (local.anim === 'walk' || local.anim === 'run') && !this.seated && this.hoverY === 0 && v.mode !== 'st';
+    if (walking && t - this.stepAt > stride) {
+      this.stepAt = t;
+      ambience.footstep(surfaceAt(local.zone, local.x, local.z), 1);
+    }
+    let onPier = walking && onDock(local.zone, local.x, local.z) ? [local.x, local.z] : null;
+    for (const [key, p] of presence.others) {
+      if (key === 'st' || p.zone !== local.zone) continue;
+      const d = Math.hypot(p.x - local.x, p.z - local.z);
+      const prev = this.othersStepAt.get(key);
+      const moved = prev ? Math.hypot(p.x - prev.x, p.z - prev.z) : 0;
+      if (!prev || t - prev.at > 0.4) {
+        this.othersStepAt.set(key, { at: t, x: p.x, z: p.z });
+        if (prev && moved > 0.25 && d < 9) ambience.footstep(surfaceAt(p.zone, p.x, p.z), Math.max(0.15, 1 - d / 9) * 0.6);
+        if (prev && moved > 0.25 && onDock(p.zone, p.x, p.z)) onPier = [p.x, p.z];
+      }
+    }
+    if (onPier && t - this.rippleAt > 0.7) {
+      this.rippleAt = t;
+      (this.town as TownWorld & TownFx).ripple?.(onPier[0] + (Math.random() - 0.5) * 1.6, onPier[1], 0.45);
+    }
+  }
 
   /** Turns the camera a step round the player (the on-screen buttons). */
   turnCamera(dir: -1 | 1) {
@@ -922,6 +1026,12 @@ export class Engine {
         case 'skimming': {
           const x = r as JobResults['skimming'];
           this.me?.bubble(x.bounces ? `${x.bounces} ${x.bounces === 1 ? 'skip' : 'skips'}!` : 'Plop.', 3000);
+          // The stone's skips ripple across the real pond.
+          {
+            const fx = this.town as TownWorld & TownFx;
+            const n = Math.max(1, Math.min(8, x.bounces || 1));
+            for (let i = 0; i < n; i++) setTimeout(() => fx.ripple?.(local.x + Math.sin(local.ry) * (1.5 + i * 0.9), local.z + Math.cos(local.ry) * (1.5 + i * 0.9), 0.5), i * 260);
+          }
           break;
         }
         case 'coin': {
@@ -1027,6 +1137,17 @@ export class Engine {
       this.town.setTime(this.time);
     }
 
+    // The sun crosses the sky as the day's timer runs down (mid-morning when there's no timer).
+    const fx = this.town as TownWorld & TownFx;
+    if (v && fx.setDayProgress) {
+      const timer = v.dayTimer;
+      const p = timer && v.phase === 'day' ? Math.min(1, Math.max(0, (Date.now() - timer.start) / Math.max(1, timer.end - timer.start))) : 0.35;
+      if (Math.abs(p - this.dayProgressAt) > 0.004) {
+        this.dayProgressAt = p;
+        fx.setDayProgress(p);
+      }
+    }
+
     this.runShow(t);
     if (this.me && v) this.moveMe(dt, t, v);
     this.updateOthers(dt, t, v);
@@ -1034,6 +1155,16 @@ export class Engine {
     this.fadeOccluders(dt);
     this.town.follow(this.camTarget.x, this.camTarget.z);
     this.town.update(dt, t);
+    this.footsteps(t, v);
+
+    // Shadows are baked: the map is only redrawn when the town says something changed (and now and then).
+    if (fx.consumeShadowDirty && this.renderer.shadowMap.enabled) {
+      this.renderer.shadowMap.autoUpdate = false;
+      if (fx.consumeShadowDirty() || t - this.lastShadowAt > SHADOW_SAFETY_S) {
+        this.lastShadowAt = t;
+        this.renderer.shadowMap.needsUpdate = true;
+      }
+    }
 
     if (t - this.lastVoice > 0.2) {
       this.lastVoice = t;
@@ -1339,6 +1470,11 @@ export class Engine {
       } else av.setTarget(p.x, p.z, p.ry, sitting ? this.seatHeight(p.zone, p.anim, p.x, p.z) : 0);
       // Only the Storyteller carries the book.
       av.setItem(key !== 'st' && p.item?.k === 'grimoire' ? null : p.item);
+      // Far away: a lighter model, and no name tag (the Storyteller sees every name).
+      const far = Math.hypot(av.x - this.camTarget.x, av.z - this.camTarget.z);
+      if (far > LOD_FAR) av.setDetail('low');
+      else if (far < LOD_NEAR) av.setDetail('high');
+      av.setTagShown(v?.mode === 'st' || key === 'st' || far < TAG_FAR || p.speaking);
       av.update(dt, t, anim, p.speaking, true);
       av.rig.root.rotation.z = dangle?.swing ?? 0;
       av.rig.root.scale.setScalar(dangle?.scale ?? 1);
@@ -1449,6 +1585,10 @@ export class Engine {
       av?.setHearing(near);
       if (near) hearing += 1;
       if (!p.voiceId) continue;
+      // Only open voice lines to people in or near earshot (and the Storyteller, who can speak to everyone),
+      // rather than to the whole town: far less bandwidth with a big group.
+      const inRange = p.zone === local.zone && (zoneKind(p.zone) !== 'town' || Math.hypot(p.x - local.x, p.z - local.z) < VOICE_CONNECT_R);
+      if (!(gain > 0 || inRange || key === 'st' || v.mode === 'st')) continue;
       list.push({ voiceId: p.voiceId, gain });
     }
     if (hearing !== this.hearing) {

@@ -1,5 +1,5 @@
 import type { Alignment, Script } from '../data';
-import type { BakeKind, ClothKind, DrinkKind, FlowerKind, Item, Look, Pose, TownState } from '../world/types';
+import type { BakeKind, ClothKind, DrinkKind, FlowerKind, Item, Look, Pose, TownState, Weather } from '../world/types';
 
 export type Phase = 'night' | 'day';
 
@@ -151,6 +151,10 @@ export interface GameState {
   history: VoteRecord[];
   townHall: TownHall | null;
   execution: Execution | null;
+  /** The weather the Storyteller has called for. */
+  weather: Weather;
+  /** A countdown for the day, shown as the sun crossing the sky; the bell can ring itself when it ends. */
+  dayTimer: DayTimer | null;
   /** Drinks on the bar, washing on the line, flowers in the beds. */
   town: TownState;
   /** Seats killed during this night. Players don't see these deaths until the day begins. */
@@ -192,7 +196,19 @@ export interface PublicState {
   history: VoteRecord[];
   townHall: TownHall | null;
   execution: Execution | null;
+  weather?: Weather;
+  dayTimer?: DayTimer | null;
   town: TownState;
+}
+
+export interface DayTimer {
+  /** When the day started and when it ends, as host clock times (ms). */
+  start: number;
+  end: number;
+  /** Ring the bell for a town meeting when it runs out. */
+  autoBell: boolean;
+  /** Set once the bell has rung for this timer. */
+  rang?: boolean;
 }
 
 export interface PrivateState {
@@ -230,6 +246,8 @@ export type HostMessage =
   | { t: 'world'; a: Record<string, Pose>; ann?: boolean }
   /** Something put in this player's paw: handed over by `from`, or taken from the bar or the shelf. */
   | { t: 'gift'; item: Item; from: string | null }
+  /** The Storyteller calls this player over: they're brought to stand beside the Storyteller. */
+  | { t: 'summon'; zone: string; x: number; z: number }
   | { t: 'pong' }
   | { t: 'host' }
   | { t: 'error'; message: string };

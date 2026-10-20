@@ -19,6 +19,7 @@ import {
   SHELF_SLOTS,
   type Item,
   type Look,
+  type Weather,
 } from '../world/types';
 import type {
   Ask,
@@ -75,6 +76,8 @@ function freshGame(prev?: GameState, keepPlayers = true): GameState {
     history: [],
     townHall: null,
     execution: null,
+    weather: prev?.weather ?? 'clear',
+    dayTimer: null,
     town: prev?.town ?? emptyTown(),
     nightDeaths: [],
     awake: {},
@@ -95,6 +98,8 @@ function loadGame(): GameState | null {
   g.town ??= emptyTown();
   g.town.records ??= {};
   g.execution ??= null;
+  g.weather ??= 'clear';
+  g.dayTimer ??= null;
   for (const s of g.seats) s.look ??= null;
   setCustomRoles(g.script.custom);
   return g;
@@ -180,6 +185,8 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
     history: g.history,
     townHall: g.townHall,
     execution: g.execution,
+    weather: g.weather,
+    dayTimer: g.dayTimer,
     town: g.town,
   };
 }
@@ -638,8 +645,44 @@ export const st = {
       g.townHall = null;
       g.nightDeaths = [];
       g.execution = null;
+      // A day timer belongs to the day it was set for.
+      g.dayTimer = null;
       if (phase === 'day') g.awake = {};
     });
+  },
+  /** Rain, mist or clear skies over the town. */
+  setWeather(w: Weather) {
+    if (!['clear', 'mist', 'rain'].includes(w)) return;
+    update((g) => void (g.weather = w));
+  },
+  /** Starts (or clears, with null) a countdown for the day. */
+  setDayTimer(minutes: number | null, autoBell = true) {
+    update((g) => {
+      if (minutes === null || !(minutes > 0)) {
+        g.dayTimer = null;
+        return;
+      }
+      const now = Date.now();
+      g.dayTimer = { start: now, end: now + Math.round(minutes * 60000), autoBell, rang: false };
+    });
+  },
+  /** Adds (or takes away) minutes from a running day timer. */
+  nudgeDayTimer(minutes: number) {
+    update((g) => {
+      if (!g.dayTimer) return;
+      g.dayTimer.end = Math.max(Date.now() + 10000, g.dayTimer.end + minutes * 60000);
+      g.dayTimer.rang = false;
+    });
+  },
+  /** The host's clock tick: rings the bell once when a day timer with the bell on runs out. */
+  checkDayTimer() {
+    const g = useHost.getState().g;
+    const t = g.dayTimer;
+    if (!t || t.rang || Date.now() < t.end || g.phase !== 'day') return;
+    update((g) => {
+      if (g.dayTimer) g.dayTimer.rang = true;
+    });
+    if (t.autoBell) st.callTownHall();
   },
   setDay(day: number) {
     update((g) => void (g.day = Math.max(0, day)));
