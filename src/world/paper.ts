@@ -29,12 +29,13 @@ function weld(g: THREE.BufferGeometry, spin = 0): THREE.BufferGeometry {
 }
 
 export const BASE = {
-  /** 20, 80 and 320 faces. */
+  /** 20, 80, 180 and 320 faces. */
   ico0: weld(new THREE.IcosahedronGeometry(1, 0)),
   ico1: weld(new THREE.IcosahedronGeometry(1, 1)),
   ico2: weld(new THREE.IcosahedronGeometry(1, 2)),
-  /** A unit-high six-sided limb in two bands, centred on the origin. */
-  limb: weld(new THREE.CylinderGeometry(1, 1, 1, 6, 2)),
+  ico3: weld(new THREE.IcosahedronGeometry(1, 3)),
+  /** A unit-high seven-sided limb in three bands, centred on the origin. */
+  limb: weld(new THREE.CylinderGeometry(1, 1, 1, 7, 3)),
   limb5: weld(new THREE.CylinderGeometry(1, 1, 1, 5, 1)),
   /** Pyramids with a flat face to the front (+z), apex up: ears, beaks, spines, horns. */
   pyramid: weld(new THREE.ConeGeometry(1, 1, 4, 1), Math.PI / 4),
@@ -146,14 +147,15 @@ export interface Solid {
 /** Folds a solid and adds it to a builder. */
 export function solid(b: Builder, rnd: () => number, s: Solid): void {
   let name = s.base ?? 'ico1';
-  if (LOW && name === 'ico2') name = 'ico1';
+  if (LOW && (name === 'ico3' || name === 'ico2')) name = 'ico1';
   else if (LOW && name === 'ico1' && !(typeof s.r === 'number' ? s.r > 0.07 : Math.max(...s.r) > 0.07)) name = 'ico0';
+  else if (LOW && name === 'limb') name = 'limb5';
   const base = name instanceof THREE.BufferGeometry ? name : BASE[name];
   const g = base.clone();
   const pos = g.getAttribute('position') as THREE.BufferAttribute;
   const unit = new Float32Array(pos.count * 3);
   const r = typeof s.r === 'number' ? ([s.r, s.r, s.r] as Vec3) : s.r;
-  const j = s.jitter ?? 0.07;
+  const j = s.jitter ?? 0.04;
   const v = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i);
@@ -166,7 +168,7 @@ export function solid(b: Builder, rnd: () => number, s: Solid): void {
   }
   g.setAttribute('unit', new THREE.BufferAttribute(unit, 3));
   g.applyMatrix4(s.matrix ?? placeMatrix({ pos: s.pos, rot: s.rot }));
-  finish(b, g, s.color, s.paint, s.tone ?? 0.07);
+  finish(b, g, s.color, s.paint, s.tone ?? 0.06);
 }
 
 /** A placement that points a shape's +y from `from` towards `to`, centred between them. */
@@ -197,7 +199,7 @@ export function pillar(
     base: opts.base ?? 'limb',
     r: [1, len, 1],
     matrix,
-    jitter: opts.jitter ?? 0.04,
+    jitter: opts.jitter ?? 0.025,
     bend: (v) => {
       // In the unit limb y runs -0.5 (at `from`) to 0.5 (at `to`).
       const t = v.y + 0.5;
@@ -236,7 +238,7 @@ export function tube(b: Builder, rnd: () => number, t: Tube): void {
   const pts = t.pts.map((p) => new THREE.Vector3(...p));
   const m = pts.length;
   const flat = t.flat ?? 1;
-  const j = t.jitter ?? 0.12;
+  const j = t.jitter ?? 0.08;
   // Frames carried along the path so the tube doesn't twist.
   const tangents = pts.map((_p, i) => {
     const a = pts[Math.max(0, i - 1)];
