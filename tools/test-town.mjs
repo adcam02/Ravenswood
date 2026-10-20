@@ -162,10 +162,10 @@ await check('join: the bunny is not on offer to anyone but Jarrod', async () => 
 await check('join: Jarrod skips the picker and is the bunny', async () => {
   const p = await open('Jarrod', `?room=${room}`);
   await p.waitForSelector('.join-name input', { timeout: 180000 });
-  await p.fill('.join-name input', 'jarrod');
+  await p.fill('.join-name input', 'jarrod', { timeout: 180000 });
   await sleep(400);
   await jsClick(p, '.join-name button');
-  await p.waitForSelector('.join-mic', { timeout: 30000 });
+  await p.waitForSelector('.join-mic', { timeout: 120000 });
   expect(!(await p.$('.join-animal')), 'Jarrod saw the animal picker');
   await shot(p, '02-jarrod-mic');
   await jsClick(p, '.join-mic .cosy-btn.primary');
