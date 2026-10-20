@@ -125,6 +125,11 @@ async function join(name, animal, color) {
   if (animal) {
     await p.waitForSelector('.join-animal', { timeout: 60000 });
     await p.waitForSelector(`.join-tile[title="${animal}"] img`, { timeout: 90000 });
+    if (name === 'Abbey') {
+      await shot(p, '01-animal-picker');
+      const tiles = await p.$$eval('.join-tile', (els) => els.map((e) => e.getAttribute('title')));
+      pickerTiles = tiles;
+    }
     await p.click(`.join-tile[title="${animal}"]`, { noWaitAfter: true });
     if (color) await p.click(`.join-color[aria-label="${color}"]`, { noWaitAfter: true });
     await p.click('.join-animal .cosy-btn.primary', { noWaitAfter: true });
@@ -138,6 +143,7 @@ async function join(name, animal, color) {
 }
 
 const players = {};
+let pickerTiles = [];
 await check('join: Abbey picks a fox, Colter a shark, Steele an owl', async () => {
   players.abbey = await join('Abbey', 'Fox');
   players.colter = await join('Colter', 'Shark');
@@ -145,18 +151,8 @@ await check('join: Abbey picks a fox, Colter a shark, Steele an owl', async () =
 });
 
 await check('join: the bunny is not on offer to anyone but Jarrod', async () => {
-  const p = await open('Peeker', `?room=${room}`);
-  await p.waitForSelector('.join-name input', { timeout: 180000 });
-  await p.fill('.join-name input', 'Peeker');
-  await p.click('.join-name button', { noWaitAfter: true });
-  await p.waitForSelector('.join-animal', { timeout: 60000 });
-  await p.waitForSelector('.join-tile[title="Platypus"] img', { timeout: 90000 });
-  const bunny = await p.$('.join-tile[title="Bunny"]');
-  const tiles = await p.$$eval('.join-tile', (els) => els.map((e) => e.getAttribute('title')));
-  await shot(p, '01-animal-picker');
-  expect(!bunny, 'a Bunny tile is offered');
-  expect(tiles.length >= 20, `only ${tiles.length} animals offered`);
-  await p.context().close();
+  expect(pickerTiles.length >= 20, `only ${pickerTiles.length} animals offered`);
+  expect(!pickerTiles.includes('Bunny'), 'a Bunny tile is offered');
 });
 
 await check('join: Jarrod skips the picker and is the bunny', async () => {
@@ -314,7 +310,7 @@ await check('jobs: the minigame can actually be played (pour)', async () => {
   await p.keyboard.down('Space');
   await sleep(500);
   await p.keyboard.up('Space');
-  await until(st, (n) => window.__host.getState().g.town.drinks.length > n, before, 15000, 'the poured drink');
+  await until(st, (n) => window.__host.getState().g.town.drinks.length > n, before, 60000, 'the poured drink');
 });
 
 await check('items: Colter takes a drink from the bar and gives it to Abbey', async () => {

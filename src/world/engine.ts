@@ -141,7 +141,8 @@ export class Engine {
   private seated: { y: number; anim: Anim } | null = null;
   private job: { job: GameJob; station: Station; prevItem: Item | null } | null = null;
   private sips = 0;
-  private doorCooldown = 0;
+  /** Doors stay shut for a moment after arriving somewhere, so you don't bounce straight back through. */
+  private doorsShutUntil = 0;
   private frozen = false;
   private lastVoice = 0;
   private lastFish = -1;
@@ -376,7 +377,7 @@ export class Engine {
       local.ry = ry;
       this.moveTarget = null;
       this.seated = null;
-      this.doorCooldown = 0.6;
+      this.doorsShutUntil = performance.now() + 700;
       this.showZone();
       if (this.me) {
         this.me.setTarget(x, z, ry, 0);
@@ -824,7 +825,6 @@ export class Engine {
     me.setVisible(true);
     me.update(dt, t, anim, local.speaking, false);
 
-    this.doorCooldown = Math.max(0, this.doorCooldown - dt);
     this.checkDoors(v, moving, dx, dz);
     this.checkStations(v);
   }
@@ -862,8 +862,8 @@ export class Engine {
       }
       // Only walking into a door opens it, not standing next to one.
       const toward = moving && (door.x - local.x) * dx + (door.z - local.z) * dz > -0.2;
-      if (toward && this.doorCooldown <= 0 && !this.job) {
-        this.doorCooldown = 1;
+      if (toward && performance.now() >= this.doorsShutUntil && !this.job) {
+        this.doorsShutUntil = performance.now() + 1000;
         this.place(target.zone, target.x, target.z, target.ry, true);
       }
       return;
