@@ -2,6 +2,7 @@ import { debugHooks } from '../lib/util';
 import { useContext, useEffect, useMemo, useRef } from 'react';
 import { game, useHud } from '../game/hud';
 import { local, receiveItem, reportPoseWith } from '../game/local';
+import { ambience } from '../lib/ambience';
 import { presence } from '../game/presence';
 import { clientLink, player } from '../net/client';
 import { hostLink } from '../net/host';
@@ -96,7 +97,7 @@ export function World({ mode }: { mode: 'st' | 'player' | 'preview' }) {
           else player.give(to, item);
         },
       });
-      if (debugHooks()) Object.assign(window, { __engine: engine.current, __local: local, __presence: presence, __hud: useHud, __game: game, __st: { st } });
+      if (debugHooks()) Object.assign(window, { __engine: engine.current, __local: local, __presence: presence, __hud: useHud, __game: game, __st: { st }, __ambience: ambience });
     } catch (e) {
       console.error(e);
       useHud.setState({ failed: e instanceof Error ? e.message : String(e) });
