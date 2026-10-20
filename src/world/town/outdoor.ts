@@ -1361,6 +1361,13 @@ function hillAt(x: number, z: number): number {
   return smooth(TOWN_R + 1, TOWN_R + 52, rad) * (5 + 3 * Math.sin(a * 3 + 1.3) + 2 * Math.sin(a * 7 + 0.4)) + smooth(TOWN_R + 4, TOWN_R + 22, rad) * 0.7;
 }
 
+const TT: Record<string, number> = ((globalThis as unknown as { __tt: Record<string, number> }).__tt = {});
+let tl = 0;
+const T = (k: string) => {
+  const n = performance.now();
+  if (tl) TT[k] = Math.round(n - tl);
+  tl = n;
+};
 export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   const group = new THREE.Group();
   group.name = 'town';
@@ -1417,7 +1424,9 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     return new Paint({ main, glass }, frame(x, z, ry));
   };
 
+T('start');
   group.add(groundMesh(), cobbleMesh(), pathMesh());
+  T('ground');
 
   // The clock tower, its faces softly lit at night.
   const tower = clockTower(solo(0, 0));
@@ -1468,6 +1477,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   noticeboard(painter(NOTICEBOARD.x, NOTICEBOARD.z), r);
   gate(painter(0, GATE_Z));
 
+  T('public');
   // Cottages.
   houseSlots.forEach((h, i) => {
     cottage(solo(h.x, h.z, h.ry), rng(500 + i), i, smoke);
@@ -1475,6 +1485,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     colliders.push({ kind: 'circle', x: post.x, z: post.z, r: 0.15 });
   });
 
+  T('cottages');
   // The town fence, with a gap for the road south.
   const fenceR = TOWN_R + 0.9;
   const segs = 120;
@@ -1488,6 +1499,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     railFence(painter(x, z, -am), 2 * fenceR * Math.sin(Math.PI / segs));
   }
 
+  T('fence');
   // Trees, bushes and flowers.
   const block = blockers();
   const trees: Blocker[] = [];
@@ -1621,6 +1633,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     else mushroom(p, r);
   }
 
+  T('scatter');
   // Cobbles along the edges of the paths, skipping where paths cross.
   {
     const inside = (x: number, z: number, except: number) => {
@@ -1669,6 +1682,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     }
   }
 
+  T('edges');
   // Merge everything.
   const main = matte();
   for (const b of mains.values()) {
@@ -1684,6 +1698,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     group.add(f);
   }
   const occluders: THREE.Mesh[] = [];
+  T('chunks');
   for (const b of solos) {
     if (b.empty) continue;
     const mat = matte();
@@ -1693,7 +1708,9 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     group.add(m);
     occluders.push(m);
   }
+  T('merge');
   const glassMesh = glass.mesh(windowMat, { cast: false, receive: false });
+  T('glass');
   glassMesh.name = 'glass';
   group.add(glassMesh);
 
