@@ -1059,11 +1059,12 @@ function pond(group: THREE.Group, p: Paint, r: () => number): Outdoor['water'] {
       pos.push(POND.x + Math.cos(a) * POND.rx * s * wob * 0.99, 0.045, POND.z + Math.sin(a) * POND.rz * s * wob * 0.99);
     }
   }
-  for (let k = 0; k < n; k++) index.push(vid(0, 0), vid(1, k), vid(1, k + 1));
+  // Wound so the faces point up (seen from above, the angle runs clockwise, so the order goes the other way).
+  for (let k = 0; k < n; k++) index.push(vid(0, 0), vid(1, k + 1), vid(1, k));
   for (let i = 1; i < rings; i++) {
     for (let k = 0; k < n; k++) {
-      index.push(vid(i, k), vid(i + 1, k), vid(i + 1, k + 1));
-      index.push(vid(i, k), vid(i + 1, k + 1), vid(i, k + 1));
+      index.push(vid(i, k), vid(i + 1, k + 1), vid(i + 1, k));
+      index.push(vid(i, k), vid(i, k + 1), vid(i + 1, k + 1));
     }
   }
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));

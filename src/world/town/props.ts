@@ -75,7 +75,7 @@ export function bush(p: Paint, r: () => number, flowers = false, detail = true) 
   for (let i = 0; i < n; i++) {
     const a = r() * Math.PI * 2;
     const c = shade(green, (r() - 0.5) * 0.1);
-    p.blob(c, 0.45 + r() * 0.25, Math.cos(a) * 0.35, 0.35, Math.sin(a) * 0.35, Math.floor(r() * 6), 0.8, r() * 3, 0, detail);
+    p.blob(c, 0.45 + r() * 0.25, Math.cos(a) * 0.35, 0.35, Math.sin(a) * 0.35, Math.floor(r() * 6), 0.8, r() * 3);
   }
   if (flowers) {
     const c = pick(r, ['#f2a7b8', '#f6d55c', '#ffffff', '#b494dd', '#e4553f']);

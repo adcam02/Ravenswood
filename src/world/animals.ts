@@ -1330,7 +1330,8 @@ const RECIPES: Record<AnimalId, Recipe> = {
           const t = i / (n - 1);
           const out = t * 0.12;
           const y = -0.04 - t * 0.2;
-          ell(b, i === n - 1 ? light : c.coat, [dx * out - side * 0.02, y, dz * out * 0.8], [0.045 - t * 0.022, 0.04, 0.045 - t * 0.022]);
+          // Beads this small don't need a full sphere each; the lighter one still reads as round.
+          ell(b, i === n - 1 ? light : c.coat, [dx * out - side * 0.02, y, dz * out * 0.8], [0.045 - t * 0.022, 0.04, 0.045 - t * 0.022], undefined, i < 2 ? G.sphS : G.sphXS);
           if (i > 0 && i < n - 1) ell(b, light, [dx * out - side * 0.02, y, dz * out * 0.8 + 0.03], [0.016, 0.012, 0.012]);
         }
       }
