@@ -1,5 +1,5 @@
 import { getRole, nightReminder } from '../data';
-import { hostGame, st } from '../state/host';
+import { grimoireSnapshot, hostGame, st } from '../state/host';
 import type { Ask, InfoCard, WakePanel } from '../state/types';
 import { emptyPanel, ui } from '../state/ui';
 
@@ -52,6 +52,8 @@ export function presetFor(roleId: string, kind: 'first' | 'other'): { panels: Wa
 
   if (ask && ask.kind !== 'yesno' && !panels.some((p) => p.card === 'makeChoice')) panels.unshift({ ...emptyPanel(), card: 'makeChoice' });
   if (ask?.kind === 'yesno' && !panels.length) panels.unshift({ ...emptyPanel(), card: 'useAbility' });
+  // The Spy sees the grimoire itself, as it stands when they're woken.
+  if (roleId === 'spy') panels.push({ ...emptyPanel(), grimoire: grimoireSnapshot(hostGame()) });
   if (!panels.length) panels.push(emptyPanel());
   return { panels, ask };
 }

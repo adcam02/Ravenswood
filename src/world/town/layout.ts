@@ -6,13 +6,17 @@ import { local } from './kit';
  * A facing (ry) of 0 looks towards +z; buildings face the way their front door does.
  */
 
-export const TOWN_R = 58;
-export const SQUARE_R = 14;
-export const STOOL_R = 7.6;
-export const MEETING_R = 13;
-export const HOUSE_R = 47;
-export const RING_ROAD_R = 42.5;
+export const TOWN_R = 36;
+export const SQUARE_R = 11;
+export const STOOL_R = 6.6;
+export const MEETING_R = 10;
+export const HOUSE_R = 29;
+export const RING_ROAD_R = 25.5;
 export const HOUSES = 20;
+/** The gallows, on the square's north-east edge, facing the tower. */
+export const GALLOWS = { x: 7.3, z: -7.3, ry: Math.atan2(-7.3, 7.3) };
+/** The churchyard beside the church. */
+export const GRAVEYARD = { x: -8, z: -23, hw: 2.2, hd: 5.6 };
 
 export const face = (fromX: number, fromZ: number, toX: number, toZ: number) => Math.atan2(toX - fromX, toZ - fromZ);
 
@@ -35,31 +39,31 @@ export interface Building {
   d: number;
 }
 
-export const CHURCH: Building = { x: 0, z: -33, ry: 0, w: 9, d: 14.4 };
+export const CHURCH: Building = { x: 0, z: -23, ry: 0, w: 9, d: 14.4 };
 /** The steeple stands in front of the nave; its front face is the church's door. */
 export const STEEPLE = { z: 7.2, size: 3.8 };
-export const TAVERN: Building = { x: -29, z: 0, ry: Math.PI / 2, w: 11, d: 8 };
-export const BAKERY: Building = { x: 29, z: 0, ry: -Math.PI / 2, w: 9, d: 7 };
-export const WASHHOUSE = { x: -19, z: 20, w: 7, d: 4 };
+export const TAVERN: Building = { x: -20, z: 0, ry: Math.PI / 2, w: 11, d: 8 };
+export const BAKERY: Building = { x: 20, z: 0, ry: -Math.PI / 2, w: 9, d: 7 };
+export const WASHHOUSE = { x: -14, z: 14, w: 7, d: 4 };
 export const TUBS = [
-  { x: -20.8, z: 19.7 },
-  { x: -17.2, z: 19.7 },
+  { x: -15.8, z: 13.7 },
+  { x: -12.2, z: 13.7 },
 ];
 export const LINE_POS = [
-  { z: 25.6, x0: -25, x1: -14 },
-  { z: 28.4, x0: -25, x1: -14 },
+  { z: 18.6, x0: -20, x1: -10 },
+  { z: 21.2, x0: -20, x1: -10 },
 ].slice(0, LINES);
 export const LINE_Y = 1.95;
 
-export const POND = { x: 20, z: 24, rx: 8, rz: 7 };
-export const DOCK = { x: 20, z0: 16, z1: 22.8, w: 2.6 };
+export const POND = { x: 15, z: 17.5, rx: 6.5, rz: 5.6 };
+export const DOCK = { x: 15, z0: 11, z1: 16.6, w: 2.6 };
 export const FISHING = [
-  { x: 19.3, z: 21.9 },
-  { x: 20.7, z: 21.9 },
+  { x: 14.3, z: 15.7 },
+  { x: 15.7, z: 15.7 },
 ];
 
-export const WELL = { x: -7.5, z: -19 };
-export const NOTICEBOARD = { x: 3.4, z: -16.2 };
+export const WELL = { x: -6.5, z: -15.5 };
+export const NOTICEBOARD = { x: 3.2, z: -13.6 };
 export const GATE_Z = TOWN_R + 0.6;
 
 /** Front-door point of a building, `out` metres in front of its front wall. */
@@ -77,7 +81,7 @@ export const BED_H = 0.35;
 
 export const beds = Array.from({ length: BEDS }, (_, i) => {
   const a = ((45 + i * 90) * Math.PI) / 180;
-  const r = 18.5;
+  const r = 14;
   const x = r * Math.sin(a);
   const z = -r * Math.cos(a);
   return { x, z, ry: face(x, z, 0, 0) };
@@ -92,7 +96,7 @@ export function bedSpot(bed: number, spot: number): { x: number; z: number; ry: 
 
 export const benches = [30, 150, 210, 330].map((deg) => {
   const a = (deg * Math.PI) / 180;
-  const r = 12.3;
+  const r = 9.6;
   const x = r * Math.sin(a);
   const z = -r * Math.cos(a);
   return { x, z, ry: face(x, z, 0, 0) };
@@ -100,22 +104,22 @@ export const benches = [30, 150, 210, 330].map((deg) => {
 
 export const squareLamps = Array.from({ length: 8 }, (_, i) => {
   const a = ((22.5 + i * 45) * Math.PI) / 180;
-  return { x: 14.8 * Math.sin(a), z: -14.8 * Math.cos(a) };
+  return { x: 11.8 * Math.sin(a), z: -11.8 * Math.cos(a) };
 });
 
 export const roadLamps = Array.from({ length: 10 }, (_, i) => i)
   .filter((i) => i !== 0 && i !== 5)
   .map((i) => {
     const a = ((i * 36 + 18) * Math.PI) / 180;
-    return { x: 40.6 * Math.sin(a), z: -40.6 * Math.cos(a) };
+    return { x: 23.8 * Math.sin(a), z: -23.8 * Math.cos(a) };
   });
 
 export const pathLamps = [
-  { x: 1.9, z: 27 },
-  { x: -1.9, z: 38 },
-  { x: -1.9, z: -20 },
-  { x: -19.5, z: 1.9 },
-  { x: 19.5, z: -1.9 },
+  { x: 1.9, z: 18.5 },
+  { x: -1.9, z: 29 },
+  { x: -1.9, z: -14.6 },
+  { x: -14, z: 1.9 },
+  { x: 14, z: -1.9 },
 ];
 
 // ---------------------------------------------------------------- cottages
@@ -301,6 +305,7 @@ export function townColliders(extra: Collider[]): Collider[] {
   for (const b of benches) c.push(box(b, 1.05, 0.35));
   for (const l of [...squareLamps, ...roadLamps, ...pathLamps]) c.push({ kind: 'circle', x: l.x, z: l.z, r: 0.22 });
   c.push({ kind: 'circle', x: WELL.x, z: WELL.z, r: 1.2 });
+  c.push({ kind: 'box', x: GALLOWS.x, z: GALLOWS.z, hw: 1.5, hd: 1.5, rot: GALLOWS.ry });
   c.push({ kind: 'box', x: NOTICEBOARD.x, z: NOTICEBOARD.z, hw: 1.0, hd: 0.25, rot: 0 });
   for (const sx of [-1, 1]) c.push({ kind: 'circle', x: sx * 2.6, z: GATE_Z, r: 0.35 });
   return [...c, ...extra];

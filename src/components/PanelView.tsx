@@ -1,5 +1,5 @@
 import { getRole } from '../data';
-import type { Ask, WakePanel, WakeReply } from '../state/types';
+import type { Ask, GrimoireSnapshot, WakePanel, WakeReply } from '../state/types';
 import { useView } from '../state/view';
 import { Icon } from './Icon';
 import { cardTitle, InfoCard, SignGlyph, signLabel } from './InfoCard';
@@ -15,6 +15,43 @@ export interface PanelEdit {
   removeSeat: (i: number, id: string) => void;
   removeSign: (i: number, s: string) => void;
   clearText: (i: number) => void;
+  removeGrimoire: (i: number) => void;
+}
+
+/** A snapshot of the grimoire laid out as a circle, the way the Spy sees it. */
+export function GrimoireSnapshotView({ snap, seatFor }: { snap: GrimoireSnapshot; seatFor?: string | null }) {
+  const n = snap.seats.length;
+  const R = 92;
+  return (
+    <div className="snap">
+      <div className="snap-ring" style={{ width: R * 2 + 70, height: R * 2 + 70 }}>
+        {snap.seats.map((s, i) => {
+          const a = (i / Math.max(1, n)) * Math.PI * 2 - Math.PI / 2;
+          return (
+            <div key={s.id} className={`snap-seat ${s.dead ? 'is-dead' : ''} ${s.id === seatFor ? 'is-me' : ''}`} style={{ left: `calc(50% + ${Math.cos(a) * R}px)`, top: `calc(50% + ${Math.sin(a) * R}px)` }}>
+              <Token roleId={s.roleId} dead={s.dead} blank="unknown" label={false} />
+              <em>{s.name}</em>
+              <b>{getRole(s.roleId)?.name ?? '—'}</b>
+              {s.reminders.length > 0 && <small>{s.reminders.join(' · ')}</small>}
+            </div>
+          );
+        })}
+        <div className="snap-centre">
+          <span className="eyebrow">The grimoire</span>
+          {snap.bluffs.length > 0 && (
+            <div className="snap-bluffs">
+              <span>Demon bluffs</span>
+              <div>
+                {snap.bluffs.map((id) => (
+                  <Token key={id} roleId={id} label={false} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function X({ onClick, label }: { onClick: () => void; label: string }) {
@@ -87,6 +124,7 @@ export function PanelView({
               </span>
             ))}
             {p.text && <span className="panel-text-inline">“{p.text}”</span>}
+            {p.grimoire && <span className="chip">📖 Grimoire snapshot</span>}
           </div>
         ))}
         {reply && <ReplyLine reply={reply} name={name} />}
@@ -97,7 +135,7 @@ export function PanelView({
   return (
     <div className={`panels ${message.panels.length > 1 ? 'multi' : ''}`}>
       {message.panels.map((p, i) => {
-        const empty = !p.card && !p.roleIds.length && !p.seatIds.length && !p.signs.length && !p.text;
+        const empty = !p.card && !p.roleIds.length && !p.seatIds.length && !p.signs.length && !p.text && !p.grimoire;
         const single = p.roleIds.length === 1 && !p.seatIds.length;
         return (
           <section
@@ -161,6 +199,12 @@ export function PanelView({
                   {p.text}
                   {edit && <X onClick={() => edit.clearText(i)} label="Remove text" />}
                 </p>
+              )}
+              {p.grimoire && (
+                <div className="panel-grimoire">
+                  <GrimoireSnapshotView snap={p.grimoire} seatFor={seatFor} />
+                  {edit && <X onClick={() => edit.removeGrimoire(i)} label="Remove the grimoire" />}
+                </div>
               )}
             </div>
           </section>

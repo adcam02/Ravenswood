@@ -104,6 +104,30 @@ export function gavel() {
   bell(98, 3.5, 0.22);
 }
 
+/** A drumroll that quickens, for the gallows. */
+export function drumroll(seconds = 2.6) {
+  const c = audio();
+  if (!c) return;
+  const t0 = c.currentTime;
+  let t = 0;
+  let gap = 0.16;
+  while (t < seconds) {
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(110, t0 + t);
+    osc.frequency.exponentialRampToValueAtTime(55, t0 + t + 0.08);
+    g.gain.setValueAtTime(0.0001, t0 + t);
+    g.gain.exponentialRampToValueAtTime(0.16, t0 + t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + t + 0.12);
+    osc.connect(g).connect(c.destination);
+    osc.start(t0 + t);
+    osc.stop(t0 + t + 0.14);
+    t += gap;
+    gap = Math.max(0.05, gap * 0.93);
+  }
+}
+
 /** A quick round on six bells, to call everyone to the town square. */
 export function townBells() {
   const notes = [659.3, 587.3, 523.3, 493.9, 440, 392];

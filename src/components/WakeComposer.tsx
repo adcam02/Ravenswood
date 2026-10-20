@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ALL_ROLES, getRole } from '../data';
 import { demonInfo, minionInfo, wholeEvilTeam } from '../lib/presets';
 import { joinNames } from '../lib/util';
-import { seatName, st, useHost } from '../state/host';
+import { seatName, st, useHost, grimoireSnapshot } from '../state/host';
 import type { Ask, InfoCard as CardId, WakePanel } from '../state/types';
 import { emptyPanel, ui, useUI } from '../state/ui';
 import { CharacterGrid } from './CharacterGrid';
@@ -268,6 +268,16 @@ export function WakeComposer() {
               </div>
             )}
 
+            <div className="palette-grimoire">
+              <button
+                className={`btn small ${panel.grimoire ? 'primary' : ''}`}
+                title="For the Spy: a picture of the grimoire as it is right now"
+                onClick={() => edit((p) => ({ ...p, grimoire: p.grimoire ? undefined : grimoireSnapshot(g) }))}
+              >
+                <Icon name="book" /> {panel.grimoire ? 'Grimoire snapshot added' : 'Show them the grimoire (Spy)'}
+              </button>
+            </div>
+
             <div className="palette-cards">
               {CARDS.map((c) => (
                 <button key={c.id} className={`card-btn ${draft.panels.some((p) => p.card === c.id) ? 'on' : ''}`} onClick={() => addCard(c.id)} title={c.title}>
@@ -350,6 +360,7 @@ export function WakeComposer() {
                   removeSeat: (i, id) => ui.setDraft((d) => ({ ...d, panels: d.panels.map((p, k) => (k === i ? { ...p, seatIds: p.seatIds.filter((x) => x !== id) } : p)) })),
                   removeSign: (i, s) => ui.setDraft((d) => ({ ...d, panels: d.panels.map((p, k) => (k === i ? { ...p, signs: p.signs.filter((x) => x !== s) } : p)) })),
                   clearText: (i) => ui.setDraft((d) => ({ ...d, panels: d.panels.map((p, k) => (k === i ? { ...p, text: '' } : p)) })),
+                  removeGrimoire: (i) => ui.setDraft((d) => ({ ...d, panels: d.panels.map((p, k) => (k === i ? { ...p, grimoire: undefined } : p)) })),
                 }}
               />
               {draft.ask && <div className="preview-ask">They’ll be asked: {askText(draft.ask)}</div>}

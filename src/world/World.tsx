@@ -5,13 +5,18 @@ import { local, receiveItem, reportPoseWith } from '../game/local';
 import { presence } from '../game/presence';
 import { clientLink, player } from '../net/client';
 import { hostLink } from '../net/host';
-import { st, townAction } from '../state/host';
+import { st, townAction, useHost } from '../state/host';
 import { useUI } from '../state/ui';
 import { useJoin } from '../components/town/JoinFlow';
 import { ViewContext, type View } from '../state/view';
 import { voice } from '../voice/voice';
 import { Engine, type WorldView } from './engine';
 import { emptyTown } from './types';
+
+function lastWakeOf(g: { wakes: { id: string; to: string[] }[] }) {
+  const w = g.wakes[g.wakes.length - 1];
+  return w ? { id: w.id, to: w.to } : null;
+}
 
 function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', paused: boolean, reading: boolean): WorldView {
   const me = view?.seats.find((s) => s.isMe);
@@ -27,10 +32,12 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
       nomination: null,
       marked: null,
       townHall: null,
+      execution: null,
       town: emptyTown(),
       paused: true,
       reading: false,
       dim: true,
+      lastWake: null,
     };
   }
   return {
@@ -51,10 +58,12 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
     nomination: view.nomination,
     marked: view.marked,
     townHall: view.townHall,
+    execution: view.execution,
     town: view.town,
     paused,
     reading,
     dim,
+    lastWake: mode === 'st' ? lastWakeOf(useHost.getState().g) : null,
   };
 }
 

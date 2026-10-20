@@ -7,6 +7,8 @@ import { buildInteriors, type Room } from './interiors';
 import {
   BED,
   BED_H,
+  GALLOWS,
+  GRAVEYARD,
   LINE_Y,
   LINE_SLOT_X,
   MEETING_R,
@@ -47,6 +49,10 @@ export interface TownWorld {
   setMeeting(m: { n: number; nominee: number | null; hand: number | null; active: boolean; votes: number[]; label?: string }): void;
   /** Gravestones for the dead, by seat name. */
   setGraves(names: string[]): void;
+  /** Where the condemned stands, on the trapdoor. */
+  gallowsSpot: Spot & { y: number };
+  /** Opens the trapdoor: 0 shut, 1 fully open. */
+  setGallows(open: number, label: string): void;
   follow(x: number, z: number): void;
   update(dt: number, t: number): void;
   bellRing(): void;
@@ -327,9 +333,52 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     group.add(mesh);
     // Down the middle of the churchyard, oldest nearest the church.
     const col = Math.floor(g.i / 8);
-    group.position.set(-8.75 + col * 1.3 - 0.65 * Math.min(col, 1), 0, -34 - 4.4 + (g.i % 8) * 1.25);
+    group.position.set(GRAVEYARD.x + col * 1.3 - 0.65 * Math.min(col, 1), 0, GRAVEYARD.z - 4.4 + (g.i % 8) * 1.25);
     return group;
   });
+
+  // The gallows: a platform with a trapdoor, two posts and a beam, and a noose for effect.
+  const gallows = new THREE.Group();
+  gallows.position.set(GALLOWS.x, 0, GALLOWS.z);
+  gallows.rotation.y = GALLOWS.ry;
+  const PLAT_H = 0.9;
+  {
+    const b = new Builder();
+    const wood = '#5a3d2a';
+    const plank = '#7a5236';
+    // The platform, with a square hole in the middle, as four slabs.
+    b.add(G.box(), plank, { pos: [0, PLAT_H - 0.06, -0.85], scale: [2.6, 0.12, 0.9] });
+    b.add(G.box(), plank, { pos: [0, PLAT_H - 0.06, 0.85], scale: [2.6, 0.12, 0.9] });
+    b.add(G.box(), plank, { pos: [-0.95, PLAT_H - 0.06, 0], scale: [0.7, 0.12, 0.8] });
+    b.add(G.box(), plank, { pos: [0.95, PLAT_H - 0.06, 0], scale: [0.7, 0.12, 0.8] });
+    // Dark underneath, so the drop looks deep.
+    b.add(G.box(), '#120d10', { pos: [0, PLAT_H / 2 - 0.1, 0], scale: [2.5, PLAT_H - 0.2, 2.5] });
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.add(G.box(), wood, { pos: [sx * 1.2, PLAT_H / 2, sz * 1.2], scale: [0.16, PLAT_H, 0.16] });
+    // Steps at the back.
+    for (let i = 0; i < 3; i++) b.add(G.box(), plank, { pos: [0, 0.15 + i * 0.3, -1.5 - (2 - i) * 0.32], scale: [1.0, 0.1, 0.34] });
+    // Posts and a beam, and a rope with a loop.
+    for (const sx of [-1, 1]) b.add(G.box(), wood, { pos: [sx * 1.1, PLAT_H + 1.5, 0], scale: [0.16, 3.0, 0.16] });
+    b.add(G.box(), wood, { pos: [0, PLAT_H + 3.0, 0], scale: [2.5, 0.16, 0.16] });
+    b.add(G.cyl(5), '#d8c8a0', { pos: [0, PLAT_H + 2.45, 0], scale: [0.025, 1.0, 0.025] });
+    b.add(G.torus(0.14, 5, 10), '#d8c8a0', { pos: [0, PLAT_H + 1.8, 0], rot: [0, Math.PI / 2, 0], scale: [0.16, 0.16, 0.16] });
+    gallows.add(b.mesh(matte()));
+  }
+  const trap = new THREE.Group();
+  trap.position.set(-0.6, PLAT_H, 0);
+  {
+    const b = new Builder();
+    b.add(G.box(), '#8a5a3a', { pos: [0.6, -0.05, 0], scale: [1.2, 0.1, 1.1] });
+    b.add(G.box(), '#3b3a44', { pos: [0.08, 0.01, 0], scale: [0.1, 0.03, 1.1] });
+    trap.add(b.mesh(matte()));
+  }
+  gallows.add(trap);
+  const gallowsLabelEl = document.createElement('div');
+  gallowsLabelEl.className = 'meeting-sign cosy-panel gallows-sign';
+  const gallowsLabel = new CSS2DObject(gallowsLabelEl);
+  gallowsLabel.position.set(0, PLAT_H + 3.6, 0);
+  gallowsLabel.visible = false;
+  gallows.add(gallowsLabel);
+  outdoor.group.add(gallows);
 
   // Meeting stools around the tower, the hand on the cobbles, and a mark by each raised hand.
   const stoolGeo = (() => {
@@ -388,7 +437,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   let bellStart = 0;
   let bellPending = false;
   const followAt = new THREE.Vector3();
-  const fogTown = new THREE.Fog(DAY.fog.clone(), 70, 170);
+  const fogTown = new THREE.Fog(DAY.fog.clone(), 55, 140);
 
   function applyLight() {
     const room = zone === 'town' ? null : interiors.rooms[zone as Room];
@@ -397,8 +446,8 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       scene.fog = fogTown;
       (scene.background as THREE.Color | null)?.copy(lerpColor(DAY.sky, NIGHT.sky, t)) ?? (scene.background = lerpColor(DAY.sky, NIGHT.sky, t).clone());
       fogTown.color.copy(lerpColor(DAY.fog, NIGHT.fog, t));
-      fogTown.near = 70 - 25 * t;
-      fogTown.far = 170 - 45 * t;
+      fogTown.near = 55 - 20 * t;
+      fogTown.far = 140 - 40 * t;
       hemi.color.copy(lerpColor(DAY.hemiSky, NIGHT.hemiSky, t));
       hemi.groundColor.copy(lerpColor(DAY.hemiGround, NIGHT.hemiGround, t));
       hemi.intensity = THREE.MathUtils.lerp(DAY.hemi, NIGHT.hemi, t);
@@ -563,6 +612,14 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
 
     setGraves(names) {
       graves.sync(names.map((name, i) => ({ id: `${i}:${name}`, name, i })));
+    },
+
+    gallowsSpot: { x: GALLOWS.x, z: GALLOWS.z, ry: GALLOWS.ry, y: PLAT_H },
+
+    setGallows(open, label) {
+      trap.rotation.z = -Math.PI * 0.52 * THREE.MathUtils.clamp(open, 0, 1);
+      gallowsLabelEl.textContent = label;
+      gallowsLabel.visible = Boolean(label);
     },
 
     follow(x, z) {

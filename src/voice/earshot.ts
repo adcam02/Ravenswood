@@ -3,7 +3,7 @@ import { zoneKind, type PoseState } from '../world/types';
 /** Full volume this close, in metres. */
 const NEAR = 3;
 /** Silent beyond this, out in the town. */
-const FAR = 18;
+const FAR = 15;
 
 const smooth = (t: number) => t * t * (3 - 2 * t);
 

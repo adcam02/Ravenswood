@@ -5,7 +5,8 @@ import { game, useHud, type Prompt } from '../game/hud';
 import { local, setItem } from '../game/local';
 import { presence } from '../game/presence';
 import type { GameJob, JobResults } from '../jobs';
-import type { Nomination, TownAction, TownHall } from '../state/types';
+import type { Execution, Nomination, TownAction, TownHall } from '../state/types';
+import { drumroll, gavel } from '../lib/audio';
 import { ui } from '../state/ui';
 import { earshot } from '../voice/earshot';
 import { useVoice, voice, type Listener } from '../voice/voice';
@@ -49,6 +50,7 @@ export interface WorldView {
   nomination: Nomination | null;
   marked: { seatId: string } | null;
   townHall: TownHall | null;
+  execution: Execution | null;
   town: TownState;
   /** A window or the grimoire is open, so keys belong to it. */
   paused: boolean;
@@ -56,6 +58,8 @@ export interface WorldView {
   reading: boolean;
   /** The join screens cover the town, so it only needs to tick over slowly behind them. */
   dim: boolean;
+  /** Storyteller: the latest wake sent, so the ghost can drift to the bedside. */
+  lastWake: { id: string; to: string[] } | null;
 }
 
 /** What the world asks of the game around it. */
@@ -142,7 +146,7 @@ export class Engine {
   private litAt = -1;
   private yaw = 0;
   private yawTarget = 0;
-  private dist = 15;
+  private dist = 14;
   private camTarget = new THREE.Vector3();
   private camPos = new THREE.Vector3(0, 12, 14);
   private camLook = new THREE.Vector3();
@@ -170,6 +174,13 @@ export class Engine {
   private bellTimer: ReturnType<typeof setTimeout> | null = null;
   private wellTimer: ReturnType<typeof setTimeout> | null = null;
   private hearing = 0;
+  private lastShowId = new Set<string>();
+  private gavelled = false;
+  private lastWakeId: string | null = null;
+  /** The gallows show in progress: who, and when it started on our clock. */
+  private show: { id: string; seatId: string; name: string; start: number; mine: boolean; released: boolean } | null = null;
+  /** The Storyteller hovering higher than usual, over someone's bed. */
+  private hoverY = 0;
   private nearDoor: { door: Door; locked: string | null } | null = null;
 
   constructor(
@@ -341,6 +352,27 @@ export class Engine {
 
     this.syncMe(v);
     this.applyPhase(v, prev);
+    // An execution: everyone turns to watch.
+    const ex = v.execution;
+    if (ex && ex.id !== this.show?.id && Date.now() - ex.at < 15000 && !this.lastShowId.has(ex.id)) {
+      this.lastShowId.add(ex.id);
+      const name = v.seats.find((s) => s.id === ex.seatId)?.name ?? 'Someone';
+      this.show = { id: ex.id, seatId: ex.seatId, name, start: this.clock.elapsedTime, mine: ex.seatId === v.mySeatId, released: false };
+      this.stopEverything();
+      const spot = this.town.gallowsSpot;
+      if (this.show.mine) {
+        this.place('town', spot.x, spot.z, spot.ry, true);
+        this.frozen = true;
+      }
+      drumroll(2.8);
+      ui.banner(`${name} is to be executed`, 'The town has spoken');
+    }
+    // Waking someone at night takes the Storyteller to their bedside.
+    if (v.mode === 'st' && v.lastWake && v.lastWake.id !== this.lastWakeId) {
+      this.lastWakeId = v.lastWake.id;
+      const first = v.lastWake.to.find((id) => presence.others.get(id)?.zone === houseZone(id));
+      if (first && local.zone !== houseZone(first)) this.goTo(first);
+    }
     for (const [key, av] of this.others) av.setInfo(this.infoFor(key, v));
   }
 
@@ -427,6 +459,7 @@ export class Engine {
   /** Moves the local animal somewhere, optionally through a fade to black. */
   private place(zone: ZoneId, x: number, z: number, ry: number, fade: boolean) {
     const go = () => {
+      this.hoverY = 0;
       local.zone = zone;
       local.x = x;
       local.z = z;
@@ -726,6 +759,15 @@ export class Engine {
     if (!this.me) return;
     const p = presence.others.get(key);
     if (!p) return;
+    if (zoneKind(p.zone) === 'house') {
+      // Float at the foot of the bed, looking over whoever is sleeping in it.
+      const bed = this.town.stations.find((s) => s.zone === 'house' && s.job === 'sleep');
+      const bx = bed?.stand.x ?? p.x;
+      const bz = bed?.stand.z ?? p.z;
+      this.place(p.zone, bx - 1.2, bz + 0.9, Math.atan2(bx - (bx - 1.2), bz - (bz + 0.9)), true);
+      setTimeout(() => (this.hoverY = 0.95), 300);
+      return;
+    }
     const a = Math.random() * Math.PI * 2;
     this.place(p.zone, p.x + Math.cos(a) * 1.6, p.z + Math.sin(a) * 1.6, Math.atan2(-Math.cos(a), -Math.sin(a)), true);
   }
@@ -797,6 +839,7 @@ export class Engine {
       this.town.setTime(this.time);
     }
 
+    this.runShow(t);
     if (this.me && v) this.moveMe(dt, t, v);
     this.updateOthers(dt, t, v);
     this.updateCamera(dt, t);
@@ -859,6 +902,7 @@ export class Engine {
     }
     const moving = dx !== 0 || dz !== 0;
     if (moving) {
+      this.hoverY = 0;
       this.standUp();
       if (this.emote && this.emote.anim !== 'drink') this.emote = null;
       const running = this.keys.has('shift');
@@ -902,7 +946,17 @@ export class Engine {
       return h.emote === emote && h.canSip === canSip ? h : { emote, canSip };
     });
 
-    me.setTarget(local.x, local.z, local.ry, this.seated?.y ?? 0);
+    let myY = this.seated?.y ?? this.hoverY;
+    if (this.show?.mine) {
+      const sp = this.showPose(t - this.show.start);
+      local.x = sp.x;
+      local.z = sp.z;
+      local.ry = sp.ry;
+      myY = sp.y;
+      anim = sp.anim;
+      local.anim = anim;
+    }
+    me.setTarget(local.x, local.z, local.ry, myY);
     me.setItem(local.item);
     me.setVisible(true);
     me.update(dt, t, anim, local.speaking, false);
@@ -991,6 +1045,35 @@ export class Engine {
     }
   }
 
+  /** The gallows: a drumroll, the drop at three seconds, and the ghost let go at six. */
+  private runShow(t: number) {
+    const show = this.show;
+    if (!show) return;
+    const age = t - show.start;
+    const spot = this.town.gallowsSpot;
+    const open = Math.max(0, Math.min(1, (age - 3.1) / 0.3));
+    if (open > 0 && !show.released && age < 3.5 && age >= 3.1 && !this.gavelled) {
+      this.gavelled = true;
+      gavel();
+    }
+    this.town.setGallows(open, age < 6.2 ? `${show.name} is executed` : '');
+    if (age > 6.5) {
+      if (show.mine) {
+        this.frozen = false;
+        this.place('town', spot.x + 2.2, spot.z + 1.4, Math.PI, true);
+      }
+      this.show = null;
+      this.gavelled = false;
+    }
+  }
+
+  /** Where the condemned is during the show, in world space: standing on the trapdoor, then falling through it. */
+  private showPose(age: number): { x: number; z: number; y: number; ry: number; anim: Anim } {
+    const spot = this.town.gallowsSpot;
+    const drop = Math.max(0, Math.min(1, (age - 3.4) / 0.6));
+    return { x: spot.x, z: spot.z, y: spot.y - drop * drop * 3.2, ry: spot.ry, anim: age < 3.4 ? 'cry' : 'idle' };
+  }
+
   private updateOthers(dt: number, t: number, v: WorldView | null) {
     const seen = new Set<string>();
     const myKey = v?.mode === 'st' ? 'st' : v?.mySeatId;
@@ -1011,9 +1094,14 @@ export class Engine {
         continue;
       }
       const sitting = p.anim === 'sit' || p.anim === 'sleep';
-      av.setTarget(p.x, p.z, p.ry, sitting ? this.seatHeight(p.zone, p.anim, p.x, p.z) : 0);
+      let anim: Anim = nom && nom.status !== 'done' && nom.votes.includes(key) ? 'hand' : p.anim;
+      if (this.show && this.show.seatId === key && local.zone === 'town') {
+        const sp = this.showPose(t - this.show.start);
+        av.setTarget(sp.x, sp.z, sp.ry, sp.y);
+        av.snap();
+        anim = sp.anim;
+      } else av.setTarget(p.x, p.z, p.ry, sitting ? this.seatHeight(p.zone, p.anim, p.x, p.z) : 0);
       av.setItem(p.item);
-      const anim: Anim = nom && nom.status !== 'done' && nom.votes.includes(key) ? 'hand' : p.anim;
       av.update(dt, t, anim, p.speaking, true);
     }
     for (const [key, av] of this.others) {
@@ -1062,7 +1150,11 @@ export class Engine {
     this.camTarget.z += (tz - this.camTarget.z) * k;
     const wantPos = new THREE.Vector3();
     const wantLook = new THREE.Vector3();
-    if (this.view?.reading && this.me) {
+    if (this.show && zoneKind(local.zone) === 'town') {
+      const g = this.town.gallowsSpot;
+      wantPos.set(g.x + Math.sin(this.yaw + 0.5) * 9, 7.5, g.z + Math.cos(this.yaw + 0.5) * 9);
+      wantLook.set(g.x, 1.6, g.z);
+    } else if (this.view?.reading && this.me) {
       // Over the Storyteller's shoulder, looking down into the open book.
       const root = this.me.rig.root;
       wantPos.set(0.05, 2.05, -0.55).applyAxisAngle(new THREE.Vector3(0, 1, 0), root.rotation.y).add(root.position);
@@ -1075,7 +1167,7 @@ export class Engine {
       wantLook.set(this.camTarget.x, 0.8, this.camTarget.z);
     }
     // Closing in on the book is a slow swoop; everything else follows closely.
-    let ease = this.view?.reading ? 1 - Math.exp(-dt * 4.5) : 1 - Math.exp(-dt * 9);
+    let ease = this.view?.reading || this.show ? 1 - Math.exp(-dt * 4) : 1 - Math.exp(-dt * 9);
     if (!this.me && !this.view?.reading) ease = 1;
     this.camPos.lerp(wantPos, ease);
     this.camLook.lerp(wantLook, ease);

@@ -23,6 +23,7 @@ import {
 import type {
   Ask,
   GameState,
+  GrimoireSnapshot,
   Nomination,
   Phase,
   PrivateState,
@@ -73,6 +74,7 @@ function freshGame(prev?: GameState, keepPlayers = true): GameState {
     marked: null,
     history: [],
     townHall: null,
+    execution: null,
     town: prev?.town ?? emptyTown(),
     nightDeaths: [],
     awake: {},
@@ -91,6 +93,7 @@ function loadGame(): GameState | null {
   g.townHall ??= null;
   g.nightDeaths ??= [];
   g.town ??= emptyTown();
+  g.execution ??= null;
   for (const s of g.seats) s.look ??= null;
   setCustomRoles(g.script.custom);
   return g;
@@ -131,6 +134,14 @@ export function seatsWithRole(g: GameState, roleId: string): { seat: Seat; belie
   return out;
 }
 
+/** The grimoire as the Spy would see it, taken now. */
+export function grimoireSnapshot(g: GameState): GrimoireSnapshot {
+  return {
+    seats: g.seats.map((s, i) => ({ id: s.id, name: s.name || `Seat ${i + 1}`, roleId: s.roleId, dead: s.dead, reminders: s.reminders.map((r) => r.text) })),
+    bluffs: g.bluffs.filter(Boolean) as string[],
+  };
+}
+
 export function nightLabel(g: { phase: Phase; day: number }): string {
   if (g.day === 0 && g.phase === 'day') return 'Before the game';
   return `${g.phase === 'night' ? 'Night' : 'Day'} ${g.day}`;
@@ -166,6 +177,7 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
     marked: g.marked,
     history: g.history,
     townHall: g.townHall,
+    execution: g.execution,
     town: g.town,
   };
 }
@@ -511,6 +523,11 @@ export const st = {
       if (!s.dead) s.ghostVote = true;
       g.nightDeaths = g.nightDeaths.filter((x) => x !== id);
       if (s.dead && g.phase === 'night') g.nightDeaths.push(id);
+      // Killing the player on the block by day is an execution: the whole town watches.
+      if (s.dead && g.phase === 'day' && g.marked?.seatId === id) {
+        g.execution = { id: uid(), seatId: id, at: Date.now() };
+        g.marked = null;
+      }
     });
   },
   toggleGhostVote(id: string) {
@@ -600,6 +617,7 @@ export const st = {
       g.nightDone = [];
       g.townHall = null;
       g.nightDeaths = [];
+      g.execution = null;
       if (phase === 'day') g.awake = {};
     });
   },

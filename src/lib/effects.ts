@@ -15,6 +15,8 @@ export function useEffects(view: View | null) {
   const wakeSeen = useClient((s) => s.priv?.wakeSeen ?? false);
   const replies = useHost((s) => s.g.replies);
   const seenReplies = useRef(replies.length);
+  const awake = useHost((s) => s.g.awake);
+  const seenBefore = useRef<Set<string>>(new Set());
   const lastWake = useRef<string | null>(null);
 
   useEffect(() => primeAudio(), []);
@@ -102,6 +104,20 @@ export function useEffects(view: View | null) {
       document.title = base;
     };
   }, [wakeId, wakeSeen, called, view?.mode, view?.room]);
+
+  // The Storyteller seeing that a player has read what they were shown.
+  useEffect(() => {
+    if (view?.mode !== 'st') return;
+    const g = useHost.getState().g;
+    const now = new Set<string>();
+    for (const [seatId, a] of Object.entries(awake)) {
+      if (!a.seen) continue;
+      const key = `${seatId}:${a.wakeId}`;
+      now.add(key);
+      if (!seenBefore.current.has(key)) ui.toast(`${seatName(g, seatId)} has seen it`, 'good');
+    }
+    seenBefore.current = now;
+  }, [awake, view?.mode]);
 
   // The Storyteller hearing back from a player.
   useEffect(() => {

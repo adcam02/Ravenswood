@@ -72,12 +72,19 @@ export type InfoCard =
 /** gotIt, yes, no, good, evil, or a number written as n0, n1, … */
 export type Sign = string;
 
+/** The grimoire as it stands, for the Spy: every seat's real character and reminders. */
+export interface GrimoireSnapshot {
+  seats: { id: string; name: string; roleId: string | null; dead: boolean; reminders: string[] }[];
+  bluffs: string[];
+}
+
 export interface WakePanel {
   card: InfoCard | null;
   signs: Sign[];
   roleIds: string[];
   seatIds: string[];
   text: string;
+  grimoire?: GrimoireSnapshot;
 }
 
 /** What the player is asked to answer, optionally in the Storyteller's own words ("Who do you want to kill?"). */
@@ -118,6 +125,13 @@ export interface TownHall {
   back: string[];
 }
 
+/** A player put to death in front of the town: the gallows show plays for everyone who sees it. */
+export interface Execution {
+  id: string;
+  seatId: string;
+  at: number;
+}
+
 export interface GameState {
   v: 1;
   room: string;
@@ -134,6 +148,7 @@ export interface GameState {
   marked: { seatId: string; votes: number } | null;
   history: VoteRecord[];
   townHall: TownHall | null;
+  execution: Execution | null;
   /** Drinks on the bar, washing on the line, flowers in the beds. */
   town: TownState;
   /** Seats killed during this night. Players don't see these deaths until the day begins. */
@@ -172,6 +187,7 @@ export interface PublicState {
   marked: { seatId: string; votes: number } | null;
   history: VoteRecord[];
   townHall: TownHall | null;
+  execution: Execution | null;
   town: TownState;
 }
 

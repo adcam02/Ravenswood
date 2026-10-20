@@ -472,6 +472,39 @@ await check('game: nominations and votes raise paws round the clock', async () =
   await shot(st, '18-storyteller-vote');
 });
 
+await check('game: waking a player at night takes the Storyteller to their bedside', async () => {
+  await st.evaluate(() => window.__st.st.setPhase('night'));
+  for (const p of all()) await until(p, () => window.__local.zone.startsWith('house:'), null, 30000, 'to be home');
+  const id = await seatOf('Abbey');
+  await st.evaluate(() => window.__engine.place('town', 0, 10, 0, false));
+  await st.evaluate((id) => window.__st.st.wake([id], [{ card: 'youAre', signs: [], roleIds: [], seatIds: [], text: '' }], null), id);
+  await until(st, (id) => window.__local.zone === `house:${id}`, id, 10000, 'the Storyteller to drift to Abbey’s bedside');
+  await sleep(1500);
+  await shot(players.abbey, '21-night-wake');
+  await st.evaluate(() => window.__st.st.sleep());
+  await st.evaluate(() => window.__st.st.setPhase('day'));
+  for (const p of all()) await until(p, () => window.__local.zone === 'town', null, 30000, 'to be back outside');
+  for (const p of all()) await p.$('.reveal-overlay .btn').then((b) => b && jsClick(p, '.reveal-overlay .btn', 10000)).catch(() => {});
+});
+
+await check('game: an execution plays out at the gallows for everyone', async () => {
+  const id = await seatOf('Steele');
+  await st.evaluate((id) => {
+    window.__st.st.markSeat(id);
+    window.__st.st.toggleDead(id);
+  }, id);
+  await until(players.abbey, () => Boolean(window.__engine.show), null, 15000, 'the show to start for Abbey');
+  await until(players.steele, () => Boolean(window.__engine.show?.mine), null, 15000, 'the show to start for Steele');
+  await sleep(1800);
+  await shot(players.abbey, '22-execution');
+  await shot(players.steele, '22-execution-condemned');
+  await sleep(2200);
+  await shot(players.abbey, '23-execution-drop');
+  await until(players.steele, () => !window.__engine.show, null, 15000, 'the show to end');
+  const dead = await players.abbey.evaluate((id) => window.__client.getState().pub.seats.find((s) => s.id === id)?.dead, id);
+  expect(dead, 'Steele is not dead after the execution');
+});
+
 await check('game: the grimoire opens over the town for the Storyteller', async () => {
   await st.keyboard.press('Tab');
   await st.waitForSelector('.grimoire-layer .town', { timeout: 15000 });

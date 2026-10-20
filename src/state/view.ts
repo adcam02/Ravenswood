@@ -3,7 +3,7 @@ import { defaultAlignment, getRole, type Alignment, type Script } from '../data'
 import { useClient } from '../net/client';
 import { useHostNet } from '../net/host';
 import { isTraveller, seatAlignment, useHost } from './host';
-import type { AwakeState, Nomination, Phase, Reminder, TownHall, VoteRecord } from './types';
+import type { AwakeState, Execution, Nomination, Phase, Reminder, TownHall, VoteRecord } from './types';
 import type { Look, TownState } from '../world/types';
 import { useUI } from './ui';
 
@@ -46,6 +46,7 @@ export interface View {
   marked: { seatId: string; votes: number } | null;
   history: VoteRecord[];
   townHall: TownHall | null;
+  execution: Execution | null;
   town: TownState;
   revealed: boolean;
   grimoireRevealed: boolean;
@@ -89,6 +90,7 @@ export function useStorytellerView(): View {
       marked: g.marked,
       history: g.history,
       townHall: g.townHall,
+      execution: g.execution,
       town: g.town,
       revealed: g.revealed,
       grimoireRevealed: g.grimoireRevealed,
@@ -137,6 +139,7 @@ export function usePlayerView(): View | null {
       marked: pub.marked,
       history: pub.history,
       townHall: pub.townHall ?? null,
+      execution: pub.execution ?? null,
       town: pub.town,
       revealed: pub.revealed,
       grimoireRevealed: pub.grimoireRevealed,

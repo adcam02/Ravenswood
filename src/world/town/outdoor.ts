@@ -17,6 +17,7 @@ import {
   NOTICEBOARD,
   POND,
   RING_ROAD_R,
+  GRAVEYARD,
   SQUARE_R,
   STEEPLE,
   STOOL_R,
@@ -125,16 +126,16 @@ const V = (x: number, y: number, z: number) => ({ x, y, z });
 
 function groundMesh(): THREE.Mesh {
   const rings: number[] = [];
-  for (let x = 0; x <= 60; x += 3) rings.push(x);
-  for (let x = 66; x <= 200; x += 7) rings.push(x);
+  for (let x = 0; x <= TOWN_R + 2; x += 3) rings.push(x);
+  for (let x = TOWN_R + 8; x <= 200; x += 7) rings.push(x);
   const seg = 80;
   const pt = (i: number, j: number) => {
     const rad = rings[i];
     const jj = ((j % seg) + seg) % seg;
     const a = (jj / seg) * Math.PI * 2 + (i % 2 ? Math.PI / seg : 0);
-    const wob = i === 0 ? 0 : (hash(i, jj) - 0.5) * (rad < 58 ? 1.2 : 3.5);
+    const wob = i === 0 ? 0 : (hash(i, jj) - 0.5) * (rad < TOWN_R ? 1.2 : 3.5);
     const rr = rad + wob;
-    const hill = rad < 59 ? 0 : smooth(59, 110, rad) * (5 + 3 * Math.sin(a * 3 + 1.3) + 2 * Math.sin(a * 7 + 0.4)) + smooth(62, 80, rad) * hash(jj, i) * 1.4;
+    const hill = rad < TOWN_R + 1 ? 0 : smooth(TOWN_R + 1, TOWN_R + 52, rad) * (5 + 3 * Math.sin(a * 3 + 1.3) + 2 * Math.sin(a * 7 + 0.4)) + smooth(TOWN_R + 4, TOWN_R + 22, rad) * hash(jj, i) * 1.4;
     return V(rr * Math.sin(a), hill, -rr * Math.cos(a));
   };
   const t = new Tris();
@@ -146,7 +147,7 @@ function groundMesh(): THREE.Mesh {
       const b = pt(i, j + 1);
       const c = pt(i + 1, j + 1);
       const d = pt(i + 1, j);
-      const list = rings[i] < 58 ? grass : far;
+      const list = rings[i] < TOWN_R ? grass : far;
       const col = shade(list[Math.floor(hash(j, i * 3) * list.length)], (hash(i * 7, j) - 0.5) * 0.04);
       if (i === 0) t.tri(a, c, d, col);
       else {
@@ -220,16 +221,16 @@ type Seg = [number, number, number, number];
 export const PATHS: { seg: Seg; w: number }[] = (() => {
   const list: { seg: Seg; w: number }[] = [];
   const add = (x0: number, z0: number, x1: number, z1: number, w = 2.4) => list.push({ seg: [x0, z0, x1, z1], w });
-  add(0, -13, 0, -24.4, 2.6);
-  add(0, 13, 0, 90, 2.6);
-  add(-13, 0, -25.2, 0, 2.6);
-  add(13, 0, 25.6, 0, 2.6);
-  add(1, 17, 20, 17, 2.2);
-  add(-1, 17, -19, 17, 2.2);
-  add(-19, 17, -19, 18.6, 2.2);
+  add(0, -SQUARE_R + 1, 0, -14.6, 2.6);
+  add(0, SQUARE_R - 1, 0, 60, 2.6);
+  add(-SQUARE_R + 1, 0, -16.4, 0, 2.6);
+  add(SQUARE_R - 1, 0, 16.4, 0, 2.6);
+  add(1, 12.6, 15, 12.6, 2.2);
+  add(-1, 12.6, -14, 12.6, 2.2);
+  add(-14, 12.6, -14, 13.4, 2.2);
   for (const deg of [60, 120, 240, 300]) {
     const a = (deg * Math.PI) / 180;
-    add(13.5 * Math.sin(a), -13.5 * Math.cos(a), RING_ROAD_R * Math.sin(a), -RING_ROAD_R * Math.cos(a), 2.0);
+    add((SQUARE_R - 0.5) * Math.sin(a), -(SQUARE_R - 0.5) * Math.cos(a), RING_ROAD_R * Math.sin(a), -RING_ROAD_R * Math.cos(a), 2.0);
   }
   const n = 72;
   for (let i = 0; i < n; i++) {
@@ -804,7 +805,7 @@ function blockers(): Blocker[] {
   add(0, 0, SQUARE_R + 2);
   add(CHURCH.x, CHURCH.z, 10);
   add(CHURCH.x, CHURCH.z + STEEPLE.z, 4);
-  add(-8.75, -34, 7);
+  add(GRAVEYARD.x, GRAVEYARD.z, 7);
   add(TAVERN.x, TAVERN.z, 9);
   add(BAKERY.x, BAKERY.z, 8);
   add(WASHHOUSE.x, WASHHOUSE.z, 6);
@@ -854,8 +855,8 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   const tower = clockTower(painter(0, 0));
   // Public buildings.
   church(painter(CHURCH.x, CHURCH.z, CHURCH.ry));
-  graveyard(painter(-8.75, -34), r);
-  colliders.push({ kind: 'box', x: -8.75, z: -34, hw: 2.3, hd: 5.7, rot: 0 });
+  graveyard(painter(GRAVEYARD.x, GRAVEYARD.z), r);
+  colliders.push({ kind: 'box', x: GRAVEYARD.x, z: GRAVEYARD.z, hw: GRAVEYARD.hw + 0.1, hd: GRAVEYARD.hd + 0.1, rot: 0 });
   tavern(painter(TAVERN.x, TAVERN.z, TAVERN.ry), r, (v) => smoke(v.applyMatrix4(frame(TAVERN.x, TAVERN.z, TAVERN.ry))));
   bakery(painter(BAKERY.x, BAKERY.z, BAKERY.ry), r, (v) => smoke(v.applyMatrix4(frame(BAKERY.x, BAKERY.z, BAKERY.ry))));
   for (const [lx, lz] of [
@@ -921,10 +922,10 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   let placed = 0;
   for (let k = 0; k < 2400 && placed < 430; k++) {
     const a = r() * Math.PI * 2;
-    const rad = 62 + Math.pow(r(), 0.8) * 70;
+    const rad = TOWN_R + 4 + Math.pow(r(), 0.8) * 55;
     const x = rad * Math.sin(a);
     const z = -rad * Math.cos(a);
-    if (z > 55 && Math.abs(x) < 5) continue;
+    if (z > TOWN_R - 3 && Math.abs(x) < 5) continue;
     if (trees.some((t) => Math.hypot(t.x - x, t.z - z) < 2.6)) continue;
     placeTree(x, z, false);
     placed++;
@@ -932,7 +933,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   // Inside town, in the gaps.
   for (let k = 0; k < 900 && placed < 520; k++) {
     const a = r() * Math.PI * 2;
-    const rad = 20 + r() * 37;
+    const rad = 14 + r() * (TOWN_R - 16);
     const x = rad * Math.sin(a);
     const z = -rad * Math.cos(a);
     if (!free(x, z, block, 1.4, 2.2)) continue;
@@ -942,7 +943,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   }
   for (let k = 0; k < 900; k++) {
     const a = r() * Math.PI * 2;
-    const rad = 16 + r() * 41;
+    const rad = 12 + r() * (TOWN_R - 14);
     const x = rad * Math.sin(a);
     const z = -rad * Math.cos(a);
     if (!free(x, z, block, 0.6, 1.0)) continue;
@@ -957,7 +958,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   }
   for (let k = 0; k < 260; k++) {
     const a = r() * Math.PI * 2;
-    const rad = 60 + r() * 50;
+    const rad = TOWN_R + 2 + r() * 45;
     const p = painter(rad * Math.sin(a), -rad * Math.cos(a), r() * 6);
     const kind = r();
     if (kind < 0.4) bush(p, r);
