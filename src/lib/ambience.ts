@@ -63,6 +63,8 @@ class Ambience {
   private padUntil = 0;
   private enabled = true;
   private started = false;
+  private lastApplied: Record<string, number> = {};
+  private lastUpdate = 0;
 
   /** Call after a click or key, as browsers only allow sound after a gesture. */
   start() {
@@ -85,7 +87,7 @@ class Ambience {
     this.muffle.frequency.value = 18000;
     this.muffle.connect(this.master);
     this.wet = ctx.createConvolver();
-    this.wet.buffer = this.impulse(2.6);
+    this.wet.buffer = this.impulse(1.6);
     const wetGain = ctx.createGain();
     wetGain.gain.value = 0.45;
     this.wet.connect(wetGain).connect(this.muffle);
@@ -107,18 +109,31 @@ class Ambience {
     if (on && this.ctx && this.master) this.master.gain.setTargetAtTime(LEVEL.master, this.ctx.currentTime, 0.6);
   }
 
-  /** Where the listener is and what the day is doing; call every frame, it's cheap. */
+  /** Where the listener is and what the day is doing; call every frame, it only does work a few times a second. */
   update(s: AmbienceState) {
     this.state = s;
     if (!this.ctx || !this.master) return;
     const ctx = this.ctx;
+    const t = ctx.currentTime;
+    // Audio automation events pile up if they're set every frame, so settle for a few times a second,
+    // and only touch a gain when its target really moved.
+    if (t - this.lastUpdate < 0.15) return;
+    this.lastUpdate = t;
     const kind = zoneKind(s.zone);
     const outside = kind === 'town';
-    const t = ctx.currentTime;
-    const set = (name: string, v: number, over = 0.6) => this.layers[name]?.gain.setTargetAtTime(v, t, over / 3);
+    const set = (name: string, v: number, over = 0.6) => {
+      const prev = this.lastApplied[name];
+      if (prev !== undefined && Math.abs(prev - v) < 0.0015) return;
+      this.lastApplied[name] = v;
+      this.layers[name]?.gain.setTargetAtTime(v, t, over / 3);
+    };
     const day = 1 - s.night;
     // Outside the walls everything is muffled and far away; the bedroom at night keeps its own music.
-    this.muffle!.frequency.setTargetAtTime(outside ? 18000 : 700, t, 0.3);
+    const muffleHz = outside ? 18000 : 700;
+    if (this.lastApplied.muffle !== muffleHz) {
+      this.lastApplied.muffle = muffleHz;
+      this.muffle!.frequency.setTargetAtTime(muffleHz, t, 0.3);
+    }
     const outdoorLevel = outside ? 1 : kind === 'house' ? 0.12 : 0.3;
     set('wind', LEVEL.wind * (0.6 + 0.4 * day) * outdoorLevel);
     set('tune', LEVEL.tune * day * outdoorLevel);
@@ -168,13 +183,19 @@ class Ambience {
   private panTo(name: string, sx: number, sz: number) {
     const p = this.pan[name];
     if (!p || !this.ctx) return;
+    // Nothing to place while the layer is silent.
+    if ((this.lastApplied[name] ?? 0) <= 0) return;
     const { x, z, yaw } = this.state;
     const dx = sx - x;
     const dz = sz - z;
     const d = Math.hypot(dx, dz) || 1;
     // The camera's right-hand vector, for a camera sat behind the player at this yaw.
     const right = (dx * Math.cos(yaw) - dz * Math.sin(yaw)) / d;
-    p.pan.setTargetAtTime(Math.max(-0.8, Math.min(0.8, right * Math.min(1, d / 6))), this.ctx.currentTime, 0.2);
+    const pan = Math.max(-0.8, Math.min(0.8, right * Math.min(1, d / 6)));
+    const key = `pan:${name}`;
+    if (Math.abs((this.lastApplied[key] ?? 9) - pan) < 0.02) return;
+    this.lastApplied[key] = pan;
+    p.pan.setTargetAtTime(pan, this.ctx.currentTime, 0.2);
   }
 
   private impulse(seconds: number) {

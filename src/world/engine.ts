@@ -181,8 +181,8 @@ export class Engine {
   private dragging: { x: number; yaw: number } | null = null;
   /** A left button held but not yet dragged: a click walks there, a drag turns the camera. */
   private pendingClick: { x: number; y: number; yaw: number } | null = null;
-  /** How long the keys have been walking us, for the camera to swing round behind. */
-  private keyWalkFor = 0;
+  /** When the keys started walking us (clock seconds), for the camera to swing round behind; -1 when still. */
+  private keyWalkSince = -1;
   private unsubUI: (() => void) | null = null;
 
   private emote: { anim: Anim; until: number } | null = null;
@@ -1075,8 +1075,8 @@ export class Engine {
       dx = ix * cos + iz * sin;
       dz = -ix * sin + iz * cos;
       // After a moment of walking, the camera swings gently round to follow behind.
-      this.keyWalkFor += dt;
-      if (this.keyWalkFor > 0.6 && !this.dragging && zoneKind(local.zone) === 'town') {
+      if (this.keyWalkSince < 0) this.keyWalkSince = t;
+      if (t - this.keyWalkSince > 0.6 && !this.dragging && zoneKind(local.zone) === 'town') {
         const want = Math.atan2(dx, dz) + Math.PI;
         let diff = want - this.yawTarget;
         while (diff > Math.PI) diff -= Math.PI * 2;
@@ -1084,7 +1084,7 @@ export class Engine {
         this.yawTarget += diff * Math.min(1, dt * 1.4);
       }
     } else {
-      this.keyWalkFor = 0;
+      this.keyWalkSince = -1;
     }
     if (!(ix || iz) && this.moveTarget && !this.frozen) {
       const tx = this.moveTarget.x - local.x;

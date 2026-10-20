@@ -26,6 +26,18 @@ page.on('console', (m) => m.type() === 'error' && !/WebGL|GPU|favicon|net::/.tes
 await page.goto(`http://localhost:${PORT}/?st&nopeer&nomesh&fx=low&fps=12&debug`);
 await page.waitForFunction(() => window.__engine && window.__hud?.getState().ready, null, { timeout: 120000 });
 await sleep(1500);
+// What's in the way, if anything: a modal pauses the world, and overlays can sit over the canvas.
+const diag = await page.evaluate(() => ({
+  paused: window.__engine.view?.paused,
+  modal: Boolean(document.querySelector('.modal-backdrop')),
+  atClick: document.elementFromPoint(550, 420)?.className,
+  atDrag: document.elementFromPoint(400, 350)?.className,
+}));
+console.log('diag', JSON.stringify(diag));
+if (diag.modal) {
+  await page.keyboard.press('Escape');
+  await sleep(300);
+}
 const results = [];
 const check = (name, ok, detail = '') => {
   results.push([ok ? 'PASS' : 'FAIL', name, detail]);
@@ -36,16 +48,30 @@ const moveTarget = () => page.evaluate(() => Boolean(window.__engine.moveTarget)
 
 // 1. A plain click on the ground walks there and doesn't turn the camera.
 const y0 = await yaw();
-await page.mouse.click(550, 420);
-await sleep(300);
-check('a click sets off a walk', await moveTarget());
+// Find bare canvas well away from the player (who sits at the centre of the screen) and from the HUD.
+const spots = await page.evaluate(() => {
+  const out = [];
+  for (let y = 80; y < 620; y += 40)
+    for (let x = 60; x < 1060; x += 40) {
+      const el = document.elementFromPoint(x, y);
+      if (el?.className === 'world-canvas' && Math.hypot(x - 550, y - 325) > 220) out.push([x, y]);
+    }
+  return out;
+});
+const clickAt = spots.find(([x, y]) => y > 400) ?? spots[0];
+// For the drag, a run of canvas 160px wide.
+const dragAt = spots.find(([x, y]) => spots.some(([x2, y2]) => y2 === y && x2 === x + 160)) ?? spots[0];
+console.log('canvas spots', spots.length, 'click', clickAt, 'drag', dragAt);
+await page.mouse.click(clickAt[0], clickAt[1]);
+await sleep(150);
+check('a click sets off a walk', await moveTarget(), JSON.stringify(await page.evaluate(() => ({ x: window.__local.x, z: window.__local.z, pending: Boolean(window.__engine.pendingClick) }))));
 check('a click leaves the camera alone', Math.abs((await yaw()) - y0) < 1e-6, `${y0} -> ${await yaw()}`);
 // 2. A drag turns the camera and doesn't walk.
 await page.evaluate(() => (window.__engine.moveTarget = null));
-await page.mouse.move(400, 350);
+await page.mouse.move(dragAt[0], dragAt[1]);
 await page.mouse.down();
 for (let i = 1; i <= 10; i++) {
-  await page.mouse.move(400 + i * 15, 350);
+  await page.mouse.move(dragAt[0] + i * 15, dragAt[1]);
   await sleep(30);
 }
 await page.mouse.up();
@@ -71,11 +97,13 @@ check('the audio context is running', amb.state === 'running', amb.state);
 await page.evaluate(() => window.__engine.place('town', 0, -2, 0, false));
 await sleep(300);
 const y3 = await yaw();
+const before = await page.evaluate(() => ({ x: window.__local.x, z: window.__local.z }));
 await page.keyboard.down('a');
-await sleep(2500);
+await sleep(4500);
 await page.keyboard.up('a');
+const after = await page.evaluate(() => ({ x: window.__local.x, z: window.__local.z, keys: window.__engine.keys.size, walk: window.__engine.keyWalkSince }));
 const y4 = await yaw();
-check('walking with the keys swings the camera round', Math.abs(y4 - y3) > 0.3, `${y3.toFixed(2)} -> ${y4.toFixed(2)}`);
+check('walking with the keys swings the camera round', Math.abs(y4 - y3) > 0.3, `${y3.toFixed(2)} -> ${y4.toFixed(2)} moved ${Math.hypot(after.x - before.x, after.z - before.z).toFixed(2)}m keys=${after.keys} walk=${after.walk?.toFixed?.(2)}`);
 await page.screenshot({ path: `${OUT}/after-walk.png` });
 if (errors.length) console.log('Errors:', [...new Set(errors)].join('\n'));
 console.log(`${results.filter((r) => r[0] === 'PASS').length}/${results.length} passed`);

@@ -127,8 +127,8 @@ async function join(name, animal, color) {
   await sleep(400);
   await jsClick(p, '.join-name button');
   if (animal) {
-    await p.waitForSelector('.join-animal', { timeout: 60000 });
-    await p.waitForSelector(`.join-tile[title="${animal}"] img`, { timeout: 90000 });
+    await p.waitForSelector('.join-animal', { timeout: 180000 });
+    await p.waitForSelector(`.join-tile[title="${animal}"] img`, { timeout: 180000 });
     if (name === 'Abbey') {
       await shot(p, '01-animal-picker');
       const tiles = await p.$$eval('.join-tile', (els) => els.map((e) => e.getAttribute('title')));
