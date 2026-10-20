@@ -125,18 +125,76 @@ export const SMOOTH_DEG = 38;
 /** The standard matte look, coloured by vertex, smooth where the geometry is round. */
 export const matte = () => new THREE.MeshLambertMaterial({ vertexColors: true });
 
-/** A softer look for characters, with a little sheen. */
-export const soft = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0 });
+/**
+ * How the animals are shaded. 'toon' (the default) is soft painted bands of light with warm shadows and a
+ * gentle rim of light round the edges, like a storybook; 'matte' is plain and flat-lit; 'shiny' is the old
+ * glossy look. `?look=matte` (or toon, shiny) switches it, for comparing.
+ */
+type CharacterLook = 'toon' | 'matte' | 'shiny';
+const LOOK: CharacterLook = (() => {
+  try {
+    const v = new URLSearchParams(location.search).get('look');
+    return v === 'matte' || v === 'shiny' ? v : 'toon';
+  } catch {
+    return 'toon';
+  }
+})();
 
-/** Glossy and slightly wet, for aquatic animals. */
-export const wet = () =>
-  new THREE.MeshPhysicalMaterial({
-    vertexColors: true,
-    roughness: 0.28,
-    metalness: 0,
-    clearcoat: 1,
-    clearcoatRoughness: 0.12,
-  });
+/** A soft four-step ramp: deep shadow, shadow, half-lit, lit. Linear filtering softens the band edges. */
+const RAMP = (() => {
+  const data = new Uint8Array([118, 168, 222, 255]);
+  const t = new THREE.DataTexture(data, data.length, 1, THREE.RedFormat);
+  t.minFilter = THREE.LinearFilter;
+  t.magFilter = THREE.LinearFilter;
+  t.generateMipmaps = false;
+  t.needsUpdate = true;
+  return t;
+})();
+
+/**
+ * Cel shading with life in it: the colour glows a touch in the shadows (so dark sides stay warm, not
+ * muddy), a soft rim of the animal's own colour lights its edges, and wet animals get a cartoon glint.
+ */
+function storybook(wetGlint: boolean): THREE.MeshToonMaterial {
+  const m = new THREE.MeshToonMaterial({ vertexColors: true, gradientMap: RAMP });
+  m.onBeforeCompile = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <opaque_fragment>',
+      `
+      {
+        vec3 viewDir = normalize(vViewPosition);
+        float facing = clamp(dot(normal, viewDir), 0.0, 1.0);
+        // Warm bounce light: the colour itself, gently, everywhere.
+        outgoingLight += diffuseColor.rgb * 0.07;
+        // A soft rim in the animal's own colour, brightest at the silhouette.
+        outgoingLight += mix(diffuseColor.rgb, vec3(1.0, 0.92, 0.8), 0.35) * pow(1.0 - facing, 2.6) * 0.42;
+        ${wetGlint ? `
+        // A little cartoon glint, as if fresh out of the water.
+        float glint = smoothstep(0.955, 0.97, dot(normal, normalize(vec3(-0.35, 0.6, 0.72))));
+        outgoingLight += vec3(1.0) * glint * 0.32;` : ''}
+      }
+      #include <opaque_fragment>`,
+    );
+  };
+  m.customProgramCacheKey = () => (wetGlint ? 'storybook-wet' : 'storybook');
+  return m;
+}
+
+/** The characters' material (see LOOK above). */
+export const soft = (): THREE.Material =>
+  LOOK === 'toon'
+    ? storybook(false)
+    : LOOK === 'matte'
+      ? new THREE.MeshLambertMaterial({ vertexColors: true })
+      : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0 });
+
+/** Aquatic animals: the same, with a little wet glint (or the old glossy clearcoat with ?look=shiny). */
+export const wet = (): THREE.Material =>
+  LOOK === 'toon'
+    ? storybook(true)
+    : LOOK === 'matte'
+      ? new THREE.MeshLambertMaterial({ vertexColors: true })
+      : new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.28, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.12 });
 
 /** Things that glow on their own (lit windows, lanterns, the Storyteller). */
 export const glow = (color: THREE.ColorRepresentation, intensity = 1) =>
