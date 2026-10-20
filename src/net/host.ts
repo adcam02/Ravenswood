@@ -174,6 +174,8 @@ class HostLink {
     if (pid && ![...this.links.values()].some((m) => m.playerId === pid)) {
       const seat = useHost.getState().g.seats.find((s) => s.playerId === pid);
       if (seat) presence.remove(seat.id);
+      // Anything they were holding in the animal picker is free again.
+      st.fromPlayer.dropped(pid);
     }
     this.refreshOnline();
   }
@@ -217,9 +219,16 @@ class HostLink {
     if (!pid) return;
     const p = st.fromPlayer;
     switch (msg.t) {
-      case 'join':
-        p.join(pid, String(msg.name ?? ''), msg.look ?? {});
+      case 'join': {
+        const refused = p.join(pid, String(msg.name ?? ''), msg.look ?? {});
+        if (refused) link.send({ t: 'taken', animal: refused.taken, by: refused.by });
         break;
+      }
+      case 'hold': {
+        const refused = p.hold(pid, String(msg.name ?? ''), typeof msg.animal === 'string' ? msg.animal : null);
+        if (refused) link.send({ t: 'taken', animal: refused.taken, by: refused.by });
+        break;
+      }
       case 'pose':
         this.pose(pid, msg.p);
         break;

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { create } from 'zustand';
 import { askForNotifications } from '../../lib/notify';
-import { player } from '../../net/client';
+import { player, useClient, useTaken } from '../../net/client';
 import { useVoice, voice } from '../../voice/voice';
 import { AnimalPreview } from '../../world/AnimalPreview';
 import { animalThumbnail } from '../../world/animals';
@@ -11,7 +11,14 @@ import { useProgress } from '../../game/progress';
 type Step = 'name' | 'animal' | 'mic';
 
 /** Lets the settings window reopen the animal picker later. */
-export const useJoin = create<{ reopen: boolean }>(() => ({ reopen: false }));
+export const useJoin = create<{ reopen: boolean; held: string | null }>(() => ({ reopen: false, held: null }));
+
+/** Holds an animal with the host while we look at it (or choose it), so nobody else takes it meanwhile. */
+function holdAnimal(name: string, animal: string) {
+  if (useJoin.getState().held === animal) return;
+  useJoin.setState({ held: animal });
+  player.hold(name, animal);
+}
 
 const NAME_KEY = 'ravenswood:name';
 const LOOK_KEY = 'ravenswood:look';
@@ -38,14 +45,29 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
   const reopen = useJoin((s) => s.reopen);
   const [step, setStep] = useState<Step>(reopen && current ? 'animal' : 'name');
   const [name, setName] = useState(current?.name || saved<string>(NAME_KEY, ''));
-  const [look, setLook] = useState<Look>(() => fixLook(name, current?.look ?? saved<Look | null>(LOOK_KEY, null)));
-  const jarrod = isJarrod(name);
+  const others = useOthersAnimals();
+  const bunnyFree = !others.has('bunny');
+  const [look, setLook] = useState<Look>(() => fixLook(name, current?.look ?? saved<Look | null>(LOOK_KEY, null), bunnyFree));
+  // Jarrod skips the picker and is the bunny, unless another Jarrod got here first.
+  const jarrod = isJarrod(name) && bunnyFree;
+  const [note, setNote] = useState<string | null>(null);
+
+  // The host said our animal is someone else's: back to the picker, which moves us to a free one.
+  const taken = useTaken();
+  useEffect(() => {
+    if (!taken.animal || Date.now() - taken.at > 5000) return;
+    // We don't hold it after all.
+    if (useJoin.getState().held === taken.animal) useJoin.setState({ held: null });
+    const who = animalInfo(taken.animal as AnimalId)?.name ?? 'that animal';
+    setNote(`${taken.by} just took the ${who.toLowerCase()}. Pick another!`);
+    setStep((s) => (s === 'name' ? s : 'animal'));
+  }, [taken.at, taken.animal, taken.by]);
 
   const finish = (l: Look) => {
     const clean = name.trim();
     save(NAME_KEY, clean);
     save(LOOK_KEY, l);
-    player.join(clean, fixLook(clean, l));
+    player.join(clean, fixLook(clean, l, bunnyFree));
     askForNotifications();
     useJoin.setState({ reopen: false });
   };
@@ -53,12 +75,14 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
   const afterName = () => {
     if (!name.trim()) return;
     voice.unlock();
-    if (isJarrod(name)) {
+    if (isJarrod(name) && bunnyFree) {
       // Jarrod skips the picker: the bunny is his.
-      setLook(fixLook(name, look));
+      const l = fixLook(name, look, true);
+      setLook(l);
+      holdAnimal(name, l.animal);
       setStep(reopen ? 'animal' : 'mic');
     } else {
-      setLook((l) => fixLook(name, l));
+      setLook((l) => fixLook(name, l, bunnyFree));
       setStep('animal');
     }
   };
@@ -82,7 +106,21 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
           </button>
         </form>
       )}
-      {step === 'animal' && !jarrod && <AnimalPicker name={name} look={look} setLook={setLook} onBack={() => setStep('name')} onDone={() => (reopen ? finish(look) : setStep('mic'))} />}
+      {step === 'animal' && !jarrod && (
+        <AnimalPicker
+          name={name}
+          look={look}
+          setLook={setLook}
+          others={others}
+          note={note}
+          onBack={() => setStep('name')}
+          onDone={() => {
+            setNote(null);
+            if (reopen) finish(look);
+            else setStep('mic');
+          }}
+        />
+      )}
       {step === 'animal' && jarrod && (
         <div className="join-card cosy-panel join-bunny">
           <AnimalPreview look={look} size={220} spin anim="wave" />
@@ -155,11 +193,54 @@ function DressUp({ look, setLook }: { look: Look; setLook: (l: Look) => void }) 
   );
 }
 
-function AnimalPicker({ name, look, setLook, onBack, onDone }: { name: string; look: Look; setLook: (l: Look) => void; onBack: () => void; onDone: () => void }) {
+/**
+ * Animals other players have (or are choosing right now), with who: each animal belongs to one player.
+ * Our own seat and the animal we're holding don't count.
+ */
+function useOthersAnimals(): Map<string, { by: string; choosing: boolean }> {
+  const pub = useClient((s) => s.pub);
+  const mySeat = useClient((s) => s.priv?.seatId ?? null);
+  const held = useJoin((s) => s.held);
+  return useMemo(() => {
+    const out = new Map<string, { by: string; choosing: boolean }>();
+    for (const s of pub?.seats ?? []) if (s.claimed && s.id !== mySeat && s.look?.animal) out.set(s.look.animal, { by: s.name || 'Someone', choosing: false });
+    for (const [animal, by] of Object.entries(pub?.picking ?? {})) if (animal !== held && !out.has(animal)) out.set(animal, { by, choosing: true });
+    return out;
+  }, [pub, mySeat, held]);
+}
+
+function AnimalPicker({
+  name,
+  look,
+  setLook,
+  others,
+  note,
+  onBack,
+  onDone,
+}: {
+  name: string;
+  look: Look;
+  setLook: (l: Look) => void;
+  others: Map<string, { by: string; choosing: boolean }>;
+  note: string | null;
+  onBack: () => void;
+  onDone: () => void;
+}) {
   const choices = useMemo(() => ANIMALS.filter((a) => !a.reservedFor), []);
+  const theirs = (id: string) => others.get(id);
+  // Hold whatever we're looking at; if it's someone else's, move to the first free animal.
+  useEffect(() => {
+    if (theirs(look.animal)) {
+      const free = choices.find((a) => !theirs(a.id));
+      if (free && free.id !== look.animal) setLook({ ...look, animal: free.id, color: free.colors[0] });
+      return;
+    }
+    holdAnimal(name, look.animal);
+  });
   const info = animalInfo(look.animal);
   const colors = [...info.colors, ...EXTRA_COLORS.filter((c) => !info.colors.includes(c))];
   const pick = (id: AnimalId) => {
+    if (theirs(id)) return;
     const next = animalInfo(id);
     // A new animal keeps its outfit.
     setLook({ ...look, animal: id, color: next.colors[0] });
@@ -169,6 +250,7 @@ function AnimalPicker({ name, look, setLook, onBack, onDone }: { name: string; l
       <div className="join-animal-head">
         <span className="join-eyebrow">Hi {name.trim()}!</span>
         <h1>Choose your animal</h1>
+        {note && <p className="join-note">{note}</p>}
       </div>
       <div className="join-animal-body">
         <div className="join-stage">
@@ -194,7 +276,7 @@ function AnimalPicker({ name, look, setLook, onBack, onDone }: { name: string; l
         </div>
         <div className="join-grid" role="radiogroup" aria-label="Animal">
           {choices.map((a) => (
-            <AnimalTile key={a.id} id={a.id} on={a.id === look.animal} onPick={() => pick(a.id)} />
+            <AnimalTile key={a.id} id={a.id} on={a.id === look.animal} owner={theirs(a.id)} onPick={() => pick(a.id)} />
           ))}
         </div>
       </div>
@@ -254,7 +336,7 @@ function saveThumb(id: AnimalId, color: string, url: string) {
   }
 }
 
-function AnimalTile({ id, on, onPick }: { id: AnimalId; on: boolean; onPick: () => void }) {
+function AnimalTile({ id, on, owner, onPick }: { id: AnimalId; on: boolean; owner?: { by: string; choosing: boolean }; onPick: () => void }) {
   const info = animalInfo(id);
   const [src, setSrc] = useState<string | null>(() => loadThumb(id, info.colors[0]));
   useEffect(() => {
@@ -276,9 +358,17 @@ function AnimalTile({ id, on, onPick }: { id: AnimalId; on: boolean; onPick: () 
     };
   }, [id, info.colors, src]);
   return (
-    <button className={`join-tile ${on ? 'on' : ''} ${info.aquatic ? 'wet' : ''}`} onClick={onPick} role="radio" aria-checked={on} title={info.name}>
+    <button
+      className={`join-tile ${on ? 'on' : ''} ${info.aquatic ? 'wet' : ''} ${owner ? 'taken' : ''}`}
+      onClick={onPick}
+      role="radio"
+      aria-checked={on}
+      aria-disabled={Boolean(owner)}
+      title={owner ? `${info.name}: ${owner.choosing ? `${owner.by} is choosing it` : `taken by ${owner.by}`}` : info.name}
+    >
       {src ? <img src={src} alt="" /> : <span className="join-tile-blank" />}
       <span>{info.name}</span>
+      {owner && <em className="join-tile-owner">{owner.choosing ? `${owner.by} is looking…` : owner.by}</em>}
     </button>
   );
 }

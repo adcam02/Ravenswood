@@ -204,8 +204,12 @@ export function isJarrod(name: string): boolean {
   return name.trim().toLowerCase() === 'jarrod';
 }
 
-export function fixLook(name: string, look: Partial<Look> | null | undefined): Look {
-  if (isJarrod(name)) {
+/**
+ * A valid look for this name. Jarrod is always the bunny, unless another Jarrod already has it
+ * (`bunnyFree` false), in which case he picks like everyone else.
+ */
+export function fixLook(name: string, look: Partial<Look> | null | undefined, bunnyFree = true): Look {
+  if (isJarrod(name) && bunnyFree) {
     const color = look?.animal === 'bunny' && look.color ? look.color : animalInfo('bunny').colors[0];
     return { animal: 'bunny', color, hat: fixHat(look?.hat), ...fixDressUp(look) };
   }

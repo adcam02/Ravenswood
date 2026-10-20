@@ -22,6 +22,9 @@ interface ClientState {
 
 export const useClient = create<ClientState>(() => ({ status: 'starting', pub: null, priv: null, clockOffset: 0, hostOutdated: false }));
 
+/** The host's last "that animal is taken" answer, for the picker to react to. */
+export const useTaken = create<{ animal: string | null; by: string; at: number }>(() => ({ animal: null, by: '', at: 0 }));
+
 export function playerId(): string {
   let id = loadJSON<string | null>('ravenswood:player-id', null);
   if (!id) {
@@ -189,6 +192,8 @@ class ClientLink {
       presence.announce = Boolean(msg.ann);
     } else if (msg.t === 'gift') {
       if (msg.item && typeof msg.item.k === 'string') receiveItem(msg.item, msg.from ?? null);
+    } else if (msg.t === 'taken') {
+      if (typeof msg.animal === 'string') useTaken.setState({ animal: msg.animal, by: String(msg.by ?? 'Someone'), at: Date.now() });
     } else if (msg.t === 'summon') {
       if (typeof msg.zone === 'string' && Number.isFinite(msg.x) && Number.isFinite(msg.z)) game.summoned(msg.zone, msg.x, msg.z);
     }
@@ -217,6 +222,8 @@ if (debugHooks()) (window as unknown as { __client: typeof useClient }).__client
 
 export const player = {
   join: (name: string, look: Look) => clientLink.send({ t: 'join', name, look }),
+  /** Holds an animal while looking at it in the picker, so nobody else takes it (null lets go). */
+  hold: (name: string, animal: string | null) => clientLink.send({ t: 'hold', name, animal }),
   pose: (p: Pose) => clientLink.send({ t: 'pose', p }),
   town: (a: TownAction) => clientLink.send({ t: 'town', a }),
   give: (to: string, item: Item) => clientLink.send({ t: 'give', to, item }),

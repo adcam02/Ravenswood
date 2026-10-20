@@ -153,6 +153,8 @@ export interface GameState {
   execution: Execution | null;
   /** The weather the Storyteller has called for. */
   weather: Weather;
+  /** Animals being looked at in the picker right now, by animal: one player each, so nobody doubles up. */
+  picking?: Record<string, { playerId: string; name: string; until: number }>;
   /** A countdown for the day, shown as the sun crossing the sky; the bell can ring itself when it ends. */
   dayTimer: DayTimer | null;
   /** Drinks on the bar, washing on the line, flowers in the beds. */
@@ -198,6 +200,8 @@ export interface PublicState {
   execution: Execution | null;
   weather?: Weather;
   dayTimer?: DayTimer | null;
+  /** Animals someone is choosing right now, with their name. */
+  picking?: Record<string, string>;
   town: TownState;
 }
 
@@ -248,6 +252,8 @@ export type HostMessage =
   | { t: 'gift'; item: Item; from: string | null }
   /** The Storyteller calls this player over: they're brought to stand beside the Storyteller. */
   | { t: 'summon'; zone: string; x: number; z: number }
+  /** That animal is already someone else's (or being chosen by them): pick another. */
+  | { t: 'taken'; animal: string; by: string }
   | { t: 'pong' }
   | { t: 'host' }
   | { t: 'error'; message: string };
@@ -255,6 +261,8 @@ export type HostMessage =
 export type ClientMessage =
   | { t: 'hello'; playerId: string; v?: string }
   | { t: 'join'; name: string; look: Look }
+  /** Looking at an animal in the picker: hold it so nobody else takes it meanwhile (null lets it go). */
+  | { t: 'hold'; name: string; animal: string | null }
   | { t: 'leave' }
   | { t: 'rename'; name: string }
   | { t: 'vote'; up: boolean }

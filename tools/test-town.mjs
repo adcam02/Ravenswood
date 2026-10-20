@@ -134,6 +134,12 @@ async function join(name, animal, color) {
       const tiles = await p.$$eval('.join-tile', (els) => els.map((e) => e.getAttribute('title')));
       pickerTiles = tiles;
     }
+    if (name === 'Colter') {
+      // Abbey has the fox by now, so Colter's picker should show it as hers.
+      await p.waitForSelector('.join-tile.taken', { timeout: 30000 }).catch(() => {});
+      takenTiles = await p.$$eval('.join-tile.taken', (els) => els.map((e) => e.getAttribute('title')));
+      await shot(p, '01b-animal-taken');
+    }
     await jsClick(p, `.join-tile[title="${animal}"]`);
     if (color) await jsClick(p, `.join-color[aria-label="${color}"]`);
     await jsClick(p, '.join-animal .cosy-btn.primary');
@@ -148,6 +154,7 @@ async function join(name, animal, color) {
 
 const players = {};
 let pickerTiles = [];
+let takenTiles = [];
 await check('join: Abbey picks a fox, Colter a shark, Steele an owl', async () => {
   players.abbey = await join('Abbey', 'Fox');
   players.colter = await join('Colter', 'Shark');
@@ -173,6 +180,39 @@ await check('join: Jarrod skips the picker and is the bunny', async () => {
   players.jarrod = p;
   const look = await st.evaluate(() => window.__host.getState().g.seats.find((s) => s.name.toLowerCase() === 'jarrod')?.look);
   expect(look?.animal === 'bunny', `Jarrod is a ${look?.animal}`);
+});
+
+await check('join: an animal someone has is greyed out for everyone else', async () => {
+  expect(takenTiles.some((t) => /^Fox: taken by Abbey/.test(t ?? '')), `Colter saw taken tiles ${JSON.stringify(takenTiles)}`);
+});
+
+await check('join: each animal belongs to one player, even when two pick it at once', async () => {
+  const r = await st.evaluate(() => {
+    const { st: s } = window.__st;
+    const g = () => window.__host.getState().g;
+    const before = g().seats.length;
+    const p = s.fromPlayer;
+    // Two players click the panda at the same moment: the host takes them one at a time, first wins.
+    const a = p.hold('race-a', 'Ana', 'panda');
+    const b = p.hold('race-b', 'Bo', 'panda');
+    // Bo presses "This is me!" with the panda anyway, and someone else tries for Abbey's fox.
+    const c = p.join('race-b', 'Bo', { animal: 'panda', color: '#ffffff' });
+    const d = p.join('race-c', 'Cy', { animal: 'fox', color: '#e2793a' });
+    const boLook = g().seats.find((x) => x.playerId === 'race-b')?.look ?? null;
+    // Ana walks off without choosing: the panda is free again.
+    p.dropped('race-a');
+    const e = p.hold('race-b', 'Bo', 'panda');
+    const raceSeats = g().seats.filter((x) => x.playerId?.startsWith('race-')).map((x) => x.id);
+    for (const id of ['race-a', 'race-b', 'race-c']) p.leave(id);
+    for (const id of raceSeats) s.removeSeat(id);
+    return { a, b, c, d, e, boLook, after: g().seats.length, before };
+  });
+  expect(r.a === null, `Ana's hold was refused: ${JSON.stringify(r.a)}`);
+  expect(r.b?.by === 'Ana', `Bo's hold should go to Ana: ${JSON.stringify(r.b)}`);
+  expect(r.c?.by === 'Ana' && r.boLook === null, `Bo still got the panda: ${JSON.stringify(r.c)} ${JSON.stringify(r.boLook)}`);
+  expect(r.d?.by === 'Abbey', `the fox should be Abbey's: ${JSON.stringify(r.d)}`);
+  expect(r.e === null, `the panda wasn't freed when Ana left: ${JSON.stringify(r.e)}`);
+  expect(r.after === r.before, `the test's seats weren't cleaned up (${r.before} then ${r.after})`);
 });
 
 await check('join: the host records everyone’s animals', async () => {

@@ -10,10 +10,12 @@ import {
 } from '../data';
 import { loadJSON, roomCode, saveJSON, shuffle, uid } from '../lib/util';
 import {
+  ANIMALS,
   BED_SPOTS,
   COUNTER_SPOTS,
   emptyTown,
   fixLook,
+  isJarrod,
   LINE_SLOTS,
   LINES,
   SHELF_SLOTS,
@@ -187,8 +189,30 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
     execution: g.execution,
     weather: g.weather,
     dayTimer: g.dayTimer,
+    picking: Object.fromEntries(
+      Object.entries(g.picking ?? {})
+        .filter(([, h]) => h.until > Date.now())
+        .map(([animal, h]) => [animal, h.name]),
+    ),
     town: g.town,
   };
+}
+
+/** How long an animal stays held for someone looking at it in the picker, without them choosing. */
+const HOLD_MS = 120000;
+
+/** Who has this animal, other than `playerId`: a seated player's name, someone holding it, or null. */
+export function animalTakenBy(g: GameState, animal: string, playerId: string): string | null {
+  const seat = g.seats.find((s) => s.playerId && s.playerId !== playerId && s.look?.animal === animal);
+  if (seat) return seat.name || 'Someone';
+  const hold = g.picking?.[animal];
+  if (hold && hold.playerId !== playerId && hold.until > Date.now()) return hold.name;
+  return null;
+}
+
+function releaseHolds(g: GameState, playerId: string) {
+  if (!g.picking) return;
+  for (const [animal, h] of Object.entries(g.picking)) if (h.playerId === playerId || h.until <= Date.now()) delete g.picking[animal];
 }
 
 export function toPrivate(g: GameState, playerId: string): PrivateState {
@@ -460,7 +484,12 @@ export const st = {
       const s = seatOf(g, id);
       if (!s) return;
       s.name = name.trim().slice(0, 24);
-      if (s.look) s.look = fixLook(s.name, s.look);
+      // Renaming someone Jarrod gives them the bunny only if no other player has it.
+      if (s.look) {
+        const pid = s.playerId ?? `seat:${s.id}`;
+        const next = fixLook(s.name, s.look, !animalTakenBy(g, 'bunny', pid));
+        if (!animalTakenBy(g, next.animal, pid)) s.look = next;
+      }
     });
   },
   swapSeats(a: string, b: string) {
@@ -849,9 +878,17 @@ export const st = {
   // things players ask for
   fromPlayer: {
     /** A player arriving with their name and animal: back to their own seat, or the first empty one, or a new one. */
-    join(playerId: string, name: string, look: Partial<Look>) {
+    /**
+     * Takes a seat with a name and a look. Each animal belongs to one player: if someone else already has
+     * this one (or is holding it in their picker), the seat is kept but the look isn't, and the answer
+     * says who has it, so the player picks again.
+     */
+    join(playerId: string, name: string, look: Partial<Look>): { taken: string; by: string } | null {
       const clean = name.trim().slice(0, 24);
-      if (!clean) return;
+      if (!clean) return null;
+      const g0 = hostGame();
+      const fixed = fixLook(clean, look, !animalTakenBy(g0, 'bunny', playerId));
+      const by = animalTakenBy(g0, fixed.animal, playerId);
       update((g) => {
         let seat = g.seats.find((s) => s.playerId === playerId);
         seat ??= g.seats.find((s) => !s.playerId && s.name.toLowerCase() === clean.toLowerCase());
@@ -862,20 +899,50 @@ export const st = {
         }
         seat.playerId = playerId;
         seat.name = clean;
-        seat.look = fixLook(clean, look);
+        if (!by) seat.look = fixed;
+        else if (seat.look && animalTakenBy(g, seat.look.animal, playerId)) seat.look = null;
+        // Their pick is settled (or refused): let go of anything they were holding.
+        releaseHolds(g, playerId);
       });
+      return by ? { taken: fixed.animal, by } : null;
+    },
+    /** Holds an animal while a player looks at it in the picker. The first to ask gets it. */
+    hold(playerId: string, name: string, animal: string | null): { taken: string; by: string } | null {
+      const g0 = hostGame();
+      if (animal !== null) {
+        const info = ANIMALS.find((a) => a.id === animal);
+        if (!info) return null;
+        if (info.reservedFor && !(isJarrod(name) && info.id === 'bunny')) return { taken: animal, by: 'Jarrod' };
+        const by = animalTakenBy(g0, animal, playerId);
+        if (by) return { taken: animal, by };
+      }
+      update((g) => {
+        releaseHolds(g, playerId);
+        if (animal) (g.picking ??= {})[animal] = { playerId, name: name.trim().slice(0, 24) || 'Someone', until: Date.now() + HOLD_MS };
+      });
+      return null;
     },
     leave(playerId: string) {
       update((g) => {
         for (const s of g.seats) if (s.playerId === playerId) s.playerId = null;
+        releaseHolds(g, playerId);
       });
+    },
+    /** A player's connection dropped: their picker holds go (their seat and animal stay theirs). */
+    dropped(playerId: string) {
+      if (!Object.values(hostGame().picking ?? {}).some((h) => h.playerId === playerId)) return;
+      update((g) => releaseHolds(g, playerId));
     },
     rename(playerId: string, name: string) {
       update((g) => {
         const s = g.seats.find((x) => x.playerId === playerId);
         if (!s) return;
         if (name.trim()) s.name = name.trim().slice(0, 24);
-        if (s.look) s.look = fixLook(s.name, s.look);
+        // A new Jarrod gets the bunny only if nobody else has it; any clash and they keep what they had.
+        if (s.look) {
+          const next = fixLook(s.name, s.look, !animalTakenBy(g, 'bunny', playerId));
+          if (!animalTakenBy(g, next.animal, playerId)) s.look = next;
+        }
       });
     },
     vote(playerId: string, up: boolean) {
