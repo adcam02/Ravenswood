@@ -1,8 +1,10 @@
-// A test bench for the animals: open /dev/animals.html?view=grid|close|poses|items|ghosts&animal=fox
+// A test bench for the animals: open /dev/animals.html?view=grid|close|poses|items|ghosts|hats&animal=fox
+// Add &hat=crown to put a hat on every animal, &detail=low for the distant versions.
 import * as THREE from 'three';
 import { animalThumbnail, buildAnimal, buildStoryteller, type Rig } from '../src/world/animals';
+import { buildHat } from '../src/world/hats';
 import { buildItem } from '../src/world/items';
-import { ANIMALS, type Anim, type AnimalId, type ItemKind } from '../src/world/types';
+import { ANIMALS, HATS, type Anim, type AnimalId, type HatId, type ItemKind } from '../src/world/types';
 
 const q = new URLSearchParams(location.search);
 const view = q.get('view') ?? 'grid';
@@ -33,9 +35,13 @@ scene.add(ground);
 const camera = new THREE.PerspectiveCamera(40, W / H, 0.1, 200);
 const rigs: { rig: Rig; anim: Anim; speed: number; spinning?: boolean }[] = [];
 
+const hatParam = q.get('hat') as HatId | null;
+const lowParam = q.get('detail') === 'low';
 function place(rig: Rig, x: number, z: number, anim: Anim = 'idle', speed = 0, ry = 0) {
   rig.root.position.set(x, 0, z);
   rig.root.rotation.y = ry;
+  if (hatParam) rig.setHat(hatParam);
+  if (lowParam) rig.setDetail('low');
   scene.add(rig.root);
   rigs.push({ rig, anim, speed });
   return rig;
@@ -104,6 +110,29 @@ if (view === 'grid' || view === 'night') {
   });
   camera.position.set(0, 2.2, 3.2);
   camera.lookAt(0, 0.1, 0);
+} else if (view === 'hats') {
+  // Front row: one hat each. Back rows: the awkward heads all wearing the same hat (?hat=, default crown).
+  const each: [AnimalId, HatId][] = [
+    ['fox', 'beanie'],
+    ['cat', 'flower'],
+    ['wolf', 'party'],
+    ['owl', 'wizard'],
+    ['bear', 'tophat'],
+    ['penguin', 'crown'],
+    ['axolotl', 'halo'],
+    ['raven', 'witch'],
+  ];
+  each.forEach(([id, hat], i) => {
+    const r = place(buildAnimal({ animal: id, color: ANIMALS.find((x) => x.id === id)!.colors[0], hat }), (i - 3.5) * 1.2, 1.6, 'idle', 0, 0.25);
+    if (q.has('ghost') && i % 2) r.setGhost(true);
+  });
+  const same = (hatParam ?? 'crown') as HatId;
+  const awkward: AnimalId[] = ['bunny', 'snail', 'deer', 'highland', 'squid', 'jellyfish', 'octopus', 'frog', 'shark', 'hedgehog', 'fennec', 'bat'];
+  awkward.forEach((id, i) => {
+    place(buildAnimal({ animal: id, color: ANIMALS.find((x) => x.id === id)!.colors[0], hat: same }), ((i % 6) - 2.5) * 1.35, -0.3 - Math.floor(i / 6) * 1.7, 'idle', 0, 0.3);
+  });
+  camera.position.set(0, 3.6, 8.2);
+  camera.lookAt(0, 0.5, -0.2);
 } else if (view === 'ghosts') {
   ['fox', 'bunny', 'octopus', 'owl', 'shark'].forEach((id, i) => {
     const r = place(buildAnimal({ animal: id as AnimalId, color: ANIMALS.find((x) => x.id === id)!.colors[0] }), i * 1.4 - 2.8, 0, i === 2 ? 'wave' : 'idle');
@@ -118,7 +147,7 @@ if (q.has('thumbs')) {
   const box = document.getElementById('thumbs')!;
   for (const a of ANIMALS) {
     const img = document.createElement('img');
-    img.src = animalThumbnail({ animal: a.id, color: a.colors[0] });
+    img.src = animalThumbnail({ animal: a.id, color: a.colors[0], hat: hatParam });
     box.appendChild(img);
   }
 }
@@ -148,7 +177,27 @@ function frame(now: number) {
   if (frames === 12) {
     const tris: Record<string, number> = {};
     rigs.forEach((r, i) => (tris[`${i}`] = triangles(r.rig)));
-    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, rigs: tris };
+    // Both detail levels for every rig, measured by switching each one over and back.
+    const levels: Record<string, { high: number; low: number }> = {};
+    rigs.forEach((r, i) => {
+      r.rig.setDetail('high');
+      const high = triangles(r.rig);
+      r.rig.setDetail('low');
+      const low = triangles(r.rig);
+      r.rig.setDetail(lowParam ? 'low' : 'high');
+      levels[`${i}`] = { high, low };
+    });
+    const hats: Record<string, number> = {};
+    for (const h of HATS) {
+      const built = buildHat(h.id);
+      let n = 0;
+      built?.group.traverse((o) => {
+        const m = o as THREE.Mesh;
+        if (m.isMesh) n += (m.geometry.getAttribute('position')?.count ?? 0) / 3;
+      });
+      hats[h.id] = Math.round(n);
+    }
+    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, rigs: tris, levels, hats };
     (window as unknown as { done: boolean }).done = true;
   }
   requestAnimationFrame(frame);

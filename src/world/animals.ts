@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { Builder, glow, placeMatrix, soft, wet, type Vec3 } from './build';
+import { buildHat, type BuiltHat, type HatFit } from './hats';
 import { buildItem, disposeObject } from './items';
-import { animalInfo, type Anim, type AnimalId, type Item, type Look } from './types';
+import { animalInfo, type Anim, type AnimalId, type HatId, type Item, type Look } from './types';
 
 /**
  * Chibi low-poly animals, built from simple shapes in code. Each moving part (torso, head, eyes, each
@@ -27,6 +28,10 @@ export interface Rig {
   update(s: RigState): void;
   setItem(item: Item | null): void;
   setGhost(on: boolean): void;
+  /** Puts a hat on (or takes it off). The Storyteller never wears one. Raises `headHeight` to clear it. */
+  setHat(hat: HatId | null): void;
+  /** 'low' swaps in a cheaper version of every part (about a quarter of the triangles), for players far away. */
+  setDetail(level: 'high' | 'low'): void;
   dispose(): void;
 }
 
@@ -36,7 +41,7 @@ export interface Rig {
 // automatically (see `ell`), so the extra polygons go where they show.
 // Normals are smoothed across edges gentler than 38 degrees (see build.ts), so every round shape needs
 // enough sides for its facets to fall under that: 12 or more round a cylinder, 10 or more round a sphere.
-const G = {
+const G_HIGH = {
   sph: new THREE.SphereGeometry(1, 16, 12),
   sphS: new THREE.SphereGeometry(1, 12, 9),
   sphXS: new THREE.SphereGeometry(1, 8, 6),
@@ -55,6 +60,30 @@ const G = {
   torus: new THREE.TorusGeometry(1, 0.32, 10, 24),
   ring: new THREE.TorusGeometry(1, 0.2, 8, 24),
 };
+
+/** The same shapes with far fewer sides, for animals seen from a distance. */
+const G_LOW: typeof G_HIGH = {
+  sph: new THREE.SphereGeometry(1, 8, 6),
+  sphS: new THREE.SphereGeometry(1, 6, 5),
+  sphXS: new THREE.SphereGeometry(1, 5, 4),
+  head: new THREE.SphereGeometry(1, 12, 9),
+  ico: new THREE.IcosahedronGeometry(1, 0),
+  ico1: new THREE.IcosahedronGeometry(1, 1),
+  cone4: new THREE.ConeGeometry(1, 1, 4),
+  cone6: new THREE.ConeGeometry(1, 1, 6),
+  cone8: new THREE.ConeGeometry(1, 1, 8),
+  cyl: new THREE.CylinderGeometry(1, 1, 1, 8),
+  cyl6: new THREE.CylinderGeometry(1, 1, 1, 6),
+  taper: new THREE.CylinderGeometry(0.55, 1, 1, 8),
+  box: new THREE.BoxGeometry(1, 1, 1),
+  smile: new THREE.TorusGeometry(1, 0.11, 4, 10, Math.PI),
+  halfDisc: new THREE.SphereGeometry(1, 10, 4, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2),
+  torus: new THREE.TorusGeometry(1, 0.32, 6, 12),
+  ring: new THREE.TorusGeometry(1, 0.2, 5, 12),
+};
+
+/** The shapes the recipes build with: the full set, swapped for the light one while a distant version is built. */
+let G = G_HIGH;
 
 const col = (c: THREE.ColorRepresentation) => new THREE.Color(c);
 const mix = (a: THREE.ColorRepresentation, b: THREE.ColorRepresentation, t: number) => col(a).lerp(col(b), t);
@@ -1634,6 +1663,40 @@ interface RigParts {
   /** Extra things that hang off the body group (the Storyteller's lantern). */
   extras?: (body: THREE.Group, hand: THREE.Group) => void;
   eyeMaterial?: THREE.Material;
+  /** Where a hat sits; none for the Storyteller, who never wears one. */
+  hatFit?: HatFit;
+  /** Builds the same animal with the light shapes, and the key its parts are cached under. */
+  lowKit?: () => Kit;
+  lowKey?: string;
+}
+
+type PartName = 'torso' | 'head' | 'eyes' | 'armL' | 'armR' | 'legL' | 'legR' | 'tail';
+const PART_NAMES: PartName[] = ['torso', 'head', 'eyes', 'armL', 'armR', 'legL', 'legR', 'tail'];
+
+/** Distant versions of each animal and colour, shared by every rig that needs one. Never disposed: they're small. */
+const lowCache = new Map<string, Partial<Record<PartName, THREE.BufferGeometry>>>();
+
+function lowParts(key: string, make: () => Kit): Partial<Record<PartName, THREE.BufferGeometry>> {
+  const hit = lowCache.get(key);
+  if (hit) return hit;
+  let kit: Kit;
+  G = G_LOW;
+  try {
+    kit = make();
+  } finally {
+    G = G_HIGH;
+  }
+  const out: Partial<Record<PartName, THREE.BufferGeometry>> = {};
+  for (const name of PART_NAMES) {
+    const b = kit[name];
+    if (b.empty) continue;
+    // With so few sides the facets are steep, so smooth across wider angles than the full version does.
+    const g = b.geometry(66);
+    if (name === 'eyes') g.translate(0, -kit.eyeY, 0);
+    out[name] = g;
+  }
+  lowCache.set(key, out);
+  return out;
 }
 
 class AnimalRig implements Rig {
@@ -1673,6 +1736,14 @@ class AnimalRig implements Rig {
   private noLegs: boolean;
   private sleepy: boolean;
   private owned: THREE.Material[] = [];
+  private parts: Partial<Record<PartName, THREE.Mesh>> = {};
+  private highGeo = new Map<THREE.Mesh, THREE.BufferGeometry>();
+  private detail: 'high' | 'low' = 'high';
+  private lowKit?: () => Kit;
+  private lowKey?: string;
+  private hatFit?: HatFit;
+  private hat: { id: HatId; built: BuiltHat; holder: THREE.Group } | null = null;
+  private baseHeadHeight = 1.1;
 
   constructor(p: RigParts) {
     const k = p.parts;
@@ -1684,6 +1755,9 @@ class AnimalRig implements Rig {
     this.sleepy = Boolean(p.sleepy);
     this.material = p.material;
     this.eyeMaterial = p.eyeMaterial ?? p.material;
+    this.hatFit = p.hatFit;
+    this.lowKit = p.lowKit;
+    this.lowKey = p.lowKey;
     this.owned.push(p.material);
     if (p.eyeMaterial) this.owned.push(p.eyeMaterial);
 
@@ -1700,15 +1774,16 @@ class AnimalRig implements Rig {
     this.armR.add(this.hand);
     this.hand.add(this.handTilt);
 
-    const mk = (b: Builder, parent: THREE.Object3D, mat = this.material) => {
+    const mk = (name: PartName, b: Builder, parent: THREE.Object3D, mat = this.material) => {
       if (b.empty) return null;
       const m = b.mesh(mat, { cast: true, receive: false });
       parent.add(m);
       this.meshes.push(m);
+      this.parts[name] = m;
       return m;
     };
-    mk(k.torso, this.body);
-    mk(k.head, this.neck);
+    mk('torso', k.torso, this.body);
+    mk('head', k.head, this.neck);
     this.eyes.position.set(0, k.eyeY, 0);
     this.neck.add(this.eyes);
     // Eye geometry is built around the neck; shift it so blinking squashes around the eyes.
@@ -1717,11 +1792,12 @@ class AnimalRig implements Rig {
     this.eyeMesh = new THREE.Mesh(eg, this.eyeMaterial);
     this.eyeMesh.castShadow = false;
     this.eyes.add(this.eyeMesh);
-    mk(k.armL, this.armL);
-    mk(k.armR, this.armR);
-    mk(k.legL, this.legL);
-    mk(k.legR, this.legR);
-    mk(k.tail, this.tail);
+    this.parts.eyes = this.eyeMesh;
+    mk('armL', k.armL, this.armL);
+    mk('armR', k.armR, this.armR);
+    mk('legL', k.legL, this.legL);
+    mk('legR', k.legR, this.legR);
+    mk('tail', k.tail, this.tail);
 
     this.ghostMaterial = new THREE.MeshStandardMaterial({
       color: p.ghostColor,
@@ -1766,6 +1842,60 @@ class AnimalRig implements Rig {
     this.root.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(this.neck);
     this.headHeight = box.max.y + (this.floats ? this.hover : 0);
+    this.baseHeadHeight = this.headHeight;
+  }
+
+  setHat(hat: HatId | null) {
+    if (!this.hatFit) return;
+    if ((this.hat?.id ?? null) === hat) return;
+    if (this.hat) {
+      this.hat.holder.removeFromParent();
+      this.hat.built.group.traverse((o) => (o as THREE.Mesh).isMesh && (o as THREE.Mesh).geometry.dispose());
+      for (const m of this.hat.built.materials) m.dispose();
+      this.hat = null;
+    }
+    this.headHeight = this.baseHeadHeight;
+    if (!hat) return;
+    const built = buildHat(hat);
+    if (!built) return;
+    const fit = this.hatFit;
+    const holder = new THREE.Group();
+    holder.position.set(...fit.pos);
+    holder.rotation.set(...fit.rot);
+    holder.scale.setScalar(fit.scale);
+    holder.add(built.group);
+    this.neck.add(holder);
+    this.hat = { id: hat, built, holder };
+    this.applyHatGhost();
+    // The name label and anything floating over the head have to clear the hat.
+    const top = NECK[1] + fit.pos[1] + built.top * fit.scale + (this.floats ? this.hover : 0);
+    this.headHeight = Math.max(this.baseHeadHeight, top);
+  }
+
+  private applyHatGhost() {
+    if (!this.hat) return;
+    for (const { mesh, material } of this.hat.built.solid) {
+      mesh.material = this.ghost ? this.ghostMaterial : material;
+      mesh.castShadow = !this.ghost;
+    }
+  }
+
+  setDetail(level: 'high' | 'low') {
+    if (level === this.detail) return;
+    if (level === 'low') {
+      if (!this.lowKit || !this.lowKey) return;
+      const low = lowParts(this.lowKey, this.lowKit);
+      for (const name of PART_NAMES) {
+        const mesh = this.parts[name];
+        const g = low[name];
+        if (!mesh || !g) continue;
+        if (!this.highGeo.has(mesh)) this.highGeo.set(mesh, mesh.geometry);
+        mesh.geometry = g;
+      }
+    } else {
+      for (const [mesh, g] of this.highGeo) mesh.geometry = g;
+    }
+    this.detail = level;
   }
 
   setItem(item: Item | null) {
@@ -1800,6 +1930,7 @@ class AnimalRig implements Rig {
     this.wisp.material = on || !this.noLegs ? this.ghostMaterial : this.material;
     if (this.drips) this.drips.visible = !on;
     this.item?.traverse((o) => (o.castShadow = !on));
+    this.applyHatGhost();
   }
 
   private target(s: RigState): Pose {
@@ -2031,6 +2162,7 @@ class AnimalRig implements Rig {
     else if (this.sleepy && s.anim === 'idle') this.eyes.scale.y = Math.min(this.eyes.scale.y, 0.5);
 
     if (this.drips && !this.ghost) this.updateDrips(dt);
+    this.hat?.built.update?.(s.t + this.seed);
   }
 
   private updateDrips(dt: number) {
@@ -2062,6 +2194,9 @@ class AnimalRig implements Rig {
 
   dispose() {
     this.setItem(null);
+    this.setHat(null);
+    // Back to this rig's own geometry first: the distant versions are shared and stay cached.
+    this.setDetail('high');
     for (const m of this.meshes) m.geometry.dispose();
     this.eyeMesh.geometry.dispose();
     this.wisp.geometry.dispose();
@@ -2098,7 +2233,7 @@ export function buildAnimal(look: Look): Rig {
   const c = colorsFor(coat);
   const res = RECIPES[info.id](k, c, coat);
   const aquatic = res.aquatic ?? info.aquatic;
-  return new AnimalRig({
+  const rig = new AnimalRig({
     parts: k,
     material: res.jelly ? jelly() : aquatic ? wet() : soft(),
     eyeMaterial: glossy(),
@@ -2109,7 +2244,45 @@ export function buildAnimal(look: Look): Rig {
     tentacles: res.legs === 'tentacles',
     aquatic,
     sleepy: res.sleepy,
+    hatFit: hatFit(info.id, k.shape),
+    lowKey: `${info.id}:${coat}`,
+    lowKit: () => {
+      const lk = newKit();
+      RECIPES[info.id](lk, colorsFor(coat), coat);
+      return lk;
+    },
   });
+  if (look.hat) rig.setHat(look.hat);
+  return rig;
+}
+
+/**
+ * Where a hat goes on each animal. By default it sits on the top of the head, scaled to the head's width
+ * and tipped back a touch; some heads need it nudged clear of ears, antlers, fins or eye stalks.
+ */
+const HAT_NUDGE: Partial<Record<AnimalId, { dy?: number; dz?: number; dx?: number; scale?: number; rot?: Vec3 }>> = {
+  bunny: { dy: -0.03, dz: 0.09, scale: 0.88, rot: [0.08, 0, 0.3] },
+  snail: { dy: -0.01, dz: 0.04, scale: 0.9 },
+  deer: { dy: 0.01, scale: 0.9 },
+  highland: { dy: 0.06, scale: 0.95 },
+  squid: { dy: 0.1, scale: 0.62, rot: [-0.05, 0, 0.12] },
+  jellyfish: { dy: -0.02, scale: 0.8 },
+  octopus: { dy: -0.01, scale: 0.92 },
+  frog: { dz: -0.07, scale: 0.85 },
+  shark: { dz: 0.08, dy: -0.01, scale: 0.88 },
+  hedgehog: { dy: 0.05 },
+  fennec: { scale: 0.85 },
+  bat: { scale: 0.88 },
+};
+
+function hatFit(id: AnimalId, s: Shape): HatFit {
+  const n = HAT_NUDGE[id] ?? {};
+  const scale = THREE.MathUtils.clamp(s.hr[0] / 0.28, 0.6, 1.25) * (n.scale ?? 1);
+  return {
+    pos: [s.hc[0] + (n.dx ?? 0), s.hc[1] + s.hr[1] + (n.dy ?? 0), s.hc[2] + (n.dz ?? 0)],
+    scale,
+    rot: n.rot ?? [-0.12, 0, 0],
+  };
 }
 
 /** Wet-looking eyes: smooth and a little reflective, so the catchlights read as a shine. */
@@ -2203,7 +2376,7 @@ let thumbCamera: THREE.PerspectiveCamera | null = null;
 const thumbCache = new Map<string, string>();
 
 export function animalThumbnail(look: Look, size = 128): string {
-  const key = `${look.animal}:${look.color}:${size}`;
+  const key = `${look.animal}:${look.color}:${look.hat ?? ''}:${size}`;
   const hit = thumbCache.get(key);
   if (hit) return hit;
   try {
