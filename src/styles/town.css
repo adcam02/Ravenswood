@@ -1464,3 +1464,25 @@
     opacity: 0;
   }
 }
+
+/* ---------------------------------------------------------------- camera turn buttons */
+.cam-btns {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 15;
+  display: flex;
+  gap: 8px;
+}
+.mode-player .cam-btns {
+  right: 118px;
+}
+.cam-btns .cosy-btn.round {
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border-radius: 50%;
+  justify-content: center;
+  font-size: 22px;
+  line-height: 1;
+}

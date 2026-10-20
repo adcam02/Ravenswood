@@ -71,6 +71,8 @@ export const game = {
   jobCancel: () => {},
   /** The counting-sheep game is over; right earns tomorrow's gold star. */
   sheepDone: (_correct: boolean) => {},
+  /** Turn the camera a step round the player. */
+  turnCamera: (_dir: -1 | 1) => {},
   /** The item in your paw, as the HUD shows it. */
   item: null as Item | null,
 };

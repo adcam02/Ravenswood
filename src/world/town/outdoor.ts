@@ -819,13 +819,26 @@ function cottage(p: Paint, r: () => number, slot: number, smoke: (v: THREE.Vecto
   p.box(trim, W + 0.12, 0.16, D + 0.12, 0, 2.9, 0);
   for (let x = -W / 2 + 0.4; x < W / 2; x += 0.8) for (const sz of [-1, 1]) p.box(shade(trim, -0.08), 0.14, 0.14, 0.2, x, 2.78, sz * (D / 2 + 0.08));
   p.prism(wall, W, 1.7, D, 0, 2.98, 0);
-  // A timber pattern on each gable.
+  // Timbering on each gable: a king post, a collar beam, and two rafters that run just under the roof line
+  // (so nothing pokes out through the tiles).
   for (const sx of [-1, 1]) {
     const g = p.at(sx * (W / 2 + 0.01), 0, 0, (sx * Math.PI) / 2);
-    g.box(trim, 0.12, 1.6, 0.06, 0, 3.75, 0);
-    g.box(trim, 0.1, 1.5, 0.06, -0.8, 3.5, 0, 0, 0, 0.55);
-    g.box(trim, 0.1, 1.5, 0.06, 0.8, 3.5, 0, 0, 0, -0.55);
-    wallWindow(g.at(0, 3.55, 0), 0.4, 0.4, trim, GLASS, false);
+    const base = 2.98;
+    const rise = 1.7;
+    const halfD = D / 2;
+    g.box(trim, 0.12, rise - 0.3, 0.06, 0, base + (rise - 0.3) / 2 + 0.02, 0);
+    const collarY = base + 0.6;
+    const collarW = D * (1 - 0.6 / rise) - 0.3;
+    g.box(trim, collarW, 0.1, 0.06, 0, collarY, 0);
+    const slopeLen = Math.hypot(halfD, rise);
+    const tilt = Math.atan2(halfD, rise);
+    for (const side of [-1, 1]) {
+      // The rafter's centre sits a little inside the slope, so it stays under the eave line.
+      const cx = side * (halfD / 2) * 0.86;
+      const cy = base + (rise / 2) * 0.86 + 0.05;
+      g.box(trim, 0.1, slopeLen * 0.8, 0.06, cx, cy, 0, 0, 0, -side * tilt);
+    }
+    wallWindow(g.at(0, 3.45, 0), 0.4, 0.4, trim, GLASS, false);
   }
   p.roof(roof, W, D, 1.7, 2.98, 0.45, 0.18);
   const cx = slot % 2 ? 1.5 : -1.5;
@@ -1027,16 +1040,25 @@ function pond(group: THREE.Group, p: Paint, r: () => number): Outdoor['water'] {
   mesh.receiveShadow = true;
   mesh.name = 'pond';
   group.add(mesh);
-  // Lily pads, reeds and stones around the edge.
-  for (let i = 0; i < 9; i++) {
+  // Lily pads, reeds and stones around the edge. Pads keep clear of each other and of the pier.
+  const pads: { x: number; z: number; rad: number }[] = [];
+  for (let tries = 0; tries < 60 && pads.length < 9; tries++) {
     const a = r() * Math.PI * 2;
     const s = 0.35 + r() * 0.5;
     const x = POND.x + Math.cos(a) * POND.rx * s;
     const z = POND.z + Math.sin(a) * POND.rz * s;
+    const rad = 0.35 + r() * 0.2;
     if (Math.abs(x - DOCK.x) < 2.2 && z < DOCK.z1 + 1) continue;
-    p.cyl(shade('#5f9e47', (r() - 0.5) * 0.08), 0.35 + r() * 0.2, 0.03, x, 0.08, z, 7);
-    if (r() < 0.4) p.ico(pick(r, ['#f2a7b8', '#ffffff']), 0.1, x, 0.14, z, 0, 0.6);
+    if (pads.some((q) => Math.hypot(q.x - x, q.z - z) < q.rad + rad + 0.12)) continue;
+    pads.push({ x, z, rad });
   }
+  pads.forEach(({ x, z, rad }, i) => {
+    const y = 0.08 + i * 0.004;
+    p.cyl(shade('#5f9e47', (r() - 0.5) * 0.08), rad, 0.03, x, y, z, 7);
+    // A notch cut out of the pad, as a darker wedge of water showing through.
+    p.box(shade('#5fb6cf', -0.05), rad * 0.5, 0.034, 0.08, x + rad * 0.6, y, z, 0, r() * Math.PI * 2);
+    if (r() < 0.4) p.ico(pick(r, ['#f2a7b8', '#ffffff']), 0.1, x, y + 0.06, z, 0, 0.6);
+  });
   for (let i = 0; i < 26; i++) {
     const a = r() * Math.PI * 2;
     const s = 0.92 + r() * 0.12;

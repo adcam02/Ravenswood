@@ -113,7 +113,8 @@ export function bedSpot(bed: number, spot: number): { x: number; z: number; ry: 
   return { ...local(b.x, b.z, b.ry, lx, 0), ry: b.ry };
 }
 
-export const benches = [70, 110, 250, 290].map((deg) => {
+// The south-east bench sits at 100 rather than 110 degrees, so it's well clear of the gallows platform.
+export const benches = [70, 100, 250, 290].map((deg) => {
   const a = (deg * Math.PI) / 180;
   const r = 9.6;
   const x = r * Math.sin(a);

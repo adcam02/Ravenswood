@@ -178,6 +178,10 @@ export class Engine {
   private camLook = new THREE.Vector3();
   private bookOpen = 0;
   private dragging: { x: number; yaw: number } | null = null;
+  /** A left button held but not yet dragged: a click walks there, a drag turns the camera. */
+  private pendingClick: { x: number; y: number; yaw: number } | null = null;
+  /** How long the keys have been walking us, for the camera to swing round behind. */
+  private keyWalkFor = 0;
 
   private emote: { anim: Anim; until: number } | null = null;
   /** Sitting or lying on something: the y to sit at. */
@@ -269,6 +273,7 @@ export class Engine {
     game.goToSquare = () => this.goToSquare();
     game.jobDone = (r) => this.finishJob(r);
     game.jobCancel = () => this.finishJob(undefined);
+    game.turnCamera = (dir) => this.turnCamera(dir);
     game.sheepDone = (correct) => {
       useHud.setState({ sheep: 'done' });
       if (correct) {
@@ -286,7 +291,7 @@ export class Engine {
     if (this.wellTimer) clearTimeout(this.wellTimer);
     for (const s of this.signs) s.el.remove();
     for (const k of ['interact', 'sip', 'give', 'putAway', 'takeMeetingSeat', 'goToSquare', 'jobCancel'] as const) game[k] = () => {};
-    game.emote = game.goTo = game.jobDone = game.sheepDone = () => {};
+    game.emote = game.goTo = game.jobDone = game.sheepDone = game.turnCamera = () => {};
     this.ro.disconnect();
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
@@ -622,8 +627,14 @@ export class Engine {
       return;
     }
     if (e.button !== 0 || !this.me || this.view?.paused || this.job || this.inBed) return;
+    // Wait and see: a click walks there, a drag turns the camera.
+    this.pendingClick = { x: e.clientX, y: e.clientY, yaw: this.yawTarget };
+  };
+
+  /** Walks to the ground under a screen point. */
+  private walkTo(clientX: number, clientY: number) {
     const rect = this.renderer.domElement.getBoundingClientRect();
-    const ndc = new THREE.Vector2(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1);
+    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     const ray = new THREE.Raycaster();
     ray.setFromCamera(ndc, this.camera);
     const hit = new THREE.Vector3();
@@ -632,16 +643,36 @@ export class Engine {
       this.stuckFor = 0;
       this.standUp();
     }
-  };
+  }
 
   private onPointerMove = (e: PointerEvent) => {
+    const pending = this.pendingClick;
+    if (pending && !this.dragging) {
+      if (Math.hypot(e.clientX - pending.x, e.clientY - pending.y) > 6) {
+        // It's a drag: turn the camera (only outdoors, rooms keep their fixed view).
+        if (zoneKind(local.zone) === 'town') this.dragging = { x: pending.x, yaw: pending.yaw };
+        this.pendingClick = null;
+      }
+      return;
+    }
     if (!this.dragging) return;
     this.yawTarget = this.dragging.yaw - (e.clientX - this.dragging.x) * 0.008;
   };
 
-  private onPointerUp = () => {
+  private onPointerUp = (e: PointerEvent) => {
+    if (this.pendingClick && e.button === 0) {
+      const { x, y } = this.pendingClick;
+      this.pendingClick = null;
+      if (!this.view?.paused && !this.job && !this.inBed) this.walkTo(x, y);
+    }
     this.dragging = null;
   };
+
+  /** Turns the camera a step round the player (the on-screen buttons). */
+  turnCamera(dir: -1 | 1) {
+    if (zoneKind(local.zone) !== 'town') return;
+    this.yawTarget += (dir * Math.PI) / 4;
+  }
 
   private onWheel = (e: WheelEvent) => {
     e.preventDefault();
@@ -1029,7 +1060,19 @@ export class Engine {
       const sin = Math.sin(this.yaw);
       dx = ix * cos + iz * sin;
       dz = -ix * sin + iz * cos;
-    } else if (this.moveTarget && !this.frozen) {
+      // After a moment of walking, the camera swings gently round to follow behind.
+      this.keyWalkFor += dt;
+      if (this.keyWalkFor > 0.6 && !this.dragging && zoneKind(local.zone) === 'town') {
+        const want = Math.atan2(dx, dz) + Math.PI;
+        let diff = want - this.yawTarget;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        this.yawTarget += diff * Math.min(1, dt * 1.4);
+      }
+    } else {
+      this.keyWalkFor = 0;
+    }
+    if (!(ix || iz) && this.moveTarget && !this.frozen) {
       const tx = this.moveTarget.x - local.x;
       const tz = this.moveTarget.z - local.z;
       const d = Math.hypot(tx, tz);

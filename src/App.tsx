@@ -15,6 +15,7 @@ import {
   ActionPrompt,
   Announce,
   BellCall,
+  CameraButtons,
   EmoteBar,
   Fade,
   GiftNotice,
@@ -137,6 +138,7 @@ function Storyteller() {
               </div>
               <MiniGrimoire />
               <JobLayer />
+              <CameraButtons />
               <NoticeBoard />
             </>
           )}
@@ -215,6 +217,7 @@ function Player({ room }: { room: string }) {
               </div>
               <JobLayer />
               <SheepLayer />
+              <CameraButtons />
               <NoticeBoard />
               <HelpCard />
               <Modals />
