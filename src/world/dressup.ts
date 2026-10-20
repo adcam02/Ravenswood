@@ -466,10 +466,13 @@ function cape(f: BackFit): BuiltPiece {
   b.add(inner, lining, { pos: [0, -H / 2, 0], scale: [-1, 1, 1] });
   outer.dispose();
   inner.dispose();
-  // A rolled hem at the bottom, a collar and a gold clasp at the front.
-  const hem = new THREE.TorusGeometry(1, 0.03, 5, 28, arc);
-  b.add(hem, '#9a2830', { pos: [0, -H, 0], rot: [Math.PI / 2, 0, Math.PI / 2 + (Math.PI - arc) / 2], scale: [r1, r1, r1] });
-  hem.dispose();
+  // A rolled hem along the bottom edge, following the cloth's own curve, then a collar and a gold clasp.
+  const hemPts: Vec3[] = [];
+  for (let i = 0; i <= 16; i++) {
+    const th = Math.PI - arc / 2 + (i / 16) * arc;
+    hemPts.push([Math.sin(th) * r1, -H, Math.cos(th) * r1]);
+  }
+  tube(b, '#9a2830', hemPts, 0.012, 40, 5);
   const collar = new THREE.TorusGeometry(1, 0.12, 6, 30);
   b.add(collar, red, { pos: [0, 0.01, 0], rot: [Math.PI / 2, 0, 0], scale: [r0 * 0.95, r0 * 0.95, r0] });
   collar.dispose();

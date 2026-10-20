@@ -37,6 +37,8 @@ const camera = new THREE.PerspectiveCamera(40, W / H, 0.1, 200);
 const rigs: { rig: Rig; anim: Anim; speed: number; spinning?: boolean }[] = [];
 
 const hatParam = q.get('hat') as HatId | null;
+/** ?wear=face:glasses,neck:scarf,back:cape puts the same dress-up on every animal. */
+const wearParam = q.get('wear') ? (Object.fromEntries(q.get('wear')!.split(',').map((kv) => kv.split(':'))) as { face?: FaceId; neck?: NeckId; back?: BackId }) : null;
 const pets: { pet: Pet; moving: boolean }[] = [];
 const lookOf = (id: AnimalId, extra: Partial<Look> = {}): Look => ({ animal: id, color: ANIMALS.find((x) => x.id === id)!.colors[0], ...extra });
 const lowParam = q.get('detail') === 'low';
@@ -44,6 +46,7 @@ function place(rig: Rig, x: number, z: number, anim: Anim = 'idle', speed = 0, r
   rig.root.position.set(x, 0, z);
   rig.root.rotation.y = ry;
   if (hatParam) rig.setHat(hatParam);
+  if (wearParam) rig.setDressUp(wearParam);
   if (lowParam) rig.setDetail('low');
   scene.add(rig.root);
   rigs.push({ rig, anim, speed });

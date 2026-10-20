@@ -2358,10 +2358,25 @@ const DRESS_NUDGE: Partial<Record<AnimalId, { neck?: Partial<NeckFit>; back?: Pa
 function dressFit(id: AnimalId, k: Kit): { face: FaceFit; neck: NeckFit; back: BackFit } {
   const s = k.shape;
   const n = DRESS_NUDGE[id] ?? {};
-  // The neck ring sits just under the chin, wide enough to show round the top of the torso.
+  // The neck ring sits just under the chin, wide enough to show round the top of the torso. Where the body
+  // rises well past the chin (penguins, owls, seals), it goes where the head's outline meets the body's.
   const chin = NECK[1] + s.hc[1] - s.hr[1];
-  const ny = Math.min(chin - 0.03, s.tc[1] + s.tr[1] * 0.85);
-  const nr = Math.max(0.1, torsoR(s, ny) + 0.012);
+  let ny = Math.min(chin - 0.03, s.tc[1] + s.tr[1] * 0.85);
+  let nr = Math.max(0.1, torsoR(s, ny) + 0.012);
+  if (s.tc[1] + s.tr[1] > chin + 0.08) {
+    const headY = NECK[1] + s.hc[1];
+    const headR = (y: number) => s.hr[0] * Math.sqrt(Math.max(0, 1 - ((y - headY) / s.hr[1]) ** 2));
+    let best = { y: ny, d: Infinity, r: nr };
+    for (let y = chin + 0.12; y >= chin - 0.04; y -= 0.004) {
+      const h = headR(y);
+      const t = torsoR(s, y);
+      if (h < 0.06 || t < 0.06) continue;
+      const d = Math.abs(h - t);
+      if (d < best.d) best = { y, d, r: Math.max(h, t) };
+    }
+    ny = best.y - 0.01;
+    nr = best.r + 0.014;
+  }
   const neck: NeckFit = { centre: [0, ny, s.tc[2]], r: nr, tilt: 0.12, ...n.neck };
   const back: BackFit = {
     centre: s.tc,
