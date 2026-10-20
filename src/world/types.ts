@@ -147,8 +147,8 @@ export type BakeKind = 'loaf' | 'pie' | 'bun';
 export type ClothKind = 'shirt' | 'sock' | 'dress' | 'towel' | 'pants';
 export type FlowerKind = 'tulip' | 'daisy' | 'sunflower' | 'rose';
 
-/** Something held in the right paw. */
-export type ItemKind = DrinkKind | BakeKind | 'fish' | 'flower' | 'rod' | 'can' | 'washing';
+/** Something held in the right paw. The grimoire is the Storyteller's; `c: 'open'` while they read it. */
+export type ItemKind = DrinkKind | BakeKind | 'fish' | 'flower' | 'rod' | 'can' | 'washing' | 'grimoire';
 
 export interface Item {
   k: ItemKind;

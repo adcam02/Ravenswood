@@ -1,3 +1,4 @@
+import { debugHooks } from '../lib/util';
 import { useContext, useEffect, useMemo, useRef } from 'react';
 import { game, useHud } from '../game/hud';
 import { local, receiveItem, reportPoseWith } from '../game/local';
@@ -6,12 +7,15 @@ import { clientLink, player } from '../net/client';
 import { hostLink } from '../net/host';
 import { st, townAction } from '../state/host';
 import { useUI } from '../state/ui';
+import { useJoin } from '../components/town/JoinFlow';
 import { ViewContext, type View } from '../state/view';
 import { voice } from '../voice/voice';
 import { Engine, type WorldView } from './engine';
 import { emptyTown } from './types';
 
-function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', paused: boolean): WorldView {
+function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', paused: boolean, reading: boolean): WorldView {
+  const me = view?.seats.find((s) => s.isMe);
+  const dim = mode === 'player' && (!me?.look || useJoin.getState().reopen);
   if (!view) {
     return {
       mode: 'preview',
@@ -25,9 +29,10 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
       townHall: null,
       town: emptyTown(),
       paused: true,
+      reading: false,
+      dim: true,
     };
   }
-  const me = view.seats.find((s) => s.isMe);
   return {
     mode,
     joined: mode === 'st' || Boolean(me?.look),
@@ -48,6 +53,8 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
     townHall: view.townHall,
     town: view.town,
     paused,
+    reading,
+    dim,
   };
 }
 
@@ -59,7 +66,9 @@ export function World({ mode }: { mode: 'st' | 'player' | 'preview' }) {
   const modal = useUI((s) => s.modal);
   const grimoire = useUI((s) => s.grimoireOpen);
   const paused = Boolean(modal) || grimoire;
-  const wv = useMemo(() => toWorldView(view, mode, paused), [view, mode, paused]);
+  const reading = mode === 'st' && grimoire;
+  const reopen = useJoin((s) => s.reopen);
+  const wv = useMemo(() => toWorldView(view, mode, paused, reading), [view, mode, paused, reading, reopen]);
 
   useEffect(() => {
     const el = ref.current;
@@ -77,7 +86,7 @@ export function World({ mode }: { mode: 'st' | 'player' | 'preview' }) {
           else player.give(to, item);
         },
       });
-      if (import.meta.env.DEV) Object.assign(window, { __engine: engine.current, __local: local, __presence: presence, __hud: useHud, __game: game, __st: { st } });
+      if (debugHooks()) Object.assign(window, { __engine: engine.current, __local: local, __presence: presence, __hud: useHud, __game: game, __st: { st } });
     } catch (e) {
       console.error(e);
       useHud.setState({ failed: e instanceof Error ? e.message : String(e) });

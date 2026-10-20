@@ -25,6 +25,7 @@ const ITEM_NAMES: Record<Item['k'], [string, string]> = {
   rod: ['🎣', 'a fishing rod'],
   can: ['🚿', 'a watering can'],
   washing: ['🧺', 'the washing'],
+  grimoire: ['📖', 'the grimoire'],
 };
 
 export const itemName = (item: Item) => ITEM_NAMES[item.k]?.[1] ?? 'something';
@@ -129,7 +130,7 @@ export function HandSlot() {
   const giveTo = useHud((s) => s.giveTo);
   const canSip = useHud((s) => s.canSip);
   const job = useHud((s) => s.job);
-  if (!item || job) return null;
+  if (!item || item.k === 'grimoire' || job) return null;
   const drink = ['ale', 'cider', 'milk', 'cocoa'].includes(item.k);
   return (
     <div className="hand-slot cosy-panel">

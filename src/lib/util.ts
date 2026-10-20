@@ -48,3 +48,6 @@ export function saveJSON(key: string, value: unknown) {
     /* storage full or blocked; the game carries on without it */
   }
 }
+
+/** Test hooks on window: always in development, and on the published site with ?debug. */
+export const debugHooks = (): boolean => import.meta.env.DEV || new URLSearchParams(location.search).has('debug');

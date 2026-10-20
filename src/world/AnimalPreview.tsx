@@ -1,7 +1,11 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { buildAnimal, type Rig } from './animals';
+import { animalThumbnail, buildAnimal, type Rig } from './animals';
 import type { Anim, Look } from './types';
+
+const LOW = new URLSearchParams(location.search).get('fx') === 'low';
+/** The preview only needs to look alive, so it draws at a gentle rate and leaves the rest of the page responsive. */
+const FRAME_MS = LOW ? 1000 / 8 : 1000 / 30;
 
 /** A small turntable showing one animal, for the animal picker. */
 export function AnimalPreview({ look, size = 260, spin = true, anim = 'idle', className }: { look: Look; size?: number; spin?: boolean; anim?: Anim; className?: string }) {
@@ -9,6 +13,7 @@ export function AnimalPreview({ look, size = 260, spin = true, anim = 'idle', cl
   const stage = useRef<{ renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; rig: Rig | null } | null>(null);
   const animRef = useRef(anim);
   const spinRef = useRef(spin);
+  const [fallback, setFallback] = useState<string | null>(null);
   animRef.current = anim;
   spinRef.current = spin;
 
@@ -17,13 +22,14 @@ export function AnimalPreview({ look, size = 260, spin = true, anim = 'idle', cl
     if (!el) return;
     let renderer: THREE.WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ canvas: el, antialias: true, alpha: true });
+      renderer = new THREE.WebGLRenderer({ canvas: el, antialias: !LOW, alpha: true, powerPreference: 'low-power' });
     } catch {
+      setFallback(animalThumbnail(look, size) || null);
       return;
     }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setPixelRatio(LOW ? 1 : Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.setSize(size, size, false);
-    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.enabled = !LOW;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     const scene = new THREE.Scene();
     scene.add(new THREE.HemisphereLight('#fff8ee', '#9a8a70', 2));
@@ -50,6 +56,7 @@ export function AnimalPreview({ look, size = 260, spin = true, anim = 'idle', cl
     const start = last;
     const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
+      if (now - last < FRAME_MS) return;
       const dt = Math.min((now - last) / 1000, 0.1);
       last = now;
       const st = stage.current;
@@ -85,5 +92,6 @@ export function AnimalPreview({ look, size = 260, spin = true, anim = 'idle', cl
     st.camera.lookAt(0, top * 0.52, 0);
   }, [look.animal, look.color, size]);
 
+  if (fallback) return <img src={fallback} alt="" className={className} width={size} height={size} style={{ width: size, height: size }} />;
   return <canvas ref={canvas} className={className} width={size} height={size} style={{ width: size, height: size }} />;
 }

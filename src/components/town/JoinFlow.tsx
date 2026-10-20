@@ -150,19 +150,42 @@ function AnimalPicker({ name, look, setLook, onBack, onDone }: { name: string; l
   );
 }
 
+/** Portraits are drawn one per frame, in order, so the picker stays responsive while they appear. */
+const thumbQueue: (() => void)[] = [];
+let thumbPump = 0;
+function queueThumbnail(job: () => void): () => void {
+  thumbQueue.push(job);
+  const pump = () => {
+    thumbPump = 0;
+    const next = thumbQueue.shift();
+    if (!next) return;
+    next();
+    if (thumbQueue.length) thumbPump = requestAnimationFrame(pump);
+  };
+  if (!thumbPump) thumbPump = requestAnimationFrame(pump);
+  return () => {
+    const i = thumbQueue.indexOf(job);
+    if (i >= 0) thumbQueue.splice(i, 1);
+  };
+}
+
 function AnimalTile({ id, on, onPick }: { id: AnimalId; on: boolean; onPick: () => void }) {
   const info = animalInfo(id);
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
-    // Thumbnails render one at a time off screen, so let the page draw first.
-    const t = setTimeout(() => {
+    let live = true;
+    const cancel = queueThumbnail(() => {
+      if (!live) return;
       try {
-        setSrc(animalThumbnail({ animal: id, color: info.colors[0] }, 96));
+        setSrc(animalThumbnail({ animal: id, color: info.colors[0] }, 96) || null);
       } catch {
         setSrc(null);
       }
-    }, 30);
-    return () => clearTimeout(t);
+    });
+    return () => {
+      live = false;
+      cancel();
+    };
   }, [id, info.colors]);
   return (
     <button className={`join-tile ${on ? 'on' : ''} ${info.aquatic ? 'wet' : ''}`} onClick={onPick} role="radio" aria-checked={on} title={info.name}>

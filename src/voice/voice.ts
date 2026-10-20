@@ -2,7 +2,7 @@ import type Peer from 'peerjs';
 import type { MediaConnection } from 'peerjs';
 import { create } from 'zustand';
 import { local } from '../game/local';
-import { loadJSON, saveJSON } from '../lib/util';
+import { loadJSON, saveJSON, debugHooks } from '../lib/util';
 
 export type MicState = 'off' | 'asking' | 'on' | 'denied' | 'error';
 
@@ -278,7 +278,7 @@ class Voice {
 
 export const voice = new Voice();
 
-if (import.meta.env.DEV) {
+if (debugHooks()) {
   Object.assign(window, {
     __voice: voice,
     __voiceLinks: () => [...(voice as unknown as { links: Map<string, Link> }).links].map(([id, l]) => ({ id, volume: l.audio.volume, open: l.open })),

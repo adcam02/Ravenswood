@@ -93,13 +93,13 @@ export function TopBar() {
       {isST && <PhaseSwitch />}
       {isST && (
         <nav className="topbar-tools">
-          <ToolButton icon="users" label={grimoire ? 'Back to town' : 'Grimoire'} active={grimoire} onClick={() => useUI.setState({ grimoireOpen: !grimoire })} />
+          <ToolButton icon="book" label={grimoire ? 'Close grimoire' : 'Open grimoire'} active={grimoire} onClick={() => useUI.setState({ grimoireOpen: !grimoire })} />
           <ToolButton icon="scroll" label="Night order" active={panel === 'night'} onClick={toggle('night')} />
           <ToolButton icon="bag" label="Bag" onClick={() => ui.open({ kind: 'bag' })} />
           <ToolButton icon="wake" label="Wake" badge={awake} onClick={() => ui.wake(useUI.getState().draft.to)} />
           <HallButton />
           <span className="tool-sep" aria-hidden="true" />
-          <ToolButton icon="book" label="Characters" active={panel === 'reference'} onClick={toggle('reference')} />
+          <ToolButton icon="scroll" label="Characters" active={panel === 'reference'} onClick={toggle('reference')} />
           <ToolButton icon="vote" label="Votes" active={panel === 'history'} onClick={toggle('history')} />
           <ToolButton
             icon={hide ? 'eyeOff' : 'eye'}

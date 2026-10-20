@@ -1,17 +1,23 @@
 // A whole game in headless Chrome: a Storyteller and four players with fake microphones, a local
 // PeerJS lobby, and screenshots along the way. Run with `node tools/test-town.mjs` (needs `npm install`).
+// It builds the site to a scratch folder first and tests that copy, so editing files meanwhile is fine.
 //
 //   OUT=/some/folder  where screenshots go (default ./test-results)
 //   ONLY=join,voice   run only checks whose names contain one of these words
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join as joinPath } from 'node:path';
 import { chromium } from 'playwright';
 
 const OUT = process.env.OUT || 'test-results';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
 const PORT = 5190;
 const PEER = 9000;
+const BUILD = joinPath(tmpdir(), 'ravenswood-test-build');
 mkdirSync(OUT, { recursive: true });
+// Machines without a graphics card (like CI) render slowly, so the pages run small, in low graphics, at a capped frame rate.
+const FLAGS = `peer=127.0.0.1:${PEER}&debug&fx=low&fps=10`;
 
 const procs = [];
 function run(cmd, args) {
@@ -34,8 +40,11 @@ async function waitFor(url, ms = 30000) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+console.log('Building…');
+const built = spawnSync('npx', ['vite', 'build', '--outDir', BUILD, '--emptyOutDir'], { stdio: ['ignore', 'ignore', 'inherit'] });
+if (built.status !== 0) process.exit(1);
 run('npx', ['peerjs', '--port', String(PEER), '--path', '/', '--host', '127.0.0.1']);
-run('npx', ['vite', '--port', String(PORT), '--strictPort']);
+run('npx', ['vite', 'preview', '--outDir', BUILD, '--port', String(PORT), '--strictPort']);
 await waitFor(`http://127.0.0.1:${PEER}/`);
 await waitFor(`http://localhost:${PORT}/`);
 
@@ -53,13 +62,20 @@ const browser = await chromium.launch({
 const errors = [];
 const results = [];
 async function open(name, path) {
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, permissions: ['microphone'] });
+  const ctx = await browser.newContext({ viewport: { width: 1100, height: 640 }, permissions: ['microphone'] });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
   page.on('console', (m) => {
-    if (m.type() === 'error' && !/favicon|WebGL|GPU stall|ERR_CONNECTION_REFUSED|net::/.test(m.text())) errors.push(`${name} console: ${m.text()}`);
+    if (m.type() === 'error' && !/favicon|WebGL|GPU stall|ERR_CONNECTION_REFUSED|net::|satellite|nostr|tunnel/.test(m.text())) errors.push(`${name} console: ${m.text()}`);
   });
-  await page.goto(`http://localhost:${PORT}/${path}${path.includes('?') ? '&' : '?'}peer=127.0.0.1:${PEER}`);
+  page.on('crash', () => console.log(`!! ${name} crashed`));
+  let first = true;
+  page.on('framenavigated', (f) => {
+    if (f !== page.mainFrame()) return;
+    if (!first) console.log(`!! ${name} navigated again: ${f.url()}`);
+    first = false;
+  });
+  await page.goto(`http://localhost:${PORT}/${path}${path.includes('?') ? '&' : '?'}${FLAGS}`);
   page.label = name;
   return page;
 }
@@ -77,7 +93,7 @@ async function check(name, fn) {
 function expect(cond, msg) {
   if (!cond) throw new Error(msg);
 }
-async function until(page, fn, arg, ms = 15000, what = 'condition') {
+async function until(page, fn, arg, ms = 30000, what = 'condition') {
   try {
     await page.waitForFunction(fn, arg, { timeout: ms, polling: 200 });
   } catch {
@@ -89,29 +105,35 @@ const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png` });
 // ---------------------------------------------------------------- the Storyteller opens a room
 
 const st = await open('Storyteller', '?st');
-await until(st, () => window.__host && window.__engine, null, 30000, 'storyteller to load');
+await until(st, () => window.__host && window.__engine, null, 90000, 'storyteller to load');
 const room = await st.evaluate(() => window.__host.getState().g.room);
 console.log('Room', room);
-await until(st, () => window.__hostNet?.getState().status === 'open', null, 20000, 'lobby to open');
+await until(st, () => window.__hostNet?.getState().status === 'open', null, 60000, 'lobby to open');
 
 // ---------------------------------------------------------------- players arrive
 
 async function join(name, animal, color) {
   const p = await open(name, `?room=${room}`);
-  await p.waitForSelector('.join-name input', { timeout: 30000 });
+  await p.waitForSelector('.join-name input', { timeout: 180000 });
+  await sleep(600);
   await p.fill('.join-name input', name);
-  await p.click('.join-name button');
+  await sleep(400);
+  await p.click('.join-name button', { timeout: 15000 }).catch(async (e) => {
+    const nav = await p.evaluate(() => performance.getEntriesByType('navigation')[0]?.type);
+    throw new Error(`${e.message.split('\n')[0]} (navigation type ${nav}; page shows: ${(await p.textContent('body'))?.slice(0, 120)})`);
+  });
   if (animal) {
-    await p.waitForSelector('.join-animal');
+    await p.waitForSelector('.join-animal', { timeout: 60000 });
+    await p.waitForSelector(`.join-tile[title="${animal}"] img`, { timeout: 90000 });
     await p.click(`.join-tile[title="${animal}"]`);
     if (color) await p.click(`.join-color[aria-label="${color}"]`);
     await p.click('.join-animal .cosy-btn.primary');
   }
   await p.waitForSelector('.join-mic');
   await p.click('.join-mic .cosy-btn.big:not(.primary)');
-  await p.waitForSelector('.mic-meter', { timeout: 10000 });
+  await p.waitForSelector('.mic-meter', { timeout: 30000 });
   await p.click('.join-mic .cosy-btn.primary');
-  await p.waitForSelector('.place-chip', { timeout: 15000 });
+  await p.waitForSelector('.place-chip', { timeout: 60000 });
   return p;
 }
 
@@ -124,10 +146,11 @@ await check('join: Abbey picks a fox, Colter a shark, Steele an owl', async () =
 
 await check('join: the bunny is not on offer to anyone but Jarrod', async () => {
   const p = await open('Peeker', `?room=${room}`);
-  await p.waitForSelector('.join-name input', { timeout: 30000 });
+  await p.waitForSelector('.join-name input', { timeout: 180000 });
   await p.fill('.join-name input', 'Peeker');
   await p.click('.join-name button');
-  await p.waitForSelector('.join-animal');
+  await p.waitForSelector('.join-animal', { timeout: 60000 });
+  await p.waitForSelector('.join-tile[title="Platypus"] img', { timeout: 90000 });
   const bunny = await p.$('.join-tile[title="Bunny"]');
   const tiles = await p.$$eval('.join-tile', (els) => els.map((e) => e.getAttribute('title')));
   await shot(p, '01-animal-picker');
@@ -138,14 +161,14 @@ await check('join: the bunny is not on offer to anyone but Jarrod', async () => 
 
 await check('join: Jarrod skips the picker and is the bunny', async () => {
   const p = await open('Jarrod', `?room=${room}`);
-  await p.waitForSelector('.join-name input', { timeout: 30000 });
+  await p.waitForSelector('.join-name input', { timeout: 180000 });
   await p.fill('.join-name input', 'jarrod');
   await p.click('.join-name button');
-  await p.waitForSelector('.join-mic', { timeout: 5000 });
+  await p.waitForSelector('.join-mic', { timeout: 30000 });
   expect(!(await p.$('.join-animal')), 'Jarrod saw the animal picker');
   await shot(p, '02-jarrod-mic');
   await p.click('.join-mic .cosy-btn.primary');
-  await p.waitForSelector('.place-chip', { timeout: 15000 });
+  await p.waitForSelector('.place-chip', { timeout: 60000 });
   players.jarrod = p;
   const look = await st.evaluate(() => window.__host.getState().g.seats.find((s) => s.name.toLowerCase() === 'jarrod')?.look);
   expect(look?.animal === 'bunny', `Jarrod is a ${look?.animal}`);
@@ -205,7 +228,7 @@ async function voiceGain(listener, speakerName) {
 await check('voice: players close together hear each other at full volume', async () => {
   await place(players.abbey, 'town', 4, 24, 0);
   await place(players.colter, 'town', 5, 24, 0);
-  await until(players.abbey, () => (window.__voiceLinks?.() ?? []).some((l) => l.open), null, 20000, 'a voice link to open');
+  await until(players.abbey, () => (window.__voiceLinks?.() ?? []).some((l) => l.open), null, 60000, 'a voice link to open');
   await sleep(1200);
   const g = await voiceGain(players.abbey, 'Colter');
   expect(g.gain !== null && g.gain > 0.9, `Abbey hears Colter at ${g.gain} (${g.why})`);

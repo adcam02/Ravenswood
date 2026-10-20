@@ -118,7 +118,63 @@ function washing(b: Builder, color: string) {
   b.add(SPH, '#8fc1e8', { pos: [o[0] + 0.01, o[1] + 0.155, o[2] - 0.04], scale: [0.05, 0.03, 0.04] });
 }
 
+/**
+ * The Storyteller's grimoire: a leather book that lies in the paw and opens like a real one. The mesh's
+ * `userData.setOpen(t)` swings the front half over, 0 closed to 1 open.
+ */
+function grimoire(open: boolean): THREE.Object3D {
+  const g = new THREE.Group();
+  const hw = 0.19;
+  const d = 0.28;
+  const th = 0.035;
+  const leather = '#3b2a36';
+  const trim = '#c9a24f';
+  const pages = '#efe3c6';
+  const ink = '#2a1d12';
+  const half = (sign: number) => {
+    const b = new Builder();
+    const cx = (sign * hw) / 2;
+    b.add(BOX, leather, { pos: [cx, -0.006, d / 2], scale: [hw + 0.012, 0.012, d + 0.016] });
+    b.add(BOX, pages, { pos: [cx, th / 2, d / 2], scale: [hw - 0.006, th, d - 0.01] });
+    // The circle of seats, inked onto the open page.
+    b.add(TORUS, ink, { pos: [cx, th + 0.002, d / 2], rot: [Math.PI / 2, 0, 0], scale: [0.055, 0.055, 0.004] });
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + (sign > 0 ? 0.4 : 1.1);
+      b.add(CYL6, ink, { pos: [cx + Math.cos(a) * 0.055, th + 0.003, d / 2 + Math.sin(a) * 0.055], scale: [0.009, 0.003, 0.009] });
+    }
+    for (const z of [0.05, 0.08, 0.2, 0.23]) b.add(BOX, ink, { pos: [cx, th + 0.002, z], scale: [hw * 0.6, 0.002, 0.004] });
+    return b.mesh(soft(), { cast: true, receive: false });
+  };
+  const right = half(1);
+  const left = new THREE.Group();
+  left.add(half(-1));
+  left.position.y = th;
+  // The cover's outside, seen when the book is shut, with a clasp and a raven.
+  const cover = new Builder();
+  cover.add(BOX, trim, { pos: [-hw / 2, -0.015, d / 2], scale: [hw * 0.72, 0.004, d * 0.78] });
+  cover.add(BOX, leather, { pos: [-hw / 2, -0.018, d / 2], scale: [hw * 0.62, 0.004, d * 0.68] });
+  cover.add(SPH, trim, { pos: [-hw / 2, -0.02, d / 2], scale: [0.03, 0.004, 0.022] });
+  cover.add(BOX, trim, { pos: [-hw + 0.01, 0.0, d / 2], scale: [0.03, th + 0.02, 0.05] });
+  left.add(cover.mesh(soft(), { cast: true, receive: false }));
+  // Spine.
+  const spine = new Builder();
+  spine.add(BOX, leather, { pos: [0, th / 2, d / 2], scale: [0.03, th + 0.02, d + 0.016] });
+  g.add(right, left, spine.mesh(soft(), { cast: true, receive: false }));
+  // Held a little forward of the paw, pages up, and big enough to read from over the shoulder.
+  g.position.set(0, 0.02, 0.04);
+  g.scale.setScalar(1.35);
+  const setOpen = (t: number) => {
+    const k = Math.max(0, Math.min(1, t));
+    left.rotation.z = Math.PI * (1 - k);
+  };
+  setOpen(open ? 1 : 0);
+  g.userData.setOpen = setOpen;
+  g.name = 'item:grimoire';
+  return g;
+}
+
 export function buildItem(item: Item): THREE.Object3D {
+  if (item.k === 'grimoire') return grimoire(item.c === 'open');
   const b = new Builder();
   switch (item.k) {
     case 'ale':

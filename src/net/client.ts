@@ -1,7 +1,7 @@
 import Peer, { type DataConnection } from 'peerjs';
 import { create } from 'zustand';
 import { setCustomRoles } from '../data';
-import { loadJSON, saveJSON, uid } from '../lib/util';
+import { loadJSON, saveJSON, uid, debugHooks } from '../lib/util';
 import type { ClientMessage, HostMessage, PrivateState, PublicState, TownAction } from '../state/types';
 import { receiveItem } from '../game/local';
 import { presence } from '../game/presence';
@@ -210,7 +210,7 @@ class ClientLink {
 
 export const clientLink = new ClientLink();
 
-if (import.meta.env.DEV) (window as unknown as { __client: typeof useClient }).__client = useClient;
+if (debugHooks()) (window as unknown as { __client: typeof useClient }).__client = useClient;
 
 export const player = {
   join: (name: string, look: Look) => clientLink.send({ t: 'join', name, look }),

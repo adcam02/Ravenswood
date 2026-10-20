@@ -81,6 +81,13 @@ function Storyteller() {
   const view = useStorytellerView();
   const grimoire = useUI((s) => s.grimoireOpen);
   const pick = useUI((s) => s.pick);
+  // The pages appear once the camera has swooped in to the book; they vanish the moment it closes.
+  const [pages, setPages] = useState(false);
+  useEffect(() => {
+    if (!grimoire) return setPages(false);
+    const t = setTimeout(() => setPages(true), 620);
+    return () => clearTimeout(t);
+  }, [grimoire]);
   useEffect(() => {
     hostLink.start(view.room);
     document.title = `Room ${view.room} · Ravenswood`;
@@ -107,10 +114,12 @@ function Storyteller() {
           <World mode="st" />
           <TopBar />
           {grimoire ? (
-            <div className="grimoire-layer">
-              <Square />
-              <BluffBar />
-            </div>
+            pages && (
+              <div className="grimoire-layer book">
+                <Square />
+                <BluffBar />
+              </div>
+            )
           ) : (
             <>
               <PlaceChip />

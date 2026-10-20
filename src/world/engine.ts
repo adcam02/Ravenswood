@@ -6,6 +6,7 @@ import { local, setItem } from '../game/local';
 import { presence } from '../game/presence';
 import type { GameJob, JobResults } from '../jobs';
 import type { Nomination, TownAction, TownHall } from '../state/types';
+import { ui } from '../state/ui';
 import { earshot } from '../voice/earshot';
 import { useVoice, voice, type Listener } from '../voice/voice';
 import { AvatarView, type AvatarInfo } from './avatar';
@@ -51,6 +52,10 @@ export interface WorldView {
   town: TownState;
   /** A window or the grimoire is open, so keys belong to it. */
   paused: boolean;
+  /** The Storyteller is reading the grimoire: the camera closes in on the book in their hands. */
+  reading: boolean;
+  /** The join screens cover the town, so it only needs to tick over slowly behind them. */
+  dim: boolean;
 }
 
 /** What the world asks of the game around it. */
@@ -90,6 +95,13 @@ const PLACE_NAMES: Record<Exclude<ZoneKind, 'house'>, string> = {
   church: 'The Church',
 };
 
+/** Graphics quality: 'high' has shadows and crisp pixels; 'low' is for laptops that can't keep up. */
+export type Quality = 'high' | 'low';
+
+const params = new URLSearchParams(location.search);
+/** ?fps=10 caps the frame rate, for tests on machines without a graphics card. */
+const FPS_CAP = Number(params.get('fps')) || 0;
+
 const isTyping = () => {
   const el = document.activeElement as HTMLElement | null;
   return Boolean(el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable));
@@ -119,6 +131,9 @@ export class Engine {
   private yawTarget = 0;
   private dist = 15;
   private camTarget = new THREE.Vector3();
+  private camPos = new THREE.Vector3(0, 12, 14);
+  private camLook = new THREE.Vector3();
+  private bookOpen = 0;
   private dragging: { x: number; yaw: number } | null = null;
 
   private emote: { anim: Anim; until: number } | null = null;
@@ -133,6 +148,9 @@ export class Engine {
   private wasJoined = false;
   private lastPhaseKey = '';
   private hudPrompt = '';
+  private quality: Quality = params.get('fx') === 'low' ? 'low' : 'high';
+  private slowFrames = 0;
+  private lastFrameAt = 0;
   private nearStation: Station | null = null;
   private nearDoor: { door: Door; locked: string | null } | null = null;
 
@@ -142,9 +160,8 @@ export class Engine {
   ) {
     this.hooks = hooks;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.6));
-    this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.applyQuality();
     this.renderer.domElement.className = 'world-canvas';
     host.appendChild(this.renderer.domElement);
     this.labels = new CSS2DRenderer();
@@ -197,6 +214,30 @@ export class Engine {
     this.renderer.dispose();
     this.renderer.domElement.remove();
     this.labels.domElement.remove();
+  }
+
+  private applyQuality() {
+    const low = this.quality === 'low';
+    this.renderer.setPixelRatio(low ? 1 : Math.min(window.devicePixelRatio, 1.6));
+    this.renderer.shadowMap.enabled = !low;
+    // Materials compiled with shadows need rebuilding once they're off.
+    this.scene.traverse((o) => {
+      const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+      if (!m) return;
+      for (const mat of Array.isArray(m) ? m : [m]) mat.needsUpdate = true;
+    });
+  }
+
+  /** Drops to low graphics when the machine clearly can't keep up. */
+  private watchFrameRate(dt: number) {
+    if (this.quality === 'low' || FPS_CAP) return;
+    if (dt > 0.09) this.slowFrames += 1;
+    else this.slowFrames = Math.max(0, this.slowFrames - 2);
+    if (this.slowFrames > 40) {
+      this.quality = 'low';
+      this.applyQuality();
+      ui.toast('Switched to low graphics so the town runs smoothly.', 'info');
+    }
   }
 
   private resize() {
@@ -505,7 +546,7 @@ export class Engine {
   private give() {
     const item = local.item;
     const near = this.nearestOther(2.6);
-    if (!item || !near || this.job) return;
+    if (!item || item.k === 'grimoire' || !near || this.job) return;
     this.hooks.give(near.key, item);
     setItem(null);
     this.sips = 0;
@@ -513,7 +554,7 @@ export class Engine {
   }
 
   private putAway() {
-    if (!local.item || this.job) return;
+    if (!local.item || local.item.k === 'grimoire' || this.job) return;
     setItem(null);
     this.sips = 0;
   }
@@ -653,8 +694,16 @@ export class Engine {
 
   private loop = () => {
     this.raf = requestAnimationFrame(this.loop);
-    const dt = Math.min(0.05, this.clock.getDelta());
+    const cap = this.view?.dim ? 4 : FPS_CAP;
+    if (cap) {
+      const now = performance.now();
+      if (now - this.lastFrameAt < 1000 / cap) return;
+      this.lastFrameAt = now;
+    }
+    const raw = this.clock.getDelta();
+    const dt = Math.min(0.05, raw);
     const t = this.clock.elapsedTime;
+    this.watchFrameRate(raw);
     try {
       this.frame(dt, t);
     } catch (e) {
@@ -744,12 +793,21 @@ export class Engine {
       local.ry = turnToward(local.ry, Math.atan2(dx, dz), dt * 12);
     }
 
+    if (st) {
+      const open = v.reading;
+      if (!local.item || local.item.k === 'grimoire') local.item = { k: 'grimoire', c: open ? 'open' : undefined };
+      this.bookOpen += ((open ? 1 : 0) - this.bookOpen) * Math.min(1, dt * 4);
+      const book = me.rig.root.getObjectByName('item:grimoire');
+      (book?.userData.setOpen as ((t: number) => void) | undefined)?.(this.bookOpen);
+    }
+
     // What we're doing, in order of importance.
     const nom = v.nomination;
     const voting = Boolean(nom && v.mySeatId && nom.votes.includes(v.mySeatId) && nom.status !== 'done');
     if (this.emote && t > this.emote.until) this.emote = null;
     let anim: Anim = moving ? (this.keys.has('shift') ? 'run' : 'walk') : 'idle';
     if (this.job) anim = JOB_LOOK[this.job.job].anim;
+    else if (st && v.reading) anim = 'fish';
     else if (voting) anim = 'hand';
     else if (this.emote) anim = this.emote.anim;
     else if (this.seated) anim = this.seated.anim;
@@ -842,7 +900,7 @@ export class Engine {
     } else if (local.item && SIPPABLE.has(local.item.k)) {
       prompt = { label: ['ale', 'cider', 'milk', 'cocoa'].includes(local.item.k) ? 'Have a sip' : 'Have a bite', key: 'E' };
     }
-    const near = local.item && !this.job ? this.nearestOther(2.6) : null;
+    const near = local.item && local.item.k !== 'grimoire' && !this.job ? this.nearestOther(2.6) : null;
     const giveTo = near ? { key: near.key, name: near.key === 'st' ? 'the Storyteller' : v.seats.find((s) => s.id === near.key)?.name || 'them' } : null;
     const json = JSON.stringify([prompt, giveTo]);
     if (json !== this.hudPrompt) {
@@ -920,15 +978,27 @@ export class Engine {
     const k = this.me ? 1 - Math.exp(-dt * 6) : 1;
     this.camTarget.x += (tx - this.camTarget.x) * k;
     this.camTarget.z += (tz - this.camTarget.z) * k;
-    const dist = inside ? Math.min(this.dist, 13) : this.me ? this.dist : 30;
-    const pitch = inside ? 0.95 : 0.78;
-    const flat = dist * Math.cos(pitch);
-    this.camera.position.set(
-      this.camTarget.x + Math.sin(this.yaw) * flat,
-      dist * Math.sin(pitch),
-      this.camTarget.z + Math.cos(this.yaw) * flat,
-    );
-    this.camera.lookAt(this.camTarget.x, 0.8, this.camTarget.z);
+    const wantPos = new THREE.Vector3();
+    const wantLook = new THREE.Vector3();
+    if (this.view?.reading && this.me) {
+      // Over the Storyteller's shoulder, looking down into the open book.
+      const root = this.me.rig.root;
+      wantPos.set(0.05, 2.05, -0.55).applyAxisAngle(new THREE.Vector3(0, 1, 0), root.rotation.y).add(root.position);
+      wantLook.set(0, 1.08, 0.5).applyAxisAngle(new THREE.Vector3(0, 1, 0), root.rotation.y).add(root.position);
+    } else {
+      const dist = inside ? Math.min(this.dist, 13) : this.me ? this.dist : 30;
+      const pitch = inside ? 0.95 : 0.78;
+      const flat = dist * Math.cos(pitch);
+      wantPos.set(this.camTarget.x + Math.sin(this.yaw) * flat, dist * Math.sin(pitch), this.camTarget.z + Math.cos(this.yaw) * flat);
+      wantLook.set(this.camTarget.x, 0.8, this.camTarget.z);
+    }
+    // Closing in on the book is a slow swoop; everything else follows closely.
+    let ease = this.view?.reading ? 1 - Math.exp(-dt * 4.5) : 1 - Math.exp(-dt * 9);
+    if (!this.me && !this.view?.reading) ease = 1;
+    this.camPos.lerp(wantPos, ease);
+    this.camLook.lerp(wantLook, ease);
+    this.camera.position.copy(this.camPos);
+    this.camera.lookAt(this.camLook);
   }
 
   private syncVoice(v: WorldView | null) {

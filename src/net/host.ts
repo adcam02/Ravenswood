@@ -1,3 +1,4 @@
+import { debugHooks } from '../lib/util';
 import Peer, { type DataConnection } from 'peerjs';
 import { create } from 'zustand';
 import { st, toPrivate, toPublic, useHost } from '../state/host';
@@ -343,4 +344,4 @@ export const hostLink = new HostLink();
 useHost.subscribe(() => hostLink.scheduleBroadcast());
 useHostNet.subscribe((s, prev) => s.online !== prev.online && hostLink.scheduleBroadcast());
 
-if (import.meta.env.DEV) Object.assign(window, { __host: useHost, __hostNet: useHostNet });
+if (debugHooks()) Object.assign(window, { __host: useHost, __hostNet: useHostNet });
