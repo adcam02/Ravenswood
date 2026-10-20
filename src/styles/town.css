@@ -1352,13 +1352,13 @@
   padding: 8px;
 }
 .minimap canvas {
-  width: min(430px, 34vw);
-  height: min(430px, 34vw);
+  width: min(344px, 30vw);
+  height: min(344px, 30vw);
 }
 @media (max-height: 700px) {
   .minimap canvas {
-    width: min(430px, 34vw, 40vh);
-    height: min(430px, 34vw, 40vh);
+    width: min(344px, 30vw, 40vh);
+    height: min(344px, 30vw, 40vh);
   }
 }
 

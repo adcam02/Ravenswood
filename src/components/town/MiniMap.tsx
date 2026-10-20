@@ -5,8 +5,9 @@ import { useView } from '../../state/view';
 import { BAKERY, CHURCH, GALLOWS, GRAVEYARD, MEETING_CENTRE, POND, SQUARE_R, STOOL_R, TAVERN, TOWN_R, WASHHOUSE, WELL, houseSlots } from '../../world/town/layout';
 import { cottageSlot, houseOwner, zoneKind, type Look } from '../../world/types';
 
-const SIZE = 430;
-const SCALE = (SIZE / 2 - 12) / TOWN_R;
+// Twice the first version's size.
+const SIZE = 344;
+const SCALE = (SIZE / 2 - 10) / TOWN_R;
 
 /** Where a dot goes for someone in a building: the building itself. */
 function placeOf(zone: string, x: number, z: number, seatIndex: (id: string) => number): [number, number] {
@@ -63,7 +64,7 @@ export function MiniMap() {
       ctx.arc(SIZE / 2, SIZE / 2, TOWN_R * SCALE, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#d9bd8f';
-      ctx.lineWidth = 5;
+      ctx.lineWidth = 4;
       ctx.beginPath();
       ctx.arc(SIZE / 2, SIZE / 2, 25.5 * SCALE, 0, Math.PI * 2);
       ctx.stroke();
@@ -72,7 +73,7 @@ export function MiniMap() {
       ctx.arc(SIZE / 2, SIZE / 2, SQUARE_R * SCALE, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#b98e74';
-      ctx.lineWidth = 2.5;
+      ctx.lineWidth = 2;
       ctx.beginPath();
       ctx.arc(px(MEETING_CENTRE.x), pz(MEETING_CENTRE.z), STOOL_R * SCALE, 0, Math.PI * 2);
       ctx.stroke();
@@ -109,16 +110,16 @@ export function MiniMap() {
         const cx = px(x);
         const cz = pz(z);
         ctx.beginPath();
-        ctx.arc(cx, cz, me ? 13 : 11, 0, Math.PI * 2);
+        ctx.arc(cx, cz, me ? 11 : 9, 0, Math.PI * 2);
         ctx.fillStyle = st ? '#4b3a6e' : dead ? 'rgba(220, 236, 255, 0.85)' : (look?.color ?? '#ffffff');
         ctx.fill();
-        ctx.lineWidth = me ? 4 : 2.5;
+        ctx.lineWidth = me ? 3.5 : 2;
         ctx.strokeStyle = me ? '#ff9a62' : st ? '#f6dc93' : '#3a2a20';
         ctx.stroke();
         ctx.fillStyle = st ? '#f6dc93' : '#1a120c';
-        ctx.font = '600 15px Fredoka, sans-serif';
+        ctx.font = '600 13px Fredoka, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(name.slice(0, 1).toUpperCase(), cx, cz + 5.5);
+        ctx.fillText(name.slice(0, 1).toUpperCase(), cx, cz + 4.5);
       };
       const myKey = mode === 'st' ? 'st' : mySeat.current;
       for (const [key, p] of presence.others) {
@@ -141,7 +142,7 @@ export function MiniMap() {
 
   return (
     <div className="minimap cosy-panel" title="Where everyone is">
-      <canvas ref={canvas} style={{ width: SIZE, height: SIZE, maxWidth: 'min(430px, 34vw)', maxHeight: 'min(430px, 34vw)' }} />
+      <canvas ref={canvas} style={{ width: SIZE, height: SIZE, maxWidth: 'min(344px, 30vw)', maxHeight: 'min(344px, 30vw)' }} />
     </div>
   );
 }
