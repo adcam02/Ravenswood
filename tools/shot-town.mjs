@@ -42,6 +42,25 @@ const ALL = {
   'gallows-shut': 'x=8.6&z=6.2&t=0&dist=12&gallows=0&yaw=0.9',
   'cottage-gable': 'x=25.6&z=13.6&t=0&dist=11&yaw=2.3&pitch=0.45',
   'well-roof': 'x=-6.5&z=-15.5&t=0&dist=6&pitch=1.1&yaw=0.4',
+  // Light, weather and things that move.
+  'golden-hour': 'x=0&z=6&t=0&day=0.95&dist=24&pitch=0.5&yaw=-0.4',
+  'golden-overview': 'wide&t=0&z=4&dist=70&day=0.95',
+  'morning': 'x=0&z=6&t=0&day=0.05&dist=24&pitch=0.6',
+  'sunset': 'x=0&z=6&t=0.3&dist=24&pitch=0.45&yaw=-0.4',
+  'dusk': 'x=0&z=6&t=0.6&dist=24&pitch=0.45&yaw=-0.4',
+  'rain-square': 'x=0&z=8&t=0&weather=rain&dist=18',
+  'rain-pond': 'x=6.5&z=16&t=0&weather=rain&dist=14&frames=20',
+  'rain-night': 'x=0&z=8&t=1&weather=rain&dist=18',
+  'mist-day': 'x=0&z=6&t=0&weather=mist&dist=22',
+  'mist-night': 'x=0&z=6&t=1&weather=mist&dist=22',
+  'night-glow': 'x=-4&z=6&t=1&dist=26&pitch=0.5&yaw=-0.8',
+  'night-glow-cottages': 'x=0&z=24&t=1&dist=20&pitch=0.5',
+  'birds-perched': 'x=-20&z=4&t=0&dist=16&pitch=0.55&yaw=-0.5&follow=0,30',
+  'birds-flying': 'x=-20&z=4&t=0&dist=16&pitch=0.55&yaw=-0.5&follow=-20,0&frames=40',
+  sway: 'x=14&z=-12&t=0&dist=14&sway=6',
+  ripples: 'x=6.5&z=17.8&t=0&dist=10&ripple&frames=14',
+  'forest-hills': 'x=0&z=-30&t=0&dist=30&pitch=0.35&yaw=3.1',
+  'shadow-cottage': 'x=25.6&z=13.6&t=0&dist=9&yaw=0.6',
 };
 
 const views = process.env.VIEWS ? Object.fromEntries(process.env.VIEWS.split(',').map((k) => [k, ALL[k]])) : ALL;

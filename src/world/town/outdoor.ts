@@ -43,7 +43,6 @@ import {
   WOOD_LIGHT,
   barrel,
   bench,
-  bird,
   bush,
   crate,
   flowerPatch,
@@ -57,6 +56,7 @@ import {
   tuft,
 } from './props';
 import { TextSign, signBoard } from './sign';
+import { addSway, type GlowSpot } from './fx';
 
 export interface Outdoor {
   group: THREE.Group;
@@ -74,7 +74,20 @@ export interface Outdoor {
   lampLights: THREE.Vector3[];
   /** Buildings on their own meshes, so one between the camera and a player can fade to see-through. */
   occluders: THREE.Mesh[];
+  /** Where halos go at night: lamps, lanterns, lit windows and the clock faces. */
+  glowSpots: GlowSpot[];
+  /** Where birds can sit: ridges, lamp tops and bench backs. */
+  perches: THREE.Vector3[];
 }
+
+/** While the town is being built, lamps, lanterns and windows note where their glow goes, and roofs where birds sit. */
+let collect: { glow: GlowSpot[]; perches: THREE.Vector3[] } | null = null;
+const WARM_GLOW = '#ffb453';
+const glowAt = (p: Paint, x: number, y: number, z: number, size: number, color = WARM_GLOW) => {
+  if (!collect) return;
+  const v = new THREE.Vector3(x, y, z).applyMatrix4(p.m);
+  collect.glow.push({ x: v.x, y: v.y, z: v.z, size, color });
+};
 
 const GLASS = '#a9c3d3';
 const WALLS = ['#f4ead6', '#f6dcd2', '#dbe6ef', '#f5e6b8', '#dbe8cf', '#e8dcef', '#f2e2c4'];
@@ -342,6 +355,9 @@ function wallWindow(p: Paint, w: number, h: number, trim: THREE.ColorRepresentat
     p.box(shade(trim, 0.08), w + 0.3, 0.08, 0.2, 0, -h / 2 - 0.1, 0.1);
     p.box(shade(trim, 0.0), w + 0.1, 0.06, 0.1, 0, -h / 2 - 0.17, 0.05);
   }
+  // Clear and frosted glass glows warm at night; stained glass glows in its own colours.
+  const clear = glass === GLASS || glass === '#c9d3c0' || glass === '#d6e2e8';
+  glowAt(p, 0, 0, 0.3, Math.max(w, h) * 1.8 + 0.35, clear ? WARM_GLOW : `#${shade(glass, 0.12).getHexString()}`);
   if (shutters) {
     for (const sx of [-1, 1]) {
       const x = sx * (w / 2 + 0.08 + 0.17);
@@ -401,6 +417,7 @@ function lantern(p: Paint) {
   }
   p.cyl(IRON, 0.12, 0.025, 0, -0.35, 0.28, 6);
   p.cone(IRON, 0.14, 0.1, 0, -0.07, 0.28, 6);
+  glowAt(p, 0, -0.21, 0.28, 1.5, '#ffc46b');
 }
 
 /** Lines of mortar around a block of masonry, with staggered joints, so a wall reads as courses of stone. */
@@ -917,8 +934,8 @@ function cottage(p: Paint, r: () => number, slot: number, smoke: (v: THREE.Vecto
   p.post(WOOD_DARK, 0.06, 1.2, -1.75, 0, D / 2 + 1.9, 8);
   if (r() < 0.5) barrel(p.at(-W / 2 - 0.5, 0, -D / 2 + 0.6), r);
   else crate(p.at(-W / 2 - 0.5, 0, -D / 2 + 0.6), r, 0.6);
-  // A bird on the ridge, some days.
-  if (r() < 0.6) bird(p.at((r() - 0.5) * 3, 2.98 + 1.7 + 0.3, 0, r() * 6), r);
+  // A spot on the ridge where a bird may sit.
+  if (r() < 0.6) collect?.perches.push(new THREE.Vector3((r() - 0.5) * 3, 2.98 + 1.7 + 0.32, 0).applyMatrix4(p.m));
 }
 
 function washhouse(p: Paint, r: () => number) {
@@ -1024,6 +1041,7 @@ function dock(p: Paint) {
   p.torus(IRON, 0.08, 0.015, x + w / 2 + 0.02, 0.2, z1 - 0.5, 0, Math.PI / 2);
   p.post(IRON, 0.02, 0.6, x - (w / 2 - 0.05), 0.45, z1 - 0.15, 6);
   p.glass.cyl('#fff1c8', 0.08, 0.16, x - (w / 2 - 0.05), 1.1, z1 - 0.15, 6);
+  glowAt(p, x - (w / 2 - 0.05), 1.1, z1 - 0.15, 1.3, '#ffc46b');
   p.cone(IRON, 0.1, 0.08, x - (w / 2 - 0.05), 1.18, z1 - 0.15, 6);
   for (let k = 0; k < 5; k++) p.rope('#c9b89a', 0.008, x + w / 2 - 0.05, 0.42, z0 + 2.0 + k * 0.25, x + w / 2 + 0.5, 0.05, z0 + 2.0 + k * 0.25, 0.02, 2);
 }
@@ -1102,8 +1120,9 @@ function pond(group: THREE.Group, p: Paint, r: () => number): Outdoor['water'] {
     const z = POND.z + Math.sin(a) * POND.rz * s;
     if (Math.abs(x - DOCK.x) < 2.5 && z < POND.z) continue;
     if (r() < 0.6) {
-      for (let k = 0; k < 4; k++) p.cone(shade('#6f9e4a', (r() - 0.5) * 0.1), 0.05, 0.9 + r() * 0.6, x + (r() - 0.5) * 0.4, 0, z + (r() - 0.5) * 0.4, 3);
-      if (r() < 0.5) p.cyl('#7a4a2a', 0.06, 0.25, x, 1.1, z, 5);
+      // Reeds and bulrushes, which sway with the grass.
+      for (let k = 0; k < 4; k++) p.leaves.cone(shade('#6f9e4a', (r() - 0.5) * 0.1), 0.05, 0.9 + r() * 0.6, x + (r() - 0.5) * 0.4, 0, z + (r() - 0.5) * 0.4, 3);
+      if (r() < 0.5) p.leaves.cyl('#7a4a2a', 0.06, 0.25, x, 1.1, z, 5);
     } else rock(p.at(x, 0, z), r, 0.7);
   }
   // A little rowing boat moored on the far bank, oars shipped.
@@ -1334,6 +1353,14 @@ function free(x: number, z: number, list: Blocker[], margin: number, pathMargin:
 
 // ---------------------------------------------------------------- assembly
 
+/** Roughly how high the hills rise beyond the fence (the same shape as the ground mesh, without its noise). */
+function hillAt(x: number, z: number): number {
+  const rad = Math.hypot(x, z);
+  if (rad < TOWN_R + 1) return 0;
+  const a = Math.atan2(x, -z);
+  return smooth(TOWN_R + 1, TOWN_R + 52, rad) * (5 + 3 * Math.sin(a * 3 + 1.3) + 2 * Math.sin(a * 7 + 0.4)) + smooth(TOWN_R + 4, TOWN_R + 22, rad) * 0.7;
+}
+
 export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   const group = new THREE.Group();
   group.name = 'town';
@@ -1341,6 +1368,11 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   const colliders: Collider[] = [];
   const chimneys: THREE.Vector3[] = [];
   const smoke = (v: THREE.Vector3) => chimneys.push(v);
+  const glowSpots: GlowSpot[] = [];
+  const perches: THREE.Vector3[] = [];
+  collect = { glow: glowSpots, perches };
+  // Leaves, grass and reeds sway in the wind.
+  const leafMat = addSway(matte());
 
   // Chunks of static geometry, so off-screen parts of town can be skipped.
   const chunks = new Map<string, Layers>();
@@ -1349,7 +1381,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     const key = `${Math.floor(x / 32)},${Math.floor(z / 32)}`;
     let l = chunks.get(key);
     if (!l) {
-      l = { main: new Builder(), glass };
+      l = { main: new Builder(), glass, foliage: new Builder() };
       chunks.set(key, l);
     }
     return l;
@@ -1365,8 +1397,12 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
 
   group.add(groundMesh(), cobbleMesh(), pathMesh());
 
-  // The clock tower.
+  // The clock tower, its faces softly lit at night.
   const tower = clockTower(solo(0, 0));
+  for (const f of tower.faces) {
+    const v = new THREE.Vector3(0, 0, 0.15).applyMatrix4(f);
+    glowSpots.push({ x: v.x, y: v.y, z: v.z, size: 3.4, color: '#b8a77e' });
+  }
   // Public buildings.
   church(solo(CHURCH.x, CHURCH.z, CHURCH.ry));
   graveyard(painter(GRAVEYARD.x, GRAVEYARD.z), r);
@@ -1395,8 +1431,16 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   dock(painter(0, 0));
   const water = pond(group, painter(0, 0), r);
   for (const b of beds) flowerBedFrame(painter(b.x, b.z, b.ry));
-  for (const b of benches) bench(painter(b.x, b.z, b.ry));
-  for (const l of [...squareLamps, ...roadLamps, ...pathLamps]) lampPost(painter(l.x, l.z));
+  for (const b of benches) {
+    bench(painter(b.x, b.z, b.ry));
+    const back = local(b.x, b.z, b.ry, 0.55, -0.27);
+    perches.push(new THREE.Vector3(back.x, 0.96, back.z));
+  }
+  for (const l of [...squareLamps, ...roadLamps, ...pathLamps]) {
+    lampPost(painter(l.x, l.z));
+    glowSpots.push({ x: l.x, y: 2.86, z: l.z, size: 2.3, color: '#ffc46b' });
+    perches.push(new THREE.Vector3(l.x, 3.31, l.z));
+  }
   well(painter(WELL.x, WELL.z));
   woodpile(painter(WOODPILE.x, WOODPILE.z, WOODPILE.ry), r);
   noticeboard(painter(NOTICEBOARD.x, NOTICEBOARD.z), r);
@@ -1438,7 +1482,8 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     trees.push({ x, z, r: 2 });
     if (collide) colliders.push({ kind: 'circle', x, z, r: 0.45 });
   };
-  // Forest ring outside the fence.
+  // Forest ring outside the fence: a handful of tree shapes drawn many times over, sitting on the hills.
+  const forest: { x: number; z: number; ry: number; s: number; v: number }[] = [];
   let placed = 0;
   for (let k = 0; k < 2400 && placed < 360; k++) {
     const a = r() * Math.PI * 2;
@@ -1447,8 +1492,45 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     const z = -rad * Math.cos(a);
     if (z > TOWN_R - 3 && Math.abs(x) < 5) continue;
     if (trees.some((t) => Math.hypot(t.x - x, t.z - z) < 2.6)) continue;
-    placeTree(x, z, false);
+    const kind = r();
+    // Three pines, three green round trees and two autumn ones.
+    const v = kind < 0.42 ? Math.floor(r() * 3) : kind > 0.9 ? 6 + Math.floor(r() * 2) : 3 + Math.floor(r() * 3);
+    forest.push({ x, z, ry: r() * Math.PI * 2, s: 0.85 + r() * 0.4, v });
+    trees.push({ x, z, r: 2 });
     placed++;
+  }
+  {
+    const vr = rng(4242);
+    const trunkMat = matte();
+    const m4 = new THREE.Matrix4();
+    const q4 = new THREE.Quaternion();
+    const tint = new THREE.Color();
+    for (let v = 0; v < 8; v++) {
+      const list = forest.filter((f) => f.v === v);
+      if (!list.length) continue;
+      const trunk = new Builder();
+      const crown = new Builder();
+      const p = new Paint({ main: trunk, glass: new Builder(), foliage: crown });
+      if (v < 3) pineTree(p, vr, false);
+      else roundTree(p, vr, v >= 6, false);
+      for (const [b, mat, tinted] of [
+        [trunk, trunkMat, false],
+        [crown, leafMat, true],
+      ] as [Builder, THREE.Material, boolean][]) {
+        if (b.empty) continue;
+        const im = new THREE.InstancedMesh(b.geometry(), mat, list.length);
+        list.forEach((f, i) => {
+          m4.compose(new THREE.Vector3(f.x, hillAt(f.x, f.z) - 0.4, f.z), q4.setFromAxisAngle(new THREE.Vector3(0, 1, 0), f.ry), new THREE.Vector3(f.s, f.s, f.s));
+          im.setMatrixAt(i, m4);
+          if (tinted) im.setColorAt(i, tint.setScalar(0.88 + vr() * 0.24));
+        });
+        im.castShadow = true;
+        im.receiveShadow = true;
+        im.computeBoundingSphere();
+        im.name = 'forest';
+        group.add(im);
+      }
+    }
   }
   // Inside town, in the gaps.
   for (let k = 0; k < 900 && placed < 450; k++) {
@@ -1520,27 +1602,33 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
       }
     });
   }
-  // Birds on the ridges of the tavern, the bakery and the church.
+  // Places on the ridges of the tavern, the bakery and the church where birds sit.
   for (const [b, y, n] of [
-    [TAVERN, 5.9 + 2.8 + 0.32, 2],
-    [BAKERY, 3.7 + 2.4 + 0.3, 1],
-    [CHURCH, 6.9 + 4.6 + 0.34, 2],
+    [TAVERN, 5.9 + 2.8 + 0.32, 3],
+    [BAKERY, 3.7 + 2.4 + 0.3, 2],
+    [CHURCH, 6.9 + 4.6 + 0.34, 3],
   ] as [{ x: number; z: number; ry: number; w: number; d: number }, number, number][]) {
     for (let k = 0; k < n; k++) {
-      const along = b === CHURCH ? 0 : (r() - 0.5) * b.w * 0.6;
-      const across = b === CHURCH ? (r() - 0.5) * b.d * 0.5 : 0;
+      const along = b === CHURCH ? 0 : (k / Math.max(1, n - 1) - 0.5) * b.w * 0.6;
+      const across = b === CHURCH ? (k / Math.max(1, n - 1) - 0.5) * b.d * 0.5 : 0;
       const w = local(b.x, b.z, b.ry, along, across);
-      bird(painter(w.x, w.z, r() * 6).at(0, y, 0), r);
+      perches.push(new THREE.Vector3(w.x, y, w.z));
     }
   }
 
   // Merge everything.
   const main = matte();
   for (const l of chunks.values()) {
-    if (l.main.empty) continue;
-    const m = l.main.mesh(main);
-    m.name = 'chunk';
-    group.add(m);
+    if (!l.main.empty) {
+      const m = l.main.mesh(main);
+      m.name = 'chunk';
+      group.add(m);
+    }
+    if (l.foliage && !l.foliage.empty) {
+      const f = l.foliage.mesh(leafMat);
+      f.name = 'foliage';
+      group.add(f);
+    }
   }
   const occluders: THREE.Mesh[] = [];
   for (const b of solos) {
@@ -1672,6 +1760,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
 
   const lampLights = [0, 2, 4, 6].map((i) => new THREE.Vector3(squareLamps[i].x, 2.9, squareLamps[i].z));
 
-  return { group, colliders, water, clockHands, bell, flag, chimneys, houseSigns, signMaterials, wreaths, pools, lampLights, occluders };
+  collect = null;
+  return { group, colliders, water, clockHands, bell, flag, chimneys, houseSigns, signMaterials, wreaths, pools, lampLights, occluders, glowSpots, perches };
 }
 

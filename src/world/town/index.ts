@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { Builder, matte, rng } from '../build';
 import { buildItem, disposeObject } from '../items';
-import { BED_SPOTS, type Collider, type Door, type Spot, type Station, type TownState, type ZoneKind } from '../types';
+import { BED_SPOTS, type Collider, type Door, type Spot, type Station, type TownState, type Weather, type ZoneKind } from '../types';
+import { makeBirds, makeGlows, makeMist, makeRain, makeRipples, makeSky, swayUniforms } from './fx';
 import { G, shade } from './kit';
 import { buildInteriors, type Room } from './interiors';
 import {
@@ -62,6 +63,17 @@ export interface TownWorld {
   follow(x: number, z: number): void;
   update(dt: number, t: number): void;
   bellRing(): void;
+  /** Rain, mist or clear skies, fading in over a couple of seconds. */
+  setWeather(w: Weather): void;
+  /** How far through the day it is, 0 (morning) to 1 (evening). The sun moves with it, and from about 0.75 the light turns golden. */
+  setDayProgress(p: number): void;
+  /** A ring spreading on the pond at x, z (ignored off the water). `size` is roughly its final radius in metres. */
+  ripple(x: number, z: number, size?: number): void;
+  /**
+   * True, once, when the sun's shadow map needs redrawing (the town's shadows are drawn once and kept). The
+   * engine sets `renderer.shadowMap.autoUpdate = false` and `renderer.shadowMap.needsUpdate = true` on this.
+   */
+  consumeShadowDirty(): boolean;
 }
 
 // ---------------------------------------------------------------- the day and the night
@@ -90,11 +102,79 @@ const NIGHT = {
 };
 
 const smooth = (x: number) => x * x * (3 - 2 * x);
-const col = new THREE.Color();
-const lerpColor = (a: THREE.Color, b: THREE.Color, t: number) => col.copy(a).lerp(b, t);
+const step = (a: number, b: number, x: number) => smooth(THREE.MathUtils.clamp((x - a) / (b - a), 0, 1));
+
+/** The outdoor light at one moment: sky (top and horizon), fog, the sky light and the sun. */
+interface Pal {
+  top: THREE.Color;
+  horizon: THREE.Color;
+  fog: THREE.Color;
+  hemiSky: THREE.Color;
+  hemiGround: THREE.Color;
+  hemi: number;
+  sun: THREE.Color;
+  sunPower: number;
+}
+const pal = (top: string, horizon: string, fog: string, hemiSky: string, hemiGround: string, hemi: number, sun: string, sunPower: number): Pal => ({
+  top: new THREE.Color(top),
+  horizon: new THREE.Color(horizon),
+  fog: new THREE.Color(fog),
+  hemiSky: new THREE.Color(hemiSky),
+  hemiGround: new THREE.Color(hemiGround),
+  hemi,
+  sun: new THREE.Color(sun),
+  sunPower,
+});
+// Through the day (golden late on), then sunset, dusk and night as night falls.
+const P_DAY = pal('#86c3ec', '#c6e5f4', '#c3e4f4', '#cfe8ff', '#a2c486', 1.35, '#fff1d2', 2.4);
+const P_GOLDEN = pal('#8aaed8', '#f4c597', '#eecba6', '#f2dcc0', '#b2b27c', 1.22, '#ffc078', 2.15);
+const P_SUNSET = pal('#5d69a8', '#f19364', '#df9f7c', '#e9b49a', '#82785c', 1.02, '#ff9450', 1.45);
+const P_DUSK = pal('#252c66', '#a4628a', '#55497a', '#7a6aa8', '#2e2c48', 0.95, '#a898d8', 0.95);
+const P_NIGHT = pal('#060a24', '#1b2350', '#141a3c', '#5668a8', '#1c2238', 0.95, '#aebeff', 1.15);
+// Weather greys, by day and by night.
+const RAIN_DAY = { top: new THREE.Color('#8f99a6'), horizon: new THREE.Color('#b3bbc3'), ground: new THREE.Color('#8a9a80') };
+const RAIN_NIGHT = { top: new THREE.Color('#0a0e1c'), horizon: new THREE.Color('#1a2030'), ground: new THREE.Color('#1a2030') };
+const MIST_DAY = { top: new THREE.Color('#c4d0d8'), fog: new THREE.Color('#dde3e6') };
+const MIST_NIGHT = { top: new THREE.Color('#121830'), fog: new THREE.Color('#2a3046') };
+
+function copyPal(out: Pal, a: Pal) {
+  out.top.copy(a.top);
+  out.horizon.copy(a.horizon);
+  out.fog.copy(a.fog);
+  out.hemiSky.copy(a.hemiSky);
+  out.hemiGround.copy(a.hemiGround);
+  out.hemi = a.hemi;
+  out.sun.copy(a.sun);
+  out.sunPower = a.sunPower;
+}
+function mixPal(out: Pal, a: Pal, b: Pal, k: number) {
+  out.top.copy(a.top).lerp(b.top, k);
+  out.horizon.copy(a.horizon).lerp(b.horizon, k);
+  out.fog.copy(a.fog).lerp(b.fog, k);
+  out.hemiSky.copy(a.hemiSky).lerp(b.hemiSky, k);
+  out.hemiGround.copy(a.hemiGround).lerp(b.hemiGround, k);
+  out.hemi = THREE.MathUtils.lerp(a.hemi, b.hemi, k);
+  out.sun.copy(a.sun).lerp(b.sun, k);
+  out.sunPower = THREE.MathUtils.lerp(a.sunPower, b.sunPower, k);
+}
+
+/** Where the sun is: east in the morning, high at midday, low in the west by evening; sinking, then the moon, as night falls. */
+function sunDirAt(p: number, night: number, out: THREE.Vector3): THREE.Vector3 {
+  const az = THREE.MathUtils.lerp(2.2, -1.6, p);
+  let el = 0.25 + 0.8 * Math.sin(Math.PI * THREE.MathUtils.clamp(0.1 + 0.85 * p, 0, 1));
+  el *= 1 - 0.78 * step(0, 0.5, night);
+  out.set(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
+  const moon = step(0.5, 0.85, night);
+  if (moon > 0) out.lerp(NIGHT.sunDir.clone().normalize(), moon).normalize();
+  return out;
+}
 
 /** Four point lights that serve as the square's lamps outside and the lamps and fires inside. */
 const POINT_LIGHTS = 4;
+/** The sun's shadow map: big, since it covers the whole town, but drawn only when something changes. */
+const SHADOW_MAP = 4096;
+/** Half the width of the square of ground the sun's shadows cover, centred on the town. */
+const SHADOW_HALF = 46;
 
 // ---------------------------------------------------------------- small things that come and go
 
@@ -216,14 +296,35 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   const hemi = new THREE.HemisphereLight(DAY.hemiSky, DAY.hemiGround, DAY.hemi);
   const sun = new THREE.DirectionalLight(DAY.sun, DAY.sunPower);
   sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.near = 1;
-  sun.shadow.camera.far = 160;
-  sun.shadow.camera.left = sun.shadow.camera.bottom = -26;
-  sun.shadow.camera.right = sun.shadow.camera.top = 26;
-  sun.shadow.bias = -0.0008;
-  sun.shadow.normalBias = 0.03;
+  // The shadow camera covers the whole town (or the whole room) and stays put, so the shadow map only needs
+  // drawing again when the sun moves or something that casts a shadow changes.
+  sun.shadow.mapSize.set(SHADOW_MAP, SHADOW_MAP);
+  sun.shadow.bias = -0.0006;
+  sun.shadow.normalBias = 0.045;
   scene.add(hemi, sun, sun.target);
+  let shadowDirty = true;
+  const shadowDir = new THREE.Vector3();
+  let shadowZone = '';
+  const shadowBox = (half: number, dist: number) => {
+    const c = sun.shadow.camera;
+    if (c.right === half && c.far === dist * 2) return;
+    c.left = c.bottom = -half;
+    c.right = c.top = half;
+    c.near = 1;
+    c.far = dist * 2;
+    c.updateProjectionMatrix();
+    shadowDirty = true;
+  };
+  /** Notes where the sun now is; a noticeable move means the shadows need drawing again. */
+  const noteSun = () => {
+    const d = sun.position.clone().sub(sun.target.position).normalize();
+    const key = `${zone}:${homeNight}`;
+    if (key !== shadowZone || shadowDir.angleTo(d) > 0.004) {
+      shadowDir.copy(d);
+      shadowZone = key;
+      shadowDirty = true;
+    }
+  };
   const lamps = Array.from({ length: POINT_LIGHTS }, () => {
     const l = new THREE.PointLight('#ffb561', 0, 11, 1.6);
     scene.add(l);
@@ -255,6 +356,25 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   sunDisc.position.set(110, 120, 70);
   sky.add(stars, moon, sunDisc);
   scene.add(sky);
+  // The sky itself: a gradient dome with a glow round the sun.
+  const dome = makeSky();
+  scene.add(dome.mesh);
+
+  // Weather, night glows, birds and rings on the pond.
+  const rain = makeRain();
+  const mist = makeMist();
+  const glows = makeGlows(outdoor.glowSpots);
+  const birds = makeBirds(outdoor.perches, 9);
+  const ripples = makeRipples();
+  outdoor.group.add(rain.group, mist.group, glows.mesh, birds.group, ripples.mesh);
+  // The cobbles shine a little when wet; the paths and grass darken.
+  const cobbles = outdoor.group.getObjectByName('cobbles') as THREE.Mesh | undefined;
+  const cobbleMat = new THREE.MeshPhongMaterial({ vertexColors: true, specular: '#000000', shininess: 46 });
+  if (cobbles) cobbles.material = cobbleMat;
+  const dampen = ['paths', 'ground']
+    .map((n) => outdoor.group.getObjectByName(n) as THREE.Mesh | undefined)
+    .map((m) => m?.material as THREE.MeshLambertMaterial | undefined)
+    .filter((m): m is THREE.MeshLambertMaterial => Boolean(m));
 
   // Fireflies by the pond, only at night.
   const flyGeo = new THREE.BufferGeometry();
@@ -444,7 +564,8 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     b.add(G.sphere(16, 8), dark, { pos: [0, 0.065, s + 0.42], scale: [0.12, 0.02, 0.24] });
     b.add(G.cone(6), colour, { pos: [0, 0.03, L - 0.2], rot: [Math.PI / 2, 0, 0], scale: [0.08, 0.4, 0.05] });
     const m = new THREE.Mesh(b.geometry(), handMat);
-    m.castShadow = true;
+    // Flat on the cobbles and always moving, so no shadow (the town's shadows are drawn once and kept).
+    m.castShadow = false;
     m.position.set(MEETING_CENTRE.x, y, MEETING_CENTRE.z);
     m.visible = false;
     meeting.add(m);
@@ -509,6 +630,21 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   let zone: ZoneKind = 'town';
   let homeNight = false;
   let time = 0;
+  let dayP = 0.35;
+  let weather: Weather = 'clear';
+  let rainK = 0;
+  let mistK = 0;
+  let nowT = 0;
+  let nextFish = 3;
+  let nextShadowTick = 0;
+  let gallowsKey = '';
+  let townKey = '';
+  let meetKey = '';
+  let gravesKey = '';
+  const P = pal('#000', '#000', '#000', '#000', '#000', 0, '#000', 0);
+  const P0 = pal('#000', '#000', '#000', '#000', '#000', 0, '#000', 0);
+  const sunDir = new THREE.Vector3();
+  const tmpC = new THREE.Color();
   let housesKey = '';
   let ownerKey = '';
   let bellUntil = -1;
@@ -529,17 +665,67 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       if (win) win.visible = dark;
     }
     if (!room || !light) {
+      // The day's light (warming late in the day), then sunset, dusk and night as night falls.
+      const golden = step(0.62, 1, dayP);
+      mixPal(P, P_DAY, P_GOLDEN, golden);
+      if (t > 0) {
+        copyPal(P0, P);
+        if (t < 0.35) mixPal(P, P0, P_SUNSET, smooth(t / 0.35));
+        else if (t < 0.65) mixPal(P, P_SUNSET, P_DUSK, smooth((t - 0.35) / 0.3));
+        else mixPal(P, P_DUSK, P_NIGHT, smooth((t - 0.65) / 0.35));
+      }
+      // Weather greys it over.
+      const dim = step(0.3, 0.9, t);
+      if (rainK > 0) {
+        P.top.lerp(tmpC.copy(RAIN_DAY.top).lerp(RAIN_NIGHT.top, dim), 0.85 * rainK);
+        P.horizon.lerp(tmpC.copy(RAIN_DAY.horizon).lerp(RAIN_NIGHT.horizon, dim), 0.85 * rainK);
+        P.fog.lerp(tmpC.copy(RAIN_DAY.horizon).lerp(RAIN_NIGHT.horizon, dim), 0.8 * rainK);
+        P.hemiSky.lerp(tmpC.copy(RAIN_DAY.horizon).lerp(RAIN_NIGHT.horizon, dim), 0.45 * rainK);
+        P.hemiGround.lerp(tmpC.copy(RAIN_DAY.ground).lerp(RAIN_NIGHT.ground, dim), 0.45 * rainK);
+        P.sun.lerp(tmpC.set('#dfe6ee'), 0.6 * rainK);
+        P.sunPower *= 1 - 0.68 * rainK;
+        P.hemi += 0.12 * rainK * (1 - dim);
+      }
+      if (mistK > 0) {
+        const mf = tmpC.copy(MIST_DAY.fog).lerp(MIST_NIGHT.fog, dim);
+        P.fog.lerp(mf, 0.9 * mistK);
+        P.horizon.lerp(mf, 0.9 * mistK);
+        P.top.lerp(tmpC.copy(MIST_DAY.top).lerp(MIST_NIGHT.top, dim), 0.55 * mistK);
+        P.sunPower *= 1 - 0.35 * mistK;
+      }
       scene.fog = fogTown;
-      (scene.background as THREE.Color | null)?.copy(lerpColor(DAY.sky, NIGHT.sky, t)) ?? (scene.background = lerpColor(DAY.sky, NIGHT.sky, t).clone());
-      fogTown.color.copy(lerpColor(DAY.fog, NIGHT.fog, t));
-      fogTown.near = 55 - 20 * t;
-      fogTown.far = 140 - 40 * t;
-      hemi.color.copy(lerpColor(DAY.hemiSky, NIGHT.hemiSky, t));
-      hemi.groundColor.copy(lerpColor(DAY.hemiGround, NIGHT.hemiGround, t));
-      hemi.intensity = THREE.MathUtils.lerp(DAY.hemi, NIGHT.hemi, t);
-      sun.color.copy(lerpColor(DAY.sun, NIGHT.sun, t));
-      sun.intensity = THREE.MathUtils.lerp(DAY.sunPower, NIGHT.sunPower, t);
-      placeSun();
+      if (scene.background instanceof THREE.Color) scene.background.copy(P.horizon);
+      else scene.background = P.horizon.clone();
+      fogTown.color.copy(P.fog);
+      fogTown.near = THREE.MathUtils.lerp(THREE.MathUtils.lerp(THREE.MathUtils.lerp(55, 35, t), 28, rainK), 5, mistK);
+      fogTown.far = THREE.MathUtils.lerp(THREE.MathUtils.lerp(THREE.MathUtils.lerp(140, 100, t), 105, rainK), 48, mistK);
+      hemi.color.copy(P.hemiSky);
+      hemi.groundColor.copy(P.hemiGround);
+      hemi.intensity = P.hemi;
+      sun.color.copy(P.sun);
+      sun.intensity = P.sunPower;
+      // The sun (then the moon) over the middle of town, far enough out that its fixed shadow box covers it all.
+      sunDirAt(dayP, t, sunDir);
+      sun.position.copy(sunDir).multiplyScalar(120);
+      sun.target.position.set(0, 0, 0);
+      sun.target.updateMatrixWorld();
+      shadowBox(SHADOW_HALF, 120);
+      noteSun();
+      // The sky dome follows the same colours, with a glow round the sun that's strongest at golden hour and sunset.
+      dome.top.copy(P.top);
+      dome.horizon.copy(P.horizon);
+      dome.bottom.copy(P.fog);
+      dome.sunDir.copy(sunDir);
+      dome.sunColor.copy(P.sun);
+      const sunset = Math.max(golden * (1 - t), Math.sin(Math.PI * THREE.MathUtils.clamp(t / 0.6, 0, 1)));
+      dome.setGlow((0.3 + 0.9 * sunset) * (1 - step(0.55, 0.8, t)) * (1 - 0.85 * rainK) * (1 - 0.6 * mistK) + 0.12 * step(0.7, 1, t));
+      dome.mesh.visible = true;
+      sunDisc.position.copy(sunDir).multiplyScalar(200);
+      sunMat.color.copy(P.sun).lerp(tmpC.set('#ffffff'), 0.35);
+      // Wet cobbles shine and darken; paths and grass darken a touch.
+      cobbleMat.specular.setScalar(0.32 * rainK);
+      cobbleMat.color.setScalar(1 - 0.2 * rainK);
+      for (const m of dampen) m.color.setScalar(1 - 0.14 * rainK);
       // Windows, lamp pools and the real lamps come on as it gets dark.
       windowMat.emissiveIntensity = t * 1.1;
       windowMat.color.setScalar(1 - 0.5 * t);
@@ -552,10 +738,12 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         l.color.set('#ffb561');
         l.distance = 12;
       });
-      starMat.opacity = Math.max(0, t - 0.3) / 0.7;
-      moonMat.opacity = t;
-      sunMat.opacity = 1 - t;
-      flyMat.opacity = Math.max(0, t - 0.5) * 2;
+      const clear = (1 - 0.9 * rainK) * (1 - 0.75 * mistK);
+      starMat.opacity = (Math.max(0, t - 0.3) / 0.7) * clear;
+      moonMat.opacity = step(0.45, 0.85, t) * clear;
+      sunMat.opacity = (1 - step(0.3, 0.55, t)) * clear;
+      flyMat.opacity = Math.max(0, t - 0.5) * 2 * (1 - rainK);
+      glows.set(step(0.35, 0.95, t), fogTown.near, fogTown.far * 1.2);
       sky.visible = true;
     } else {
       scene.fog = null;
@@ -568,6 +756,10 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       sun.position.set(light.sun.dir[0] * 40, light.sun.dir[1] * 40, light.sun.dir[2] * 40);
       sun.target.position.set(0, 0, 0);
       sun.target.updateMatrixWorld();
+      const rs = ROOMS[zone as Room];
+      shadowBox(Math.max(rs.hw, rs.hd) + 2, 40);
+      noteSun();
+      dome.mesh.visible = false;
       lamps.forEach((l, i) => {
         const spec = light.lights[i];
         if (!spec) {
@@ -579,19 +771,11 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         l.distance = spec.distance;
         lampSpecs[i] = { base: spec.intensity, flicker: Boolean(spec.flicker) };
       });
-      // Outside the windows it's day or night.
-      interiors.glassMaterial.color.setScalar(dark ? 0.08 : 1 - 0.85 * t);
+      // Outside the windows it's day or night, and greyer in the rain.
+      interiors.glassMaterial.color.setScalar(dark ? 0.08 : (1 - 0.85 * t) * (1 - 0.35 * rainK) * (1 - 0.2 * mistK));
       sky.visible = false;
     }
     lamps.forEach((l, i) => (l.intensity = lampSpecs[i].base));
-  }
-
-  function placeSun() {
-    const t = smooth(time);
-    const dir = DAY.sunDir.clone().lerp(NIGHT.sunDir, t).normalize();
-    sun.position.copy(followAt).addScaledVector(dir, 80);
-    sun.target.position.copy(followAt);
-    sun.target.updateMatrixWorld();
   }
 
   const world: TownWorld = {
@@ -622,6 +806,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       zone = kind;
       homeNight = night;
       for (const [k, g] of Object.entries(groups)) g.visible = k === kind;
+      shadowDirty = true;
       applyLight();
     },
 
@@ -654,10 +839,21 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       loaves.sync(state.loaves);
       clothes.sync(state.clothes);
       flowers.sync(state.flowers);
+      // New washing, flowers, drinks or bread cast new shadows.
+      const key = [state.drinks, state.loaves, state.clothes, state.flowers].map((l) => l.map((x) => x.id).join(',')).join('|');
+      if (key !== townKey) {
+        townKey = key;
+        shadowDirty = true;
+      }
     },
 
     setMeeting(m) {
       meeting.visible = m.active;
+      const mk = m.active ? `${m.n}:${m.nominee}` : '';
+      if (mk !== meetKey) {
+        meetKey = mk;
+        shadowDirty = true;
+      }
       if (!m.active) return;
       while (stools.length < m.n) {
         const s = new THREE.Mesh(stoolGeo, stoolMat);
@@ -724,12 +920,22 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
 
     setGraves(names) {
       graves.sync(names.map((name, i) => ({ id: `${i}:${name}`, name, i })));
+      const key = names.join('|');
+      if (key !== gravesKey) {
+        gravesKey = key;
+        shadowDirty = true;
+      }
     },
 
     gallowsSpot: { x: GALLOWS.x, z: GALLOWS.z, ry: GALLOWS.ry, y: PLAT_H },
     occluders: outdoor.occluders,
 
     setGallows(open, label, ropeLen = 0) {
+      const key = `${open.toFixed(3)}:${ropeLen.toFixed(3)}`;
+      if (key !== gallowsKey) {
+        gallowsKey = key;
+        shadowDirty = true;
+      }
       trap.rotation.z = -Math.PI * 0.52 * THREE.MathUtils.clamp(open, 0, 1);
       rope.scale.y = Math.max(0.001, ropeLen);
       rope.position.y = PLAT_H + 1.8 - ropeLen / 2;
@@ -738,18 +944,49 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     },
 
     follow(x, z) {
-      if (Math.abs(followAt.x - x) < 0.5 && Math.abs(followAt.z - z) < 0.5) return;
       followAt.set(x, 0, z);
-      if (zone === 'town') placeSun();
     },
 
     update(dt, t) {
+      nowT = t;
       // Lamp flicker and the fires inside.
       lamps.forEach((l, i) => {
         const s = lampSpecs[i];
         l.intensity = s.flicker ? s.base * (0.82 + 0.18 * Math.sin(t * 17 + i * 3) * Math.sin(t * 7.3 + i)) : s.base;
       });
+      // The weather fades in and out over a couple of seconds.
+      const wantRain = weather === 'rain' ? 1 : 0;
+      const wantMist = weather === 'mist' ? 1 : 0;
+      if (rainK !== wantRain || mistK !== wantMist) {
+        const k = dt / 2;
+        rainK = wantRain > rainK ? Math.min(wantRain, rainK + k) : Math.max(wantRain, rainK - k);
+        mistK = wantMist > mistK ? Math.min(wantMist, mistK + k) : Math.max(wantMist, mistK - k);
+        applyLight();
+      }
       if (zone !== 'town') return;
+      // Rain, mist, swaying leaves, birds and the pond.
+      rain.set(rainK, t, followAt);
+      mist.set(mistK, dt, followAt, fogTown.color);
+      swayUniforms.uSwayTime.value = t;
+      swayUniforms.uSway.value = 1 + 1.3 * rainK;
+      birds.update(dt, t, followAt, true);
+      ripples.setTime(t);
+      if (t > nextFish) {
+        const a = Math.random() * Math.PI * 2;
+        const d = Math.sqrt(Math.random()) * 0.75;
+        ripples.spawn(POND.x + Math.cos(a) * POND.rx * d, POND.z + Math.sin(a) * POND.rz * d, 0.5 + Math.random() * 0.5, t);
+        nextFish = t + 2.5 + Math.random() * 4;
+      }
+      // Slow changes that cast shadows (a ringing bell, growing flowers) redraw the shadows now and then.
+      if (t > nextShadowTick) {
+        nextShadowTick = t + 2;
+        let growing = false;
+        const now0 = Date.now();
+        flowers.each((f) => {
+          if (f.at && now0 - f.at < 32000) growing = true;
+        });
+        if (growing || t < bellUntil) shadowDirty = true;
+      }
       // Water.
       const w = outdoor.water;
       const pos = w.mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
@@ -834,6 +1071,29 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
 
     bellRing() {
       bellPending = true;
+    },
+
+    setWeather(w) {
+      weather = w;
+    },
+
+    setDayProgress(p) {
+      const v = THREE.MathUtils.clamp(p, 0, 1);
+      if (Math.abs(v - dayP) < 0.0005) return;
+      dayP = v;
+      if (zone === 'town') applyLight();
+    },
+
+    ripple(x, z, size = 1) {
+      const e = ((x - POND.x) / POND.rx) ** 2 + ((z - POND.z) / POND.rz) ** 2;
+      if (e > 1.02) return;
+      ripples.spawn(x, z, size, nowT);
+    },
+
+    consumeShadowDirty() {
+      const d = shadowDirty;
+      shadowDirty = false;
+      return d;
     },
   };
 

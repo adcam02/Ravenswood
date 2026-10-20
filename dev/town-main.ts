@@ -1,7 +1,10 @@
 // A look at the town on its own: ?zone=tavern&x=0&z=0&t=1&dist=16&yaw=0.3&wide=1
+// Also ?weather=rain|mist, ?day=0.9 (how far through the day), ?sway=4 (exaggerated wind, to check it moves),
+// ?follow=x,z (where the player is, for the birds and the rain), ?ripple to drop rings on the pond.
 import * as THREE from 'three';
 import { createTown } from '../src/world/town';
-import { emptyTown, type ZoneKind } from '../src/world/types';
+import { swayUniforms } from '../src/world/town/fx';
+import { emptyTown, type Weather, type ZoneKind } from '../src/world/types';
 
 const q = new URLSearchParams(location.search);
 const num = (k: string, d: number) => (q.has(k) ? Number(q.get(k)) : d);
@@ -11,6 +14,10 @@ const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// As in the game: the shadows are drawn only when the town says something changed.
+renderer.shadowMap.autoUpdate = false;
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.toneMappingExposure = 1.06;
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(num('fov', 40), innerWidth / innerHeight, 0.3, 400);
@@ -19,6 +26,8 @@ const town = createTown(scene, renderer);
 const buildMs = Math.round(performance.now() - t0);
 town.show(zone, q.has('night'));
 town.setTime(num('t', 0));
+if (q.has('day')) town.setDayProgress(num('day', 0.35));
+if (q.has('weather')) town.setWeather(q.get('weather') as Weather);
 
 const tx = num('x', 0);
 const tz = num('z', 0);
@@ -28,7 +37,8 @@ const yaw = num('yaw', 0);
 const pitch = num('pitch', wide ? 0.95 : zone === 'town' ? 0.78 : 0.95);
 camera.position.set(tx + Math.sin(yaw) * dist * Math.cos(pitch), dist * Math.sin(pitch), tz + Math.cos(yaw) * dist * Math.cos(pitch));
 camera.lookAt(tx, 0.8, tz);
-town.follow(tx, tz);
+const [fx, fz] = q.has('follow') ? q.get('follow')!.split(',').map(Number) : [tx, tz];
+town.follow(fx, fz);
 
 const state = emptyTown();
 const now = Date.now();
@@ -69,13 +79,22 @@ if (q.has('gallows')) town.setGallows(num('gallows', 1), 'Steele is executed');
 
 const clock = new THREE.Clock();
 let frames = 0;
+let shadowRenders = 0;
+const settle = num('frames', 10);
 function loop() {
   requestAnimationFrame(loop);
-  const dt = clock.getDelta();
+  // Weather fades over two seconds, so let it arrive at once here.
+  const dt = frames < 3 && q.has('weather') ? 2.5 : clock.getDelta();
   town.update(dt, clock.elapsedTime + num('skip', 0));
+  if (q.has('sway')) swayUniforms.uSway.value = num('sway', 4);
+  if (q.has('ripple') && frames === 2) for (let i = 0; i < 4; i++) town.ripple(6.5 + (i - 1.5) * 1.6, 17.8 + (i % 2) * 1.2, 1);
+  if (town.consumeShadowDirty()) {
+    renderer.shadowMap.needsUpdate = true;
+    shadowRenders++;
+  }
   renderer.render(scene, camera);
   frames++;
-  if (frames === 10) {
+  if (frames === settle) {
     (window as unknown as { done: boolean }).done = true;
     let total = 0;
     scene.traverse((o) => {
@@ -90,7 +109,7 @@ function loop() {
       const arr = n.array as Float32Array;
       for (let i = 0; i < arr.length; i++) if (Number.isNaN(arr[i])) badNormals++;
     });
-    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, total: Math.round(total), buildMs, badNormals };
+    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, total: Math.round(total), buildMs, badNormals, shadowRenders };
   }
 }
 loop();

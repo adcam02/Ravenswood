@@ -31,21 +31,23 @@ export function roundTree(p: Paint, r: () => number, autumn = false, detail = tr
   }
   const green = autumn ? pick(r, AUTUMN) : pick(r, LEAF_GREENS);
   const blobs = (detail ? 3 : 2) + Math.floor(r() * 3);
+  // The crown sways with the wind; the trunk and roots stay put.
+  const leaves = p.leaves;
   for (let i = 0; i < blobs; i++) {
     const a = r() * Math.PI * 2;
     const d = i === 0 ? 0 : 0.5 + r() * 0.45;
     const size = (i === 0 ? 1.25 : 0.75 + r() * 0.35) * (0.9 + r() * 0.2);
     const c = shade(green, (r() - 0.5) * 0.12);
     const y = trunkH + 0.7 + (i === 0 ? 0.3 : r() * 0.6);
-    if (detail) p.blob(c, size, Math.cos(a) * d, y, Math.sin(a) * d, Math.floor(r() * 6), 0.9, r() * 3, r() * 3, true);
-    else p.blob(c, size, Math.cos(a) * d, y, Math.sin(a) * d, Math.floor(r() * 6), 0.9, r() * 3);
+    if (detail) leaves.blob(c, size, Math.cos(a) * d, y, Math.sin(a) * d, Math.floor(r() * 6), 0.9, r() * 3, r() * 3, true);
+    else leaves.blob(c, size, Math.cos(a) * d, y, Math.sin(a) * d, Math.floor(r() * 6), 0.9, r() * 3);
   }
   // A few apples or blossoms on some trees.
   if (!autumn && r() < 0.3) {
     const fruit = pick(r, ['#e4553f', '#f2a7b8', '#f6d55c']);
     for (let i = 0; i < 6; i++) {
       const a = r() * Math.PI * 2;
-      p.ico(fruit, 0.09, Math.cos(a) * 1.1, trunkH + 0.5 + r() * 0.9, Math.sin(a) * 1.1, 1);
+      leaves.ico(fruit, 0.09, Math.cos(a) * 1.1, trunkH + 0.5 + r() * 0.9, Math.sin(a) * 1.1, 1);
     }
   }
 }
@@ -54,22 +56,24 @@ export function pineTree(p: Paint, r: () => number, detail = true) {
   const green = pick(r, PINE_GREENS);
   p.taper(WOOD_DARK, 0.75, 0.18, 1.1, 0, 0, 0, 8);
   const tiers = 3 + Math.floor(r() * 2);
+  const leaves = p.leaves;
   for (let i = 0; i < tiers; i++) {
     const rad = 1.5 - i * 0.32;
     const y = 0.8 + i * 0.85;
     const c = shade(green, i * 0.03 + (r() - 0.5) * 0.04);
     // Each tier is a cone with a darker, slightly wider skirt under it, so the boughs read as layers.
-    if (detail) p.cone(shade(c, -0.08), rad * 1.05, 0.45, 0, y, 0, 10, r() * 3);
-    p.cone(c, rad, 1.5, 0, y + 0.1, 0, 10, r() * 3);
+    if (detail) leaves.cone(shade(c, -0.08), rad * 1.05, 0.45, 0, y, 0, 10, r() * 3);
+    leaves.cone(c, rad, 1.5, 0, y + 0.1, 0, 10, r() * 3);
   }
   // A few cones hanging on the lower boughs.
   for (let i = 0; i < (detail ? 3 : 0); i++) {
     const a = r() * Math.PI * 2;
-    p.ico('#7a5236', 0.07, Math.cos(a) * 1.05, 1.1 + r() * 0.5, Math.sin(a) * 1.05, 0, 1.6);
+    leaves.ico('#7a5236', 0.07, Math.cos(a) * 1.05, 1.1 + r() * 0.5, Math.sin(a) * 1.05, 0, 1.6);
   }
 }
 
-export function bush(p: Paint, r: () => number, flowers = false, detail = true) {
+export function bush(p0: Paint, r: () => number, flowers = false, detail = true) {
+  const p = p0.leaves;
   const green = pick(r, LEAF_GREENS);
   const n = 2 + Math.floor(r() * (detail ? 3 : 2));
   for (let i = 0; i < n; i++) {
@@ -100,7 +104,8 @@ export function rock(p: Paint, r: () => number, size = 1) {
 }
 
 /** One flower: a stem, a leaf, a ring of petals and a centre. */
-export function flowerStem(p: Paint, r: () => number, x: number, z: number, color: string, h = 0.26) {
+export function flowerStem(p0: Paint, r: () => number, x: number, z: number, color: string, h = 0.26) {
+  const p = p0.leaves;
   p.post('#5f9e47', 0.014, h, x, 0, z, 4);
   p.box('#6fae4f', 0.07, 0.01, 0.035, x + 0.04, h * 0.45, z, 0, r(), 0.3);
   // Five petals as one flat star, with a round middle.
@@ -117,12 +122,12 @@ export function flowerPatch(p: Paint, r: () => number) {
     flowerStem(p, r, x, z, c, 0.2 + r() * 0.12);
   }
   // Grass about the stems.
-  for (let i = 0; i < 3; i++) p.cone('#7dbb57', 0.04, 0.18 + r() * 0.1, (r() - 0.5) * 1.3, 0, (r() - 0.5) * 1.3, 3, r() * 3);
+  for (let i = 0; i < 3; i++) p.leaves.cone('#7dbb57', 0.04, 0.18 + r() * 0.1, (r() - 0.5) * 1.3, 0, (r() - 0.5) * 1.3, 3, r() * 3);
 }
 
 export function tuft(p: Paint, r: () => number) {
   const g = shade('#6fae4f', (r() - 0.5) * 0.1);
-  for (let i = 0; i < 5; i++) p.cone(g, 0.05, 0.28 + r() * 0.22, (r() - 0.5) * 0.3, 0, (r() - 0.5) * 0.3, 3, r() * 3);
+  for (let i = 0; i < 5; i++) p.leaves.cone(g, 0.05, 0.28 + r() * 0.22, (r() - 0.5) * 0.3, 0, (r() - 0.5) * 0.3, 3, r() * 3);
 }
 
 export function mushroom(p: Paint, r: () => number) {

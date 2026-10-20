@@ -74,6 +74,8 @@ export interface Layers {
   main: Builder;
   /** Window glass and lamp glass, which glow at night. */
   glass: Builder;
+  /** Leaves, grass and reeds, which sway in the wind. Falls back to `main` when a place has none. */
+  foliage?: Builder;
 }
 
 const v = new THREE.Vector3();
@@ -104,6 +106,12 @@ export class Paint {
   /** The same frame, painting into a different layer. */
   get glass(): Paint {
     return new Paint({ main: this.layers.glass, glass: this.layers.glass }, this.m);
+  }
+
+  /** The same frame, painting leaves and grass (which sway) when the place keeps them apart. */
+  get leaves(): Paint {
+    const f = this.layers.foliage;
+    return f ? new Paint({ main: f, glass: this.layers.glass, foliage: f }, this.m) : this;
   }
 
   geo(geo: THREE.BufferGeometry, color: THREE.ColorRepresentation, m: THREE.Matrix4): this {
