@@ -1359,8 +1359,8 @@ export class Engine {
   }
 
   /**
-   * The gallows: a drumroll while the condemned waits on the trapdoor, the drop at three seconds, the rope
-   * snapping taut and a dangle with a swing, a puff at six, and the ghost let go after.
+   * The gallows (timings in SHOW): a short drumroll while the noose comes down, the gavel and the drop, the
+   * rope taking the weight with a small bounce and a swing that dies away, then a puff and the ghost let go.
    */
   private runShow(t: number) {
     const show = this.show;
@@ -1385,10 +1385,15 @@ export class Engine {
         else this.others.get(show.seatId)?.setInfo(this.infoFor(show.seatId, v));
       }
     }
-    if (age > SHOW.end) {
+    // Onlookers keep them hidden a moment longer, until the condemned's new spot has come over the network,
+    // then put the ghost straight there rather than popping up on the trapdoor and sliding off.
+    if (age > (show.mine ? SHOW.end : SHOW.end + 0.8)) {
       if (show.mine) {
         this.frozen = false;
         this.place('town', spot.x + 2.2, spot.z + 1.4, Math.PI, false);
+      } else {
+        const gone = this.others.get(show.seatId);
+        if (gone) gone.placed = false;
       }
       this.show = null;
       this.gavelled = false;
@@ -1396,7 +1401,6 @@ export class Engine {
   }
 
 
-  /** Where the condemned is during the show: on the trapdoor, dropping, yanked up by the rope, dangling, then gone. */
   /** Where a neck sits on this animal, from its feet, for hanging the rope at the right place. */
   private neckOf(av: AvatarView | null | undefined): number {
     return Math.max(0.4, (av?.rig.headHeight ?? 1.1) * 0.62);
