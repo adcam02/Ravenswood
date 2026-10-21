@@ -369,16 +369,17 @@ await check('jobs: the minigame can actually be played (pour)', async () => {
   await p.keyboard.press('e');
   await p.waitForSelector('.job-dock', { timeout: 60000 });
   const before = await st.evaluate(() => window.__host.getState().g.town.drinks.length);
-  // Pick the first drink, then hold to pour and let go part way.
+  // Pick the first drink, then hold to pour and let go part way. The game moves at most a twentieth of a
+  // second per frame, so on a starved test page a short hold barely fills the mug: keep topping up until it's served.
   await p.keyboard.press('Space');
   await sleep(300);
-  await p.keyboard.down('Space');
-  await sleep(1600);
-  await p.keyboard.up('Space');
-  await sleep(600);
-  await p.keyboard.down('Space');
-  await sleep(500);
-  await p.keyboard.up('Space');
+  const served = () => st.evaluate((n) => window.__host.getState().g.town.drinks.length > n, before);
+  for (let i = 0; i < 8 && !(await served()); i++) {
+    await p.keyboard.down('Space');
+    await sleep(1600);
+    await p.keyboard.up('Space');
+    await sleep(2500);
+  }
   await until(st, (n) => window.__host.getState().g.town.drinks.length > n, before, 60000, 'the poured drink');
 });
 
