@@ -20,6 +20,7 @@ import {
   MEETING_CENTRE,
   STOOL_R,
   TOWN_R,
+  groundAt,
   meetingSpot,
   bedSpot,
   counterSpot,
@@ -609,10 +610,33 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   sign.visible = false;
   meeting.add(sign);
   {
-    // A ring of red stones marking the circle, there whether or not a meeting is on.
+    // A ring of red stones marking the circle, there whether or not a meeting is on: a flat band laid on
+    // whatever it crosses (the circle runs off the square's south edge, over the kerb and the path), a few
+    // millimetres up, so it never stands up as a slab and nobody standing on it sinks in.
     const b = new Builder();
-    // Flattened to a band about 2 cm proud of the cobbles, so nobody standing on it sinks in.
-    b.add(G.torus(0.09, 4, 48), '#b98e74', { pos: [MEETING_CENTRE.x, 0.066, MEETING_CENTRE.z], rot: [Math.PI / 2, 0, 0], scale: [STOOL_R, STOOL_R, 0.15] });
+    const N = 160;
+    const across = [-0.25, 0, 0.25];
+    const at = (j: number, k: number) => {
+      const a = (j / N) * Math.PI * 2;
+      const r = STOOL_R + across[k];
+      const x = MEETING_CENTRE.x + r * Math.sin(a);
+      const z = MEETING_CENTRE.z - r * Math.cos(a);
+      // Off the square, at least as high as the paths (2.4 cm), so it lies on them rather than under.
+      return [x, Math.max(groundAt(x, z), 0.024) + 0.008, z];
+    };
+    const pts: number[] = [];
+    for (let j = 0; j < N; j++) {
+      for (let k = 0; k < across.length - 1; k++) {
+        const a = at(j, k);
+        const bb = at(j, k + 1);
+        const c = at(j + 1, k + 1);
+        const d = at(j + 1, k);
+        pts.push(...a, ...c, ...bb, ...a, ...d, ...c);
+      }
+    }
+    const band = new THREE.BufferGeometry();
+    band.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+    b.add(band, '#b98e74');
     const ring = b.mesh(matte(), { cast: false });
     outdoor.group.add(ring);
   }

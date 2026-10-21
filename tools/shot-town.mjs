@@ -22,6 +22,9 @@ const ALL = {
   'overview-night': 'wide&t=1&z=4&dist=70',
   'square-day': 'x=0&z=6&t=0&meeting',
   'square-night': 'x=0&z=6&t=1&bell',
+  // Where the meeting ring runs off the square, over the kerb and the path.
+  'ring-south': 'x=0&z=11&t=0&dist=7&pitch=0.45',
+  'ring-south-low': 'x=1.5&z=11.2&t=0&dist=5&pitch=0.25&yaw=0.5',
   'tavern-front': 'x=-16&z=2&t=0&yaw=-0.6',
   'pond-dock': 'x=6&z=15&t=0&dist=20',
   'washhouse': 'x=-14&z=17&t=0',
