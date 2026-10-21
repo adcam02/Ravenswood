@@ -2,7 +2,10 @@ import type Peer from 'peerjs';
 import type { MediaConnection } from 'peerjs';
 import { create } from 'zustand';
 import { local } from '../game/local';
-import { loadJSON, saveJSON, debugHooks } from '../lib/util';
+import { botMode, loadJSON, saveJSON, debugHooks } from '../lib/util';
+
+/** A test stand-in (?debug&bot) takes no calls: a dozen of them on one machine would spend it all on audio. */
+const QUIET = botMode();
 
 export type MicState = 'off' | 'asking' | 'on' | 'denied' | 'error';
 
@@ -142,6 +145,10 @@ class Voice {
     this.answering.add(peer);
     peer.on('call', (call) => {
       if (this.peer !== peer) return;
+      if (QUIET) {
+        call.close();
+        return;
+      }
       this.links.get(call.peer)?.call.close();
       call.answer(this.stream(), { sdpTransform: tuneOpus });
       this.track(call);
@@ -254,6 +261,7 @@ class Voice {
   sync(listeners: Listener[]) {
     const peer = this.peer;
     if (!peer || peer.destroyed) return;
+    if (QUIET) listeners = [];
     // Without the lobby (a brief blip) open calls carry on and keep their volumes, but new ones can't be made.
     const canCall = peer.open;
     const { volume: master, people } = useVoice.getState();
