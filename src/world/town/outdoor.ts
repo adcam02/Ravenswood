@@ -242,8 +242,8 @@ function ringStone(t: Tris, ra: number, rb: number, a0: number, a1: number, top:
   const hi = [polar(ra + dr, a0 + da, top), polar(ra + dr, a1 - da, top), polar(rb - dr, a1 - da, top), polar(rb - dr, a0 + da, top)];
   const foot = lo.map((p) => V(p.x, base, p.z));
   t.quad(hi[0], hi[1], hi[2], hi[3], col);
-  const bev = shade(col, -0.07);
-  const wall = shade(col, -0.18);
+  const bev = shade(col, -0.025);
+  const wall = shade(col, -0.07);
   for (let k = 0; k < 4; k++) {
     const n = (k + 1) % 4;
     t.quad(lo[k], lo[n], hi[n], hi[k], bev);
@@ -255,9 +255,9 @@ function ringStone(t: Tris, ra: number, rb: number, a0: number, a1: number, top:
 function cobbleMesh(): THREE.Mesh {
   const t = new Tris();
   const r = rng(9);
-  // Mortar underneath, sunk between the stones so they stand out.
-  const mortar = '#857a6b';
-  const MORTAR_Y = 0.008;
+  // Pale mortar underneath, a little below the stones so each one stands up softly.
+  const mortar = '#9c907f';
+  const MORTAR_Y = 0.025;
   const n0 = 48;
   for (let j = 0; j < n0; j++) {
     const a0 = (j / n0) * Math.PI * 2;
@@ -277,7 +277,7 @@ function cobbleMesh(): THREE.Mesh {
       const a1 = off + ((j + 1) / n) * Math.PI * 2 - g / rad;
       // The tops vary between 5 and 6.5 cm, as `groundAt` expects.
       const y = 0.05 + r() * 0.015;
-      ringStone(t, rad + g, r1 - g, a0, a1, y, MORTAR_Y, 0.07, shade(pick(r, stones), (r() - 0.5) * 0.04));
+      ringStone(t, rad + g, r1 - g, a0, a1, y, MORTAR_Y, 0.06, shade(pick(r, stones), (r() - 0.5) * 0.04));
     }
     rad = r1;
   }
