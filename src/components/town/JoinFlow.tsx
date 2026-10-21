@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { create } from 'zustand';
 import { askForNotifications } from '../../lib/notify';
+import { botMode } from '../../lib/util';
 import { player, useClient, useTaken } from '../../net/client';
 import { useVoice, voice } from '../../voice/voice';
 import { AnimalPreview } from '../../world/AnimalPreview';
@@ -340,7 +341,7 @@ function AnimalTile({ id, on, owner, onPick }: { id: AnimalId; on: boolean; owne
   const info = animalInfo(id);
   const [src, setSrc] = useState<string | null>(() => loadThumb(id, info.colors[0]));
   useEffect(() => {
-    if (src) return;
+    if (src || botMode()) return;
     let live = true;
     const cancel = queueThumbnail(() => {
       if (!live) return;

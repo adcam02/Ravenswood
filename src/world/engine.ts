@@ -18,6 +18,7 @@ import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWor
 import { COTTAGE_NAMES, DAIS, DOCK, MEETING_CENTRE, SQUARE_R, groundAt } from './town/layout';
 import { Fireworks } from './fireworks';
 import { reportProblem } from '../lib/report';
+import { botMode } from '../lib/util';
 import { steadyInterval } from '../lib/ticker';
 
 /** Town features that arrive with the effects pass: called only if the town has them. */
@@ -191,6 +192,8 @@ export type Quality = 'high' | 'low';
 const params = new URLSearchParams(location.search);
 /** ?fps=10 caps the frame rate, for tests on machines without a graphics card. */
 const FPS_CAP = Number(params.get('fps')) || 0;
+/** Test stand-ins skip drawing (see botMode). */
+const DRAW = !botMode();
 
 const isTyping = () => {
   const el = document.activeElement as HTMLElement | null;
@@ -1261,8 +1264,10 @@ export class Engine {
       const a = near || this.job ? 0 : Math.max(0, Math.min(1, (26 - d) / 10));
       s.el.style.opacity = a.toFixed(2);
     }
-    this.renderer.render(this.scene, this.camera);
-    this.labels.render(this.scene, this.camera);
+    if (DRAW) {
+      this.renderer.render(this.scene, this.camera);
+      this.labels.render(this.scene, this.camera);
+    }
     if (!useHud.getState().ready) useHud.setState({ ready: true });
   }
 
