@@ -15,6 +15,8 @@ export type Modal =
   | { kind: 'settings' }
   | { kind: 'role'; roleId: string }
   | { kind: 'dawnCheck' }
+  /** A player claiming to be the Slayer, choosing who to kill. */
+  | { kind: 'slayer' }
   | null;
 
 export type Pick =

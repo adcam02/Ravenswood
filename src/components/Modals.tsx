@@ -16,6 +16,7 @@ import { demonInfo, minionInfo, wholeEvilTeam } from '../lib/presets';
 import { joinNames } from '../lib/util';
 import { askForNotifications, notificationsSupported } from '../lib/notify';
 import { ScriptModal } from './ScriptPicker';
+import { SlayerModal } from './Slayer';
 import { ReminderToken, Token } from './Token';
 import { WakeComposer } from './WakeComposer';
 import { useJoin } from './town/JoinFlow';
@@ -49,6 +50,8 @@ export function Modals() {
       return <WakeComposer />;
     case 'dawnCheck':
       return <DawnCheck />;
+    case 'slayer':
+      return <SlayerModal />;
   }
 }
 

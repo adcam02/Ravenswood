@@ -26,6 +26,7 @@ function Modals() {
 import { Toasts } from './components/Toasts';
 import { BluffBar } from './components/BluffBar';
 import { PickBanner } from './components/PickBanner';
+import { SlayerPrompt } from './components/Slayer';
 import { MyCharacter, PlayerRail, VoteBar } from './components/PlayerBits';
 import { WakeOverlay } from './components/WakeOverlay';
 import { DayClock, ProgressWatcher, SceneBar } from './components/town/Scenes';
@@ -171,6 +172,7 @@ function Storyteller() {
           )}
           <SidePanel />
           <PickBanner />
+          <SlayerPrompt />
           <Modals />
           <GiftNotice />
           <Fade />

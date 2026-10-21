@@ -261,6 +261,9 @@ class HostLink {
       case 'vote':
         p.vote(pid, Boolean(msg.up));
         break;
+      case 'slay':
+        p.slay(pid, String(msg.seatId));
+        break;
       case 'ack':
         p.ack(pid, msg.wakeId);
         break;

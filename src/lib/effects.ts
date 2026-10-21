@@ -63,6 +63,20 @@ export function useEffects(view: View | null) {
       const before = p.town.records[game];
       if (!before || before.at !== r.at) ui.toast(`🏆 ${r.by} set the ${JOB_TITLES[game as GameJob]?.toLowerCase() ?? game} record: ${SCORE_LABEL[game as GameJob]?.(r.score) ?? r.score}`, 'good');
     }
+    // Someone claiming to be the Slayer, then what came of it.
+    for (const shot of view.slayer) {
+      const before = p.slayer.find((x) => x.id === shot.id);
+      const by = view.seats.find((s) => s.id === shot.by);
+      const target = view.seats.find((s) => s.id === shot.target)?.label ?? 'someone';
+      if (!before) {
+        gavel();
+        ui.banner(`${by?.label ?? 'Someone'} claims to be the Slayer`, `and chooses ${target}. The Storyteller decides…`);
+      }
+      if (shot.result !== 'pending' && before?.result !== shot.result) {
+        if (shot.result === 'dies') ui.banner(`${target} dies`, `Slain by ${by?.label ?? 'the Slayer'}`);
+        else ui.toast(`${by?.label ?? 'Someone'} chose ${target}. Nothing happens.`, 'info');
+      }
+    }
   }, [view]);
 
   // A player being woken.

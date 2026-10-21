@@ -82,6 +82,7 @@ function freshGame(prev?: GameState, keepPlayers = true): GameState {
     dayTimer: null,
     town: prev?.town ?? emptyTown(),
     nightDeaths: [],
+    slayer: [],
     awake: {},
     wakes: [],
     replies: [],
@@ -97,6 +98,7 @@ function loadGame(): GameState | null {
   }
   g.townHall ??= null;
   g.nightDeaths ??= [];
+  g.slayer ??= [];
   g.town ??= emptyTown();
   g.town.records ??= {};
   g.execution ??= null;
@@ -195,7 +197,13 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
         .map(([animal, h]) => [animal, h.name]),
     ),
     town: g.town,
+    slayer: g.slayer.map(({ real: _, ...shot }) => shot),
   };
+}
+
+/** Whether a player can claim to be the Slayer right now: the script has one, and it's a day of the game. */
+export function slayerOpen(g: { script: { roles: string[] }; phase: Phase; day: number }): boolean {
+  return g.script.roles.includes('slayer') && g.phase === 'day' && g.day > 0;
 }
 
 /** How long an animal stays held for someone looking at it in the picker, without them choosing. */
@@ -887,6 +895,22 @@ export const st = {
   revealGrimoire(on: boolean) {
     update((g) => void (g.grimoireRevealed = on));
   },
+  /** What came of a Slayer claim: the chosen player dies, or nothing happens. */
+  settleSlayer(id: string, kill: boolean) {
+    update((g) => {
+      const shot = g.slayer.find((s) => s.id === id);
+      if (!shot || shot.result !== 'pending') return;
+      shot.result = kill && shot.real ? 'dies' : 'nothing';
+      const target = seatOf(g, shot.target);
+      if (kill && target && !target.dead) {
+        target.dead = true;
+        if (g.marked?.seatId === target.id) g.marked = null;
+      }
+      // The real Slayer's ability is spent either way, so the grimoire says so.
+      const by = seatOf(g, shot.by);
+      if (shot.real && by && !by.reminders.some((r) => r.roleId === 'slayer')) by.reminders.push({ id: uid(), roleId: 'slayer', text: 'No Ability' });
+    });
+  },
 
   // things players ask for
   fromPlayer: {
@@ -961,6 +985,20 @@ export const st = {
     vote(playerId: string, up: boolean) {
       const s = hostGame().seats.find((x) => x.playerId === playerId);
       if (s) st.setVote(s.id, up);
+    },
+    /**
+     * A player claims to be the Slayer and chooses someone (once a game each). The Storyteller answers every claim,
+     * so the wait for the outcome is the same whoever made it: for the real Slayer they decide (the Slayer might be
+     * drunk or poisoned, or the target might register as the Demon); for anyone else, nothing happens.
+     */
+    slay(playerId: string, targetId: string) {
+      const g = hostGame();
+      const s = g.seats.find((x) => x.playerId === playerId);
+      const target = seatOf(g, targetId);
+      if (!s || s.dead || !target || target.id === s.id || !slayerOpen(g) || g.slayer.some((x) => x.by === s.id)) return;
+      const id = uid();
+      const real = s.roleId === 'slayer';
+      update((g) => void g.slayer.push({ id, by: s.id, target: target.id, at: Date.now(), result: 'pending', real }));
     },
     /** Whatever a player did around town. Returns an item when it ends up in their paw. */
     town(playerId: string, action: TownAction): Item | null {

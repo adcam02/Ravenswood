@@ -4,6 +4,7 @@ import { ui, useUI, type Panel } from '../state/ui';
 import { useView } from '../state/view';
 import { Icon, type IconName } from './Icon';
 import { RichText } from './RichText';
+import { slayerButton } from './Slayer';
 import { Token } from './Token';
 
 export function MyCharacter() {
@@ -92,6 +93,7 @@ export function PlayerRail() {
   const panel = useUI((s) => s.panel);
   const muted = useUI((s) => s.muted);
   const me = view.seats.find((s) => s.isMe);
+  const slayer = slayerButton(view);
   const open = (p: Exclude<Panel, null>) => () => ui.togglePanel(p);
   const items: { key: string; icon: IconName; label: string; on?: boolean; disabled?: boolean; action: () => void }[] = [
     {
@@ -105,13 +107,17 @@ export function PlayerRail() {
     { key: 'notes', icon: 'notepad', label: 'Notepad', on: panel === 'notes', action: open('notes') },
     { key: 'journal', icon: 'scroll', label: 'Storyteller info', on: panel === 'journal', action: open('journal') },
     { key: 'history', icon: 'vote', label: 'Votes', on: panel === 'history', action: open('history') },
+    // Anyone can claim to be the Slayer, once a game, when the script has one.
+    ...(slayer.show
+      ? [{ key: 'slayer', icon: 'dagger' as const, label: slayer.used ? 'Slayer used' : 'Slayer', disabled: slayer.used, action: () => ui.open({ kind: 'slayer' }) }]
+      : []),
     { key: 'sound', icon: muted ? 'mute' : 'volume', label: muted ? 'Sound off' : 'Sound on', action: () => useUI.setState({ muted: !muted }) },
     { key: 'settings', icon: 'cog', label: 'Settings', action: () => ui.open({ kind: 'settings' }) },
   ];
   return (
     <nav className="player-rail surface" aria-label="Menu">
       {items.map((it) => (
-        <button key={it.key} className={`rail-item ${it.on ? 'on' : ''}`} onClick={it.action} disabled={it.disabled} aria-pressed={it.on}>
+        <button key={it.key} className={`rail-item rail-${it.key} ${it.on ? 'on' : ''}`} onClick={it.action} disabled={it.disabled} aria-pressed={it.on}>
           <Icon name={it.icon} />
           <span>{it.label}</span>
         </button>

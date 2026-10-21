@@ -1032,6 +1032,16 @@ button.my-card:hover {
   opacity: 0.35;
   cursor: default;
 }
+/* Claiming to be the Slayer: red, so it stands apart from the menu. */
+.rail-item.rail-slayer {
+  color: #ff9aa4;
+  background: rgba(165, 26, 45, 0.2);
+  box-shadow: inset 0 0 0 1px rgba(217, 56, 76, 0.45);
+}
+.rail-item.rail-slayer:hover:not(:disabled) {
+  color: #ffd6da;
+  background: rgba(165, 26, 45, 0.36);
+}
 
 .mode-player .town {
   right: 104px;

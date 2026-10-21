@@ -105,6 +105,8 @@ export interface WorldView {
   dim: boolean;
   /** Storyteller: the latest wake sent, so the ghost can drift to the bedside. */
   lastWake: { id: string; to: string[] } | null;
+  /** Slayer claims this game: who, at whom, and what came of it. */
+  slayer: { id: string; by: string; target: string; result: string }[];
 }
 
 /** What the world asks of the game around it. */
@@ -239,6 +241,8 @@ export class Engine {
   private meetingSeated = false;
   private lastVoice = 0;
   private lastFish = -1;
+  /** Slayer claims already seen, with what had come of them (null until the first view). */
+  private slayerSeen: Map<string, string> | null = null;
   private wasJoined = false;
   private lastPhaseKey = '';
   private hudPrompt = '';
@@ -464,6 +468,20 @@ export class Engine {
       av?.bubble(f.cm ? `Caught a ${f.cm}cm ${f.kind}!` : `Caught ${f.kind}…`);
     }
     this.lastFish = v.town.fish.length;
+
+    // Someone claiming to be the Slayer calls it out; if nothing comes of it, the one they chose says so.
+    const first = !this.slayerSeen;
+    this.slayerSeen ??= new Map();
+    for (const shot of v.slayer) {
+      const was = this.slayerSeen.get(shot.id);
+      if (was === shot.result) continue;
+      this.slayerSeen.set(shot.id, shot.result);
+      if (first) continue;
+      const avatarOf = (id: string) => (id === v.mySeatId ? this.me : this.others.get(id));
+      const target = v.seats.find((s) => s.id === shot.target)?.name || 'someone';
+      if (was === undefined) avatarOf(shot.by)?.bubble(`🗡 I’m the Slayer! I choose ${target}!`, 4500);
+      else if (shot.result === 'nothing') avatarOf(shot.target)?.bubble('…nothing happens', 3500);
+    }
 
     this.syncMe(v);
     this.applyPhase(v, prev);

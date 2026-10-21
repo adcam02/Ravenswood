@@ -139,6 +139,19 @@ export interface Execution {
   at: number;
 }
 
+/** Someone claiming to be the Slayer and choosing a player, in front of the whole town. Anyone can, once a game. */
+export interface SlayerShot {
+  id: string;
+  /** Who claimed it, and who they chose (seat ids). */
+  by: string;
+  target: string;
+  at: number;
+  /** Waiting on the Storyteller (or a short pause, when it isn't the Slayer), then what happened. */
+  result: 'pending' | 'dies' | 'nothing';
+  /** Storyteller only: they really are the Slayer, so the Storyteller decides what happens. */
+  real?: boolean;
+}
+
 export interface GameState {
   v: 1;
   room: string;
@@ -166,6 +179,8 @@ export interface GameState {
   town: TownState;
   /** Seats killed during this night. Players don't see these deaths until the day begins. */
   nightDeaths: string[];
+  /** Slayer claims this game, oldest first. */
+  slayer: SlayerShot[];
   awake: Record<string, AwakeState>;
   wakes: WakeMessage[];
   replies: WakeReply[];
@@ -208,6 +223,8 @@ export interface PublicState {
   /** Animals someone is choosing right now, with their name. */
   picking?: Record<string, string>;
   town: TownState;
+  /** Slayer claims this game (without whether they were the real Slayer). */
+  slayer?: SlayerShot[];
 }
 
 export interface DayTimer {
@@ -283,4 +300,6 @@ export type ClientMessage =
   | { t: 'town'; a: TownAction }
   /** Hand whatever is in your paw to someone (a seat id, or 'st'). */
   | { t: 'give'; to: string; item: Item }
+  /** Claim to be the Slayer and choose this seat. */
+  | { t: 'slay'; seatId: string }
   | { t: 'ping' };

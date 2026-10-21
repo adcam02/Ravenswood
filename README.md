@@ -57,6 +57,13 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      up over anyone voting. Executing the player on the block (mark them, then Kill) plays out at the
      gallows for the whole town: a drumroll, the gavel, the trapdoor drops, a short swing and a puff of
      smoke, then they walk on as a ghost.
+   - **The Slayer**: when the script has one, every living player gets a red **Slayer** button on their
+     menu during the day. Anyone can use it once a game to claim to be the Slayer and choose a player;
+     the whole town sees the claim. You get a box for every claim, real or not, and nothing happens
+     until you answer, so the wait gives nobody away. For someone who isn't the Slayer the box only
+     offers "Nothing happens". For the real Slayer it shows who they chose and their character, and
+     you choose **Kill** or **Nothing happens** (say no if the Slayer is drunk or poisoned). Either
+     way the real Slayer gets the No Ability reminder.
    - **The Spy** sees a snapshot of the grimoire when woken from the night order; add one to any wake
      with the book button in the wake screen.
    - **Waking someone at night** drifts you to their bedside; the player sees a dream bubble beside

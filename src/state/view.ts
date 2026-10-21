@@ -3,7 +3,7 @@ import { defaultAlignment, getRole, type Alignment, type Script } from '../data'
 import { useClient } from '../net/client';
 import { useHostNet } from '../net/host';
 import { isTraveller, seatAlignment, useHost } from './host';
-import type { AwakeState, DayTimer, Execution, Nomination, Phase, Reminder, TownHall, VoteRecord } from './types';
+import type { AwakeState, DayTimer, Execution, Nomination, Phase, Reminder, SlayerShot, TownHall, VoteRecord } from './types';
 import type { Look, TownState, Weather } from '../world/types';
 import { useUI } from './ui';
 
@@ -56,6 +56,8 @@ export interface View {
   revealed: boolean;
   grimoireRevealed: boolean;
   mySeatId: string | null;
+  /** Slayer claims this game (the Storyteller also sees which were the real Slayer). */
+  slayer: SlayerShot[];
 }
 
 const label = (name: string, i: number) => name || `Seat ${i + 1}`;
@@ -103,6 +105,7 @@ export function useStorytellerView(): View {
       revealed: g.revealed,
       grimoireRevealed: g.grimoireRevealed,
       mySeatId: null,
+      slayer: g.slayer,
     }),
     [g, online, hide],
   );
@@ -156,6 +159,7 @@ export function usePlayerView(): View | null {
       revealed: pub.revealed,
       grimoireRevealed: pub.grimoireRevealed,
       mySeatId: priv?.seatId ?? null,
+      slayer: pub.slayer ?? [],
     };
   }, [pub, priv, clockOffset]);
 }

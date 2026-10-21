@@ -233,6 +233,8 @@ export const player = {
   leave: () => clientLink.send({ t: 'leave' }),
   rename: (name: string) => clientLink.send({ t: 'rename', name }),
   vote: (up: boolean) => clientLink.send({ t: 'vote', up }),
+  /** Claim to be the Slayer and choose this seat. */
+  slay: (seatId: string) => clientLink.send({ t: 'slay', seatId }),
   ack: (wakeId: string) => clientLink.send({ t: 'ack', wakeId }),
   reply: (wakeId: string, r: { seatIds?: string[]; roleIds?: string[]; answer?: boolean }) =>
     clientLink.send({ t: 'reply', wakeId, ...r }),

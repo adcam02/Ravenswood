@@ -89,6 +89,12 @@ const paths: Record<string, React.ReactNode> = {
       <path d="M15 13 9 7l4-4 6 6c1.5 1.5 2.7 4 2.7 7.4-2.4-1-4.5-1.8-6.7-3.4Z" />
     </>
   ),
+  dagger: (
+    <>
+      <path d="M19 3 9.5 12.5l2 2L21 5V3Z" />
+      <path d="m7 11 6 6M10 14l-5.5 5.5M3.5 18.5l2 2" />
+    </>
+  ),
   plus: <path d="M12 5v14M5 12h14" />,
   minus: <path d="M5 12h14" />,
   x: <path d="M6 6l12 12M18 6 6 18" />,
