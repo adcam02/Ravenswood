@@ -76,6 +76,11 @@
   color: var(--text-dim);
   white-space: nowrap;
 }
+/* Players on a slow line, after the count of who's online. */
+.room-slow {
+  font-style: normal;
+  color: #f2b84b;
+}
 .room-chip svg {
   width: 15px;
   height: 15px;

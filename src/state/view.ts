@@ -18,6 +18,8 @@ export interface SeatView {
   label: string;
   claimed: boolean;
   connected: boolean;
+  /** Storyteller only: their line is slow, this many milliseconds there and back (null when it's fine). */
+  slow: number | null;
   dead: boolean;
   ghostVote: boolean;
   /** The character this viewer can see on the token. */
@@ -69,6 +71,7 @@ const label = (name: string, i: number) => name || `Seat ${i + 1}`;
 export function useStorytellerView(): View {
   const g = useHost((s) => s.g);
   const online = useHostNet((s) => s.online);
+  const slow = useHostNet((s) => s.slow);
   const hide = useUI((s) => s.hideGrimoire) && !g.ended;
   return useMemo(
     () => ({
@@ -84,6 +87,7 @@ export function useStorytellerView(): View {
         label: label(s.name, i),
         claimed: Boolean(s.playerId),
         connected: Boolean(s.playerId && online[s.playerId]),
+        slow: (s.playerId && online[s.playerId] && slow[s.playerId]) || null,
         dead: s.dead,
         ghostVote: s.ghostVote,
         roleId: hide && !isTraveller(s.roleId) ? null : s.roleId,
@@ -113,7 +117,7 @@ export function useStorytellerView(): View {
       ended: g.ended,
       deaths: g.deaths,
     }),
-    [g, online, hide],
+    [g, online, slow, hide],
   );
 }
 
@@ -142,6 +146,7 @@ export function usePlayerView(): View | null {
           label: label(s.name, i),
           claimed: s.claimed,
           connected: s.connected,
+          slow: null,
           dead: s.dead,
           ghostVote: s.ghostVote,
           roleId,

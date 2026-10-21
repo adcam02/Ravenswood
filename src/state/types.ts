@@ -318,7 +318,8 @@ export type HostMessage =
   | { t: 'summon'; zone: string; x: number; z: number }
   /** That animal is already someone else's (or being chosen by them): pick another. */
   | { t: 'taken'; animal: string; by: string }
-  | { t: 'pong' }
+  /** `at` is the ping's own time, sent back so the player can tell how long the round trip took. */
+  | { t: 'pong'; at?: number }
   | { t: 'host' }
   | { t: 'error'; message: string };
 
@@ -342,4 +343,5 @@ export type ClientMessage =
   | { t: 'slay'; seatId: string }
   /** Something went wrong in this player's game, so the Storyteller knows. */
   | { t: 'oops'; message: string; where?: string; v?: string }
-  | { t: 'ping' };
+  /** `at`: when it was sent (for the round trip); `rtt`: the player's latest measure of it, in milliseconds. */
+  | { t: 'ping'; at?: number; rtt?: number };

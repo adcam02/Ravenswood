@@ -295,7 +295,12 @@ function SeatSpot({ seat, geo, i }: { seat: SeatView; geo: Geometry; i: number }
       )}
 
       <div className="seat-plate">
-        {st_ && seat.claimed && <span className={`dot ${seat.connected ? 'on' : ''}`} title={seat.connected ? 'Online' : 'Offline'} />}
+        {st_ && seat.claimed && (
+          <span
+            className={`dot ${seat.connected ? 'on' : ''} ${seat.slow ? 'slow' : ''}`}
+            title={!seat.connected ? 'Offline' : seat.slow ? `Slow connection: ${(seat.slow / 1000).toFixed(1)} s there and back` : 'Online'}
+          />
+        )}
         <span className="seat-name">{seat.label}</span>
         {seat.dead && seat.ghostVote && (
           <span className="ghost-vote" title="Has a ghost vote">

@@ -19,9 +19,18 @@ interface ClientState {
   clockOffset: number;
   /** The Storyteller's page is an older version than this one, so newer features won't work. */
   hostOutdated: boolean;
+  /** How long a message takes there and back to the Storyteller (milliseconds, smoothed), once known. */
+  rtt: number | null;
+  /** The line to the Storyteller is slow (or has gone quiet) enough that the player will notice. */
+  slow: boolean;
 }
 
-export const useClient = create<ClientState>(() => ({ status: 'starting', pub: null, priv: null, clockOffset: 0, hostOutdated: false }));
+export const useClient = create<ClientState>(() => ({ status: 'starting', pub: null, priv: null, clockOffset: 0, hostOutdated: false, rtt: null, slow: false }));
+
+/** Slower than this there and back, things lag noticeably (the Storyteller sees it too). */
+const SLOW_MS = 800;
+/** Nothing at all from the Storyteller for this long, on an open line, counts as slow too. */
+const QUIET_MS = 8000;
 
 /** The host's last "that animal is taken" answer, for the picker to react to. */
 export const useTaken = create<{ animal: string | null; by: string; at: number }>(() => ({ animal: null, by: '', at: 0 }));
@@ -50,6 +59,10 @@ class ClientLink {
   /** What the main route is doing, when it isn't connected. */
   private peerState: LinkStatus = 'starting';
   private connectTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Times in a row the Storyteller's room wasn't there: each try waits a little longer, so a dozen players
+   * waiting on a reloading Storyteller don't hammer the shared lobby server. */
+  private missing = 0;
+  private rtt: number | null = null;
   /**
    * Taking a seat ("Into town!") is kept until the Storyteller confirms it: sent again whenever the channel
    * opens, and every few seconds, so a click during a reconnect doesn't leave the player stuck on the join screen.
@@ -110,7 +123,8 @@ class ClientLink {
         const message = String((err as { message?: string }).message ?? '');
         if (this.conn?.open || (message && !message.includes(hostPeerId(this.room)))) return;
         this.setPeerState('waiting');
-        this.later(() => this.connect(), 3000);
+        this.missing += 1;
+        this.later(() => this.connect(), Math.min(10000, 2000 + this.missing * 1500));
       } else if (RETRYABLE.has(type)) {
         this.setPeerState('reconnecting');
         // A lost lobby doesn't touch the open channel to the Storyteller or the voice calls: reconnect to it
@@ -146,6 +160,7 @@ class ClientLink {
     conn.on('open', () => {
       if (this.conn !== conn) return;
       this.lastPong = Date.now();
+      this.missing = 0;
       this.setPeerState('open');
       conn.send({ t: 'hello', playerId: playerId(), v: __BUILD__, delta: true } satisfies ClientMessage);
       this.resendJoin(true);
@@ -209,8 +224,9 @@ class ClientLink {
         this.conn = null;
         this.setPeerState('reconnecting');
         this.connect();
-      } else conn.send({ t: 'ping' } satisfies ClientMessage);
+      } else conn.send({ t: 'ping', at: now, rtt: this.rtt === null ? undefined : Math.round(this.rtt) } satisfies ClientMessage);
     }
+    this.judgeSpeed(late);
     if (this.downSince && Date.now() - this.downSince > BACKUP_AFTER_MS) this.ensureMesh();
     this.resendJoin(false);
   }
@@ -243,7 +259,25 @@ class ClientLink {
     if (seat?.look && seat.name === p.msg.name && seat.look.animal === p.msg.look.animal) this.pendingJoin = null;
   }
 
+  /** Slow if the round trip is long, or the open line has gone quiet (not just because this page was stalled). */
+  private judgeSpeed(late = false) {
+    const open = Boolean(this.conn?.open);
+    const quiet = open && !late && Date.now() - this.lastPong > QUIET_MS;
+    const slow = open && (quiet || (this.rtt !== null && this.rtt > SLOW_MS));
+    const rtt = this.rtt === null ? null : Math.round(this.rtt);
+    const s = useClient.getState();
+    if (s.slow !== slow || s.rtt !== rtt) useClient.setState({ slow, rtt });
+  }
+
   private receive(msg: HostMessage) {
+    if (msg.t === 'pong') {
+      if (typeof msg.at === 'number') {
+        const sample = Date.now() - msg.at;
+        if (sample >= 0 && sample < 60000) this.rtt = this.rtt === null ? sample : this.rtt * 0.7 + sample * 0.3;
+        this.judgeSpeed();
+      }
+      return;
+    }
     if (msg.t === 'state') {
       setCustomRoles(msg.s.script.custom);
       useClient.setState({
@@ -316,7 +350,7 @@ export const clientLink = new ClientLink();
 // A player's problems go quietly to the Storyteller.
 reportTo((message, where) => clientLink.send({ t: 'oops', message, where, v: __BUILD__ }));
 
-if (debugHooks()) (window as unknown as { __client: typeof useClient }).__client = useClient;
+if (debugHooks()) Object.assign(window, { __client: useClient, __clientLink: clientLink });
 
 export const player = {
   join: (name: string, look: Look) => clientLink.join({ t: 'join', name, look }),

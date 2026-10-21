@@ -56,12 +56,17 @@ function RoomChip() {
   const view = useView();
   const net = useHostNet();
   const online = view.seats.filter((s) => s.connected).length;
+  const slow = view.seats.filter((s) => s.slow);
   const ok = net.status === 'open';
+  const slowNote = slow.length ? `Slow connections: ${slow.map((s) => `${s.label} (${((s.slow ?? 0) / 1000).toFixed(1)} s)`).join(', ')}. ` : '';
   return (
-    <button className={`room-chip ${ok ? 'ok' : 'warn'}`} onClick={() => ui.open({ kind: 'share' })} title={net.detail || 'Invite players'}>
+    <button className={`room-chip ${ok ? 'ok' : 'warn'}`} onClick={() => ui.open({ kind: 'share' })} title={`${slowNote}${net.detail || 'Invite players'}`}>
       <span className="dot" />
       <span className="room-code">{view.room}</span>
-      <span className="room-online">{ok ? `${online} online` : net.status === 'starting' ? 'Opening…' : `${online} online · backup route`}</span>
+      <span className="room-online">
+        {ok ? `${online} online` : net.status === 'starting' ? 'Opening…' : `${online} online · backup route`}
+        {slow.length > 0 && <em className="room-slow"> · {slow.length} slow</em>}
+      </span>
       <Icon name="link" />
     </button>
   );

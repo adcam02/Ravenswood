@@ -19,9 +19,16 @@ interface HostNet {
   status: LinkStatus;
   detail: string;
   online: Record<string, true>;
+  /** Players whose round trip to us is slow, and how slow (milliseconds, to the nearest hundred). */
+  slow: Record<string, number>;
 }
 
-export const useHostNet = create<HostNet>(() => ({ status: 'starting', detail: '', online: {} }));
+export const useHostNet = create<HostNet>(() => ({ status: 'starting', detail: '', online: {}, slow: {} }));
+
+/** A round trip slower than this is worth knowing about: the player will feel the lag. */
+export const SLOW_MS = 800;
+/** Position updates wait while this much is still queued for a player: they're out of date by the time they'd go. */
+const WORLD_BACKLOG = 64 * 1024;
 
 /** One player's connection, over either route. */
 interface Link {
@@ -31,6 +38,8 @@ interface Link {
   isOpen: () => boolean;
   /** The connection underneath is still up, even if the player has gone quiet. */
   alive?: () => boolean;
+  /** Bytes queued and not yet sent. */
+  backlog?: () => number;
 }
 
 interface LinkMeta {
@@ -202,6 +211,7 @@ class HostLink {
       close: () => conn.close(),
       isOpen: () => conn.open,
       alive: () => linkAlive(conn),
+      backlog: () => conn.dataChannel?.bufferedAmount ?? 0,
     };
     this.links.set(link, { playerId: null, lastSeen: Date.now(), world: newWorldLink() });
     conn.on('data', (raw) => this.receive(link, raw as ClientMessage));
@@ -253,6 +263,7 @@ class HostLink {
       if (seat) presence.remove(seat.id);
       // Anything they were holding in the animal picker is free again.
       st.fromPlayer.dropped(pid);
+      this.noteSpeed(pid, null);
     }
     this.refreshOnline();
   }
@@ -280,7 +291,8 @@ class HostLink {
     if (!meta || !msg || typeof msg !== 'object') return;
     meta.lastSeen = Date.now();
     if (msg.t === 'ping') {
-      link.send({ t: 'pong' });
+      link.send({ t: 'pong', at: typeof msg.at === 'number' ? msg.at : undefined });
+      if (meta.playerId && typeof msg.rtt === 'number' && Number.isFinite(msg.rtt)) this.noteSpeed(meta.playerId, msg.rtt);
       return;
     }
     if (msg.t === 'hello') {
@@ -417,6 +429,9 @@ class HostLink {
     let legacy: { msg: HostMessage; json: string } | null = null;
     for (const [link, meta] of this.links) {
       if (!meta.playerId || !link.isOpen()) continue;
+      // A player whose connection can't keep up skips a beat or two rather than falling further behind: what's
+      // queued is already stale, and the next update says where everyone is now.
+      if ((link.backlog?.() ?? 0) > WORLD_BACKLOG) continue;
       if (!meta.delta) {
         // An older page (open since before this version): everyone, as before, whenever anything changed.
         legacy ??= (() => {
@@ -447,6 +462,17 @@ class HostLink {
         /* a closing channel; the sweep tidies it up */
       }
     }
+  }
+
+  /** Keeps the list of slow players, changing it only when someone crosses the line or slows by a lot. */
+  private noteSpeed(playerId: string, rtt: number | null) {
+    const slow = useHostNet.getState().slow;
+    const now = rtt !== null && rtt > SLOW_MS ? Math.round(rtt / 100) * 100 : null;
+    if ((slow[playerId] ?? null) === now) return;
+    const next = { ...slow };
+    if (now === null) delete next[playerId];
+    else next[playerId] = now;
+    useHostNet.setState({ slow: next });
   }
 
   /** For the debug console: how much the world updates have cost so far, in bytes. */

@@ -45,6 +45,8 @@ export function PlaceChip() {
   const view = useView();
   const place = useHud((s) => s.place);
   const status = useClient((s) => s.status);
+  const slow = useClient((s) => s.slow);
+  const rtt = useClient((s) => s.rtt);
   const night = view.phase === 'night';
   return (
     <div className="place-chip cosy-panel">
@@ -54,6 +56,14 @@ export function PlaceChip() {
       </span>
       <strong>{place}</strong>
       {view.mode === 'player' && status !== 'open' && <span className="place-warn">{status === 'waiting' ? 'Waiting for the Storyteller…' : 'Reconnecting…'}</span>}
+      {view.mode === 'player' && status === 'open' && slow && (
+        <span
+          className="place-warn"
+          title={`Messages are taking ${rtt ? `${(rtt / 1000).toFixed(1)} s` : 'a while'} to get to the Storyteller and back, so things may lag. A wired connection, being nearer the Wi-Fi, or closing other downloads can help.`}
+        >
+          Slow connection
+        </span>
+      )}
     </div>
   );
 }

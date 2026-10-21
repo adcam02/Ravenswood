@@ -45,8 +45,16 @@ useVoice.subscribe((s, p) => {
   }
 });
 
-/** How long a line stays open after someone wanders out of range, so walking along the edge doesn't redial. */
-const LINGER_MS = 12000;
+/**
+ * How long a line stays open after someone wanders out of range. An idle line carries nothing (neither side sends
+ * once out of earshot), so it's kept a good while: walking back into range, or the next meeting, is then instant,
+ * rather than every browser dialling every other at once whenever the bell rings.
+ */
+const LINGER_MS = 120000;
+/** At most this many lines open at once; past it, the ones idle longest are hung up first. */
+const MAX_LINES = 30;
+/** New calls started per sync (five a second): a meeting's worth of calls goes out over a couple of seconds, not in one burst. */
+const NEW_CALLS_PER_SYNC = 2;
 
 /** Opus bitrates, in bits per second: plenty for speech, and lower once a crowd is on the line. */
 const BITRATE = 24000;
@@ -269,7 +277,9 @@ class Voice {
     const level = (l: Listener) => l.gain * (people[l.key] ?? 1);
     this.wanted = new Map(listeners.map((l) => [l.voiceId, level(l)]));
     const now = Date.now();
-    for (const l of listeners) {
+    let dialled = 0;
+    // The loudest (nearest) first, so the people right beside us connect before those across the square.
+    for (const l of [...listeners].sort((a, b) => level(b) - level(a))) {
       const { voiceId } = l;
       const gain = level(l);
       if (voiceId === peer.id) continue;
@@ -281,7 +291,9 @@ class Voice {
       }
       // One side calls, so two browsers never call each other at once.
       if (!canCall || peer.id > voiceId) continue;
+      if (dialled >= NEW_CALLS_PER_SYNC) continue;
       if (now - (this.lastTry.get(voiceId) ?? 0) < 6000) continue;
+      dialled += 1;
       this.lastTry.set(voiceId, now);
       try {
         const call = peer.call(voiceId, this.stream(), { sdpTransform: tuneOpus });
@@ -291,7 +303,8 @@ class Voice {
       }
     }
     // People who've wandered out of range go quiet at once (and stop getting our voice), and the line is
-    // hung up a little later.
+    // hung up later (sooner if there are too many open).
+    const idle: [string, number][] = [];
     for (const [id, link] of this.links) {
       if (this.wanted.has(id)) {
         this.unwantedSince.delete(id);
@@ -301,11 +314,16 @@ class Voice {
       this.unwantedSince.set(id, since);
       link.audio.volume = 0;
       this.setSending(link, false);
-      if (now - since > LINGER_MS) {
-        this.unwantedSince.delete(id);
-        link.call.close();
-        this.drop(id, link);
-      }
+      idle.push([id, since]);
+    }
+    let spare = this.links.size - MAX_LINES;
+    for (const [id, since] of idle.sort((a, b) => a[1] - b[1])) {
+      if (now - since <= LINGER_MS && spare <= 0) break;
+      spare -= 1;
+      const link = this.links.get(id)!;
+      this.unwantedSince.delete(id);
+      link.call.close();
+      this.drop(id, link);
     }
     this.capBitrate();
     useVoice.setState({ links: [...this.links.values()].filter((l) => l.open).length });
@@ -324,9 +342,10 @@ class Voice {
   }
 
   private bitrateCap = 0;
-  /** With a crowd on the line (a town meeting), each voice is sent a little smaller. */
+  /** With a crowd in earshot (a town meeting), each voice is sent a little smaller. Idle lines don't count. */
   private capBitrate() {
-    const cap = this.links.size > CROWD ? CROWD_BITRATE : BITRATE;
+    const heard = [...this.links.keys()].filter((id) => this.wanted.has(id)).length;
+    const cap = heard > CROWD ? CROWD_BITRATE : BITRATE;
     if (cap === this.bitrateCap) return;
     this.bitrateCap = cap;
     for (const link of this.links.values()) this.applyBitrate(link, cap);

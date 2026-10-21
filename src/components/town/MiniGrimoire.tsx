@@ -41,6 +41,7 @@ export function MiniGrimoire() {
                 view.marked?.seatId === s.id && 'is-marked',
                 voted && 'has-voted',
                 !s.connected && s.claimed && 'is-offline',
+                s.slow && 'is-slow',
               ]
                 .filter(Boolean)
                 .join(' ')}

@@ -1205,6 +1205,9 @@
 .mini-seat.is-offline em {
   opacity: 0.5;
 }
+.mini-seat.is-slow em {
+  color: #b9781a;
+}
 .mini-seat.is-nominee .token {
   box-shadow: 0 0 0 2px var(--evil);
   border-radius: 50%;

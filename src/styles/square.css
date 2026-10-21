@@ -142,6 +142,11 @@
   background: #6fdc8c;
   box-shadow: 0 0 8px #6fdc8c;
 }
+/* Online, but their connection is slow. */
+.seat .dot.on.slow {
+  background: #f2b84b;
+  box-shadow: 0 0 8px #f2b84b;
+}
 .seat.is-dead .seat-plate {
   color: var(--text-dim);
 }
