@@ -45,7 +45,13 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      sheep jumped the fence, from either side? Every jump counts as one; the odd goat or wolf slips
      through too, and they don't count. Get it right and you wear a **gold star** over your head all the next day. One go a night. The
      Storyteller wakes players with the same tools as the Grimoire, and can float to a bedside to talk
-     to its owner privately.
+     to its owner privately. The **night guide** at the top of the Storyteller's screen walks through
+     the night order for just the characters in play: **Wake** opens the wake screen for whoever has
+     the character, with their question ready ("Who do you want to poison?"), and **Next** (there or
+     in the wake screen) puts them back to sleep, ticks them off and wakes the next, all the way to
+     **Bring the dawn**. **Skip** passes over someone (a dead Monk, say), the back arrow undoes a
+     tick, and the arrow at the top tucks the guide away to a small tab. It shares its ticks with
+     the night order in the side panel.
    - **Day**: everyone comes back outside. Deaths in the night are announced at dawn, and dead players
      become ghosts of their animal: they can still walk around and talk.
    - **Ring the bell** and a bell call pops up on every player's screen, wherever they are, and after a
