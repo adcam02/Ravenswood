@@ -43,7 +43,7 @@ export class Fold {
 }
 
 /** Counts of faces built and faces that point into their own shape (which should never happen). */
-export const audit = { faces: 0, inward: 0, trace: null as Map<string, number> | null };
+export const audit = { faces: 0, inward: 0, trace: null as Map<string, number> | null, at: null as number[][] | null };
 export function resetAudit() {
   audit.faces = 0;
   audit.inward = 0;
@@ -151,6 +151,7 @@ function finish(f: Fold, g: THREE.BufferGeometry, color: Color, paint: Paint | u
         const where = (new Error().stack ?? '').split('\n').slice(2, 6).map((l) => l.trim().split(' ')[1]).join(' < ');
         audit.trace.set(where, (audit.trace.get(where) ?? 0) + 1);
       }
+      audit.at?.push([centre.x, centre.y, centre.z, normal.x, normal.y, normal.z]);
     }
     unitCentre.fromBufferAttribute(u, i).add(tmp.fromBufferAttribute(u, i + 1)).add(tmp.fromBufferAttribute(u, i + 2)).multiplyScalar(1 / 3);
     const painted = paint?.(unitCentre, centre, normal);

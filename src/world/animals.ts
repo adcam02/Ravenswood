@@ -92,10 +92,10 @@ const restPose = (): Pose => ({
   hrx: 0,
   hry: 0,
   hrz: 0,
-  alx: -0.06,
-  alz: 0.1,
-  arx: -0.06,
-  arz: -0.1,
+  alx: -0.14,
+  alz: 0.16,
+  arx: -0.14,
+  arz: -0.16,
   llx: 0,
   llz: 0,
   lrx: 0,
@@ -119,37 +119,43 @@ function aux(A: AuxMap, name: string): AuxPose {
 }
 
 /**
- * How each thing is carried: where the paw goes (up from the shoulder, and forward of the front of the
- * body), how far the arm swings out, and whether both paws hold it in front of the middle of the body.
+ * How each thing is carried: where the paw goes (up from the shoulder, forward of the front of the body, and
+ * out to the side of the shoulder, in metres), and whether both paws hold it in front of the middle.
  */
 interface Hold {
   dy: number;
   dz: number;
   out: number;
   both?: boolean;
+  /**
+   * For a sip (or a nibble): the spot on the item that meets the mouth (up from the grip, and forward of
+   * it), and how far it's tipped towards the face.
+   */
+  sip?: [number, number, number];
 }
 
-const MUG: Hold = { dy: -0.2, dz: 0.03, out: 0.16 };
+const MUG: Hold = { dy: -0.2, dz: 0.03, out: 0.05, sip: [0.14, 0.0, 0.6] };
 const HOLD: Record<ItemKind, Hold> = {
   ale: MUG,
   cider: MUG,
   milk: MUG,
   cocoa: MUG,
-  wine: { dy: -0.17, dz: 0.03, out: 0.16 },
-  bun: { dy: -0.2, dz: 0.04, out: 0.14 },
-  loaf: { dy: -0.24, dz: 0.05, out: 0.05, both: true },
-  pie: { dy: -0.24, dz: 0.05, out: 0.04, both: true },
+  wine: { dy: -0.17, dz: 0.03, out: 0.05, sip: [0.185, 0.03, 0.5] },
+  // Food isn't tipped: the head nods down to take a bite.
+  bun: { dy: -0.2, dz: 0.04, out: 0.04, sip: [0.05, -0.06, 0] },
+  loaf: { dy: -0.24, dz: 0.05, out: 0, both: true, sip: [0.04, -0.1, 0] },
+  pie: { dy: -0.24, dz: 0.05, out: 0, both: true, sip: [0.06, -0.1, 0] },
   // Held up to show it off, out to the side of the face.
-  fish: { dy: -0.04, dz: 0.06, out: 0.42 },
-  flower: { dy: -0.1, dz: 0.05, out: 0.38 },
+  fish: { dy: -0.04, dz: 0.06, out: 0.16 },
+  flower: { dy: -0.1, dz: 0.05, out: 0.17 },
   // Low at the side and angled out, clear of the head.
-  rod: { dy: -0.26, dz: 0.0, out: 0.32 },
-  can: { dy: -0.26, dz: 0.04, out: 0.04, both: true },
-  washing: { dy: -0.3, dz: 0.06, out: 0.0, both: true },
-  // A bucket hangs by its handle at the side.
-  water: { dy: -0.36, dz: -0.02, out: 0.34 },
-  firewood: { dy: -0.24, dz: 0.05, out: 0.0, both: true },
-  grimoire: { dy: -0.12, dz: 0.12, out: 0.0, both: true },
+  rod: { dy: -0.26, dz: 0.0, out: 0.1 },
+  can: { dy: -0.26, dz: 0.04, out: 0, both: true },
+  washing: { dy: -0.3, dz: 0.06, out: 0.02, both: true },
+  // A bucket hangs by its handle at the side, and is lifted right up to drink from.
+  water: { dy: -0.06, dz: 0.0, out: 0.12, sip: [-0.1, -0.07, 0.4] },
+  firewood: { dy: -0.24, dz: 0.05, out: 0, both: true },
+  grimoire: { dy: -0.12, dz: 0.12, out: 0, both: true },
 };
 
 /** How long each idle mannerism takes, in seconds. */
@@ -308,13 +314,22 @@ interface RigParts {
 /** Distant versions of each animal and colour, shared by every rig that needs one. Never disposed: they're small. */
 const lowCache = new Map<string, THREE.BufferGeometry>();
 
-/** The angle (about x) and stretch that point an arm's grip from its shoulder at a target, both in body space. */
-function aim(shoulder: THREE.Vector3, grip: THREE.Vector3, ty: number, tz: number): { a: number; s: number } {
-  const dy = ty - shoulder.y;
-  const dz = tz - shoulder.z;
-  const reach = Math.hypot(grip.y, grip.z);
-  const lead = Math.atan2(grip.z, -grip.y);
-  return { a: Math.atan2(-dz, -dy) + lead, s: THREE.MathUtils.clamp(Math.hypot(dy, dz) / reach, 0.7, 1.25) };
+const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+
+/**
+ * The turns (about z, then x) and stretch that put an arm's grip on a point, all in body space. The grip
+ * hangs below the shoulder (and a little in front of it) when the arm is at rest.
+ */
+function aim(shoulder: THREE.Vector3, grip: THREE.Vector3, target: THREE.Vector3, stretch = 1.3): { ax: number; az: number; s: number } {
+  const d = target.clone().sub(shoulder);
+  const len = grip.length();
+  const s = THREE.MathUtils.clamp(d.length() / len, 0.7, stretch);
+  const D = d.normalize().multiplyScalar(len);
+  // Turning about z swings the grip out sideways; then turning about x carries it forward or up.
+  const az = Math.asin(THREE.MathUtils.clamp(D.x / -grip.y, -1, 1));
+  const gy = grip.y * Math.cos(az);
+  const ax = wrap(Math.atan2(D.z, D.y) - Math.atan2(grip.z, gy));
+  return { ax, az, s };
 }
 
 class AnimalRig implements Rig {
@@ -378,13 +393,22 @@ class AnimalRig implements Rig {
   // Landmarks in body space, for aiming paws.
   private shoulder: THREE.Vector3;
   private grip: THREE.Vector3;
+  private paw: THREE.Vector3;
+  /** How far the paw sticks out round its middle. */
+  private pawR: number;
   private seat: number;
   private front: number;
   private mouth: THREE.Vector3;
   private eyePos: THREE.Vector3;
+  private neckPos: THREE.Vector3;
+  /** The head's middle (body space) and its half-width (cheeks included), height and depth. */
+  private headC: THREE.Vector3;
+  private headR: THREE.Vector3;
   private hasLegs: boolean;
   private shape: Shape;
   private v = new THREE.Vector3();
+  private m4 = new THREE.Matrix4();
+  private m5 = new THREE.Matrix4();
 
   constructor(p: RigParts) {
     const k = p.kit;
@@ -407,12 +431,17 @@ class AnimalRig implements Rig {
     if (p.eyeMaterial) this.owned.push(p.eyeMaterial);
     this.shoulder = new THREE.Vector3(-j.shoulder[0], j.shoulder[1], j.shoulder[2]);
     this.grip = new THREE.Vector3(...j.hand);
+    this.paw = new THREE.Vector3(...(j.paw ?? [j.hand[0], j.hand[1], j.hand[2] * 0.2]));
+    this.pawR = Math.max(0.03, (j.hand[2] - this.paw.z) * 0.9);
     this.seat = k.seat;
     this.shape = k.shape;
     const s = k.shape;
-    this.front = s.tc[2] + s.tr[2] * 1.02;
+    this.front = k.front ?? s.tc[2] + s.tr[2] * 1.12;
     this.mouth = new THREE.Vector3(...(k.nose ?? [0, s.hc[1] - s.hr[1] * 0.4, s.hc[2] + s.hr[2]])).add(new THREE.Vector3(...j.neck));
     this.eyePos = new THREE.Vector3(k.eyeX, k.eyeY, k.eyeZ).add(new THREE.Vector3(...j.neck));
+    this.neckPos = new THREE.Vector3(...j.neck);
+    this.headC = new THREE.Vector3(...s.hc).add(this.neckPos);
+    this.headR = new THREE.Vector3(s.hr[0] * 1.15, s.hr[1], s.hr[2]);
     this.hasLegs = !k.legL.empty;
 
     // The skeleton, at rest.
@@ -436,7 +465,8 @@ class AnimalRig implements Rig {
     this.blinkers = k.blink.map(bone).filter(Boolean);
     this.extra = this.sk.names.filter((n) => !STANDARD.includes(n));
     this.root.add(this.float);
-    this.hand.position.set(...j.hand);
+    // The hand's placement is worked out each frame (see applyPose), so it stays level and full size.
+    this.hand.matrixAutoUpdate = false;
     this.armR.add(this.hand);
     this.hand.add(this.handTilt);
 
@@ -637,31 +667,86 @@ class AnimalRig implements Rig {
     this.applyHatGhost();
   }
 
-  /** Points the right paw's grip at a spot in body space (and the left paw at its mirror image). */
-  private reach(P: Pose, side: 'r' | 'l' | 'both', y: number, z: number, out: number) {
-    const { a, s } = aim(this.shoulder, this.grip, y, z);
+  /**
+   * Puts the right paw's grip on a spot in body space: `y` up, `z` forward, and `out` metres further out to
+   * the side than the shoulder (less than 0 brings it in towards the middle). The left paw takes the mirror
+   * image.
+   */
+  private reach(P: Pose, side: 'r' | 'l' | 'both', y: number, z: number, out: number, by: 'grip' | 'paw' = 'grip') {
+    const sh = this.shoulder;
+    // A snail's tendril is stretchier than a leg.
+    const { ax, az, s } = aim(sh, by === 'paw' ? this.paw : this.grip, new THREE.Vector3(sh.x - out, Math.max(0.1, y), z), this.tendril ? 2 : 1.3);
     if (side !== 'l') {
-      P.arx = a;
+      P.arx = ax;
+      P.arz = az;
       P.sr = s;
-      P.arz = -out;
     }
     if (side !== 'r') {
-      P.alx = a;
+      P.alx = ax;
+      P.alz = -az;
       P.sl = s;
-      P.alz = out;
     }
   }
 
-  /** Paws holding something clear of the body, for standing, walking and sitting. */
-  private carryPose(P: Pose, sway: number) {
+  /**
+   * Where the grip goes to carry something: short arms carry things higher up, within an easy reach, and
+   * far enough forward that the paw (not just the thing in it) is clear of the tummy.
+   */
+  private holdSpot(h: Hold): { y: number; z: number } {
+    const low = this.shoulder.y - this.grip.length() * 0.8;
+    return {
+      y: Math.max(low, this.shoulder.y + h.dy),
+      z: Math.max(this.front + h.dz, this.front + this.pawR + (this.grip.z - this.paw.z) * 0.8),
+    };
+  }
+
+  /** Paws holding something clear of the body, for standing, walking and sitting (or just the right paw). */
+  private carryPose(P: Pose, sway: number, rightOnly = false) {
     const h = this.hold;
     if (!h) return;
-    this.reach(P, h.both ? 'both' : 'r', this.shoulder.y + h.dy, this.front + h.dz, h.out);
+    const at = this.holdSpot(h);
+    const both = h.both && !rightOnly;
+    this.reach(P, both ? 'both' : 'r', at.y, at.z, both ? h.out : Math.max(h.out, 0.04));
     P.arx += sway;
-    if (h.both) {
+    P.carry = 0;
+    if (both) {
       P.alx += sway;
       P.carry = 1;
     }
+  }
+
+  /** Where a spot on the head (body space, at rest) is once the head is pitched by `hrx`. */
+  private headNow(p: THREE.Vector3, hrx: number): THREE.Vector3 {
+    return p.clone().sub(this.neckPos).applyAxisAngle(new THREE.Vector3(1, 0, 0), hrx).add(this.neckPos);
+  }
+
+  /** Out to the side of the head, clear of it, as an `out` for `reach`. */
+  private besideHead(extra = 0): number {
+    return this.headR.x + this.pawR + 0.03 + extra - Math.abs(this.shoulder.x);
+  }
+
+  /**
+   * A paw raised beside the head: as high as `y` if the arm reaches, otherwise as high as it can while
+   * staying clear of the side of the head (a bunny can't get a paw over its ears).
+   */
+  private raise(P: Pose, side: 'r' | 'both', y: number, extra = 0) {
+    const out = this.besideHead(extra);
+    const sh = this.shoulder;
+    const z = this.headC.z;
+    const L = this.paw.length() * 1.25;
+    const room = L * L - out * out - (z - sh.z) ** 2;
+    const top = sh.y + Math.sqrt(Math.max(0, room));
+    this.reach(P, side, Math.min(y, top), z, out, 'paw');
+  }
+
+  /** The paw that isn't busy: held up in front for animals that carry their paws that way. */
+  private freePaw(P: Pose) {
+    if (!this.prof.paws) return;
+    const left = restPose();
+    this.reach(left, 'l', this.shoulder.y - this.prof.paws, this.front + this.pawR + 0.01, -0.035, 'paw');
+    P.alx = left.alx;
+    P.alz = left.alz;
+    P.sl = left.sl;
   }
 
   /** Walking and running, in the species' own gait. */
@@ -679,9 +764,10 @@ class AnimalRig implements Rig {
         P.by = up * (run ? 0.13 : 0.085);
         P.brx = 0.05 + up * 0.14;
         P.llx = P.lrx = up * 0.6 - down * 0.25;
-        P.alx = P.arx = -0.55 - up * 0.35;
-        P.alz = 0.05;
-        P.arz = -0.05;
+        // Paws tucked up in front of the chest, bobbing with each hop.
+        this.reach(P, 'both', this.shoulder.y - (prof.paws || 0.1) + up * 0.02, this.front + this.pawR + 0.01, -0.03, 'paw');
+        P.alx -= up * 0.15;
+        P.arx -= up * 0.15;
         P.hrx = -up * 0.12;
         aux(A, 'earL')[0] = aux(A, 'earR')[0] = -0.2 - up * 0.45;
         break;
@@ -699,10 +785,11 @@ class AnimalRig implements Rig {
         // A rolling, hunched amble, front paws swinging like front legs.
         P.llx = sin(w) * amp;
         P.lrx = -sin(w) * amp;
-        P.alx = -0.2 - sin(w) * amp * 0.75;
-        P.arx = -0.2 + sin(w) * amp * 0.75;
-        P.alz = 0.04;
-        P.arz = -0.04;
+        // Swinging about a forward point, so the paws never swing back into the belly.
+        P.alx = (run ? -0.58 : -0.34) - sin(w) * amp * (run ? 0.36 : 0.42);
+        P.arx = (run ? -0.58 : -0.34) + sin(w) * amp * (run ? 0.36 : 0.42);
+        P.alz = 0.1;
+        P.arz = -0.1;
         P.brz = sin(w) * 0.08;
         P.bry = sin(w) * 0.06;
         P.by = Math.abs(sin(w)) * 0.018;
@@ -717,8 +804,10 @@ class AnimalRig implements Rig {
         // A light, quick trot.
         P.llx = sin(w) * amp;
         P.lrx = -sin(w) * amp;
-        P.alx = -0.08 - sin(w) * amp * 0.55;
-        P.arx = -0.08 + sin(w) * amp * 0.55;
+        P.alx = -0.3 - sin(w) * amp * 0.4;
+        P.arx = -0.3 + sin(w) * amp * 0.4;
+        P.alz = 0.12;
+        P.arz = -0.12;
         P.by = Math.abs(sin(w)) * (run ? 0.05 : 0.03);
         P.brz = sin(w) * 0.04;
         P.brx = run ? 0.14 : 0.05;
@@ -749,6 +838,7 @@ class AnimalRig implements Rig {
       aux(A, 'stalkL')[0] = aux(A, 'stalkR')[0] = 0.3;
       aux(A, 'stalkL')[2] = 0.12;
       aux(A, 'stalkR')[2] = -0.12;
+      if (this.hold) this.carryPose(P, 0);
       return;
     }
     P.by = -this.seat + 0.004;
@@ -758,7 +848,7 @@ class AnimalRig implements Rig {
       P.llx = P.lrx = -1.5;
       P.llz = 0.22;
       P.lrz = -0.22;
-      this.reach(P, 'both', sh.y - 0.2, this.front + 0.01, -0.06);
+      this.reach(P, 'both', sh.y - Math.min(0.2, this.grip.length() * 0.7), this.front + this.pawR + 0.005, -0.05, 'paw');
       P.hrx = 0.1;
       P.trx = 0.4;
     } else {
@@ -766,28 +856,26 @@ class AnimalRig implements Rig {
       P.llx = P.lrx = -1.3;
       P.llz = 0.16;
       P.lrz = -0.16;
-      const sy = sh.y + P.by;
-      const reachDown = Math.hypot(this.grip.y, this.grip.z) + 0.03;
-      const a = sy < reachDown ? Math.acos(THREE.MathUtils.clamp(sy / reachDown, 0, 1)) : 0;
-      P.alx = P.arx = -a - 0.12;
-      P.sl = P.sr = sy > reachDown ? THREE.MathUtils.clamp(sy / reachDown, 1, 1.25) : 1;
-      P.alz = -0.1;
-      P.arz = 0.1;
+      this.reach(P, 'both', this.seat + this.pawR * 0.8, this.front + this.pawR + 0.01, -0.02, 'paw');
       if (style === 'wrap') {
-        // The tail swept round to lie over the front feet, head tilted.
-        P.trx = 0.35;
-        P.try = -1.45;
-        aux(A, 'tail1')[1] = -0.75;
+        // The tail swept round on the ground to lie by the front feet, head tilted. (Angles found by fitting
+        // the tail to the ground and round the side on the test bench.)
+        P.trx = 0.8;
+        P.try = -0.34;
+        aux(A, 'tail1')[0] = -0.8;
+        aux(A, 'tail1')[1] = -1.6;
+        aux(A, 'tail2')[0] = -0.66;
         aux(A, 'tail2')[1] = -0.85;
-        aux(A, 'tail1')[0] = -0.25;
-        aux(A, 'tail2')[0] = -0.35;
         P.hrz = 0.16;
         P.hry = 0.12 + Math.sin(t * 0.3) * 0.08;
       } else {
-        // The tail curled round on the ground beside it.
-        P.trx = 0.22;
-        P.try = -0.7;
-        aux(A, 'tail1')[1] = -0.3;
+        // The tail curled round on the ground beside it, like the papercraft raccoon's.
+        P.trx = 0.67;
+        P.try = -0.08;
+        aux(A, 'tail1')[0] = -0.79;
+        aux(A, 'tail1')[1] = -1.08;
+        aux(A, 'tail2')[0] = 0.29;
+        aux(A, 'tail2')[1] = -1.21;
         P.hry = Math.sin(t * 0.35) * 0.2;
       }
     }
@@ -865,7 +953,7 @@ class AnimalRig implements Rig {
       case 'rubPaws': {
         // Both paws together in front of the chest, rubbing.
         const T = restPose();
-        this.reach(T, 'both', sh.y - 0.1, this.front + 0.02, -0.14);
+        this.reach(T, 'both', sh.y - 0.1, this.front + this.pawR + 0.02, this.pawR * 0.9 - Math.abs(sh.x), 'paw');
         blendTo(T, ['alx', 'arx', 'alz', 'arz', 'sl', 'sr']);
         const r = sin(t * 13) * 0.09 * e;
         P.alz += r;
@@ -949,7 +1037,7 @@ class AnimalRig implements Rig {
         break;
       case 'scratch': {
         const T = restPose();
-        this.reach(T, 'r', sh.y - 0.18, this.front - 0.02, 0.05);
+        this.reach(T, 'r', sh.y - 0.18, this.front - 0.02, 0.03);
         blendTo(T, ['arx', 'arz', 'sr']);
         P.arz += sin(t * 18) * 0.1 * e;
         P.hrx += 0.15 * e;
@@ -957,7 +1045,7 @@ class AnimalRig implements Rig {
       }
       case 'lickPaw': {
         const T = restPose();
-        this.reach(T, 'r', this.mouth.y - 0.06, this.mouth.z + 0.02, 0.02);
+        this.reach(T, 'r', this.mouth.y - 0.06, this.mouth.z + 0.02, 0.04 - Math.abs(sh.x));
         blendTo(T, ['arx', 'arz', 'sr']);
         P.hrx += (0.18 + sin(t * 9) * 0.05) * e;
         P.hry -= 0.15 * e;
@@ -1003,6 +1091,7 @@ class AnimalRig implements Rig {
             a[6] = 0.4;
           }
           aux(A, 'rear')[5] = 0.03;
+          if (this.hold) this.carryPose(P, 0);
           break;
         }
         // On its back, head towards the back of the root, centred on the origin.
@@ -1019,24 +1108,24 @@ class AnimalRig implements Rig {
         aux(A, 'earL')[0] = aux(A, 'earR')[0] = 0.3;
         break;
       case 'wave':
-        P.arz = -2.3 + sin(t * 9) * 0.35;
-        P.arx = -0.2;
+        // Up beside the head, clear of it, waving side to side.
+        this.raise(P, 'r', this.headC.y + 0.02, 0.02 + sin(t * 9) * 0.05);
+        this.freePaw(P);
         P.hrz = 0.1;
         P.brz = 0.04;
         P.try = sin(t * 6) * 0.4;
         if (prof.gait === 'hop') P.by = Math.max(0, sin(t * 4.5)) * 0.03;
         break;
       case 'hand':
-        P.arz = -2.75;
-        P.arx = -0.15;
+        // A paw straight up beside the head, for a vote.
+        this.raise(P, 'r', this.headC.y + this.headR.y + 0.12, -0.02);
+        this.freePaw(P);
         P.by = Math.abs(sin(t * 2.5)) * 0.012;
         P.hrz = 0.06;
         break;
       case 'cheer': {
-        const k = sin(t * 10) * 0.22;
-        P.alz = 2.45 + k;
-        P.arz = -(2.45 + k);
-        P.alx = P.arx = -0.2;
+        const k = sin(t * 10) * 0.04;
+        this.raise(P, 'both', this.headC.y + this.headR.y + 0.08 + k, 0.03);
         P.by = Math.abs(sin(t * 5)) * (prof.gait === 'hop' ? 0.14 : 0.1);
         P.hrx = -0.18;
         P.try = sin(t * 10) * 0.5;
@@ -1067,13 +1156,16 @@ class AnimalRig implements Rig {
         P.brz = sin(t * 18) * 0.035;
         P.by = Math.abs(sin(t * 9)) * 0.025;
         // Paws on the belly.
-        this.reach(P, 'both', sh.y - 0.24, this.front + 0.03, 0.04);
+        this.reach(P, 'both', sh.y - 0.2, this.front + this.pawR, 0, 'paw');
         P.try = sin(t * 9) * 0.3;
         break;
       case 'cry':
         P.hrx = 0.34 + sin(t * 12) * 0.03;
-        // Paws up over the eyes.
-        this.reach(P, 'both', this.eyePos.y - 0.06, this.eyePos.z + 0.07, -0.08);
+        {
+          // Paws up over the eyes (where they are with the head bowed).
+          const e = this.headNow(this.eyePos, 0.34 + prof.head - prof.lean);
+          this.reach(P, 'both', e.y - 0.02, e.z + this.pawR + 0.025, e.x - Math.abs(sh.x), 'paw');
+        }
         P.brz = sin(t * 14) * 0.025;
         P.by = -0.01;
         aux(A, 'earL')[0] = aux(A, 'earR')[0] = 0.35;
@@ -1081,7 +1173,8 @@ class AnimalRig implements Rig {
         break;
       case 'work': {
         const k = sin(t * 7) * 0.05;
-        this.reach(P, 'both', sh.y - 0.26 + k, this.front + 0.1, 0.02);
+        const low = sh.y - this.grip.length() * 0.8;
+        this.reach(P, 'both', Math.max(low, sh.y - 0.26) + k, Math.max(this.front + 0.1, this.front + this.pawR + (this.grip.z - this.paw.z)), -0.03);
         P.alx += k * 2;
         P.arx -= k * 2;
         P.hrx = 0.25;
@@ -1094,7 +1187,7 @@ class AnimalRig implements Rig {
         const twitch = sin(t * 0.9) > 0.9 ? sin(t * 40) * 0.08 : 0;
         // Both paws forward round the rod (or the book).
         const both = Boolean(this.hold?.both);
-        this.reach(P, 'both', sh.y + (both ? -0.08 : -0.16), this.front + (both ? 0.14 : 0.1), both ? 0 : 0.06);
+        this.reach(P, 'both', sh.y + (both ? -0.08 : -0.16), this.front + (both ? 0.14 : 0.1), both ? -0.02 : 0.02);
         P.alx += twitch;
         P.arx += twitch;
         P.hrx = 0.12;
@@ -1103,24 +1196,29 @@ class AnimalRig implements Rig {
         break;
       }
       case 'water':
-        this.reach(P, 'r', sh.y - 0.16, this.front + 0.1, 0.1);
+        this.reach(P, 'r', sh.y - 0.16, this.front + 0.1, 0.05);
         P.alz = 0.2;
         P.hrx = 0.28;
         P.tilt = 0.75 + sin(t * 3) * 0.1;
+        this.freePaw(P);
         break;
       case 'drink': {
         const cyc = t % 3.2;
         const sip = cyc < 1.4 ? sin((cyc / 1.4) * Math.PI) : 0;
         // From the carrying spot up to the mouth (a mug's rim is about 0.14 above the grip and 0.07 in front).
         const h = this.hold ?? MUG;
-        const y0 = sh.y + h.dy;
-        const z0 = this.front + h.dz;
-        const y1 = this.mouth.y - 0.13;
-        const z1 = this.mouth.z - 0.02;
-        this.reach(P, 'r', y0 + (y1 - y0) * sip, z0 + (z1 - z0) * sip, h.out * (1 - sip) + 0.02 * sip);
-        P.hrx = -sip * 0.22;
-        P.tilt = -sip * 0.8;
+        const { y: y0, z: z0 } = this.holdSpot(h);
+        // Put the paw where the item's rim (or the bite) meets the mouth once it's tipped towards the face.
+        const [cy, cz, tip] = h.sip ?? MUG.sip!;
+        const th = -tip;
+        const m = this.headNow(this.mouth, (tip ? -0.15 : 0.12) + prof.head - prof.lean);
+        const y1 = m.y - (cy * Math.cos(th) - cz * Math.sin(th));
+        const z1 = m.z + 0.015 - (cy * Math.sin(th) + cz * Math.cos(th));
+        this.reach(P, 'r', y0 + (y1 - y0) * sip, z0 + (z1 - z0) * sip, h.out * (1 - sip) + (0.03 - Math.abs(sh.x)) * sip);
+        P.hrx = tip ? -sip * 0.15 : sip * 0.12;
+        P.tilt = th * sip;
         P.try = sin(t * 2) * 0.2;
+        this.freePaw(P);
         break;
       }
       default: {
@@ -1133,12 +1231,12 @@ class AnimalRig implements Rig {
         aux(A, 'tail2')[1] = sin(t * 1.6 * slow - 1.4) * prof.tailSway * 0.8;
         P.by = sin(t * 2.2 * slow) * 0.005;
         if (prof.paws) {
-          P.alx = P.arx = -prof.paws + sin(t * 2.2) * 0.02;
-          P.alz = -0.08;
-          P.arz = 0.08;
+          // Paws held up in front of the chest, this far below the shoulders.
+          this.reach(P, 'both', sh.y - prof.paws + sin(t * 2.2) * 0.005, this.front + this.pawR + 0.01, -0.035, 'paw');
         } else {
-          P.alz = 0.1 + sin(t * 2.2 * slow) * 0.02;
-          P.arz = -0.1 - sin(t * 2.2 * slow) * 0.02;
+          P.alx = P.arx = -0.14;
+          P.alz = 0.16 + sin(t * 2.2 * slow) * 0.02;
+          P.arz = -0.16 - sin(t * 2.2 * slow) * 0.02;
         }
         if (prof.gait === 'slither') {
           aux(A, 'rear')[5] = sin(t * 0.9) * 0.006;
@@ -1157,6 +1255,16 @@ class AnimalRig implements Rig {
           if (!this.hold.both) [P.alx, P.alz, P.sl] = left;
         }
       }
+    }
+    // Holding something through a gesture: the other paw does the waving and the holding paw keeps hold
+    // (a snail's single tendril just keeps hold).
+    if (this.hold && (s.anim === 'wave' || s.anim === 'hand' || s.anim === 'cheer' || s.anim === 'cry' || s.anim === 'laugh' || s.anim === 'dance')) {
+      if ((s.anim === 'wave' || s.anim === 'hand') && !this.tendril) {
+        P.alx = P.arx;
+        P.alz = -P.arz;
+        P.sl = P.sr;
+      }
+      this.carryPose(P, 0, true);
     }
     // The species' posture on top: a hunch or an upright carriage, with the face kept level.
     if (s.anim !== 'sleep') {
@@ -1227,17 +1335,22 @@ class AnimalRig implements Rig {
       b.position.set(rest.x + a[3], rest.y + a[4], rest.z + a[5]);
       b.scale.setScalar(a[6]);
     }
-    // Keep the held item level whatever the arm is doing, then tip it on purpose.
-    this.hand.quaternion.copy(this.armR.quaternion).invert();
-    this.hand.scale.set(1, 1 / P.sr, 1);
+    // A tendril only comes out when there's something to hold or a gesture to make.
+    const grow = this.tendril ? Math.max(0.001, this.grow) : 1;
+    if (this.tendril) this.armR.scale.multiplyScalar(grow);
+    // The hand sits on the grip, square to the body and unstretched whatever the arm is doing (so mugs
+    // don't spill), then the item is tipped on purpose.
+    this.armR.updateMatrix();
+    const grip = this.v.copy(this.grip).applyMatrix4(this.armR.matrix);
+    this.hand.matrix
+      .copy(this.armR.matrix)
+      .invert()
+      .multiply(this.m4.makeTranslation(grip.x, grip.y, grip.z))
+      .multiply(this.m5.makeScale(grow, grow, grow));
+    this.hand.matrixWorldNeedsUpdate = true;
     this.handTilt.rotation.set(P.tilt, 0, 0);
     // A load held in both paws slides across to sit in front of the middle of the body.
-    if (this.item) {
-      const v = this.v.copy(this.grip).multiply(this.armR.scale).applyEuler(this.armR.rotation).add(this.armR.position);
-      this.item.position.x = -v.x * P.carry;
-    }
-    // A tendril only comes out when there's something to hold or a gesture to make.
-    if (this.tendril) this.armR.scale.multiplyScalar(Math.max(0.001, this.grow));
+    if (this.item) this.item.position.x = -grip.x * P.carry;
   }
 
   update(s: RigState) {
@@ -1374,7 +1487,7 @@ function torsoR(s: Shape, y: number) {
 
 /** Some bodies need their neck ring or back placed by hand: the snail's back is its shell. */
 const DRESS_NUDGE: Partial<Record<AnimalId, { neck?: Partial<NeckFit>; back?: Partial<BackFit>; floating?: boolean }>> = {
-  snail: { neck: { centre: [0, 0.2, 0.31], r: 0.095, tilt: 0.5 }, back: { centre: [0, 0.39, -0.1], r: 0.19, depth: 0.27, top: 0.66, bottom: 0.16 }, floating: true },
+  snail: { neck: { centre: [0, 0.17, 0.33], r: 0.098, tilt: 0.55 }, back: { centre: [0, 0.39, -0.1], r: 0.19, depth: 0.27, top: 0.66, bottom: 0.16 }, floating: true },
 };
 
 function dressFit(id: AnimalId, k: Kit): { face: FaceFit; neck: NeckFit; back: BackFit } {

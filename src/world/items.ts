@@ -7,16 +7,24 @@ import type { Item } from './types';
  * stands upright, a little in front of the paw. The rig keeps the hand anchor level, so mugs don't spill.
  */
 
-// Round enough that the smoothed normals read as smooth (edges under the crease angle).
-const SPH = new THREE.SphereGeometry(1, 18, 12);
-const CYL = new THREE.CylinderGeometry(1, 1, 1, 18);
-const CYL6 = new THREE.CylinderGeometry(1, 1, 1, 12);
-const CONE = new THREE.ConeGeometry(1, 1, 14);
+// Folded-card props to match the animals: few sides, flat facets. Little round bits get even fewer.
+const SPH = new THREE.SphereGeometry(1, 10, 7);
+const SPH_S = new THREE.SphereGeometry(1, 6, 4);
+const CYL = new THREE.CylinderGeometry(1, 1, 1, 10);
+const CYL6 = new THREE.CylinderGeometry(1, 1, 1, 6);
+const CONE = new THREE.ConeGeometry(1, 1, 8);
 const BOX = new THREE.BoxGeometry(1, 1, 1);
-const TORUS = new THREE.TorusGeometry(1, 0.28, 10, 24);
-const THIN_TORUS = new THREE.TorusGeometry(1, 0.1, 8, 24);
-const BASKET = new THREE.CylinderGeometry(1, 0.8, 1, 18);
-const ICO = new THREE.IcosahedronGeometry(1, 2);
+const TORUS = new THREE.TorusGeometry(1, 0.28, 5, 12);
+const THIN_TORUS = new THREE.TorusGeometry(1, 0.1, 3, 12);
+const BASKET = new THREE.CylinderGeometry(1, 0.8, 1, 10);
+const ICO = new THREE.IcosahedronGeometry(1, 0);
+
+/** A round bit, with fewer sides when it's small. */
+function ball(b: Builder, color: THREE.ColorRepresentation, p: { pos?: Vec3; rot?: Vec3; scale?: number | Vec3 }) {
+  const sc = p.scale ?? 1;
+  const big = typeof sc === 'number' ? sc : Math.max(...sc);
+  b.add(big < 0.035 ? SPH_S : SPH, color, p);
+}
 
 const DRINK: Record<string, { cup: string; band: string; top: string; foam?: string }> = {
   ale: { cup: '#a8743f', band: '#5d5a5a', top: '#d98c2b', foam: '#fbf3df' },
@@ -36,14 +44,14 @@ function mug(b: Builder, kind: string) {
   b.add(CYL, d.top, { pos: [o[0], o[1] + 0.138, o[2]], scale: [0.062, 0.004, 0.062] });
   b.add(TORUS, d.cup, { pos: [o[0], o[1] + 0.075, o[2] - 0.07], rot: [0, Math.PI / 2, 0], scale: 0.035 });
   if (d.foam) {
-    b.add(SPH, d.foam, { pos: [o[0], o[1] + 0.15, o[2]], scale: [0.068, 0.035, 0.068] });
-    b.add(SPH, d.foam, { pos: [o[0] + 0.045, o[1] + 0.13, o[2] + 0.03], scale: [0.025, 0.04, 0.025] });
+    ball(b, d.foam, { pos: [o[0], o[1] + 0.15, o[2]], scale: [0.068, 0.035, 0.068] });
+    ball(b, d.foam, { pos: [o[0] + 0.045, o[1] + 0.13, o[2] + 0.03], scale: [0.025, 0.04, 0.025] });
     for (const [dx, dz, s] of [
       [-0.03, 0.03, 0.018],
       [0.02, -0.035, 0.014],
       [-0.01, -0.01, 0.012],
-    ]) b.add(SPH, '#ffffff', { pos: [o[0] + dx, o[1] + 0.175, o[2] + dz], scale: s });
-    b.add(SPH, d.foam, { pos: [o[0] - 0.05, o[1] + 0.105, o[2] - 0.02], scale: [0.018, 0.045, 0.018] });
+    ]) ball(b, '#ffffff', { pos: [o[0] + dx, o[1] + 0.175, o[2] + dz], scale: s });
+    ball(b, d.foam, { pos: [o[0] - 0.05, o[1] + 0.105, o[2] - 0.02], scale: [0.018, 0.045, 0.018] });
   }
   if (kind === 'cocoa') {
     b.add(BOX, '#fffaf2', { pos: [o[0] + 0.015, o[1] + 0.15, o[2]], rot: [0.3, 0.5, 0.2], scale: 0.028 });
@@ -54,7 +62,7 @@ function mug(b: Builder, kind: string) {
 function bake(b: Builder, kind: string) {
   const o: Vec3 = [0, 0.03, 0.08];
   if (kind === 'loaf') {
-    b.add(SPH, '#c98a45', { pos: o, scale: [0.07, 0.06, 0.13] });
+    ball(b, '#c98a45', { pos: o, scale: [0.07, 0.06, 0.13] });
     for (const z of [-0.06, 0, 0.06]) b.add(BOX, '#f0cf8e', { pos: [o[0], o[1] + 0.055, o[2] + z], rot: [0, 0.6, 0], scale: [0.07, 0.012, 0.016] });
   } else if (kind === 'pie') {
     b.add(CYL, '#d9d4cc', { pos: [o[0], o[1], o[2]], scale: [0.13, 0.02, 0.13] });
@@ -63,10 +71,10 @@ function bake(b: Builder, kind: string) {
       b.add(BOX, '#f0c878', { pos: [o[0] + x, o[1] + 0.05, o[2]], scale: [0.016, 0.01, 0.2] });
       b.add(BOX, '#f0c878', { pos: [o[0], o[1] + 0.052, o[2] + x], scale: [0.2, 0.01, 0.016] });
     }
-    b.add(SPH, '#8a2a3a', { pos: [o[0] + 0.025, o[1] + 0.048, o[2] + 0.025], scale: 0.018 });
+    ball(b, '#8a2a3a', { pos: [o[0] + 0.025, o[1] + 0.048, o[2] + 0.025], scale: 0.018 });
   } else {
-    b.add(SPH, '#d18b46', { pos: o, scale: [0.08, 0.06, 0.08] });
-    b.add(SPH, '#e9a85a', { pos: [o[0], o[1] + 0.025, o[2]], scale: [0.065, 0.04, 0.065] });
+    ball(b, '#d18b46', { pos: o, scale: [0.08, 0.06, 0.08] });
+    ball(b, '#e9a85a', { pos: [o[0], o[1] + 0.025, o[2]], scale: [0.065, 0.04, 0.065] });
     b.add(BOX, '#fffaf2', { pos: [o[0], o[1] + 0.062, o[2]], scale: [0.09, 0.01, 0.018] });
     b.add(BOX, '#fffaf2', { pos: [o[0], o[1] + 0.062, o[2]], scale: [0.018, 0.01, 0.09] });
   }
@@ -74,8 +82,8 @@ function bake(b: Builder, kind: string) {
 
 function fish(b: Builder) {
   const o: Vec3 = [0, 0.08, 0.08];
-  b.add(SPH, '#7fa8c8', { pos: o, scale: [0.045, 0.07, 0.15] });
-  b.add(SPH, '#dfe8ee', { pos: [o[0], o[1] - 0.02, o[2] + 0.01], scale: [0.038, 0.045, 0.12] });
+  ball(b, '#7fa8c8', { pos: o, scale: [0.045, 0.07, 0.15] });
+  ball(b, '#dfe8ee', { pos: [o[0], o[1] - 0.02, o[2] + 0.01], scale: [0.038, 0.045, 0.12] });
   // A forked tail, a dorsal fin, pectoral fins, gill lines, scales down the flank, and eyes with a glint.
   for (const s of [-1, 1]) b.add(CONE, '#5f86a8', { pos: [o[0], o[1] + s * 0.03, o[2] - 0.18], rot: [-Math.PI / 2 + s * 0.5, 0, 0], scale: [0.045, 0.07, 0.012] });
   b.add(CONE, '#5f86a8', { pos: [o[0], o[1] + 0.07, o[2] - 0.01], scale: [0.04, 0.05, 0.01] });
@@ -83,11 +91,11 @@ function fish(b: Builder) {
   for (const s of [-1, 1]) {
     b.add(CONE, '#6f98b8', { pos: [o[0] + s * 0.045, o[1] - 0.01, o[2] + 0.03], rot: [0.6, 0, s * 1.3], scale: [0.02, 0.05, 0.008] });
     b.add(THIN_TORUS, '#6a90ae', { pos: [o[0] + s * 0.04, o[1], o[2] + 0.07], rot: [0, Math.PI / 2, 0], scale: [0.035, 0.035, 0.02] });
-    b.add(SPH, '#f6f1e6', { pos: [o[0] + s * 0.036, o[1] + 0.02, o[2] + 0.1], scale: [0.009, 0.013, 0.013] });
-    b.add(SPH, '#1d1a1c', { pos: [o[0] + s * 0.042, o[1] + 0.02, o[2] + 0.102], scale: [0.005, 0.008, 0.008] });
-    for (let k = 0; k < 6; k++) b.add(THIN_TORUS, '#6f98b8', { pos: [o[0] + s * 0.044, o[1] + 0.01 + (k % 2) * 0.02, o[2] - 0.02 - k * 0.018], rot: [0, Math.PI / 2, 0], scale: [0.012, 0.012, 0.01] });
+    ball(b, '#f6f1e6', { pos: [o[0] + s * 0.036, o[1] + 0.02, o[2] + 0.1], scale: [0.009, 0.013, 0.013] });
+    ball(b, '#1d1a1c', { pos: [o[0] + s * 0.042, o[1] + 0.02, o[2] + 0.102], scale: [0.005, 0.008, 0.008] });
+    for (let k = 0; k < 3; k++) b.add(THIN_TORUS, '#6f98b8', { pos: [o[0] + s * 0.044, o[1] + 0.01 + (k % 2) * 0.02, o[2] - 0.02 - k * 0.018], rot: [0, Math.PI / 2, 0], scale: [0.012, 0.012, 0.01] });
   }
-  b.add(SPH, '#d86a5a', { pos: [o[0], o[1] - 0.01, o[2] + 0.148], scale: [0.02, 0.012, 0.008] });
+  ball(b, '#d86a5a', { pos: [o[0], o[1] - 0.01, o[2] + 0.148], scale: [0.02, 0.012, 0.008] });
 }
 
 function flower(b: Builder, color: string) {
@@ -98,38 +106,43 @@ function flower(b: Builder, color: string) {
     [1, 0.12, -0.6],
     [-1, 0.07, 0.5],
   ]) {
-    b.add(SPH, '#5fae55', { pos: [o[0] + s * 0.03, o[1] + y, o[2]], rot: [0, 0, a], scale: [0.014, 0.04, 0.022] });
+    ball(b, '#5fae55', { pos: [o[0] + s * 0.03, o[1] + y, o[2]], rot: [0, 0, a], scale: [0.014, 0.04, 0.022] });
     b.add(BOX, '#4f9a4a', { pos: [o[0] + s * 0.03, o[1] + y, o[2] + 0.02], rot: [0, 0, a], scale: [0.003, 0.06, 0.002] });
   }
   const top: Vec3 = [o[0], o[1] + 0.27, o[2]];
   for (let i = 0; i < 8; i++) {
     const a = (i / 8) * Math.PI * 2;
-    b.add(SPH, color, { pos: [top[0] + Math.cos(a) * 0.04, top[1] + Math.sin(a) * 0.04, top[2]], rot: [0, 0, a], scale: [0.03, 0.018, 0.012] });
+    ball(b, color, { pos: [top[0] + Math.cos(a) * 0.04, top[1] + Math.sin(a) * 0.04, top[2]], rot: [0, 0, a], scale: [0.03, 0.018, 0.012] });
   }
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2 + 0.4;
-    b.add(SPH, color, { pos: [top[0] + Math.cos(a) * 0.022, top[1] + Math.sin(a) * 0.022, top[2] + 0.008], rot: [0, 0, a], scale: [0.02, 0.014, 0.01] });
+    ball(b, color, { pos: [top[0] + Math.cos(a) * 0.022, top[1] + Math.sin(a) * 0.022, top[2] + 0.008], rot: [0, 0, a], scale: [0.02, 0.014, 0.01] });
   }
-  b.add(SPH, '#f6d04d', { pos: [top[0], top[1], top[2] + 0.012], scale: 0.018 });
+  ball(b, '#f6d04d', { pos: [top[0], top[1], top[2] + 0.012], scale: 0.018 });
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2;
-    b.add(SPH, '#c9a020', { pos: [top[0] + Math.cos(a) * 0.01, top[1] + Math.sin(a) * 0.01, top[2] + 0.028], scale: 0.004 });
+    ball(b, '#c9a020', { pos: [top[0] + Math.cos(a) * 0.01, top[1] + Math.sin(a) * 0.01, top[2] + 0.028], scale: 0.004 });
   }
 }
 
 function rod(b: Builder) {
-  // The rod leans forward and up from the paw, with the line hanging from its tip.
+  // The rod leans forward, up and out to the side from the paw (clear of the head), with the line hanging
+  // from its tip.
   const len = 1.4;
   const tilt = 0.9;
-  const dir = new THREE.Vector3(0, Math.cos(tilt), Math.sin(tilt));
+  const out = 0.32;
+  const dir = new THREE.Vector3(-Math.sin(out) * Math.cos(tilt), Math.cos(tilt), Math.sin(tilt)).normalize();
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  const rot = new THREE.Euler().setFromQuaternion(q);
   const mid = dir.clone().multiplyScalar(len / 2);
-  b.add(CYL6, '#8a5a36', { pos: [mid.x, mid.y, mid.z], rot: [tilt, 0, 0], scale: [0.012, len, 0.012] });
-  b.add(CYL6, '#4d3528', { pos: [0, 0.02, 0.02], rot: [tilt, 0, 0], scale: [0.02, 0.18, 0.02] });
+  b.add(CYL6, '#8a5a36', { pos: [mid.x, mid.y, mid.z], rot: [rot.x, rot.y, rot.z], scale: [0.012, len, 0.012] });
+  const grip = dir.clone().multiplyScalar(0.02);
+  b.add(CYL6, '#4d3528', { pos: [grip.x, grip.y + 0.01, grip.z + 0.01], rot: [rot.x, rot.y, rot.z], scale: [0.02, 0.18, 0.02] });
   b.add(TORUS, '#9aa0a8', { pos: [0.025, 0.12, 0.08], rot: [0, Math.PI / 2, 0], scale: 0.025 });
   const tip = dir.clone().multiplyScalar(len);
   b.add(CYL6, '#f4efe6', { pos: [tip.x, tip.y - 0.35, tip.z], scale: [0.003, 0.7, 0.003] });
-  b.add(SPH, '#e0605a', { pos: [tip.x, tip.y - 0.71, tip.z], scale: [0.03, 0.025, 0.03] });
-  b.add(SPH, '#fbfaf5', { pos: [tip.x, tip.y - 0.685, tip.z], scale: [0.026, 0.018, 0.026] });
+  ball(b, '#e0605a', { pos: [tip.x, tip.y - 0.71, tip.z], scale: [0.03, 0.025, 0.03] });
+  ball(b, '#fbfaf5', { pos: [tip.x, tip.y - 0.685, tip.z], scale: [0.026, 0.018, 0.026] });
 }
 
 function can(b: Builder) {
@@ -146,7 +159,7 @@ function can(b: Builder) {
   for (let k = 0; k < 7; k++) {
     const a = (k / 7) * Math.PI * 2;
     const rr = k === 0 ? 0 : 0.018;
-    b.add(SPH, '#2a2a30', { pos: [o[0] + Math.cos(a) * rr, o[1] + 0.172 + Math.sin(a) * rr * 0.62, o[2] + 0.196 + Math.sin(a) * rr * 0.78], scale: 0.004 });
+    ball(b, '#2a2a30', { pos: [o[0] + Math.cos(a) * rr, o[1] + 0.172 + Math.sin(a) * rr * 0.62, o[2] + 0.196 + Math.sin(a) * rr * 0.78], scale: 0.004 });
   }
   b.add(TORUS, '#5a8f73', { pos: [o[0], o[1] + 0.16, o[2] - 0.02], rot: [0, Math.PI / 2, 0], scale: [0.06, 0.06, 0.06] });
   b.add(CYL6, '#8a5a36', { pos: [o[0], o[1] + 0.22, o[2] - 0.02], rot: [0, 0, Math.PI / 2], scale: [0.012, 0.05, 0.012] });
@@ -162,9 +175,9 @@ function washing(b: Builder, color: string) {
   }
   for (const y of [0.035, 0.085]) b.add(THIN_TORUS, '#a8834f', { pos: [o[0], o[1] + y, o[2]], rot: [Math.PI / 2, 0, 0], scale: [0.143, 0.112, 0.08] });
   b.add(TORUS, '#a8834f', { pos: [o[0], o[1] + 0.12, o[2]], rot: [Math.PI / 2, 0, 0], scale: [0.14, 0.11, 0.05] });
-  b.add(SPH, color, { pos: [o[0] - 0.05, o[1] + 0.14, o[2]], scale: [0.07, 0.04, 0.06] });
-  b.add(SPH, '#f4efe6', { pos: [o[0] + 0.05, o[1] + 0.145, o[2] + 0.02], scale: [0.06, 0.035, 0.055] });
-  b.add(SPH, '#8fc1e8', { pos: [o[0] + 0.01, o[1] + 0.155, o[2] - 0.04], scale: [0.05, 0.03, 0.04] });
+  ball(b, color, { pos: [o[0] - 0.05, o[1] + 0.14, o[2]], scale: [0.07, 0.04, 0.06] });
+  ball(b, '#f4efe6', { pos: [o[0] + 0.05, o[1] + 0.145, o[2] + 0.02], scale: [0.06, 0.035, 0.055] });
+  ball(b, '#8fc1e8', { pos: [o[0] + 0.01, o[1] + 0.155, o[2] - 0.04], scale: [0.05, 0.03, 0.04] });
 }
 
 /**
@@ -223,7 +236,8 @@ function grimoire(open: boolean): THREE.Object3D {
 }
 
 function bucket(b: Builder) {
-  const o: Vec3 = [0, 0.02, 0.1];
+  // Hung from its handle: the top of the handle is the grip.
+  const o: Vec3 = [0, -0.25, 0.02];
   b.add(BASKET, '#8a6a4a', { pos: [o[0], o[1] + 0.07, o[2]], scale: [0.09, 0.14, 0.09] });
   b.add(CYL, '#5a4030', { pos: [o[0], o[1] + 0.13, o[2]], scale: [0.095, 0.015, 0.095] });
   b.add(CYL, '#5a4030', { pos: [o[0], o[1] + 0.03, o[2]], scale: [0.08, 0.015, 0.08] });
@@ -236,7 +250,7 @@ function goblet(b: Builder) {
   b.add(CYL, '#c9a24f', { pos: [o[0], o[1] + 0.01, o[2]], scale: [0.05, 0.02, 0.05] });
   b.add(THIN_TORUS, '#e0bf6a', { pos: [o[0], o[1] + 0.02, o[2]], rot: [Math.PI / 2, 0, 0], scale: 0.045 });
   b.add(CYL6, '#c9a24f', { pos: [o[0], o[1] + 0.06, o[2]], scale: [0.012, 0.08, 0.012] });
-  b.add(SPH, '#c9a24f', { pos: [o[0], o[1] + 0.06, o[2]], scale: 0.02 });
+  ball(b, '#c9a24f', { pos: [o[0], o[1] + 0.06, o[2]], scale: 0.02 });
   b.add(BASKET, '#c9a24f', { pos: [o[0], o[1] + 0.14, o[2]], scale: [0.055, 0.09, 0.055] });
   b.add(THIN_TORUS, '#e0bf6a', { pos: [o[0], o[1] + 0.185, o[2]], rot: [Math.PI / 2, 0, 0], scale: 0.055 });
   for (let k = 0; k < 4; k++) {

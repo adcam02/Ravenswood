@@ -89,7 +89,7 @@ const fox: Recipe = (k, c) => {
   ears(k, { color: c.coat, back: sock, rim: c.coat, inner: white, x: 0.5, y: 0.74, w: 0.095, h: 0.18, d: 0.045, splay: 0.22, inset: 0.6 });
   arms(k, { color: c.coat, sock, sockFrom: 0.32, len: 0.28, r: 0.045 });
   legs(k, { color: sock, foot: sock, r: 0.048 });
-  tail(k, { color: c.coat, tip: white, tipFrom: 0.78, r: 0.13, len: 0.52, dir: [0, -0.35, -1], curl: [1.1, 0.25, 0], profile: [0.3, 0.7, 0.95, 1, 0.95, 0.8, 0.5], steps: 12 });
+  tail(k, { color: c.coat, tip: white, tipFrom: 0.8, r: 0.125, len: 0.62, dir: [0, -0.3, -1], curl: [0.7, -0.75, 0], profile: [0.3, 0.7, 0.95, 1, 0.95, 0.8, 0.5], steps: 12 });
   return {};
 };
 
@@ -147,7 +147,7 @@ const bunny: Recipe = (k, c) => {
   s.tr = [0.215, 0.235, 0.2];
   s.tc = [0, 0.33, 0];
   k.joints.neck = [0, 0.535, 0.025];
-  k.joints.shoulder = [0.11, 0.43, 0.1];
+  k.joints.shoulder = [0.115, 0.43, 0.135];
   k.joints.hip = [0.1, 0.15, -0.01];
   k.joints.tail = [0, 0.17, -0.18];
   body(k, { color: c.coat, belly: pale, bellyW: 0.5, pear: 0.3, haunch: c.coat });
@@ -156,7 +156,7 @@ const bunny: Recipe = (k, c) => {
   nose(k, pink, v3(onHead(k, 0, -0.2, 0.01)), 0.021, 0.016, true);
   eyes(k, { x: 0.44, y: 0.1, size: 1.05, wide: 0.95, slant: 0.05, color: '#1c1416' });
   ears(k, { kind: 'long', color: c.coat, inner: pink, x: 0.3, y: 0.8, w: 0.052, h: 0.2, d: 0.03, splay: 0.12, rake: 0.15 });
-  arms(k, { color: c.coat, len: 0.16, r: 0.052 });
+  arms(k, { color: c.coat, len: 0.15, r: 0.056 });
   legs(k, { color: c.coat, foot: c.coat, r: 0.06, footLen: 0.125, footH: 0.042, sole: pale });
   puffTail(k, pale, 0.058);
   return {};
@@ -173,8 +173,8 @@ const snail: Recipe = (k, c, coat) => {
   s.tr = [0.15, 0.08, 0.34];
   s.hc = [0, 0.07, 0.03];
   s.hr = [0.112, 0.106, 0.108];
-  k.joints.neck = [0, 0.31, 0.33];
-  k.joints.shoulder = [0.085, 0.2, 0.36];
+  k.joints.neck = [0, 0.27, 0.36];
+  k.joints.shoulder = [0.085, 0.18, 0.37];
   k.joints.tail = [0, 0.05, -0.3];
   bone(k, 'rear', 'body', [0, 0.06, -0.22]);
   // The foot: one long low slab, its back half on its own bone so it can stretch and draw up, rising at
@@ -186,12 +186,12 @@ const snail: Recipe = (k, c, coat) => {
       [0, 0.065, -0.29],
       [0, 0.07, -0.15],
       [0, 0.07, -0.01],
-      [0, 0.075, 0.13],
-      [0, 0.11, 0.24],
-      [0, 0.2, 0.31],
-      [0, 0.3, 0.34],
+      [0, 0.075, 0.14],
+      [0, 0.1, 0.26],
+      [0, 0.17, 0.33],
+      [0, 0.26, 0.365],
     ],
-    radii: [0.035, 0.1, 0.135, 0.145, 0.14, 0.11, 0.085, 0.08],
+    radii: [0.035, 0.1, 0.135, 0.145, 0.14, 0.11, 0.088, 0.082],
     flats: [0.5, 0.5, 0.5, 0.5, 0.55, 0.85, 1, 1],
     sides: 8,
     up: [1, 0, 0],
@@ -205,16 +205,24 @@ const snail: Recipe = (k, c, coat) => {
   const sc = new THREE.Vector3(0, 0.39, -0.1);
   const coil: Vec3[] = [];
   const radii: number[] = [];
-  const turns = 2.25 * Math.PI;
+  const flats: number[] = [];
+  const turns = 2.15 * Math.PI;
   const steps = 26;
-  const a0 = 0.45;
+  const a0 = 0.2;
   for (let i = 0; i <= steps; i++) {
     const a = a0 + (i / steps) * turns;
-    const R = 0.215 * Math.exp(-0.3 * (a - a0));
+    const R = 0.21 * Math.exp(-0.31 * (a - a0));
     coil.push([-0.03 + 0.06 * (i / steps), sc.y - R * Math.cos(a), sc.z + R * Math.sin(a)]);
-    radii.push(0.72 * R * 1.22 + 0.006);
+    // A thin disc of a shell (narrower side to side than round the coil), the opening easing into the foot.
+    const open = 0.82 + 0.18 * Math.min(1, (a - a0) / 1.4);
+    // The middle of the spiral winds down to a point.
+    const end = Math.min(1, (steps - i) / 4) * 0.6 + 0.4;
+    const r = (0.72 * R + 0.006) * open * end;
+    radii.push(r);
+    // Round the coil it's fuller than it is wide, but never thicker than the gap to the middle, so it can't fold.
+    flats.push(Math.min(1.22, (0.85 * R) / r));
   }
-  tube(shellPart, k.rnd, { pts: coil, radii, sides: 8, flat: 0.82, up: [1, 0, 0], jitter: 0.05, color: shell, paint: (u) => (Math.floor(u.y * 14) % 2 ? band : null) });
+  tube(shellPart, k.rnd, { pts: coil, radii, flats, sides: 8, up: [1, 0, 0], jitter: 0.05, round: false, color: shell, paint: (u) => (Math.floor(u.y * 14) % 2 ? band : null) });
   k.seat = 0;
   head(k, { color: skin, cheeks: 0.06, crown: 0.9 });
   mouth(k, { w: 0.24, y: -0.4, curve: 0.13, r: 0.0055 });
@@ -236,9 +244,6 @@ const snail: Recipe = (k, c, coat) => {
     const m = frame(tip.clone().add(new THREE.Vector3(0, 0.004, 0.024)));
     solid(eye, k.rnd, { base: 'ico1', r: [0.02, 0.022, 0.013], matrix: m, jitter: 0.02, color: INK, tone: 0.1 });
     solid(eye, k.rnd, { base: 'ico0', r: 0.0065, matrix: inside(m, [0.006, 0.008, 0.011]), jitter: 0.01, color: '#fbf6ec', tone: 0 });
-    // Short feelers lower down.
-    const lf = onHead(k, side * 0.42, -0.34, -0.01);
-    pillar(k.head, k.rnd, v3(lf), [side * 0.075, lf.y - 0.015, lf.z + 0.05], 0.011, 0.007, skin, { base: 'limb5' });
   }
   k.blink = ['blinkL', 'blinkR'];
   const eyeAt = onHead(k, 0.32, 0.72).add(tipRel);
@@ -247,7 +252,9 @@ const snail: Recipe = (k, c, coat) => {
   k.eyeR = 0.032;
   k.eyeZ = eyeAt.z + 0.035;
   // One small tendril on the right, which only reaches out to hold or gesture.
-  arms(k, { color: skin, len: 0.08, r: 0.03, rightOnly: true });
+  arms(k, { color: skin, len: 0.12, r: 0.03, rightOnly: true });
+  // Things are held out in front of the neck.
+  k.front = 0.47;
   return { legs: 'none', tendril: true };
 };
 
@@ -295,9 +302,9 @@ const PROFILES: Partial<Record<AnimalId, Partial<Profile>>> = {
   // Slender and alert: upright, head up, a light quick trot, sits with its tail wrapped round its feet.
   fox: { lean: -0.03, head: -0.07, gait: 'trot', cadence: 1.25, stride: 0.9, sit: 'wrap', idles: ['earSwivel', 'tailSwish', 'headTilt'], tailSway: 0.3 },
   // Hunched with its paws held in front, an ambling roll, sits like the papercraft sculpture.
-  raccoon: { lean: 0.14, head: -0.05, paws: 0.55, gait: 'amble', cadence: 0.85, sit: 'tuck', idles: ['rubPaws', 'sniff', 'lookAround'], tailSway: 0.18 },
+  raccoon: { lean: 0.14, head: -0.05, paws: 0.2, gait: 'amble', cadence: 0.85, sit: 'tuck', idles: ['rubPaws', 'sniff', 'lookAround'], tailSway: 0.18 },
   // Round and soft, paws tucked up, hops everywhere, sits back with its big feet forward.
-  bunny: { lean: 0.02, head: -0.04, paws: 0.5, gait: 'hop', cadence: 0.9, sit: 'feet', idles: ['earTwitch', 'noseWiggle', 'hop'], tailSway: 0.04, earsBack: 0.45 },
+  bunny: { lean: 0.02, head: -0.04, paws: 0.07, gait: 'hop', cadence: 0.9, sit: 'feet', idles: ['earTwitch', 'noseWiggle', 'hop'], tailSway: 0.04, earsBack: 0.45 },
   // Slides along with a slow stretch and draw, settles low to sit.
   snail: { gait: 'slither', cadence: 0.55, sit: 'settle', idles: ['stalks', 'stretch', 'stalks'], tailSway: 0 },
 };

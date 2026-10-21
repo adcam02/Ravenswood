@@ -56,7 +56,7 @@ function make(look: Look): Rig {
   if (audit.trace) traces[look.animal] = Object.fromEntries(audit.trace);
   return r;
 }
-type Inside = { mesh: THREE.SkinnedMesh; bones: Map<string, THREE.Bone>; shape: { tc: number[]; tr: number[]; hc: number[]; hr: number[] }; item: THREE.Object3D | null; body: THREE.Bone; neck: THREE.Bone };
+type Inside = { mesh: THREE.SkinnedMesh; bones: Map<string, THREE.Bone>; shape: { tc: number[]; tr: number[]; hc: number[]; hr: number[]; pear?: number }; item: THREE.Object3D | null; body: THREE.Bone; neck: THREE.Bone };
 const insideOf = (r: Rig) => (r as unknown as { inspect(): Inside }).inspect();
 
 /**
@@ -115,18 +115,18 @@ function clipping(r: Rig): { item: number; paws: number } {
   const s = I.shape;
   const inv = new THREE.Matrix4();
   const v = new THREE.Vector3();
-  const inBody = (w: THREE.Vector3) => {
+  const inBody = (w: THREE.Vector3, k = 0.92) => {
     v.copy(w).applyMatrix4(inv.copy(I.body.matrixWorld).invert());
     const u = (v.y - s.tc[1]) / s.tr[1];
     if (Math.abs(u) > 0.95) return false;
-    const pear = 1 - 0.5 * THREE.MathUtils.smoothstep((u + 1) / 2, 0.25, 1);
-    const rx = s.tr[0] * pear * 0.92;
-    const rz = s.tr[2] * pear * 0.92;
+    const pear = 1 - (s.pear ?? 0.5) * THREE.MathUtils.smoothstep((u + 1) / 2, 0.25, 1);
+    const rx = s.tr[0] * pear * k;
+    const rz = s.tr[2] * pear * k * 1.08;
     return ((v.x - s.tc[0]) / rx) ** 2 + ((v.z - s.tc[2]) / rz) ** 2 + u * u < 1;
   };
-  const inHead = (w: THREE.Vector3) => {
+  const inHead = (w: THREE.Vector3, k = 0.9) => {
     v.copy(w).applyMatrix4(inv.copy(I.neck.matrixWorld).invert());
-    return ((v.x - s.hc[0]) / (s.hr[0] * 0.9)) ** 2 + ((v.y - s.hc[1]) / (s.hr[1] * 0.9)) ** 2 + ((v.z - s.hc[2]) / (s.hr[2] * 0.9)) ** 2 < 1;
+    return ((v.x - s.hc[0]) / (s.hr[0] * k)) ** 2 + ((v.y - s.hc[1]) / (s.hr[1] * k)) ** 2 + ((v.z - s.hc[2]) / (s.hr[2] * k)) ** 2 < 1;
   };
   r.root.updateMatrixWorld(true);
   let item = 0;
@@ -148,16 +148,19 @@ function clipping(r: Rig): { item: number; paws: number } {
   const armL = names.indexOf('armL');
   const armR = names.indexOf('armR');
   const restArm = (b: number) => I.bones.get(names[b])!;
+  // How far the paw hangs below the shoulder, from the lowest arm corner at rest.
+  let armLen = 0;
+  for (let i = 0; i < p.count; i++) if (si.getX(i) === armR) armLen = Math.max(armLen, restArm(armR).position.y - p.getY(i));
   for (let i = 0; i < p.count; i += 3) {
     const b = si.getX(i);
     if (b !== armL && b !== armR) continue;
-    // Only the lower half of the arm: the shoulder end is meant to sit in the body.
+    // Only the paw itself (the bottom of the arm), and only sunk well in: the arm is meant to meet the body.
     const local = new THREE.Vector3().fromBufferAttribute(p, i);
     const bone = restArm(b);
     const restY = bone.position.y;
-    if (local.y > restY - 0.12) continue;
+    if (local.y > restY - armLen + 0.07) continue;
     const w = I.mesh.getVertexPosition(i, new THREE.Vector3()).applyMatrix4(I.mesh.matrixWorld);
-    if (inBody(w) || inHead(w)) paws++;
+    if (inBody(w, 0.85) || inHead(w, 0.85)) paws++;
   }
   return { item, paws };
 }
@@ -223,6 +226,9 @@ if (view === 'grid' || view === 'night') {
   const ids = (q.get('animal') ?? list.join(',')).split(',') as AnimalId[];
   const kinds: ItemKind[] = ['ale', 'cider', 'milk', 'cocoa', 'loaf', 'pie', 'bun', 'fish', 'flower', 'rod', 'can', 'washing', 'water', 'wine', 'firewood'];
   const anims: Anim[] = ['idle', 'walk', 'run', 'sit', 'drink', 'fish', 'water', 'work'];
+  // The pairings the game actually makes (sips of anything sippable, the rod for fishing, and so on).
+  const sippable = new Set(['ale', 'cider', 'milk', 'cocoa', 'loaf', 'pie', 'bun', 'water', 'wine']);
+  const goes = (k: ItemKind, a: Anim) => (a === 'drink' ? sippable.has(k) : a === 'fish' ? k === 'rod' : a === 'water' ? k === 'can' : a === 'work' ? k === 'washing' : true);
   const report: Record<string, string[]> = {};
   let worst = 0;
   for (const id of ids) {
@@ -231,6 +237,7 @@ if (view === 'grid' || view === 'night') {
     for (const k of kinds) {
       r.setItem({ k });
       for (const a of anims) {
+        if (!goes(k, a)) continue;
         // Settle into the pose, sampling through a walk cycle and a sip.
         let maxItem = 0;
         let maxPaws = 0;
@@ -397,10 +404,22 @@ function triangles(rig: Rig): number {
   });
   return Math.round(n);
 }
+/**
+ * ?fixdt=0.05 steps the animation by a fixed time each frame (so a sequence of shots is evenly spaced however
+ * slowly this machine draws), and window.hold = n stops it at frame n until it's moved on.
+ */
+const fixdt = Number(q.get('fixdt') ?? 0);
+let simT = 0;
+const W8 = window as unknown as { hold?: number; frame: number };
 function frame(now: number) {
-  const dt = Math.min((now - last) / 1000, 0.1);
+  if (W8.hold !== undefined && frames >= W8.hold) {
+    last = now;
+    requestAnimationFrame(frame);
+    return;
+  }
+  const dt = fixdt || Math.min((now - last) / 1000, 0.1);
   last = now;
-  const t = fixedT ? Number(fixedT) : (now - t0) / 1000;
+  const t = fixedT ? Number(fixedT) : fixdt ? (simT += fixdt) : (now - t0) / 1000;
   for (const r of rigs) {
     // ?busy plays the species' mannerisms back to back, for watching them.
     if (q.has('busy')) {
@@ -412,6 +431,7 @@ function frame(now: number) {
   for (const p of pets) p.pet.update(dt, t, p.moving);
   renderer.render(scene, camera);
   frames++;
+  W8.frame = frames;
   if (frames === 12 && q.has('lite')) {
     const tris: Record<string, number> = {};
     const faces: Record<string, unknown> = {};

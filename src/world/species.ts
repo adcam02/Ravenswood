@@ -18,6 +18,8 @@ export interface Shape {
   /** Torso radii and centre, in body space. */
   tr: Vec3;
   tc: Vec3;
+  /** How much narrower the top of the body is than its base. */
+  pear?: number;
 }
 
 /** Where the moving parts hang, in body space (the left side; the right mirrors it). */
@@ -28,6 +30,8 @@ export interface Joints {
   tail: Vec3;
   /** Where a held thing's grip sits, in the right arm's own space: just in front of the paw. */
   hand: Vec3;
+  /** The middle of the paw, in the arm's own space (for putting paws on things). */
+  paw?: Vec3;
 }
 
 /**
@@ -67,6 +71,8 @@ export interface Kit {
   joints: Joints;
   /** How far down the body may drop to sit on the ground. */
   seat: number;
+  /** How far forward the front of the body (or neck) reaches, for holding things clear of it. */
+  front?: number;
   /** Where the eyes sit (neck space), so blinking squashes around them. */
   eyeY: number;
   /** Half the distance between the eyes, how big they are, and how far forward their fronts are (for glasses). */
@@ -140,7 +146,7 @@ export interface Profile {
   lean: number;
   head: number;
   tilt: number;
-  /** Front paws held in front of the chest when idle (radians forward), instead of hanging. */
+  /** Front paws held up in front of the chest when idle, this far below the shoulders (0: they hang). */
   paws: number;
   gait: Gait;
   /** Steps a second, relative to the usual, and how far the legs swing. */
@@ -348,6 +354,7 @@ export interface BodyOpts {
 export function body(k: Kit, o: BodyOpts) {
   const s = k.shape;
   const pear = o.pear ?? 0.5;
+  s.pear = pear;
   const bw = o.bellyW ?? 0.55;
   solid(k.torso, k.rnd, {
     base: 'ico3',
@@ -690,6 +697,7 @@ export function arms(k: Kit, o: ArmOpts) {
     }
   }
   k.joints.hand = [0, -len - r * 0.25, r * 0.28 + r * 1.05];
+  k.joints.paw = [0, -len - r * 0.25, r * 0.28];
 }
 
 export interface LegOpts {
