@@ -147,6 +147,8 @@ npm run build      # rebuilds docs/
 ```
 
 Commit the rebuilt `docs/` folder and GitHub Pages updates within a minute or two.
+Each build keeps the previous 14 builds' files in `docs/assets` (listed in `docs/assets/deploys.json`), so
+anyone still playing on a page from before the update can open dialogs and minigames as usual.
 
 To test with several browsers on one computer, run `npm run peer` (a local lobby on port 9000) and
 add `?peer=127.0.0.1:9000` to every address. `node tools/test-town.mjs` runs a full game with a

@@ -19,12 +19,17 @@ import './styles/cosy.css';
 import './styles/town.css';
 import './styles/jobs.css';
 import { App } from './App';
+import { Guard } from './components/Guard';
+import { preloadParts } from './lib/lazy';
 import { watchForUpdates } from './lib/version';
 
 watchForUpdates();
+preloadParts();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <Guard>
+      <App />
+    </Guard>
   </StrictMode>,
 );

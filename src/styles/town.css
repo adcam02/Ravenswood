@@ -59,6 +59,45 @@
   overflow-wrap: anywhere;
 }
 
+/* Something broke: a note with a Reload button, in place of the broken part (or the whole page). */
+.crash-note {
+  width: min(440px, calc(100vw - 32px));
+  padding: 20px 22px;
+  display: grid;
+  gap: 8px;
+}
+.crash-note p {
+  margin: 0;
+}
+.crash-note code {
+  font-size: 12px;
+  color: var(--cosy-ink-soft);
+  overflow-wrap: anywhere;
+}
+.crash-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+.job-dock > .crash-note {
+  width: 100%;
+}
+.grimoire-layer > .crash-note {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.crashed {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: radial-gradient(ellipse at 50% 40%, #2a2f45, #10121c);
+}
+
 /* ---------------------------------------------------------------- name tags over animals */
 
 .tag {

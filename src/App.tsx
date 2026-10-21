@@ -1,16 +1,26 @@
-import { lazy, Suspense, useContext, useEffect, useState } from 'react';
+import { Suspense, useContext, useEffect, useState } from 'react';
 import { TopBar } from './components/TopBar';
 import { SidePanel } from './components/SidePanel';
+import { CrashNote, Guard } from './components/Guard';
+import { lazyPart } from './lib/lazy';
 // The grimoire and the big dialogs load when first opened, so the first visit downloads less.
-const Square = lazy(() => import('./components/Square').then((m) => ({ default: m.Square })));
-const ModalsLazy = lazy(() => import('./components/Modals').then((m) => ({ default: m.Modals })));
+const Square = lazyPart(() => import('./components/Square').then((m) => m.Square));
+const ModalsLazy = lazyPart(() => import('./components/Modals').then((m) => m.Modals));
 function Modals() {
   const modal = useUI((s) => s.modal);
   if (!modal) return null;
   return (
-    <Suspense fallback={null}>
-      <ModalsLazy />
-    </Suspense>
+    <Guard
+      fallback={(e) => (
+        <div className="modal-backdrop">
+          <CrashNote error={e} close={() => useUI.setState({ modal: null })} />
+        </div>
+      )}
+    >
+      <Suspense fallback={null}>
+        <ModalsLazy />
+      </Suspense>
+    </Guard>
   );
 }
 import { Toasts } from './components/Toasts';
@@ -132,9 +142,11 @@ function Storyteller() {
           {grimoire ? (
             pages && (
               <div className="grimoire-layer book">
-                <Suspense fallback={null}>
-                  <Square />
-                </Suspense>
+                <Guard fallback={(e) => <CrashNote error={e} close={() => useUI.setState({ grimoireOpen: false })} />}>
+                  <Suspense fallback={null}>
+                    <Square />
+                  </Suspense>
+                </Guard>
                 <BluffBar />
               </div>
             )

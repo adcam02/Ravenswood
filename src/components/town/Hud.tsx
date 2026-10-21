@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { JOB_TITLES, SCORE_LABEL, type GameJob } from '../../jobs/meta';
 import { useBests } from '../../game/bests';
 import { game, useHud } from '../../game/hud';
@@ -11,10 +11,12 @@ import { nightMusic } from '../../lib/music';
 import { useView } from '../../state/view';
 import { useVoice, voice } from '../../voice/voice';
 import { EMOTES, type Item } from '../../world/types';
+import { lazyPart } from '../../lib/lazy';
+import { CrashNote, Guard } from '../Guard';
 import { Icon } from '../Icon';
 // The minigames and the sheep load the first time they're needed, so the first visit downloads less.
-const JobGame = lazy(() => import('../../jobs').then((m) => ({ default: m.JobGame })));
-const SheepGame = lazy(() => import('./SheepGame').then((m) => ({ default: m.SheepGame })));
+const JobGame = lazyPart(() => import('../../jobs').then((m) => m.JobGame));
+const SheepGame = lazyPart(() => import('./SheepGame').then((m) => m.SheepGame));
 
 const ITEM_NAMES: Record<Item['k'], [string, string]> = {
   ale: ['🍺', 'an ale'],
@@ -232,9 +234,18 @@ export function JobLayer() {
   const town = view.town.records[job.job];
   const bests = { personal: personal[job.job], town: town ? { by: town.by, score: town.score } : undefined };
   return (
-    <Suspense fallback={null}>
-      <JobGame key={job.station} job={job.job} bests={bests} onDone={(r) => game.jobDone(r)} onCancel={() => game.jobCancel()} />
-    </Suspense>
+    <Guard
+      key={job.station}
+      fallback={(e) => (
+        <div className="job-dock cosy">
+          <CrashNote error={e} close={() => game.jobCancel()} closeLabel="Stop" />
+        </div>
+      )}
+    >
+      <Suspense fallback={null}>
+        <JobGame job={job.job} bests={bests} onDone={(r) => game.jobDone(r)} onCancel={() => game.jobCancel()} />
+      </Suspense>
+    </Guard>
   );
 }
 
@@ -243,9 +254,17 @@ export function SheepLayer() {
   const sheep = useHud((s) => s.sheep);
   if (sheep !== 'playing') return null;
   return (
-    <Suspense fallback={null}>
-      <SheepGame />
-    </Suspense>
+    <Guard
+      fallback={(e) => (
+        <div className="job-dock cosy">
+          <CrashNote error={e} close={() => useHud.setState({ sheep: 'done' })} />
+        </div>
+      )}
+    >
+      <Suspense fallback={null}>
+        <SheepGame />
+      </Suspense>
+    </Guard>
   );
 }
 
