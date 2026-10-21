@@ -51,17 +51,19 @@
   align-items: center;
   justify-content: center;
   gap: 0.45em;
-  transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.15s ease;
+  transition: translate 0.08s ease, box-shadow 0.08s ease, background 0.15s ease;
   user-select: none;
 }
 
+/* The lift and press use `translate`, not `transform`, so a button placed with a transform (centred with
+   translateX(-50%), say) stays put instead of jumping out from under the pointer. */
 .cosy-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
+  translate: 0 -1px;
   background: #fff1d6;
 }
 
 .cosy-btn:active:not(:disabled) {
-  transform: translateY(3px);
+  translate: 0 3px;
   box-shadow: 0 1px 0 rgba(90, 68, 52, 0.22);
 }
 

@@ -787,7 +787,8 @@ export class Engine {
   private onPointerDown = (e: PointerEvent) => {
     this.wakeAmbience();
     if (e.button !== 0 || !this.me || this.view?.paused || this.job || this.inBed) return;
-    // The Storyteller clicking a player opens their menu; anywhere else, a click walks there.
+    // The Storyteller clicking a player opens their menu; anywhere else, a click walks there (not off a meeting stool).
+    if (this.pinned()) return;
     const seat = this.view?.mode === 'st' ? this.avatarAt(e.clientX, e.clientY) : null;
     if (seat) game.pickSeat(seat, e.clientX, e.clientY);
     else this.walkTo(e.clientX, e.clientY);
@@ -876,6 +877,11 @@ export class Engine {
 
   private startEmote(anim: Anim) {
     if (!this.me || this.job || this.inBed) return;
+    // On a meeting stool: wave, laugh and the rest happen sitting there, and "sit" doesn't stand them up.
+    if (this.pinned()) {
+      if (anim !== 'sit') this.emote = { anim, until: this.clock.elapsedTime + (EMOTE_TIME[anim] ?? 2.5) };
+      return;
+    }
     if (anim === 'sit') {
       this.seated = this.seated ? null : { y: 0, anim: 'sit' };
       this.emote = null;
@@ -959,7 +965,7 @@ export class Engine {
   }
 
   private interact() {
-    if (!this.me || this.view?.paused || this.job || this.frozen) return;
+    if (!this.me || this.view?.paused || this.job || this.frozen || this.pinned()) return;
     if (this.inBed) {
       if (useHud.getState().sheep === 'offer') useHud.setState({ sheep: 'playing' });
       return;
@@ -1271,6 +1277,15 @@ export class Engine {
     if (!useHud.getState().ready) useHud.setState({ ready: true });
   }
 
+  /**
+   * At a town meeting (or while a nomination is on), a player on their stool stays there, in grimoire order, until
+   * the Storyteller ends it: no walking off, no getting up.
+   */
+  private pinned(): boolean {
+    const v = this.view;
+    return Boolean(v && v.mode === 'player' && (v.townHall || v.nomination) && this.seated?.y === STOOL_Y && local.zone === 'town');
+  }
+
   private moveMe(dt: number, t: number, v: WorldView) {
     const me = this.me!;
     const zone = zoneKind(local.zone);
@@ -1281,7 +1296,9 @@ export class Engine {
     // Keyboard direction, relative to the camera.
     let ix = 0;
     let iz = 0;
-    if (!v.paused && !this.job && !this.frozen && !this.inBed) {
+    const pinned = this.pinned();
+    if (pinned) this.moveTarget = null;
+    if (!v.paused && !this.job && !this.frozen && !this.inBed && !pinned) {
       if (this.keys.has('w') || this.keys.has('arrowup')) iz -= 1;
       if (this.keys.has('s') || this.keys.has('arrowdown')) iz += 1;
       if (this.keys.has('a') || this.keys.has('arrowleft')) ix -= 1;
