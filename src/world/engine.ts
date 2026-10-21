@@ -1051,7 +1051,8 @@ export class Engine {
   private takeMeetingSeat() {
     const v = this.view;
     const i = this.meetingIndex();
-    if (!v || i < 0 || !this.me) return;
+    // Not while they're on the gallows: they get their stool back once the show is over.
+    if (!v || i < 0 || !this.me || this.show?.mine) return;
     const spot = this.town.meetingSpot(i, v.seats.length);
     const inTown = local.zone === 'town';
     const sit = () => {
