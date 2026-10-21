@@ -4,7 +4,7 @@ import { seatName, useHost } from '../state/host';
 import { ui } from '../state/ui';
 import type { View } from '../state/view';
 import { getRole } from '../data';
-import { countBeat, dawn, gavel, nightfall, primeAudio, tick, townBells, wakeChime } from './audio';
+import { countBeat, dawn, fanfare, gavel, nightfall, primeAudio, tick, townBells, wakeChime } from './audio';
 import { notify } from './notify';
 import { joinNames } from './util';
 import { JOB_TITLES, SCORE_LABEL, type GameJob } from '../jobs/meta';
@@ -26,7 +26,11 @@ export function useEffects(view: View | null) {
     const p = prev.current;
     prev.current = view;
     if (!view || !p) return;
-    if (p.phase !== view.phase) {
+    // The game is over: a fanfare (the announcement and fireworks take it from there), and no dawn banner.
+    if (view.ended && !p.ended) {
+      fanfare(view.ended.winner === 'good');
+      notify(view.ended.winner === 'good' ? 'Good wins!' : 'Evil wins!', 'The game is over. Come and see who was who.', 'end');
+    } else if (p.phase !== view.phase) {
       if (view.phase === 'night') {
         nightfall();
         ui.banner(`Night ${view.day}`, 'Everyone heads home to sleep');

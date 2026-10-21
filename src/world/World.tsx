@@ -42,6 +42,7 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
       dim: true,
       lastWake: null,
       slayer: [],
+      ended: null,
     };
   }
   return {
@@ -72,6 +73,7 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
     dim,
     lastWake: mode === 'st' ? lastWakeOf(useHost.getState().g) : null,
     slayer: view.slayer,
+    ended: view.ended,
   };
 }
 

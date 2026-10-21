@@ -15,7 +15,9 @@ import { useVoice, voice, type Listener } from '../voice/voice';
 import { AvatarView, type AvatarInfo } from './avatar';
 import { resolve, turnToward } from './collide';
 import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWorld } from './town';
-import { COTTAGE_NAMES, DAIS, DOCK, SQUARE_R, groundAt } from './town/layout';
+import { COTTAGE_NAMES, DAIS, DOCK, MEETING_CENTRE, SQUARE_R, groundAt } from './town/layout';
+import { Fireworks } from './fireworks';
+import { reportProblem } from '../lib/report';
 
 /** Town features that arrive with the effects pass: called only if the town has them. */
 interface TownFx {
@@ -107,6 +109,8 @@ export interface WorldView {
   lastWake: { id: string; to: string[] } | null;
   /** Slayer claims this game: who, at whom, and what came of it. */
   slayer: { id: string; by: string; target: string; result: string }[];
+  /** The game is over, and which team won. */
+  ended: { winner: 'good' | 'evil'; at: number } | null;
 }
 
 /** What the world asks of the game around it. */
@@ -239,8 +243,11 @@ export class Engine {
   /** Tucked up in bed for the night: no getting up until morning. */
   private inBed = false;
   private meetingSeated = false;
-  private lastVoice = 0;
+  /** Voice volumes follow a timer rather than the frames, which stop while the tab is hidden. */
+  private voiceTimer: ReturnType<typeof setInterval> | null = null;
   private lastFish = -1;
+  /** Over the square when the game ends. */
+  private fireworks = new Fireworks(MEETING_CENTRE);
   /** Slayer claims already seen, with what had come of them (null until the first view). */
   private slayerSeen: Map<string, string> | null = null;
   private wasJoined = false;
@@ -285,6 +292,7 @@ export class Engine {
     host.appendChild(this.labels.domElement);
 
     this.town = createTown(this.scene, this.renderer);
+    this.town.groups.town.add(this.fireworks.points);
     this.town.setLowDetail(this.quality === 'low');
     this.town.show('town');
     for (const station of this.town.stations) {
@@ -313,6 +321,10 @@ export class Engine {
     canvas.addEventListener('pointerdown', this.onPointerDown);
     canvas.addEventListener('wheel', this.onWheel, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    // The browser can take the graphics away (a GPU reset, a driver update, too many tabs). three.js picks up
+    // again by itself when they come back; meanwhile the player is told, and can reload if they never do.
+    canvas.addEventListener('webglcontextlost', this.onContextLost);
+    canvas.addEventListener('webglcontextrestored', this.onContextRestored);
 
     game.interact = () => this.interact();
     game.emote = (a) => this.startEmote(a);
@@ -344,11 +356,39 @@ export class Engine {
       } else this.me?.bubble('Zzz…', 2000);
     };
 
+    this.voiceTimer = setInterval(() => {
+      try {
+        this.syncVoice(this.view);
+      } catch (e) {
+        console.error(e);
+      }
+    }, 200);
     this.loop();
   }
 
+  private onContextLost = (e: Event) => {
+    e.preventDefault();
+    useHud.setState({ gfxLost: Date.now() });
+  };
+
+  private onContextRestored = () => {
+    useHud.setState({ gfxLost: null });
+    // Back on lighter graphics, so it's less likely to happen again; the kept shadows need drawing afresh.
+    if (this.quality !== 'low') {
+      this.quality = 'low';
+      this.applyQuality();
+    }
+    this.renderer.shadowMap.needsUpdate = true;
+    this.lastShadowAt = -999;
+    ui.toast('The graphics were reset, so the town is on low graphics now.', 'info');
+  };
+
   dispose() {
     cancelAnimationFrame(this.raf);
+    const canvas = this.renderer.domElement;
+    canvas.removeEventListener('webglcontextlost', this.onContextLost);
+    canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
+    if (this.voiceTimer) clearInterval(this.voiceTimer);
     this.unsubUI?.();
     ambience.dispose();
     if (this.bellTimer) clearTimeout(this.bellTimer);
@@ -362,7 +402,11 @@ export class Engine {
     window.removeEventListener('blur', this.onBlur);
     for (const a of this.others.values()) a.dispose();
     this.me?.dispose();
+    this.fireworks.dispose();
     this.renderer.dispose();
+    // Hand the graphics memory back now rather than whenever the page tidies up (a player's page builds the
+    // town twice: once behind the join screens and again once they're in).
+    this.renderer.forceContextLoss();
     this.renderer.domElement.remove();
     this.labels.domElement.remove();
   }
@@ -416,7 +460,8 @@ export class Engine {
     const nom = v.nomination;
     const meeting = Boolean(nom || v.townHall);
     const handOn = nom && (nom.status === 'running' || nom.status === 'paused' || nom.status === 'done') ? (nom.step === 0 ? nom.nomineeId : nom.order[nom.step - 1]) : null;
-    const newCall = v.townHall && (!prev?.townHall || prev.townHall.ring !== v.townHall.ring || prev.townHall.id !== v.townHall.id);
+    // (The stools set out for the end of the game aren't a bell call: celebrate() seats everyone itself.)
+    const newCall = v.townHall && !v.ended && (!prev?.townHall || prev.townHall.ring !== v.townHall.ring || prev.townHall.id !== v.townHall.id);
     if (newCall) {
       this.town.bellRing();
       ui.banner('The bell is ringing', 'Everyone to the town square');
@@ -443,6 +488,8 @@ export class Engine {
       const needs = Math.ceil(alive / 2);
       label = `${who(nom.nominatorId)} nominates ${who(nom.nomineeId)} · ${nom.votes.length} ${nom.votes.length === 1 ? 'vote' : 'votes'} · needs ${needs}`;
       if (nom.status === 'done') label = `${who(nom.nomineeId)}: ${nom.votes.length} ${nom.votes.length === 1 ? 'vote' : 'votes'}, needs ${needs}`;
+    } else if (v.ended) {
+      label = v.ended.winner === 'good' ? 'Good wins!' : 'Evil wins!';
     } else if (v.townHall?.gathered) {
       label = 'Town meeting';
     } else if (v.townHall) {
@@ -485,6 +532,8 @@ export class Engine {
 
     this.syncMe(v);
     this.applyPhase(v, prev);
+    if (v.ended && prev && !prev.ended) this.celebrate(v, v.ended.winner);
+    else if (!v.ended && prev?.ended) this.fireworks.stop();
     // On a meeting stool: move along if the Storyteller reorders the seats, and get up when the meeting ends.
     if (this.seated?.y === STOOL_Y && local.zone === 'town' && v.mode === 'player') {
       const i = this.meetingIndex();
@@ -1097,6 +1146,27 @@ export class Engine {
     }
   }
 
+  /**
+   * The game is over: fireworks over the square, everyone to their stool in the ring with every character showing,
+   * and the winners up dancing on their stools while the losers have a little cry.
+   */
+  private celebrate(v: WorldView, winner: 'good' | 'evil') {
+    this.fireworks.start(winner);
+    if (v.mode === 'st') {
+      this.stopEverything();
+      this.place('town', MEETING_CENTRE.x, MEETING_CENTRE.z, Math.PI, true);
+      return;
+    }
+    if (v.mode !== 'player') return;
+    const mine = v.seats.find((s) => s.id === v.mySeatId);
+    const won = Boolean(mine) && mine!.evil === (winner === 'evil');
+    // After any move the dawn makes (out of bed, say), then up on the stool.
+    setTimeout(() => this.takeMeetingSeat(), 700);
+    setTimeout(() => {
+      if (this.me && !this.job) this.emote = { anim: won ? 'dance' : 'cry', until: this.clock.elapsedTime + (won ? 16 : 6) };
+    }, 1700);
+  }
+
   private goToSquare() {
     if (!this.me) return;
     if (this.meetingIndex() >= 0) return this.takeMeetingSeat();
@@ -1123,6 +1193,7 @@ export class Engine {
       this.frame(dt, t);
     } catch (e) {
       console.error(e);
+      reportProblem(e, '3D town');
     }
   };
 
@@ -1156,6 +1227,7 @@ export class Engine {
     this.town.follow(this.camTarget.x, this.camTarget.z);
     this.town.update(dt, t);
     this.footsteps(t, v);
+    this.fireworks.update(dt);
 
     // Shadows are baked: the map is only redrawn when the town says something changed (and now and then).
     if (fx.consumeShadowDirty && this.renderer.shadowMap.enabled) {
@@ -1166,10 +1238,6 @@ export class Engine {
       }
     }
 
-    if (t - this.lastVoice > 0.2) {
-      this.lastVoice = t;
-      this.syncVoice(v);
-    }
 
     for (const s of this.signs) {
       if (s.station.zone !== zoneKind(local.zone)) continue;
@@ -1695,7 +1763,7 @@ export class Engine {
       // rather than to the whole town: far less bandwidth with a big group.
       const inRange = p.zone === local.zone && (zoneKind(p.zone) !== 'town' || Math.hypot(p.x - local.x, p.z - local.z) < VOICE_CONNECT_R);
       if (!(gain > 0 || inRange || key === 'st' || v.mode === 'st')) continue;
-      list.push({ voiceId: p.voiceId, gain });
+      list.push({ voiceId: p.voiceId, gain, key });
     }
     if (hearing !== this.hearing) {
       this.hearing = hearing;

@@ -1,4 +1,4 @@
-import { fromPose, type Pose, type PoseState } from '../world/types';
+import { angle, coord, fromPose, type Pose, type PoseState } from '../world/types';
 
 export interface Presence extends PoseState {
   /** When we last heard where they are. */
@@ -39,9 +39,9 @@ export const presence = {
       if (pose.length === 3) {
         const p = this.others.get(key);
         if (!p) continue;
-        p.x = Number(pose[0]) || 0;
-        p.z = Number(pose[1]) || 0;
-        p.ry = Number(pose[2]) || 0;
+        p.x = coord(pose[0]);
+        p.z = coord(pose[1]);
+        p.ry = angle(pose[2]);
         p.at = now;
       } else this.others.set(key, { ...fromPose(pose as Pose), at: now });
     }

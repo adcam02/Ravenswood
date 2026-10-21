@@ -9,6 +9,7 @@ import { presence } from '../game/presence';
 import type { Item, Look, Pose } from '../world/types';
 import { joinMesh, type Mesh } from './mesh';
 import { hostPeerId, peerDisabled, peerOptions, type LinkStatus } from './peer';
+import { reportTo } from '../lib/report';
 
 interface ClientState {
   status: LinkStatus;
@@ -52,7 +53,8 @@ class ClientLink {
 
   /** The lobby connection, which also carries voice. */
   get peerRef(): Peer | null {
-    return this.peer && this.peer.open && !this.peer.destroyed ? this.peer : null;
+    // Once it has an id: calls carry on through a brief loss of the lobby itself.
+    return this.peer && !this.peer.destroyed && this.peer.id ? this.peer : null;
   }
 
   start(room: string) {
@@ -82,7 +84,12 @@ class ClientLink {
     this.setPeerState('starting');
     const peer = new Peer(peerOptions());
     this.peer = peer;
-    peer.on('open', () => this.connect());
+    let opened = false;
+    // (Also after reconnecting to the lobby, when the channel to the Storyteller is usually still fine.)
+    peer.on('open', () => {
+      opened = true;
+      if (!this.conn?.open) this.connect();
+    });
     peer.on('disconnected', () => {
       if (this.peer !== peer || peer.destroyed) return;
       setTimeout(() => !peer.destroyed && peer.disconnected && peer.reconnect(), 1500);
@@ -91,11 +98,22 @@ class ClientLink {
       if (this.peer !== peer) return;
       const type = (err as { type?: string }).type ?? '';
       if (type === 'peer-unavailable') {
+        // Voice calls to someone who has just left say this too: only the Storyteller being missing matters here.
+        const message = String((err as { message?: string }).message ?? '');
+        if (this.conn?.open || (message && !message.includes(hostPeerId(this.room)))) return;
         this.setPeerState('waiting');
         this.later(() => this.connect(), 3000);
       } else if (RETRYABLE.has(type)) {
         this.setPeerState('reconnecting');
-        this.later(() => this.openPeer(), 4000);
+        // A lost lobby doesn't touch the open channel to the Storyteller or the voice calls: reconnect to it
+        // rather than start again (unless PeerJS gave up on this peer altogether).
+        if (!opened) this.later(() => this.openPeer(), 4000);
+        else
+          this.later(() => {
+            if (this.peer !== peer) return;
+            if (peer.destroyed) this.openPeer();
+            else if (peer.disconnected) peer.reconnect();
+          }, 3000);
       } else {
         console.warn('Peer error', type, err);
       }
@@ -220,6 +238,9 @@ class ClientLink {
 }
 
 export const clientLink = new ClientLink();
+
+// A player's problems go quietly to the Storyteller.
+reportTo((message, where) => clientLink.send({ t: 'oops', message, where, v: __BUILD__ }));
 
 if (debugHooks()) (window as unknown as { __client: typeof useClient }).__client = useClient;
 

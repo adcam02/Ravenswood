@@ -78,7 +78,13 @@ export function getRole(id: string | null | undefined): Role | undefined {
 }
 
 export function setCustomRoles(roles: Role[] | undefined) {
-  for (const [id, r] of registry) if (r.custom) registry.delete(id);
+  // A homebrew character can reuse an official id (a reworded Imp, say): put the official one back, not nothing.
+  for (const [id, r] of registry) {
+    if (!r.custom) continue;
+    const own = official.get(id);
+    if (own) registry.set(id, own);
+    else registry.delete(id);
+  }
   for (const r of roles ?? []) registry.set(r.id, { ...r, custom: true });
 }
 

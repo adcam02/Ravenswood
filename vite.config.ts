@@ -8,12 +8,17 @@ import react from '@vitejs/plugin-react';
  * files the first time it opens a dialog or a minigame. So the last few deploys' files stay alongside the new
  * ones, listed in assets/deploys.json, and only older ones are cleared away.
  */
-function keepRecentDeploys(outDir: string, keep: number): Plugin {
-  const assets = join(outDir, 'assets');
-  const listPath = join(assets, 'deploys.json');
+function keepRecentDeploys(keep: number): Plugin {
+  let assets = '';
+  let listPath = '';
   return {
     name: 'keep-recent-deploys',
     apply: 'build',
+    // Wherever this build is going (docs/ for the site, or a scratch folder with --outDir).
+    configResolved(config) {
+      assets = join(config.build.outDir, 'assets');
+      listPath = join(assets, 'deploys.json');
+    },
     writeBundle(_, bundle) {
       const files = Object.keys(bundle)
         .filter((f) => f.startsWith('assets/'))
@@ -36,7 +41,7 @@ export default defineConfig({
   define: {
     __BUILD__: JSON.stringify(new Date().toISOString()),
   },
-  plugins: [react(), keepRecentDeploys('docs', 15)],
+  plugins: [react(), keepRecentDeploys(15)],
   build: {
     outDir: 'docs',
     // Not emptied: keepRecentDeploys clears out old files itself.

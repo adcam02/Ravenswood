@@ -3,7 +3,7 @@ import { defaultAlignment, getRole, type Alignment, type Script } from '../data'
 import { useClient } from '../net/client';
 import { useHostNet } from '../net/host';
 import { isTraveller, seatAlignment, useHost } from './host';
-import type { AwakeState, DayTimer, Execution, Nomination, Phase, Reminder, SlayerShot, TownHall, VoteRecord } from './types';
+import type { AwakeState, DayTimer, DeathRecord, Execution, GameEnd, Nomination, Phase, Reminder, SlayerShot, TownHall, VoteRecord } from './types';
 import type { Look, TownState, Weather } from '../world/types';
 import { useUI } from './ui';
 
@@ -58,6 +58,10 @@ export interface View {
   mySeatId: string | null;
   /** Slayer claims this game (the Storyteller also sees which were the real Slayer). */
   slayer: SlayerShot[];
+  /** The game is over. */
+  ended: GameEnd | null;
+  /** Every death this game (players get these once it's over). */
+  deaths: DeathRecord[];
 }
 
 const label = (name: string, i: number) => name || `Seat ${i + 1}`;
@@ -106,6 +110,8 @@ export function useStorytellerView(): View {
       grimoireRevealed: g.grimoireRevealed,
       mySeatId: null,
       slayer: g.slayer,
+      ended: g.ended,
+      deaths: g.deaths,
     }),
     [g, online, hide],
   );
@@ -136,7 +142,7 @@ export function usePlayerView(): View | null {
           dead: s.dead,
           ghostVote: s.ghostVote,
           roleId,
-          shownRoleId: null,
+          shownRoleId: s.shownRoleId ?? null,
           alignment: isMe && priv?.roleId ? priv.alignment : s.alignment ?? defaultAlignment(getRole(roleId)?.team),
           reminders: [],
           isMe,
@@ -160,6 +166,8 @@ export function usePlayerView(): View | null {
       grimoireRevealed: pub.grimoireRevealed,
       mySeatId: priv?.seatId ?? null,
       slayer: pub.slayer ?? [],
+      ended: pub.ended ?? null,
+      deaths: pub.deaths ?? [],
     };
   }, [pub, priv, clockOffset]);
 }

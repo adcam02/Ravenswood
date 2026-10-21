@@ -1,4 +1,7 @@
 import { debugHooks } from '../lib/util';
+import { steadyInterval } from '../lib/ticker';
+import { noteProblem } from '../lib/report';
+import { ui } from '../state/ui';
 import Peer, { type DataConnection } from 'peerjs';
 import { create } from 'zustand';
 import { st, toPrivate, toPublic, useHost } from '../state/host';
@@ -55,14 +58,14 @@ class HostLink {
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private broadcastTimer: ReturnType<typeof setTimeout> | null = null;
   private sweepTimer: ReturnType<typeof setInterval> | null = null;
-  private worldTimer: ReturnType<typeof setInterval> | null = null;
+  private stopWorld: (() => void) | null = null;
   private ticks = 0;
   /** Bytes of world updates sent, for the debug stats. */
   private worldBytes = 0;
 
-  /** The lobby connection, which also carries voice. */
+  /** The lobby connection, which also carries voice (calls carry on through a brief loss of the lobby itself). */
   get peerRef(): Peer | null {
-    return this.peer && this.peer.open ? this.peer : null;
+    return this.peer && !this.peer.destroyed ? this.peer : null;
   }
 
   start(room: string) {
@@ -73,17 +76,23 @@ class HostLink {
     else this.openPeer();
     this.openMesh();
     this.sweepTimer = setInterval(() => this.sweep(), 5000);
-    this.worldTimer = setInterval(() => {
-      this.sendWorld();
-      // About once a second, see whether the day's timer has run out.
-      if (++this.ticks % 10 === 0) st.checkDayTimer();
+    // Kept steady while this tab is hidden (the Storyteller in another window), so players don't see everyone jump.
+    this.stopWorld = steadyInterval(() => {
+      try {
+        this.sendWorld();
+        // About once a second, see whether the day's timer has run out.
+        if (++this.ticks % 10 === 0) st.checkDayTimer();
+      } catch (e) {
+        console.error(e);
+      }
     }, 100);
   }
 
   stop() {
     if (this.retryTimer) clearTimeout(this.retryTimer);
     if (this.sweepTimer) clearInterval(this.sweepTimer);
-    if (this.worldTimer) clearInterval(this.worldTimer);
+    this.stopWorld?.();
+    this.stopWorld = null;
     for (const l of this.links.keys()) l.close();
     this.links.clear();
     this.meshLinks.clear();
@@ -100,7 +109,11 @@ class HostLink {
     useHostNet.setState({ status: 'starting', detail: 'Opening the room…' });
     const peer = new Peer(hostPeerId(this.room), peerOptions());
     this.peer = peer;
-    peer.on('open', () => useHostNet.setState({ status: 'open', detail: '' }));
+    let opened = false;
+    peer.on('open', () => {
+      opened = true;
+      useHostNet.setState({ status: 'open', detail: '' });
+    });
     peer.on('connection', (conn) => this.acceptPeer(conn));
     peer.on('disconnected', () => {
       if (peer.destroyed || this.peer !== peer) return;
@@ -116,7 +129,16 @@ class HostLink {
         this.reopenPeer(4000);
       } else if (RETRYABLE.has(type)) {
         useHostNet.setState({ status: 'reconnecting', detail: 'Can’t reach the lobby server. Retrying… Players can still join through the backup route.' });
-        this.reopenPeer(5000);
+        // Once the room is open, losing the lobby only matters to new arrivals: everyone here keeps their own
+        // channel and voice calls. So reconnect to the lobby rather than start again, which would cut them all
+        // off (unless PeerJS gave up on this peer altogether).
+        if (!opened) this.reopenPeer(5000);
+        else
+          setTimeout(() => {
+            if (this.peer !== peer) return;
+            if (peer.destroyed) this.reopenPeer(0);
+            else if (peer.disconnected) peer.reconnect();
+          }, 3000);
       } else if (type !== 'peer-unavailable') {
         console.warn('Peer error', type, err);
       }
@@ -264,6 +286,15 @@ class HostLink {
       case 'slay':
         p.slay(pid, String(msg.seatId));
         break;
+      case 'oops': {
+        const who = useHost.getState().g.seats.find((s) => s.playerId === pid)?.name || 'A player';
+        const message = String(msg.message ?? '').slice(0, 300);
+        if (!message) break;
+        const old = typeof msg.v === 'string' && msg.v < __BUILD__;
+        noteProblem({ who, message, where: String(msg.where ?? '').slice(0, 80), build: String(msg.v ?? ''), at: Date.now() });
+        ui.toast(old ? `${who}’s game hit a problem. Their page is out of date: ask them to reload.` : `${who}’s game hit a problem (details in Settings).`, 'info');
+        break;
+      }
       case 'ack':
         p.ack(pid, msg.wakeId);
         break;
@@ -378,17 +409,23 @@ class HostLink {
     if (this.broadcastTimer) return;
     this.broadcastTimer = setTimeout(() => {
       this.broadcastTimer = null;
-      for (const [link, meta] of this.links) this.flushTo(link, meta);
+      // Everyone gets the same public state: build and encode it once, not once per player.
+      const shared = this.publicNow();
+      for (const [link, meta] of this.links) this.flushTo(link, meta, shared);
     }, 15);
   }
 
   /** Sends a player the public state and their own private state, if either changed. */
-  private flushTo(link: Link, meta: LinkMeta) {
+  private publicNow() {
+    const g = useHost.getState().g;
+    const pub = toPublic(g, new Set(Object.keys(useHostNet.getState().online)));
+    return { pub, pubJson: JSON.stringify(pub) };
+  }
+
+  private flushTo(link: Link, meta: LinkMeta, shared?: { pub: ReturnType<typeof toPublic>; pubJson: string }) {
     if (!meta.playerId || !link.isOpen()) return;
     const g = useHost.getState().g;
-    const online = new Set(Object.keys(useHostNet.getState().online));
-    const pub = toPublic(g, online);
-    const pubJson = JSON.stringify(pub);
+    const { pub, pubJson } = shared ?? this.publicNow();
     try {
       if (pubJson !== meta.sentPublic) {
         meta.sentPublic = pubJson;

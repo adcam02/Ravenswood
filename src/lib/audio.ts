@@ -135,3 +135,63 @@ export function townBells() {
     notes.forEach((f, i) => bell(f, 2.6, 0.075, round * 1.9 + i * 0.27));
   }
 }
+
+/** A short brass fanfare and then the bells, for the end of the game: bright and major for good, dark for evil. */
+export function fanfare(good: boolean) {
+  const c = audio();
+  if (!c) return;
+  const t0 = c.currentTime + 0.05;
+  // Semitones above the root, then the beat it starts on and how many beats it lasts.
+  const tune: [number, number, number][] = good
+    ? [
+        [0, 0, 0.5],
+        [4, 0.5, 0.5],
+        [7, 1, 0.5],
+        [12, 1.5, 1.5],
+        [7, 3, 0.5],
+        [12, 3.5, 3],
+      ]
+    : [
+        [0, 0, 0.75],
+        [3, 0.75, 0.75],
+        [7, 1.5, 0.75],
+        [6, 2.25, 0.75],
+        [3, 3, 0.5],
+        [0, 3.5, 3],
+      ];
+  const root = good ? 261.6 : 196;
+  const beat = good ? 0.2 : 0.28;
+  const out = c.createGain();
+  out.gain.value = 0.09;
+  const soft = c.createBiquadFilter();
+  soft.type = 'lowpass';
+  soft.frequency.value = good ? 2600 : 1500;
+  soft.connect(out).connect(c.destination);
+  // A brassy reed, an octave of shine and a little body underneath.
+  const voices: [number, OscillatorType, number][] = [
+    [1, 'sawtooth', 0.5],
+    [2, 'triangle', 0.22],
+    [0.5, 'triangle', 0.35],
+  ];
+  for (const [semi, start, len] of tune) {
+    const f = root * 2 ** (semi / 12);
+    const s = t0 + start * beat;
+    const e = s + len * beat;
+    for (const [mul, type, amp] of voices) {
+      const osc = c.createOscillator();
+      const g = c.createGain();
+      osc.type = type;
+      osc.frequency.value = f * mul;
+      g.gain.setValueAtTime(0.0001, s);
+      g.gain.exponentialRampToValueAtTime(amp, s + 0.03);
+      g.gain.setValueAtTime(amp * 0.8, e - 0.04);
+      g.gain.exponentialRampToValueAtTime(0.0001, e + 0.3);
+      osc.connect(g).connect(soft);
+      osc.start(s);
+      osc.stop(e + 0.35);
+    }
+  }
+  const after = (tune[tune.length - 1][1] + 1.5) * beat;
+  const peal = good ? [784, 659.3, 587.3, 523.3, 392] : [261.6, 233.1, 196, 174.6, 130.8];
+  for (let round = 0; round < 3; round++) peal.forEach((f, i) => bell(f, 3, 0.07, after + round * 1.6 + i * 0.3));
+}

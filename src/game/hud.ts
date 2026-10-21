@@ -24,6 +24,8 @@ interface Hud {
   ready: boolean;
   /** WebGL is missing or failed. */
   failed: string | null;
+  /** The browser took the graphics away (a GPU reset) and hasn't given them back yet: since when. */
+  gfxLost: number | null;
   /** The emote playing, for highlighting its button. */
   emote: Anim | null;
   /** Holding something you can sip. */
@@ -46,6 +48,7 @@ export const useHud = create<Hud>(() => ({
   giveTo: null,
   ready: false,
   failed: null,
+  gfxLost: null,
   emote: null,
   canSip: false,
   hearing: 0,

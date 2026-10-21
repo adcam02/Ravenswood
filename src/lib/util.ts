@@ -41,11 +41,23 @@ export function loadJSON<T>(key: string, fallback: T): T {
   }
 }
 
-export function saveJSON(key: string, value: unknown) {
+/** Saves to this browser. Returns false if it couldn't (storage full or blocked); the game carries on either way. */
+export function saveJSON(key: string, value: unknown): boolean {
   try {
     localStorage.setItem(key, JSON.stringify(value));
+    return true;
   } catch {
-    /* storage full or blocked; the game carries on without it */
+    // Full, most likely: the animal pictures kept from the join screen are the big thing to let go of.
+    try {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k?.startsWith('ravenswood:thumb')) localStorage.removeItem(k);
+      }
+      localStorage.setItem(key, JSON.stringify(value));
+      return true;
+    } catch {
+      return false;
+    }
   }
 }
 

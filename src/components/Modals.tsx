@@ -17,6 +17,8 @@ import { joinNames } from '../lib/util';
 import { askForNotifications, notificationsSupported } from '../lib/notify';
 import { ScriptModal } from './ScriptPicker';
 import { SlayerModal } from './Slayer';
+import { EndGameSetting, RecapModal } from './GameOver';
+import { useProblems } from '../lib/report';
 import { ReminderToken, Token } from './Token';
 import { WakeComposer } from './WakeComposer';
 import { useJoin } from './town/JoinFlow';
@@ -52,6 +54,8 @@ export function Modals() {
       return <DawnCheck />;
     case 'slayer':
       return <SlayerModal />;
+    case 'recap':
+      return <RecapModal />;
   }
 }
 
@@ -409,6 +413,8 @@ function StorytellerSettings() {
             {g.grimoireRevealed ? 'Hide it again' : 'Reveal'}
           </button>
         </div>
+        <EndGameSetting />
+        <PlayerProblems />
         <div className="setting">
           <div>
             <strong>New game</strong>
@@ -438,6 +444,31 @@ function StorytellerSettings() {
         </div>
       </div>
     </Modal>
+  );
+}
+
+/** Problems players' games have reported this session, newest first, for working out what went wrong. */
+function PlayerProblems() {
+  const list = useProblems((s) => s.list);
+  if (!list.length) return null;
+  return (
+    <div className="setting problems">
+      <div>
+        <strong>Problems in players’ games</strong>
+        <span>This session only. A reload usually sorts a player out.</span>
+        <ul className="problem-list">
+          {[...list].reverse().map((p, i) => (
+            <li key={i}>
+              <b>{p.who}</b> · {new Date(p.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })} · {p.where}
+              <code>{p.message}</code>
+            </li>
+          ))}
+        </ul>
+      </div>
+      <button className="btn quiet" onClick={() => useProblems.setState({ list: [] })}>
+        Clear
+      </button>
+    </div>
   );
 }
 

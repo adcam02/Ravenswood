@@ -9,6 +9,7 @@ import {
   type Script,
 } from '../data';
 import { loadJSON, roomCode, saveJSON, shuffle, uid } from '../lib/util';
+import { ui } from './ui';
 import {
   ANIMALS,
   BED_SPOTS,
@@ -25,6 +26,8 @@ import {
 } from '../world/types';
 import type {
   Ask,
+  DeathRecord,
+  GameEnd,
   GameState,
   GrimoireSnapshot,
   Nomination,
@@ -83,6 +86,8 @@ function freshGame(prev?: GameState, keepPlayers = true): GameState {
     town: prev?.town ?? emptyTown(),
     nightDeaths: [],
     slayer: [],
+    deaths: [],
+    ended: null,
     awake: {},
     wakes: [],
     replies: [],
@@ -99,6 +104,8 @@ function loadGame(): GameState | null {
   g.townHall ??= null;
   g.nightDeaths ??= [];
   g.slayer ??= [];
+  g.deaths ??= [];
+  g.ended ??= null;
   g.town ??= emptyTown();
   g.town.records ??= {};
   g.execution ??= null;
@@ -176,6 +183,7 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
         dead: s.dead && !secret,
         ghostVote: secret ? true : s.ghostVote,
         roleId: show ? s.roleId : null,
+        shownRoleId: g.grimoireRevealed ? s.shownRoleId : null,
         alignment: g.grimoireRevealed ? seatAlignment(s) : null,
         look: s.look,
         star: s.star ?? null,
@@ -198,12 +206,46 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
     ),
     town: g.town,
     slayer: g.slayer.map(({ real: _, ...shot }) => shot),
+    ended: g.ended,
+    // Night deaths stay secret until dawn, so the list only goes out once the game is over.
+    deaths: g.ended ? g.deaths : undefined,
   };
 }
 
 /** Whether a player can claim to be the Slayer right now: the script has one, and it's a day of the game. */
-export function slayerOpen(g: { script: { roles: string[] }; phase: Phase; day: number }): boolean {
-  return g.script.roles.includes('slayer') && g.phase === 'day' && g.day > 0;
+export function slayerOpen(g: { script: { roles: string[] }; phase: Phase; day: number; ended?: GameEnd | null }): boolean {
+  return g.script.roles.includes('slayer') && g.phase === 'day' && g.day > 0 && !g.ended;
+}
+
+/**
+ * Whether the grimoire says the game is over, for the Storyteller to confirm: every Demon dead (good wins), or
+ * only two players left alive with the Demon among them (evil wins). `key` changes whenever the reason does, so
+ * "not yet" holds until something moves on (a Scarlet Woman or a starpass makes a new Demon, say).
+ */
+export function winCheck(g: GameState): { winner: 'good' | 'evil'; reason: string; key: string } | null {
+  if (g.ended || (g.day === 0 && g.phase === 'day')) return null;
+  const players = g.seats.filter((s) => s.roleId && !isTraveller(s.roleId));
+  const demons = players.filter((s) => getRole(s.roleId)?.team === 'demon');
+  if (!demons.length) return null;
+  const living = players.filter((s) => !s.dead);
+  if (demons.every((s) => s.dead)) {
+    const name = demons.length === 1 ? `The ${getRole(demons[0].roleId)?.name ?? 'Demon'}` : 'The Demon';
+    return { winner: 'good', reason: `${name} is dead`, key: `good:${demons.map((d) => d.id).join()}` };
+  }
+  if (living.length <= 2) return { winner: 'evil', reason: 'Only two players are left alive', key: `evil:${living.map((s) => s.id).join()}` };
+  return null;
+}
+
+/** Notes a death for the recap (and forgets the latest one if they're brought back). */
+function died(g: GameState, seatId: string, how: DeathRecord['how']) {
+  g.deaths.push({ seatId, day: g.day, phase: g.phase, how, at: Date.now() });
+}
+function revived(g: GameState, seatId: string) {
+  for (let i = g.deaths.length - 1; i >= 0; i--) {
+    if (g.deaths[i].seatId !== seatId) continue;
+    g.deaths.splice(i, 1);
+    return;
+  }
 }
 
 /** How long an animal stays held for someone looking at it in the picker, without them choosing. */
@@ -293,11 +335,18 @@ export const useHost = create<HostStore>((set, get) => ({
 }));
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let saveWarned = false;
 const flush = () => {
   if (!saveTimer) return;
   clearTimeout(saveTimer);
   saveTimer = null;
-  saveJSON(KEY, useHost.getState().g);
+  const ok = saveJSON(KEY, useHost.getState().g);
+  // Say so (once) if the game can't be kept: a refresh would lose it.
+  if (!ok && !saveWarned) {
+    saveWarned = true;
+    ui.toast('This browser won’t save the game (its storage is full or blocked), so don’t refresh the page.', 'evil');
+  }
+  if (ok) saveWarned = false;
 };
 useHost.subscribe(() => {
   if (saveTimer) clearTimeout(saveTimer);
@@ -578,10 +627,13 @@ export const st = {
       g.nightDeaths = g.nightDeaths.filter((x) => x !== id);
       if (s.dead && g.phase === 'night') g.nightDeaths.push(id);
       // Killing the player on the block by day is an execution: the whole town watches.
-      if (s.dead && g.phase === 'day' && g.marked?.seatId === id) {
+      const executed = s.dead && g.phase === 'day' && g.marked?.seatId === id;
+      if (executed) {
         g.execution = { id: uid(), seatId: id, at: Date.now() };
         g.marked = null;
       }
+      if (s.dead) died(g, id, g.phase === 'night' ? 'night' : executed ? 'executed' : 'other');
+      else revived(g, id);
     });
   },
   /** Hangs a player at the gallows in front of the town, whoever is on the block. */
@@ -590,6 +642,7 @@ export const st = {
       const s = seatOf(g, id);
       if (!s || s.dead) return;
       s.dead = true;
+      died(g, id, 'executed');
       g.execution = { id: uid(), seatId: id, at: Date.now() };
       if (g.marked?.seatId === id) g.marked = null;
     });
@@ -895,6 +948,34 @@ export const st = {
   revealGrimoire(on: boolean) {
     update((g) => void (g.grimoireRevealed = on));
   },
+  /**
+   * Calls the game: everyone's character is revealed and the town gathers on the stools around the clock tower
+   * for the celebrations (by daylight, so nobody's stuck in bed). Night deaths come out now too.
+   */
+  endGame(winner: 'good' | 'evil', reason: string) {
+    stopClock();
+    update((g) => {
+      if (g.ended) return;
+      g.ended = { winner, reason, at: Date.now(), day: g.day };
+      g.grimoireRevealed = true;
+      g.phase = 'day';
+      g.nightDeaths = [];
+      g.awake = {};
+      g.nomination = null;
+      g.marked = null;
+      g.dayTimer = null;
+      g.execution = null;
+      g.townHall = { id: uid(), at: Date.now(), ring: 0, back: [], gathered: true };
+    });
+  },
+  /** Takes back calling the game, to carry on playing. */
+  reopenGame() {
+    update((g) => {
+      g.ended = null;
+      g.grimoireRevealed = false;
+      g.townHall = null;
+    });
+  },
   /** What came of a Slayer claim: the chosen player dies, or nothing happens. */
   settleSlayer(id: string, kill: boolean) {
     update((g) => {
@@ -902,8 +983,10 @@ export const st = {
       if (!shot || shot.result !== 'pending') return;
       shot.result = kill && shot.real ? 'dies' : 'nothing';
       const target = seatOf(g, shot.target);
-      if (kill && target && !target.dead) {
+      if (shot.result === 'dies' && target) {
+        // (A Zombuul that has already "died" is shown dead already; this is the death that counts.)
         target.dead = true;
+        died(g, target.id, 'slayer');
         if (g.marked?.seatId === target.id) g.marked = null;
       }
       // The real Slayer's ability is spent either way, so the grimoire says so.
@@ -998,7 +1081,7 @@ export const st = {
       if (!s || s.dead || !target || target.id === s.id || !slayerOpen(g) || g.slayer.some((x) => x.by === s.id)) return;
       const id = uid();
       const real = s.roleId === 'slayer';
-      update((g) => void g.slayer.push({ id, by: s.id, target: target.id, at: Date.now(), result: 'pending', real }));
+      update((g) => void g.slayer.push({ id, by: s.id, target: target.id, at: Date.now(), result: 'pending', real, day: g.day }));
     },
     /** Whatever a player did around town. Returns an item when it ends up in their paw. */
     town(playerId: string, action: TownAction): Item | null {
@@ -1015,13 +1098,22 @@ export const st = {
       return townAction(s.name || 'Someone', action);
     },
     ack(playerId: string, wakeId: string) {
+      if (typeof wakeId !== 'string') return;
       update((g) => {
         const s = g.seats.find((x) => x.playerId === playerId);
         const a = s && g.awake[s.id];
         if (a && a.wakeId === wakeId) a.seen = true;
       });
     },
-    reply(playerId: string, wakeId: string, r: { seatIds?: string[]; roleIds?: string[]; answer?: boolean }) {
+    reply(playerId: string, wakeId: string, raw: { seatIds?: unknown; roleIds?: unknown; answer?: unknown }) {
+      // Straight from the network, and kept with the game: only short lists of ids, and a true or false.
+      const ids = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string').slice(0, 20).map((x) => x.slice(0, 40)) : undefined);
+      const r = {
+        ...(ids(raw.seatIds) && { seatIds: ids(raw.seatIds) }),
+        ...(ids(raw.roleIds) && { roleIds: ids(raw.roleIds) }),
+        ...(typeof raw.answer === 'boolean' && { answer: raw.answer }),
+      };
+      if (typeof wakeId !== 'string') return;
       update((g) => {
         const s = g.seats.find((x) => x.playerId === playerId);
         if (!s || !g.wakes.some((w) => w.id === wakeId && w.to.includes(s.id))) return;

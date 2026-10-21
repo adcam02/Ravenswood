@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Builder, matte, rng } from '../build';
 import { buildItem, disposeObject } from '../items';
-import { BED_SPOTS, type Collider, type Door, type Spot, type Station, type TownState, type Weather, type ZoneKind } from '../types';
+import { BED_SPOTS, wrapAngle, type Collider, type Door, type Spot, type Station, type TownState, type Weather, type ZoneKind } from '../types';
 import { makeBirds, makeGlows, makeMist, makeRain, makeRipples, makeSky, swayUniforms } from './fx';
 import { G, shade } from './kit';
 import { buildInteriors, type Room } from './interiors';
@@ -480,9 +480,12 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     const group = new THREE.Group();
     const stone = new THREE.Mesh(stoneGeo, stoneMat);
     stone.castShadow = true;
+    // Every stone shares these, so taking one away mustn't free them.
+    stone.userData.shared = true;
     group.add(stone);
     const label = new TextSign({ w: 256, h: 128, bg: '#a8a196', fg: '#3a3630', size: 54 }, g.name);
     const { mesh } = signBoard(label, 0.5, 0.25);
+    group.userData.onDispose = () => label.dispose();
     mesh.position.set(0, 0.5, 0.075);
     group.add(mesh);
     // Down the middle of the churchyard, oldest nearest the church.
@@ -1047,8 +1050,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
           const s0 = meetingSpot(0, m.n);
           const s1 = meetingSpot(1, m.n);
           let d = Math.atan2(s1.x - MEETING_CENTRE.x, s1.z - MEETING_CENTRE.z) - Math.atan2(s0.x - MEETING_CENTRE.x, s0.z - MEETING_CENTRE.z);
-          while (d > Math.PI) d -= Math.PI * 2;
-          while (d < -Math.PI) d += Math.PI * 2;
+          d = wrapAngle(d);
           sweepDir = d >= 0 ? 1 : -1;
         }
         sweep.visible = true;
@@ -1157,8 +1159,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       // The hand swings round to the next stool on a spring, with a little overshoot, and the band follows it.
       if (hand.visible) {
         let d = handTarget - hand.rotation.y;
-        while (d > Math.PI) d -= Math.PI * 2;
-        while (d < -Math.PI) d += Math.PI * 2;
+        d = wrapAngle(d);
         handVel += d * 42 * dt;
         handVel *= Math.max(0, 1 - 9 * dt);
         hand.rotation.y += handVel * dt;

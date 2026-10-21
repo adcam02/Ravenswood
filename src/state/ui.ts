@@ -18,6 +18,8 @@ export type Modal =
   | { kind: 'dawnCheck' }
   /** A player claiming to be the Slayer, choosing who to kill. */
   | { kind: 'slayer' }
+  /** Who was who and how it went, once the game is over. */
+  | { kind: 'recap' }
   | null;
 
 export type Pick =

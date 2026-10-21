@@ -9,7 +9,7 @@ import { useClient } from '../../net/client';
 import { ui, useUI } from '../../state/ui';
 import { nightMusic } from '../../lib/music';
 import { useView } from '../../state/view';
-import { useVoice, voice } from '../../voice/voice';
+import { setPersonVolume, useVoice, voice } from '../../voice/voice';
 import { EMOTES, type Item } from '../../world/types';
 import { lazyPart } from '../../lib/lazy';
 import { CrashNote, Guard } from '../Guard';
@@ -59,6 +59,32 @@ export function PlaceChip() {
 }
 
 /** Microphone, push-to-talk and volume. */
+/** One slider per person, for someone who's too loud or too quiet. */
+function PeopleVolumes() {
+  const view = useView();
+  const people = useVoice((s) => s.people);
+  const list = [
+    ...(view.mode === 'player' ? [{ key: 'st', label: 'The Storyteller' }] : []),
+    ...view.seats.filter((s) => !s.isMe && s.claimed).map((s) => ({ key: s.id, label: s.label })),
+  ];
+  if (!list.length) return null;
+  return (
+    <div className="voice-people">
+      <span className="voice-people-head">Each person</span>
+      {list.map((p) => {
+        const level = people[p.key] ?? 1;
+        return (
+          <label key={p.key} className="voice-person">
+            <span className={level === 0 ? 'off' : ''}>{p.label}</span>
+            <input type="range" min={0} max={1} step={0.05} value={level} onChange={(e) => setPersonVolume(p.key, Number(e.target.value))} aria-label={`${p.label}’s volume`} />
+            <em>{level === 0 ? 'Off' : `${Math.round(level * 100)}%`}</em>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
 export function VoiceDock() {
   const v = useVoice();
   const hearing = useHud((s) => s.hearing);
@@ -80,7 +106,7 @@ export function VoiceDock() {
   let label = 'Turn on mic';
   if (v.mic === 'asking') label = 'Allow the mic…';
   else if (v.mic === 'denied') label = 'Mic blocked';
-  else if (v.mic === 'error') label = 'No mic found';
+  else if (v.mic === 'error') label = 'No mic: try again';
   else if (v.mic === 'on') label = v.muted ? 'Muted' : v.pushToTalk ? (v.holding ? 'Talking' : 'Hold V to talk') : 'Mic on';
 
   return (
@@ -114,6 +140,7 @@ export function VoiceDock() {
             <span>Everyone else’s volume</span>
             <input type="range" min={0} max={1} step={0.05} value={v.volume} onChange={(e) => useVoice.setState({ volume: Number(e.target.value) })} />
           </label>
+          <PeopleVolumes />
           <p className="voice-note">
             {v.links ? `Connected to ${v.links} ${v.links === 1 ? 'person' : 'people'}.` : 'Nobody else connected yet.'} You hear people close by, and only people in the same building.
             Headphones stop echo. If you’re also in a Discord call, everyone hears everyone regardless, so leave the voice channel while you play.
@@ -378,6 +405,30 @@ export function WorldFailed() {
       <strong>The 3D town couldn’t start</strong>
       <p>Your browser didn’t let the game use your graphics card. Try Chrome or Edge, and check hardware acceleration is turned on in its settings.</p>
       <code>{failed}</code>
+    </div>
+  );
+}
+
+/** The browser took the graphics away (a GPU reset): say so, and offer a reload if they don't come back. */
+export function GraphicsLost() {
+  const since = useHud((s) => s.gfxLost);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!since) return;
+    const t = setTimeout(() => tick((n) => n + 1), 6000);
+    return () => clearTimeout(t);
+  }, [since]);
+  if (!since) return null;
+  const long = Date.now() - since > 5500;
+  return (
+    <div className="world-failed cosy-panel" role="alert">
+      <strong>The graphics stopped for a moment</strong>
+      <p>{long ? 'They haven’t come back. Reloading fixes it, and you keep your seat.' : 'Your browser reset the graphics card. Waiting for it to come back…'}</p>
+      {long && (
+        <button className="cosy-btn small primary" onClick={() => location.reload()}>
+          Reload
+        </button>
+      )}
     </div>
   );
 }

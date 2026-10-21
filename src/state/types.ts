@@ -150,6 +150,26 @@ export interface SlayerShot {
   result: 'pending' | 'dies' | 'nothing';
   /** Storyteller only: they really are the Slayer, so the Storyteller decides what happens. */
   real?: boolean;
+  /** The day it happened on. */
+  day?: number;
+}
+
+/** A death this game, for the recap at the end. */
+export interface DeathRecord {
+  seatId: string;
+  day: number;
+  phase: Phase;
+  /** Hanged at the gallows, killed in the night, slain by the Slayer, or killed by the Storyteller by day. */
+  how: 'executed' | 'night' | 'slayer' | 'other';
+  at: number;
+}
+
+/** The game is over: who won, and why. */
+export interface GameEnd {
+  winner: 'good' | 'evil';
+  reason: string;
+  at: number;
+  day: number;
 }
 
 export interface GameState {
@@ -181,6 +201,10 @@ export interface GameState {
   nightDeaths: string[];
   /** Slayer claims this game, oldest first. */
   slayer: SlayerShot[];
+  /** Everyone who has died this game, in order. */
+  deaths: DeathRecord[];
+  /** Set once the Storyteller calls the game. */
+  ended: GameEnd | null;
   awake: Record<string, AwakeState>;
   wakes: WakeMessage[];
   replies: WakeReply[];
@@ -198,6 +222,8 @@ export interface PublicSeat {
   ghostVote: boolean;
   /** Only travellers' characters are public, until the grimoire is revealed at the end. */
   roleId: string | null;
+  /** Once the grimoire is revealed: what they were told they were, when it differs (the Drunk). */
+  shownRoleId?: string | null;
   alignment: Alignment | null;
   look: Look | null;
   /** The day number they wear a gold star. */
@@ -225,6 +251,10 @@ export interface PublicState {
   town: TownState;
   /** Slayer claims this game (without whether they were the real Slayer). */
   slayer?: SlayerShot[];
+  /** The game is over. */
+  ended?: GameEnd | null;
+  /** Every death this game, once it's over (for the recap). */
+  deaths?: DeathRecord[];
 }
 
 export interface DayTimer {
@@ -302,4 +332,6 @@ export type ClientMessage =
   | { t: 'give'; to: string; item: Item }
   /** Claim to be the Slayer and choose this seat. */
   | { t: 'slay'; seatId: string }
+  /** Something went wrong in this player's game, so the Storyteller knows. */
+  | { t: 'oops'; message: string; where?: string; v?: string }
   | { t: 'ping' };

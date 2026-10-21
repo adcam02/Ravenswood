@@ -1,4 +1,4 @@
-import type { Collider } from './types';
+import { wrapAngle, type Collider } from './types';
 
 export type Bounds = { kind: 'circle'; r: number } | { kind: 'rect'; hw: number; hd: number };
 
@@ -60,8 +60,7 @@ export function resolve(x: number, z: number, colliders: Collider[], bounds: Bou
 /** Turns smoothly toward an angle, the short way round. */
 export function turnToward(current: number, target: number, maxStep: number): number {
   let d = target - current;
-  while (d > Math.PI) d -= Math.PI * 2;
-  while (d < -Math.PI) d += Math.PI * 2;
+  d = wrapAngle(d);
   if (Math.abs(d) <= maxStep) return target;
   return current + Math.sign(d) * maxStep;
 }

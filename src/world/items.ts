@@ -317,8 +317,14 @@ export function buildItem(item: Item): THREE.Object3D {
   return mesh;
 }
 
+/**
+ * Frees what an object made for itself. Meshes marked `userData.shared` use geometry and materials that others
+ * use too, so they're left alone; `userData.onDispose` frees anything else it made (a sign's canvas, say).
+ */
 export function disposeObject(obj: THREE.Object3D) {
   obj.traverse((o) => {
+    (o.userData.onDispose as (() => void) | undefined)?.();
+    if (o.userData.shared) return;
     const m = o as THREE.Mesh;
     if (m.geometry) m.geometry.dispose();
     const mat = m.material as THREE.Material | THREE.Material[] | undefined;

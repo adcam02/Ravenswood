@@ -57,6 +57,15 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      up over anyone voting. Executing the player on the block (mark them, then Kill) plays out at the
      gallows for the whole town: a drumroll, the gavel, the trapdoor drops, a short swing and a puff of
      smoke, then they walk on as a ghost.
+   - **The end of the game**: when every Demon is dead (good) or only two players are left with the
+     Demon among them (evil), you're asked whether the game is over; "Not yet" holds the question
+     until something changes (a Scarlet Woman, a starpass). You can also call it either way in
+     Settings. Everyone gets a fanfare, confetti and fireworks over the square, every character is
+     revealed, and the whole town sits in the ring on their stools: the winners dance, the losers
+     have a little cry. A **Game recap** button then shows who was who (and what the Drunk thought
+     they were), how each player died, every day's nominations, votes, executions and Slayer
+     claims, a few honours (first to fall, most suspected, quickest hand, biggest catch) and, for
+     each player, how many of their guesses were right. **Carry on playing** takes it back.
    - **Who's who**: the top of each player's **Notepad** lists every other player with two token
      slots: the character they claim, and the one you think they really are. Click a slot to choose
      the character; a guess that differs from the claim gets a red ring. Only that player sees it,
@@ -107,6 +116,16 @@ Everything you hear is made in the browser: the bell, the drumroll, a night tune
 a soft ambience around town (a gentle tune and birds by day, crickets and an owl by night, water and
 frogs by the pond, the rope creaking at the gallows, a fire in the tavern and the bakery, a hush in
 the church). It sits well under the voices and can be turned off in the player settings.
+
+The cog by the mic button has push-to-talk (hold V), everyone's volume, and a slider for **each
+person**, for the one who's too loud or too quiet. It's kept in that browser.
+
+### When something goes wrong
+
+If anything in a player's game breaks, they get a note with **Reload** (they keep their seat) rather
+than a blank screen, and the Storyteller is told quietly, with the details under **Problems in
+players' games** in Settings. If the browser resets the graphics card, the town says so and comes
+back on low graphics.
 
 ### Slow laptops
 

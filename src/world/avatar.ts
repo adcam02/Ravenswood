@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import * as Animals from './animals';
 import { buildAnimal, buildStoryteller, type Rig } from './animals';
-import type { Anim, BackId, FaceId, HatId, Item, Look, NeckId, PetId } from './types';
+import { wrapAngle, type Anim, type BackId, type FaceId, type HatId, type Item, type Look, type NeckId, type PetId } from './types';
 
 export interface AvatarInfo {
   name: string;
@@ -56,6 +56,7 @@ const HAND_GEO = (() => {
 })();
 const HAND_MAT = new THREE.MeshStandardMaterial({ color: '#fff6e8', roughness: 0.55, flatShading: true });
 const HAND_CUFF_MAT = new THREE.MeshStandardMaterial({ color: '#e8c778', roughness: 0.5, flatShading: true });
+const HAND_CUFF_GEO = new THREE.TorusGeometry(0.18, 0.035, 8, 20);
 
 const STAR_GEO = (() => {
   const shape = new THREE.Shape();
@@ -257,7 +258,7 @@ export class AvatarView {
       const palm = new THREE.Mesh(HAND_GEO, HAND_MAT);
       palm.castShadow = true;
       // A cuff in the player's colour.
-      const cuff = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.035, 8, 20), HAND_CUFF_MAT);
+      const cuff = new THREE.Mesh(HAND_CUFF_GEO, HAND_CUFF_MAT);
       cuff.rotation.x = Math.PI / 2;
       cuff.position.y = -0.2;
       this.hand.add(palm, cuff);
@@ -370,8 +371,7 @@ export class AvatarView {
         this.z += (this.tz - this.z) * k;
         this.y += (this.ty - this.y) * k;
         let dr = this.try_ - this.ry;
-        while (dr > Math.PI) dr -= Math.PI * 2;
-        while (dr < -Math.PI) dr += Math.PI * 2;
+        dr = wrapAngle(dr);
         this.ry += dr * Math.min(1, dt * 12);
       }
     } else {
@@ -414,8 +414,7 @@ export class AvatarView {
       root.visible = !this.away;
       root.position.set(this.petPos.x, this.ground, this.petPos.z);
       let d = this.petRy - root.rotation.y;
-      while (d > Math.PI) d -= Math.PI * 2;
-      while (d < -Math.PI) d += Math.PI * 2;
+      d = wrapAngle(d);
       root.rotation.y += d * Math.min(1, dt * 8);
       this.pet.update(dt, t, moving);
     }

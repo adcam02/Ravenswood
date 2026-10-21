@@ -21,10 +21,12 @@ import './styles/jobs.css';
 import { App } from './App';
 import { Guard } from './components/Guard';
 import { preloadParts } from './lib/lazy';
+import { watchForProblems } from './lib/report';
 import { watchForUpdates } from './lib/version';
 
 watchForUpdates();
 preloadParts();
+watchForProblems();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

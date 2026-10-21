@@ -2103,6 +2103,14 @@ export function buildStoryteller(): Rig {
 // ---------------------------------------------------------------- thumbnails
 
 let thumbRenderer: THREE.WebGLRenderer | null = null;
+let thumbIdle: ReturnType<typeof setTimeout> | null = null;
+
+/** The picture renderer is a second WebGL context: it's let go a few seconds after the last picture. */
+function releaseThumbRenderer() {
+  thumbRenderer?.dispose();
+  thumbRenderer?.forceContextLoss();
+  thumbRenderer = null;
+}
 let thumbScene: THREE.Scene | null = null;
 let thumbCamera: THREE.PerspectiveCamera | null = null;
 const thumbCache = new Map<string, string>();
@@ -2143,10 +2151,14 @@ export function animalThumbnail(look: Look, size = 128): string {
     thumbCamera!.position.set(dist * 0.18, cy + 0.08, dist);
     thumbCamera!.lookAt(0, cy, 0);
     thumbRenderer.render(thumbScene!, thumbCamera!);
-    const url = thumbRenderer.domElement.toDataURL('image/png');
+    // A lost context draws nothing: no picture (and nothing kept) rather than a blank one.
+    const lost = thumbRenderer.getContext().isContextLost();
+    const url = lost ? '' : thumbRenderer.domElement.toDataURL('image/png');
     thumbScene!.remove(rig.root);
     rig.dispose();
-    thumbCache.set(key, url);
+    if (thumbIdle) clearTimeout(thumbIdle);
+    thumbIdle = setTimeout(releaseThumbRenderer, lost ? 0 : 4000);
+    if (url) thumbCache.set(key, url);
     return url;
   } catch {
     return '';

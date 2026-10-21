@@ -15,13 +15,15 @@ interface VoiceUI {
   holding: boolean;
   /** How loud everyone else is, 0 to 1. */
   volume: number;
+  /** How loud each person is, 0 to 1, by seat id ('st' for the Storyteller); anyone not here is at full. */
+  people: Record<string, number>;
   /** How many people we're connected to by voice. */
   links: number;
   /** Voice needs the lobby server; on the backup route there's no voice. */
   available: boolean;
 }
 
-const prefs = loadJSON<{ muted?: boolean; pushToTalk?: boolean; volume?: number }>('ravenswood:voice', {});
+const prefs = loadJSON<{ muted?: boolean; pushToTalk?: boolean; volume?: number; people?: Record<string, number> }>('ravenswood:voice', {});
 
 export const useVoice = create<VoiceUI>(() => ({
   mic: 'off',
@@ -29,13 +31,14 @@ export const useVoice = create<VoiceUI>(() => ({
   pushToTalk: prefs.pushToTalk ?? false,
   holding: false,
   volume: prefs.volume ?? 1,
+  people: prefs.people ?? {},
   links: 0,
   available: true,
 }));
 
 useVoice.subscribe((s, p) => {
-  if (s.muted !== p.muted || s.pushToTalk !== p.pushToTalk || s.volume !== p.volume) {
-    saveJSON('ravenswood:voice', { muted: s.muted, pushToTalk: s.pushToTalk, volume: s.volume });
+  if (s.muted !== p.muted || s.pushToTalk !== p.pushToTalk || s.volume !== p.volume || s.people !== p.people) {
+    saveJSON('ravenswood:voice', { muted: s.muted, pushToTalk: s.pushToTalk, volume: s.volume, people: s.people });
   }
 });
 
@@ -81,6 +84,18 @@ export interface Listener {
   voiceId: string;
   /** 0 to 1, from distance and walls. */
   gain: number;
+  /** Who it is (a seat id, or 'st'), for their own volume. */
+  key: string;
+}
+
+/** Sets how loud one person is for us (1 is as they come). */
+export function setPersonVolume(key: string, level: number) {
+  useVoice.setState((s) => {
+    const people = { ...s.people };
+    if (level >= 0.999) delete people[key];
+    else people[key] = Math.max(0, level);
+    return { people };
+  });
 }
 
 interface Link {
@@ -115,7 +130,10 @@ class Voice {
   /** Starts answering calls on this peer. Safe to call again with the same or a new peer. */
   attach(peer: Peer | null) {
     useVoice.setState({ available: Boolean(peer) });
-    if (peer === this.peer) return;
+    if (peer === this.peer) {
+      local.voiceId = peer?.id ?? null;
+      return;
+    }
     this.closeAll();
     this.peer = peer;
     local.voiceId = peer?.id ?? null;
@@ -162,13 +180,31 @@ class Voice {
         this.levels = new Float32Array(this.analyser.fftSize);
         src.connect(this.analyser);
       }
-      track.addEventListener('ended', () => useVoice.setState({ mic: 'error' }));
+      track.addEventListener('ended', () => this.micLost(stream));
       useVoice.setState({ mic: 'on' });
       this.applyMute();
     } catch (e) {
       const name = (e as { name?: string }).name;
       useVoice.setState({ mic: name === 'NotAllowedError' || name === 'SecurityError' ? 'denied' : 'error' });
     }
+  }
+
+  /**
+   * The mic went away (a headset unplugged or switched off, the laptop slept): calls go back to carrying silence,
+   * and pressing the mic button asks for it afresh.
+   */
+  private micLost(stream: MediaStream) {
+    if (this.mic !== stream) return;
+    this.mic = null;
+    this.analyser = null;
+    this.levels = null;
+    const silent = this.silentTrack();
+    if (this.sendStream) {
+      for (const t of this.sendStream.getAudioTracks()) this.sendStream.removeTrack(t);
+      if (silent) this.sendStream.addTrack(silent);
+    }
+    if (silent) for (const l of this.links.values()) if (l.sending) this.replaceTrack(l.call, silent);
+    useVoice.setState({ mic: 'error' });
   }
 
   setMuted(muted: boolean) {
@@ -216,11 +252,17 @@ class Voice {
    */
   sync(listeners: Listener[]) {
     const peer = this.peer;
-    if (!peer || peer.destroyed || !peer.open) return;
-    const master = useVoice.getState().volume;
-    this.wanted = new Map(listeners.map((l) => [l.voiceId, l.gain]));
+    if (!peer || peer.destroyed) return;
+    // Without the lobby (a brief blip) open calls carry on and keep their volumes, but new ones can't be made.
+    const canCall = peer.open;
+    const { volume: master, people } = useVoice.getState();
+    // Each voice's own level is part of how loud it plays.
+    const level = (l: Listener) => l.gain * (people[l.key] ?? 1);
+    this.wanted = new Map(listeners.map((l) => [l.voiceId, level(l)]));
     const now = Date.now();
-    for (const { voiceId, gain } of listeners) {
+    for (const l of listeners) {
+      const { voiceId } = l;
+      const gain = level(l);
       if (voiceId === peer.id) continue;
       const link = this.links.get(voiceId);
       if (link) {
@@ -229,7 +271,7 @@ class Voice {
         continue;
       }
       // One side calls, so two browsers never call each other at once.
-      if (peer.id > voiceId) continue;
+      if (!canCall || peer.id > voiceId) continue;
       if (now - (this.lastTry.get(voiceId) ?? 0) < 6000) continue;
       this.lastTry.set(voiceId, now);
       try {

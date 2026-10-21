@@ -27,6 +27,7 @@ import { Toasts } from './components/Toasts';
 import { BluffBar } from './components/BluffBar';
 import { PickBanner } from './components/PickBanner';
 import { SlayerPrompt } from './components/Slayer';
+import { GameOverLayer, WinPrompt } from './components/GameOver';
 import { MyCharacter, PlayerRail, VoteBar } from './components/PlayerBits';
 import { WakeOverlay } from './components/WakeOverlay';
 import { DayClock, ProgressWatcher, SceneBar } from './components/town/Scenes';
@@ -51,6 +52,7 @@ import {
   SheepLayer,
   VoiceDock,
   WorldFailed,
+  GraphicsLost,
 } from './components/town/Hud';
 import { useEffects } from './lib/effects';
 import { clientLink, useClient } from './net/client';
@@ -173,10 +175,13 @@ function Storyteller() {
           <SidePanel />
           <PickBanner />
           <SlayerPrompt />
+          <WinPrompt />
+          <GameOverLayer />
           <Modals />
           <GiftNotice />
           <Fade />
           <WorldFailed />
+          <GraphicsLost />
           <UpdateNotice />
           <Toasts />
         </Shell>
@@ -216,6 +221,7 @@ function Player({ room }: { room: string }) {
           </div>
         </div>
         <WorldFailed />
+        <GraphicsLost />
       </div>
     );
   }
@@ -254,10 +260,12 @@ function Player({ room }: { room: string }) {
               <WakeOverlay />
               <GiftNotice />
               <HomeMusic />
+              <GameOverLayer />
             </>
           )}
           <Fade />
           <WorldFailed />
+          <GraphicsLost />
           <UpdateNotice />
           <Toasts />
         </Shell>

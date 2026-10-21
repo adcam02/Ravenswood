@@ -2293,3 +2293,26 @@
   gap: 10px;
   margin-top: 6px;
 }
+
+/* Problems players' games reported. */
+.setting.problems > div {
+  min-width: 0;
+}
+.problem-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.problem-list code {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-faint);
+  overflow-wrap: anywhere;
+}

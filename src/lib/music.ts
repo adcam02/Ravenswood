@@ -37,8 +37,13 @@ class NightMusic {
 
   start() {
     if (this.timer) return;
-    const ctx = (this.ctx ??= new AudioContext());
-    void ctx.resume();
+    let ctx: AudioContext;
+    try {
+      ctx = this.ctx ??= new AudioContext();
+      void ctx.resume();
+    } catch {
+      return; // no sound on this device
+    }
     if (!this.out) {
       this.out = ctx.createGain();
       this.out.connect(ctx.destination);

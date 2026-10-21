@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { isMissingPart } from '../lib/lazy';
+import { reportProblem } from '../lib/report';
 
 interface Props {
   children: ReactNode;
@@ -20,6 +21,8 @@ export class Guard extends Component<Props, { error: Error | null }> {
 
   componentDidCatch(error: unknown, info: ErrorInfo) {
     console.error(error, info.componentStack);
+    const where = info.componentStack?.trim().split('\n')[0]?.trim().replace(/^at /, '') ?? 'screen';
+    reportProblem(error, `screen: ${where}`);
   }
 
   render() {

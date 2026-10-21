@@ -414,13 +414,35 @@ export const toPose = (p: PoseState): Pose => [
   p.voiceId,
 ];
 
+/** The town and every room fit well inside this, so anything further out is a bad message. */
+const WORLD_EDGE = 500;
+
+/** A coordinate from the network: a finite number within the world, or 0. */
+export const coord = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.max(-WORLD_EDGE, Math.min(WORLD_EDGE, n)) : 0;
+};
+
+/** An angle from the network, brought into -π..π (a huge value would otherwise hang the code that turns to face it). */
+export const angle = (v: unknown): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? wrapAngle(n) : 0;
+};
+
+/** Any angle, as the same direction between -π and π. */
+export function wrapAngle(a: number): number {
+  const t = Math.PI * 2;
+  const r = (((a + Math.PI) % t) + t) % t;
+  return r - Math.PI;
+}
+
 export const fromPose = (p: Pose): PoseState => ({
-  x: Number(p[0]) || 0,
-  z: Number(p[1]) || 0,
-  ry: Number(p[2]) || 0,
+  x: coord(p[0]),
+  z: coord(p[1]),
+  ry: angle(p[2]),
   zone: typeof p[3] === 'string' ? p[3].slice(0, 60) : 'town',
-  anim: (typeof p[4] === 'string' ? p[4] : 'idle') as Anim,
-  item: p[5] && typeof p[5] === 'object' && typeof p[5].k === 'string' ? { k: p[5].k, c: typeof p[5].c === 'string' ? p[5].c.slice(0, 9) : undefined } : null,
+  anim: (typeof p[4] === 'string' ? p[4].slice(0, 24) : 'idle') as Anim,
+  item: p[5] && typeof p[5] === 'object' && typeof p[5].k === 'string' ? { k: p[5].k.slice(0, 24) as Item['k'], c: typeof p[5].c === 'string' ? p[5].c.slice(0, 9) : undefined } : null,
   speaking: Boolean(p[6]),
   voiceId: typeof p[7] === 'string' ? p[7].slice(0, 80) : null,
 });

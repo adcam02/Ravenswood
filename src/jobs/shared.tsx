@@ -99,11 +99,18 @@ export function useFrame(fn: (dt: number, t: number) => void, active = true) {
     let raf = 0;
     let last = performance.now();
     const start = last;
+    let failed = false;
     const loop = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      ref.current(dt, (now - start) / 1000);
       raf = requestAnimationFrame(loop);
+      // One bad frame shouldn't freeze the game for good (and is only reported once).
+      try {
+        ref.current(dt, (now - start) / 1000);
+      } catch (e) {
+        if (!failed) console.error(e);
+        failed = true;
+      }
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
