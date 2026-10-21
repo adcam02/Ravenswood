@@ -138,7 +138,9 @@ function RoleReveal() {
   const key = `ravenswood:seen-role:${view.room}`;
   const [seen, setSeen] = useState<Record<string, string>>(() => loadJSON(key, {}));
   const role = getRole(me?.roleId);
-  if (!me || !role || seen[me.id] === role.id) return null;
+  // At the end everyone's real character comes out (the Drunk learns the truth): the victory screen and the recap
+  // say so, rather than this card popping up over them.
+  if (!me || !role || seen[me.id] === role.id || view.ended) return null;
   const changed = Boolean(seen[me.id]);
   const done = () => {
     const next = { ...seen, [me.id]: role.id };
