@@ -104,8 +104,8 @@ export function Coin({ finish, setHint }: GameProps<{ wish: boolean; stars: numb
   const { later } = useLater();
 
   const markerAt = (t: number) => ({
-    x: 160 + 104 * Math.sin(0.95 * t + 1.2),
-    y: WELL.y + 10 * Math.sin(2.1 * t),
+    x: 160 + 104 * Math.sin(1.2 * t + 1.2),
+    y: WELL.y + 10 * Math.sin(2.5 * t),
   });
 
   const main = useMain({
@@ -113,8 +113,8 @@ export function Coin({ finish, setHint }: GameProps<{ wish: boolean; stars: numb
     onPress: () => {
       if (toss.current) return;
       const m = markerAt(time.current);
-      const x1 = m.x + (Math.random() - 0.5) * 10;
-      const y1 = m.y + (Math.random() - 0.5) * 6;
+      const x1 = m.x + (Math.random() - 0.5) * 14;
+      const y1 = m.y + (Math.random() - 0.5) * 8;
       const inWell = ((x1 - WELL.x) / (WELL.rx - 6)) ** 2 + ((y1 - WELL.y) / (WELL.ry - 3)) ** 2 <= 1;
       toss.current = {
         x0: 160,

@@ -121,7 +121,7 @@ export function Darts({ finish, setHint }: GameProps<{ score: number; stars: num
   const total = () => thrown.current.reduce((n, d) => n + d.points, 0);
   const sightAt = (t: number) => {
     const n = thrown.current.length;
-    const s = [1, 1.2, 1.45][Math.min(2, n)];
+    const s = [1.1, 1.3, 1.55][Math.min(2, n)];
     return {
       x: CX + 66 * Math.sin(1.1 * s * t + 0.8),
       y: CY + 58 * Math.sin(1.7 * s * t + 2.1),
@@ -150,8 +150,8 @@ export function Darts({ finish, setHint }: GameProps<{ score: number; stars: num
       flight.current = {
         x0: 160,
         y0: 215,
-        x1: s.x + (Math.random() - 0.5) * 6,
-        y1: s.y + (Math.random() - 0.5) * 6,
+        x1: s.x + (Math.random() - 0.5) * 8,
+        y1: s.y + (Math.random() - 0.5) * 8,
         t: 0,
       };
       sfx.throwDart();

@@ -105,6 +105,10 @@ export function FlowerArt({ kind, color, size = 64 }: { kind: FlowerKind; color:
 
 type Stage = 'flower' | 'color' | 'dig' | 'water' | 'done';
 const DIGS = 3;
+/** After the can's tipped back, the last of the water still runs out for this long (seconds, give or take). */
+const RUN_ON = 0.22;
+/** A perfect watering takes at most this many goes. */
+const PERFECT_GOES = 2;
 
 export function Gardening({ finish, setHint }: GameProps<{ kind: FlowerKind; color: string; stars: number }>) {
   const [stage, setStageState] = useState<Stage>('flower');
@@ -119,6 +123,10 @@ export function Gardening({ finish, setHint }: GameProps<{ kind: FlowerKind; col
   const pouring = useRef(false);
   const held = useRef(0);
   const drip = useRef(0);
+  const goes = useRef(0);
+  const runOn = useRef(0);
+  const runOnFor = useRef(RUN_ON);
+  const lastRate = useRef(0);
   const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [settling, setSettling] = useState(0);
   const target = useRef(56 + Math.random() * 18);
@@ -134,7 +142,7 @@ export function Gardening({ finish, setHint }: GameProps<{ kind: FlowerKind; col
     setSettling(0);
     const m = moisture.current;
     const d = Math.abs(m - target.current);
-    const stars = m > 100 ? 1 : d <= 3.5 ? 3 : d <= 8 ? 2 : 1;
+    const stars = m > 100 ? 1 : d <= 2.5 && goes.current <= PERFECT_GOES ? 3 : d <= 6 ? 2 : 1;
     const name = `${colourName(kind, color)} ${kind}`.trim();
     const line =
       m > 100
@@ -162,7 +170,7 @@ export function Gardening({ finish, setHint }: GameProps<{ kind: FlowerKind; col
           }, 350);
           later(() => {
             setStage('water');
-            setHint('Hold to water. Fill it to the green band, not more!');
+            setHint('Hold to water. It keeps trickling a moment after you stop, so ease off just before the green band’s middle!');
           }, 1000);
         }
       } else if (s === 'water') {
@@ -171,11 +179,15 @@ export function Gardening({ finish, setHint }: GameProps<{ kind: FlowerKind; col
         setSettling(0);
         pouring.current = true;
         held.current = 0;
+        goes.current += 1;
+        runOn.current = 0;
       }
     },
     onRelease: () => {
       if (!pouring.current) return;
       pouring.current = false;
+      runOnFor.current = RUN_ON * (0.85 + Math.random() * 0.35);
+      runOn.current = runOnFor.current;
       if (moisture.current < 3) return;
       setSettling((n) => n + 1);
       setHint('Hold again for a bit more, or wait.');
@@ -187,12 +199,17 @@ export function Gardening({ finish, setHint }: GameProps<{ kind: FlowerKind; col
     (dt) => {
       if (pouring.current) {
         held.current += dt;
-        moisture.current = Math.min(125, moisture.current + (24 + 14 * Math.min(1, held.current)) * dt);
+        lastRate.current = 24 + 14 * Math.min(1, held.current);
+        moisture.current = Math.min(125, moisture.current + lastRate.current * dt);
         drip.current -= dt;
         if (drip.current <= 0) {
           sfx.trickle();
           drip.current = 0.09;
         }
+      } else if (runOn.current > 0) {
+        // The last of it still running out of the spout, tailing off.
+        moisture.current = Math.min(125, moisture.current + lastRate.current * (runOn.current / runOnFor.current) * dt);
+        runOn.current -= dt;
       }
       redraw((n) => (n + 1) % 1e6);
     },

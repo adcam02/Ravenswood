@@ -57,6 +57,11 @@ const yOf = (level: number) => IN_BOTTOM - (clamp(level, 0, 100) / 100) * IN_H;
 
 type Stage = 'pick' | 'pour' | 'done';
 
+/** After letting go, the tap runs on for this long (seconds, give or take), tailing off: stop a little early. */
+const RUN_ON = 0.2;
+/** A perfect pour takes at most this many goes: inching up to the line a drop at a time doesn't count. */
+const PERFECT_GOES = 2;
+
 export function Bartender({ finish, setHint }: GameProps<{ kind: DrinkKind; stars: number }>) {
   const [stage, setStage] = useState<Stage>('pick');
   const [drink, setDrink] = useState<Drink>(DRINKS[0]);
@@ -66,6 +71,10 @@ export function Bartender({ finish, setHint }: GameProps<{ kind: DrinkKind; star
   const held = useRef(0);
   const wobble = useRef(0);
   const glug = useRef(0);
+  const goes = useRef(0);
+  const runOn = useRef(0);
+  const runOnFor = useRef(RUN_ON);
+  const lastRate = useRef(0);
   const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [settling, setSettling] = useState(0);
   const target = useRef(68 + Math.random() * 16);
@@ -83,10 +92,13 @@ export function Bartender({ finish, setHint }: GameProps<{ kind: DrinkKind; star
     if (lv > 100) {
       title = 'Whoops!';
       line = `Spilt ${drink.label.toLowerCase()} all over the bar!`;
-    } else if (d <= 2.5) {
+    } else if (d <= 2 && goes.current <= PERFECT_GOES) {
       stars = 3;
       line = `A perfect ${drink.noun}.`;
-    } else if (d <= 7) {
+    } else if (d <= 2) {
+      stars = 2;
+      line = `Right on the line, but it took ${goes.current} goes.`;
+    } else if (d <= 5.5) {
       stars = 2;
       line = `A lovely ${drink.noun}.`;
     } else if (lv < c) {
@@ -105,10 +117,14 @@ export function Bartender({ finish, setHint }: GameProps<{ kind: DrinkKind; star
       setSettling(0);
       pouring.current = true;
       held.current = 0;
+      goes.current += 1;
+      runOn.current = 0;
     },
     onRelease: () => {
       if (!pouring.current) return;
       pouring.current = false;
+      runOnFor.current = RUN_ON * (0.85 + Math.random() * 0.35);
+      runOn.current = runOnFor.current;
       if (level.current < 3) return;
       setHint('Hold again to top it up, or wait to serve.');
       setSettling((n) => n + 1);
@@ -121,6 +137,7 @@ export function Bartender({ finish, setHint }: GameProps<{ kind: DrinkKind; star
       if (pouring.current) {
         held.current += dt;
         const rate = 30 + 16 * Math.min(1, held.current / 1.2);
+        lastRate.current = rate;
         level.current = Math.min(130, level.current + rate * dt);
         wobble.current = Math.min(1, wobble.current + dt * 4);
         glug.current -= dt;
@@ -128,7 +145,14 @@ export function Bartender({ finish, setHint }: GameProps<{ kind: DrinkKind; star
           sfx.gurgle();
           glug.current = 0.11;
         }
-      } else wobble.current = Math.max(0, wobble.current - dt * 1.4);
+      } else {
+        // The last of it still running out of the tap, tailing off.
+        if (runOn.current > 0) {
+          level.current = Math.min(130, level.current + lastRate.current * (runOn.current / runOnFor.current) * dt);
+          runOn.current -= dt;
+        }
+        wobble.current = Math.max(0, wobble.current - dt * 1.4);
+      }
       redraw((n) => (n + 1) % 1e6);
     },
     stage !== 'pick',
@@ -142,7 +166,7 @@ export function Bartender({ finish, setHint }: GameProps<{ kind: DrinkKind; star
           onPick={(id) => {
             setDrink(drinkInfo(id));
             setStage('pour');
-            setHint('Hold to pour. Stop at the line!');
+            setHint('Hold to pour. It runs on a moment after you let go, so stop just short of the line!');
           }}
         />
       </div>

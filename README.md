@@ -33,7 +33,8 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      at the pond bank and **tossing a coin** into the well.
    You only need to be near a game's spot to start it: the prompt shows up from a few steps away. At
    the washhouse the roof fades when you walk underneath, but the washing stays solid.
-   Every game has a score. Beat the town's best and it goes on the noticeboard as a record, with a
+   Three stars take real skill: drinks and watering run on a moment after you let go, the timing games
+   speed up as you go, and the second-best results only get two. Every game has a score. Beat the town's best and it goes on the noticeboard as a record, with a
    toast for everyone; your own personal bests are kept on your machine. Hold something and you can
    sip it, give it to someone (G) or put it away (Q).
 5. **The Storyteller carries the grimoire.** Press **Open grimoire** (or Tab) and the camera swoops in

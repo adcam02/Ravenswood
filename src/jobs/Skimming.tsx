@@ -81,8 +81,8 @@ export function Skimming({ finish, setHint }: GameProps<{ bounces: number; stars
     stageRef.current = s;
     setStageState(s);
   };
-  const angleAt = (t: number) => 32.5 + 27.5 * Math.cos((t * Math.PI * 2) / 1.7);
-  const powerAt = (t: number) => 50 + 50 * Math.sin((t * Math.PI * 2) / 1.4 - Math.PI / 2);
+  const angleAt = (t: number) => 32.5 + 27.5 * Math.cos((t * Math.PI * 2) / 1.5);
+  const powerAt = (t: number) => 50 + 50 * Math.sin((t * Math.PI * 2) / 1.25 - Math.PI / 2);
 
   const end = () => {
     const f = flight.current;
@@ -107,11 +107,12 @@ export function Skimming({ finish, setHint }: GameProps<{ bounces: number; stars
     const a = angle.current;
     const p = power.current;
     let bounces: number;
-    tooHard.current = p > 88;
+    tooHard.current = p > 86;
     if (tooHard.current) bounces = 0;
     else {
+      // Mostly the throw (angle near 15°, power just short of too hard); only a little luck.
       const angleScore = clamp(1 - Math.abs(a - 15) / 40, 0, 1);
-      const b = (p / 100) * 8.6 * angleScore * (0.85 + Math.random() * 0.35) + Math.random() * 0.8;
+      const b = (p / 100) * 8.6 * angleScore * (0.93 + Math.random() * 0.17) + Math.random() * 0.5;
       bounces = clamp(Math.round(b), 0, 8);
       if (a > 45) bounces = Math.min(bounces, 1);
     }

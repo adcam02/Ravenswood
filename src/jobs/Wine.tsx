@@ -2,7 +2,7 @@ import { memo, useRef, useState } from 'react';
 import { SettleRing, clamp, useFrame, useLater, useMain, type GameProps } from './shared';
 import { sfx } from './sfx';
 
-const RIM = 20;
+const RIM = 17;
 const BOWL_TOP = 96;
 const BOWL_BOTTOM = 132;
 const LINE_Y = 104;
@@ -95,7 +95,7 @@ export function Wine({ finish, setHint }: GameProps<{ fill: number; stars: numbe
     const f = Math.min(100, fill.current);
     const sp = spill.current;
     const result = clamp(Math.round(f - sp * 0.8), 0, 100);
-    const stars = result >= 95 ? 3 : result >= 85 ? 2 : result >= 70 ? 1 : 0;
+    const stars = result >= 96 ? 3 : result >= 86 ? 2 : result >= 70 ? 1 : 0;
     let line: string;
     if (sp < 1 && f >= 99) line = 'Filled to the line, not a drop spilt.';
     else if (sp < 1) line = `${Math.round(f)}% to the line, not a drop spilt.`;
@@ -131,7 +131,7 @@ export function Wine({ finish, setHint }: GameProps<{ fill: number; stars: numbe
 
   useFrame((dt) => {
     time.current += dt;
-    const omega = 2.1 + 0.6 * Math.sin(time.current * 0.7);
+    const omega = 2.5 + 0.8 * Math.sin(time.current * 0.8);
     theta.current += omega * dt;
     cx.current = 160 + 70 * Math.sin(theta.current);
     if (pouring.current) {

@@ -4,8 +4,8 @@ import { sfx } from './sfx';
 
 const LOG = { x0: 92, x1: 228, y: 110, h: 30 };
 const CENTRE = 160;
-const PERIODS = [1.5, 1.25, 1.05, 0.9, 0.75];
-const TOLERANCE = 11;
+const PERIODS = [1.4, 1.15, 0.95, 0.8, 0.68];
+const TOLERANCE = 9.5;
 
 export function LogArt({ size = 44 }: { size?: number }) {
   return (

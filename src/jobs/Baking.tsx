@@ -93,7 +93,8 @@ type Stage = 'pick' | 'knead' | 'oven' | 'done';
 const KNEADS = 4;
 const RING_FROM = 2.1;
 const RING_TO = 0.42;
-const RING_SECS = 1.25;
+/** How long the ring takes to close, knead by knead: each one quicker than the last. */
+const RING_SECS = [1.2, 1.05, 0.92, 0.8];
 
 export function Baking({ finish, setHint }: GameProps<{ kind: BakeKind; stars: number }>) {
   const [stage, setStageState] = useState<Stage>('pick');
@@ -141,10 +142,10 @@ export function Baking({ finish, setHint }: GameProps<{ kind: BakeKind; stars: n
     setStage('done');
     sfx.ovenDing();
     const p = oven.current;
-    const ovenStars = Math.abs(p - 62.5) <= 3.5 ? 3 : p >= 54 && p <= 71 ? 2 : 1;
+    const ovenStars = Math.abs(p - 62.5) <= 2.5 ? 3 : p >= 55 && p <= 70 ? 2 : 1;
     const avg = scores.current.reduce((a, b) => a + b, 0) / KNEADS;
-    const kneadStars = clamp(Math.round(avg), 1, 3);
-    const stars = clamp(Math.round((kneadStars + ovenStars * 1.5) / 2.5), 1, 3);
+    // Three stars: perfect kneading (one slip allowed) and taken out right on golden.
+    const stars = avg >= 2.75 && ovenStars === 3 ? 3 : avg >= 1.75 && ovenStars >= 2 ? 2 : 1;
     const noun = BAKES.find((b) => b.id === kind)!.noun;
     const line =
       p < 54 ? `A pale ${noun}, a bit doughy.` : p > 71 ? (p > 90 ? `A very crispy ${noun}…` : `A crunchy ${noun}.`) : `A golden ${noun}, fresh from the oven!`;
@@ -156,7 +157,7 @@ export function Baking({ finish, setHint }: GameProps<{ kind: BakeKind; stars: n
       const s = stageRef.current;
       if (s === 'knead' && resting.current <= 0) {
         const off = Math.abs(ring.current - 1);
-        knead(off <= 0.08 ? 3 : off <= 0.18 ? 2 : off <= 0.36 ? 1 : 0);
+        knead(off <= 0.07 ? 3 : off <= 0.16 ? 2 : off <= 0.33 ? 1 : 0);
       } else if (s === 'oven') takeOut();
     },
   });
@@ -167,7 +168,7 @@ export function Baking({ finish, setHint }: GameProps<{ kind: BakeKind; stars: n
       if (s === 'knead' && scores.current.length < KNEADS) {
         if (resting.current > 0) resting.current -= dt;
         else {
-          ring.current -= ((RING_FROM - RING_TO) / RING_SECS) * dt;
+          ring.current -= ((RING_FROM - RING_TO) / RING_SECS[Math.min(scores.current.length, KNEADS - 1)]) * dt;
           if (ring.current <= RING_TO) knead(0);
         }
       } else if (s === 'oven') {

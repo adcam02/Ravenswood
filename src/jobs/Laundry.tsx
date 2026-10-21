@@ -4,6 +4,8 @@ import { isLeft, isMain, isRight, pickOne, useKeys, useLater, type GameProps } f
 import { sfx } from './sfx';
 
 export const CLOTH_COLORS = ['#e8675a', '#f39ab5', '#6fb0e0', '#7cc28b', '#f2c14e', '#b494dd', '#ff9a62', '#5fc7c0'];
+/** How much of a scrub a stubborn stain takes off, next to an ordinary one. */
+const TOUGH = 0.55;
 const KINDS: ClothKind[] = ['shirt', 'sock', 'dress', 'towel', 'pants'];
 const NAMES: Record<ClothKind, string> = { shirt: 'shirt', sock: 'sock', dress: 'dress', towel: 'towel', pants: 'pair of trousers' };
 
@@ -41,6 +43,8 @@ interface Mud {
   y: number;
   r: number;
   dirt: number;
+  /** A dark, stubborn stain: takes more scrubbing. */
+  tough?: boolean;
   blobs: [number, number, number][];
 }
 
@@ -67,11 +71,12 @@ export function Laundry({ finish, setHint }: GameProps<{ kind: ClothKind; color:
     const kind = pickOne(KINDS);
     const color = pickOne(CLOTH_COLORS);
     const spots = [...SHAPES[kind].spots].sort(() => Math.random() - 0.5).slice(0, 5 + Math.floor(Math.random() * 3));
-    const mud: Mud[] = spots.map(([x, y]) => ({
+    const mud: Mud[] = spots.map(([x, y], i) => ({
       x,
       y,
       r: 9 + Math.random() * 4,
       dirt: 1,
+      tough: i < 2,
       blobs: Array.from({ length: 3 }, () => [(Math.random() - 0.5) * 12, (Math.random() - 0.5) * 10, 4 + Math.random() * 4] as [number, number, number]),
     }));
     return { kind, color, mud };
@@ -97,7 +102,7 @@ export function Laundry({ finish, setHint }: GameProps<{ kind: ClothKind; color:
   const scrubbed = (m: Mud, amount: number, x: number, y: number) => {
     if (clean || m.dirt <= 0) return;
     if (!started.current) started.current = performance.now();
-    m.dirt = Math.max(0, m.dirt - amount);
+    m.dirt = Math.max(0, m.dirt - amount * (m.tough ? TOUGH : 1));
     const now = performance.now();
     if (now - lastSound.current > 90) {
       lastSound.current = now;
@@ -123,7 +128,9 @@ export function Laundry({ finish, setHint }: GameProps<{ kind: ClothKind; color:
     setHung(true);
     sfx.swish();
     const s = took.current;
-    const stars = s <= 7 ? 3 : s <= 12 ? 2 : 1;
+    // The time to beat grows with the mud: about ten quick scrubs a second for three stars, six for two.
+    const work = garment.mud.reduce((sum, m) => sum + (m.tough ? 1 / TOUGH : 1), 0);
+    const stars = s <= work * 0.8 ? 3 : s <= work * 1.35 ? 2 : 1;
     later(
       () =>
         finish(
@@ -219,9 +226,9 @@ export function Laundry({ finish, setHint }: GameProps<{ kind: ClothKind; color:
           {shape.trim && <path d={shape.trim} stroke="#fff" strokeOpacity="0.6" strokeWidth="4" fill="none" strokeLinecap="round" />}
           {garment.mud.map((m, i) => (
             <g key={i} opacity={m.dirt} className="job-mud">
-              <circle cx={m.x} cy={m.y} r={m.r} fill="#7a5233" />
+              <circle cx={m.x} cy={m.y} r={m.r} fill={m.tough ? '#4a2f1c' : '#7a5233'} />
               {m.blobs.map(([dx, dy, r], j) => (
-                <circle key={j} cx={m.x + dx} cy={m.y + dy} r={r} fill="#6a4529" />
+                <circle key={j} cx={m.x + dx} cy={m.y + dy} r={r} fill={m.tough ? '#3a2414' : '#6a4529'} />
               ))}
             </g>
           ))}

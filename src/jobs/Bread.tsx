@@ -100,7 +100,7 @@ export function Bread({ finish, setHint }: GameProps<{ evenness: number; stars: 
   const { pop, pops } = usePops();
   const { later } = useLater();
 
-  const period = () => (round.current === 1 ? 1.7 : cuts.current.length === 0 ? 1.4 : 1.2);
+  const period = () => (round.current === 1 ? 1.5 : cuts.current.length === 0 ? 1.25 : 1.05);
   const knifeX = () => {
     const u = (sweep.current / period()) % 1;
     const w = u < 0.5 ? u * 2 : 2 - u * 2;
@@ -111,13 +111,13 @@ export function Bread({ finish, setHint }: GameProps<{ evenness: number; stars: 
   const end = () => {
     const mean = errs.current.reduce((n, e) => n + e, 0) / Math.max(1, errs.current.length);
     const evenness = clamp(Math.round(100 - mean), 0, 100);
-    const stars = evenness >= 96 ? 3 : evenness >= 90 ? 2 : evenness >= 80 ? 1 : 0;
+    const stars = evenness >= 97 ? 3 : evenness >= 92 ? 2 : evenness >= 82 ? 1 : 0;
     finish(
       { evenness, stars },
       {
         stars,
         title: evenness >= 98 ? 'Blessed hands!' : undefined,
-        line: evenness >= 96 ? `${evenness}% even. Nobody gets the small piece.` : `${evenness}% even over three cuts.`,
+        line: evenness >= 97 ? `${evenness}% even. Nobody gets the small piece.` : `${evenness}% even over three cuts.`,
         art: <BreadArt size={64} />,
       },
     );

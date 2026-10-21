@@ -222,7 +222,7 @@ const FIGHT: Record<
   2: { force: 40, burst: [0.7, 1.3], rest: [1.1, 2.2], gain: 19, snapAt: 0.75 },
   3: { force: 48, burst: [0.9, 1.6], rest: [0.9, 1.7], gain: 15, snapAt: 0.6 },
 };
-const BAND = { lo: 35, hi: 70, red: 85 };
+const BAND = { lo: 38, hi: 66, red: 84 };
 const rnd = (a: number, b: number) => a + Math.random() * (b - a);
 
 function weighted<T>(items: T[], w: (x: T) => number): T {
@@ -255,14 +255,21 @@ function rollCatch(lure: Lure): Catch {
   return { fish, cm, tug, window: HOOK_WINDOW[tug] * lure.window };
 }
 
-/** Stars come from the tier, with a bonus for a big one of its kind. */
-export function starsFor(fish: Fish, cm: number): number {
+/**
+ * Stars come from the tier, with a bonus for a big one of its kind. Three stars also needs a clean catch (barely
+ * into the red while reeling it in), except for a legendary fish, which is triumph enough.
+ */
+export function starsFor(fish: Fish, cm: number, clean = true): number {
   if (fish.boot) return 0;
   const frac = (cm - fish.cm[0]) / Math.max(1, fish.cm[1] - fish.cm[0]);
   if (fish.tier === 'common') return frac >= 0.8 ? 2 : 1;
-  if (fish.tier === 'uncommon') return frac >= 0.75 ? 3 : 2;
+  if (fish.tier === 'uncommon') return frac >= 0.8 && clean ? 3 : 2;
+  if (fish.tier === 'rare') return clean ? 3 : 2;
   return 3;
 }
+
+/** Seconds in the red, over a whole fight, that still count as a clean catch. */
+const CLEAN_RED_S = 0.4;
 
 export function FishArt({ kind, size = 64 }: { kind: string; size?: number }) {
   const f = FISH.find((x) => x.name === kind) ?? FISH[0];
@@ -404,6 +411,8 @@ export function Fishing({ finish, setHint }: GameProps<FishResult | null>) {
   const reel = useRef({
     tension: 0,
     progress: 0,
+    /** Seconds spent in the red, for a clean catch. */
+    red: 0,
     bursting: false,
     burstT: 0,
     fray: 0,
@@ -454,14 +463,15 @@ export function Fishing({ finish, setHint }: GameProps<FishResult | null>) {
       );
       return;
     }
-    const stars = starsFor(f, c.cm);
+    const clean = reel.current.red <= CLEAN_RED_S;
+    const stars = starsFor(f, c.cm, clean);
     const title = f.tier === 'legendary' ? 'LEGENDARY!' : f.tier === 'rare' ? 'Rare catch!' : undefined;
     finish(
       { kind: f.name, cm: c.cm, stars, tier: f.tier },
       {
         stars,
         title,
-        line: `${f.name}, ${c.cm}cm · ${TIER_LABEL[f.tier]}`,
+        line: `${f.name}, ${c.cm}cm · ${TIER_LABEL[f.tier]}${!clean && f.tier !== 'common' && f.tier !== 'legendary' ? ' (a bit of a tussle)' : ''}`,
         art,
       },
     );
@@ -496,6 +506,7 @@ export function Fishing({ finish, setHint }: GameProps<FishResult | null>) {
         const r = reel.current;
         Object.assign(r, {
           tension: 20,
+          red: 0,
           progress: 0,
           bursting: false,
           burstT: rnd(0.6, 1.2),
@@ -560,6 +571,7 @@ export function Fishing({ finish, setHint }: GameProps<FishResult | null>) {
     r.progress = clamp(r.progress, 0, 100);
     if (r.tension > BAND.red) {
       r.fray += dt;
+      r.red += dt;
       r.strainT -= dt;
       if (r.strainT <= 0) {
         sfx.strain();
