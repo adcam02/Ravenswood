@@ -1374,7 +1374,7 @@ function torsoR(s: Shape, y: number) {
 
 /** Some bodies need their neck ring or back placed by hand: the snail's back is its shell. */
 const DRESS_NUDGE: Partial<Record<AnimalId, { neck?: Partial<NeckFit>; back?: Partial<BackFit>; floating?: boolean }>> = {
-  snail: { neck: { centre: [0, 0.3, 0.27], r: 0.105, tilt: 0.3 }, back: { centre: [0, 0.36, -0.1], r: 0.17, depth: 0.25, top: 0.6, bottom: 0.16 }, floating: true },
+  snail: { neck: { centre: [0, 0.2, 0.31], r: 0.095, tilt: 0.5 }, back: { centre: [0, 0.39, -0.1], r: 0.19, depth: 0.27, top: 0.66, bottom: 0.16 }, floating: true },
 };
 
 function dressFit(id: AnimalId, k: Kit): { face: FaceFit; neck: NeckFit; back: BackFit } {

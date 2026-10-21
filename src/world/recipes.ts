@@ -66,6 +66,7 @@ const fox: Recipe = (k, c) => {
   body(k, {
     color: c.coat,
     pear: 0.45,
+    haunchSize: 0.8,
     // A white bib down the chest.
     paint: (u) => (u.z > 0.3 && u.y > -0.35 && Math.abs(u.x) < 0.5 - Math.max(0, 0.1 - u.y) * 0.6 ? white : null),
   });
@@ -82,7 +83,7 @@ const fox: Recipe = (k, c) => {
       return null;
     },
   });
-  muzzle(k, { color: c.coat, nose: INK, w: 0.06, h: 0.05, len: 0.145, dy: -0.28, point: 0.62, droop: 0.06, noseW: 0.024, paint: (u) => (u.y < 0.12 ? white : null) });
+  muzzle(k, { color: c.coat, nose: INK, w: 0.068, h: 0.055, len: 0.14, dy: -0.28, point: 0.58, droop: 0.06, noseW: 0.026, paint: (u) => (u.y < 0.12 ? white : null) });
   eyes(k, { x: 0.4, y: 0.12, size: 0.9, wide: 1.5, slant: 0.32, color: '#1a1412' });
   // Big pointed ears with dark backs.
   ears(k, { color: c.coat, back: sock, rim: c.coat, inner: white, x: 0.5, y: 0.74, w: 0.095, h: 0.18, d: 0.045, splay: 0.22, inset: 0.6 });
@@ -155,7 +156,7 @@ const bunny: Recipe = (k, c) => {
   nose(k, pink, v3(onHead(k, 0, -0.2, 0.01)), 0.021, 0.016, true);
   eyes(k, { x: 0.44, y: 0.1, size: 1.05, wide: 0.95, slant: 0.05, color: '#1c1416' });
   ears(k, { kind: 'long', color: c.coat, inner: pink, x: 0.3, y: 0.8, w: 0.052, h: 0.2, d: 0.03, splay: 0.12, rake: 0.15 });
-  arms(k, { color: c.coat, len: 0.19, r: 0.045 });
+  arms(k, { color: c.coat, len: 0.16, r: 0.052 });
   legs(k, { color: c.coat, foot: c.coat, r: 0.06, footLen: 0.125, footH: 0.042, sole: pale });
   puffTail(k, pale, 0.058);
   return {};
@@ -170,10 +171,10 @@ const snail: Recipe = (k, c, coat) => {
   const s = k.shape;
   s.tc = [0, 0.1, 0];
   s.tr = [0.15, 0.08, 0.34];
-  s.hc = [0, 0.075, 0.03];
-  s.hr = [0.12, 0.115, 0.115];
-  k.joints.neck = [0, 0.33, 0.255];
-  k.joints.shoulder = [0.1, 0.22, 0.33];
+  s.hc = [0, 0.07, 0.03];
+  s.hr = [0.112, 0.106, 0.108];
+  k.joints.neck = [0, 0.31, 0.33];
+  k.joints.shoulder = [0.085, 0.2, 0.36];
   k.joints.tail = [0, 0.05, -0.3];
   bone(k, 'rear', 'body', [0, 0.06, -0.22]);
   // The foot: one long low slab, its back half on its own bone so it can stretch and draw up, rising at
@@ -181,17 +182,17 @@ const snail: Recipe = (k, c, coat) => {
   const foot = part(k, 'foot', 'body', { chain: ['rear', 'body'] });
   tube(foot, k.rnd, {
     pts: [
-      [0, 0.06, -0.38],
-      [0, 0.065, -0.27],
-      [0, 0.07, -0.13],
-      [0, 0.07, 0.01],
-      [0, 0.08, 0.14],
-      [0, 0.13, 0.23],
-      [0, 0.22, 0.27],
-      [0, 0.32, 0.275],
+      [0, 0.06, -0.4],
+      [0, 0.065, -0.29],
+      [0, 0.07, -0.15],
+      [0, 0.07, -0.01],
+      [0, 0.075, 0.13],
+      [0, 0.11, 0.24],
+      [0, 0.2, 0.31],
+      [0, 0.3, 0.34],
     ],
-    radii: [0.035, 0.1, 0.135, 0.145, 0.14, 0.12, 0.105, 0.098],
-    flats: [0.5, 0.5, 0.5, 0.5, 0.55, 0.8, 1, 1],
+    radii: [0.035, 0.1, 0.135, 0.145, 0.14, 0.11, 0.085, 0.08],
+    flats: [0.5, 0.5, 0.5, 0.5, 0.55, 0.85, 1, 1],
     sides: 8,
     up: [1, 0, 0],
     jitter: 0.05,
@@ -201,7 +202,7 @@ const snail: Recipe = (k, c, coat) => {
   // The shell: a faceted tube wound into a spiral on the back, banded like growth rings. It starts low at
   // the front, tucked into the foot, runs up the front, over the top, down the back and in.
   const shellPart = part(k, 'shell', 'body');
-  const sc = new THREE.Vector3(0, 0.36, -0.1);
+  const sc = new THREE.Vector3(0, 0.39, -0.1);
   const coil: Vec3[] = [];
   const radii: number[] = [];
   const turns = 2.25 * Math.PI;
@@ -209,7 +210,7 @@ const snail: Recipe = (k, c, coat) => {
   const a0 = 0.45;
   for (let i = 0; i <= steps; i++) {
     const a = a0 + (i / steps) * turns;
-    const R = 0.19 * Math.exp(-0.3 * (a - a0));
+    const R = 0.215 * Math.exp(-0.3 * (a - a0));
     coil.push([-0.03 + 0.06 * (i / steps), sc.y - R * Math.cos(a), sc.z + R * Math.sin(a)]);
     radii.push(0.72 * R * 1.22 + 0.006);
   }
@@ -236,8 +237,8 @@ const snail: Recipe = (k, c, coat) => {
     solid(eye, k.rnd, { base: 'ico1', r: [0.02, 0.022, 0.013], matrix: m, jitter: 0.02, color: INK, tone: 0.1 });
     solid(eye, k.rnd, { base: 'ico0', r: 0.0065, matrix: inside(m, [0.006, 0.008, 0.011]), jitter: 0.01, color: '#fbf6ec', tone: 0 });
     // Short feelers lower down.
-    const lf = onHead(k, side * 0.36, -0.08, -0.01);
-    pillar(k.head, k.rnd, v3(lf), [side * 0.07, lf.y + 0.03, lf.z + 0.05], 0.011, 0.007, skin, { base: 'limb5' });
+    const lf = onHead(k, side * 0.42, -0.34, -0.01);
+    pillar(k.head, k.rnd, v3(lf), [side * 0.075, lf.y - 0.015, lf.z + 0.05], 0.011, 0.007, skin, { base: 'limb5' });
   }
   k.blink = ['blinkL', 'blinkR'];
   const eyeAt = onHead(k, 0.32, 0.72).add(tipRel);

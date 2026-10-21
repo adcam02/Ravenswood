@@ -43,7 +43,7 @@ export class Fold {
 }
 
 /** Counts of faces built and faces that point into their own shape (which should never happen). */
-export const audit = { faces: 0, inward: 0 };
+export const audit = { faces: 0, inward: 0, trace: null as Map<string, number> | null };
 export function resetAudit() {
   audit.faces = 0;
   audit.inward = 0;
@@ -144,7 +144,14 @@ function finish(f: Fold, g: THREE.BufferGeometry, color: Color, paint: Paint | u
     normal.subVectors(vc, vb).cross(tmp.subVectors(va, vb)).normalize();
     axisCentre.fromBufferAttribute(ax, i).add(tmp.fromBufferAttribute(ax, i + 1)).add(tmp.fromBufferAttribute(ax, i + 2)).multiplyScalar(1 / 3);
     audit.faces++;
-    if (normal.dot(tmp.subVectors(centre, axisCentre)) < 0) audit.inward++;
+    if (normal.dot(tmp.subVectors(centre, axisCentre)) < 0) {
+      audit.inward++;
+      if (audit.trace) {
+        // For the test bench: which shape it came from.
+        const where = (new Error().stack ?? '').split('\n').slice(2, 6).map((l) => l.trim().split(' ')[1]).join(' < ');
+        audit.trace.set(where, (audit.trace.get(where) ?? 0) + 1);
+      }
+    }
     unitCentre.fromBufferAttribute(u, i).add(tmp.fromBufferAttribute(u, i + 1)).add(tmp.fromBufferAttribute(u, i + 2)).multiplyScalar(1 / 3);
     const painted = paint?.(unitCentre, centre, normal);
     tint.set(painted || color);
@@ -236,17 +243,20 @@ export function pillar(
 ): void {
   const { matrix, len } = along(from, to, opts.roll);
   const depth = opts.depth ?? 1;
+  const j = opts.jitter ?? 0.04;
   solid(f, rnd, {
     base: opts.base ?? 'limb',
     r: [1, len, 1],
     matrix,
-    jitter: opts.jitter ?? 0.025,
+    // The corners wander in proportion to the limb's own thickness, not its length.
+    jitter: 0,
     bend: (v) => {
       // In the unit limb y runs -0.5 (at `from`) to 0.5 (at `to`).
       const t = v.y + 0.5;
       const k = r0 + (r1 - r0) * t;
-      v.x *= k;
-      v.z *= k * depth;
+      v.x = (v.x + (rnd() - 0.5) * 2 * j) * k;
+      v.z = (v.z + (rnd() - 0.5) * 2 * j) * k * depth;
+      v.y += ((rnd() - 0.5) * 2 * j * k) / Math.max(len, 1e-6);
     },
     color,
     paint: opts.paint,
@@ -410,25 +420,29 @@ export function card(f: Fold, rnd: () => number, o: Card): void {
     [[B, FL, A], o.back],
     [[FL, B, FR], o.back],
   ];
+  // Points inside the card for checking faces point outward: the front is a shallow cup, so its faces are
+  // checked against a point well behind it; the back and bottom against the middle.
   const mid = FL.clone().add(FR).add(B).add(A).multiplyScalar(0.25);
+  const behind = B.clone().add(new THREE.Vector3(0, h * 0.2, -d));
   const positions: number[] = [];
   const units: number[] = [];
+  const axes: number[] = [];
   const colorsByFace: Color[] = [];
-  for (const [poly, c] of faces) {
+  faces.forEach(([poly, c], fi) => {
+    const ref = fi < 4 ? behind : mid;
     for (let i = 1; i < poly.length - 1; i++) {
       for (const p of [poly[0], poly[i], poly[i + 1]]) {
         positions.push(p.x, p.y, p.z);
         units.push(p.x / w, p.y / h, p.z / d);
+        axes.push(ref.x, ref.y, ref.z);
       }
       colorsByFace.push(c);
     }
-  }
+  });
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   g.setAttribute('unit', new THREE.Float32BufferAttribute(units, 3));
-  const axis = new Float32Array(positions.length);
-  for (let i = 0; i < positions.length; i += 3) axis.set([mid.x, mid.y, mid.z], i);
-  g.setAttribute('axis', new THREE.BufferAttribute(axis, 3));
+  g.setAttribute('axis', new THREE.Float32BufferAttribute(axes, 3));
   g.applyMatrix4(o.matrix);
   (g.getAttribute('axis') as THREE.BufferAttribute).applyMatrix4(o.matrix);
   let face = 0;

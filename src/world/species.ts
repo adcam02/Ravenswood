@@ -337,8 +337,9 @@ export interface BodyOpts {
   bellyW?: number;
   /** How much narrower the top of the pear is than its base. */
   pear?: number;
-  /** Chunky haunches at the base (the thighs), and their colour. */
+  /** Chunky haunches at the base (the thighs), and their colour and size. */
   haunch?: boolean | Color;
+  haunchSize?: number;
   paint?: Paint;
   jitter?: number;
 }
@@ -373,11 +374,13 @@ export function body(k: Kit, o: BodyOpts) {
   k.seat = s.tc[1] - s.tr[1] * 0.76;
   if (o.haunch !== false) {
     const hc = typeof o.haunch === 'string' || o.haunch instanceof THREE.Color ? o.haunch : o.color;
+    const hs = o.haunchSize ?? 1;
     for (const side of [-1, 1]) {
+      // Flattened against the body so they read as thighs rather than balls.
       solid(k.torso, k.rnd, {
         base: 'ico2',
-        r: [s.tr[0] * 0.5, s.tr[1] * 0.44, s.tr[2] * 0.8],
-        pos: [side * s.tr[0] * 0.66, s.tc[1] - s.tr[1] * 0.5, s.tc[2] - s.tr[2] * 0.12],
+        r: [s.tr[0] * 0.44 * hs, s.tr[1] * 0.44 * hs, s.tr[2] * 0.8 * hs],
+        pos: [side * s.tr[0] * (0.62 + 0.04 * hs), s.tc[1] - s.tr[1] * 0.5, s.tc[2] - s.tr[2] * 0.12],
         rot: [0.25, side * 0.3, 0],
         jitter: 0.03,
         color: hc,

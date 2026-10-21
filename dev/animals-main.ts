@@ -47,10 +47,13 @@ const lookOf = (id: AnimalId, extra: Partial<Look> = {}): Look => ({ animal: id,
 const lowParam = q.get('detail') === 'low';
 /** Each rig's face audit: faces built and faces pointing into their own shape (must be 0). */
 const audits = new Map<Rig, { faces: number; inward: number }>();
+const traces: Record<string, Record<string, number>> = {};
 function make(look: Look): Rig {
   resetAudit();
+  if (q.has('trace')) audit.trace = new Map();
   const r = buildAnimal(look);
   audits.set(r, { faces: audit.faces, inward: audit.inward });
+  if (audit.trace) traces[look.animal] = Object.fromEntries(audit.trace);
   return r;
 }
 type Inside = { mesh: THREE.SkinnedMesh; bones: Map<string, THREE.Bone>; shape: { tc: number[]; tr: number[]; hc: number[]; hr: number[] }; item: THREE.Object3D | null; body: THREE.Bone; neck: THREE.Bone };
@@ -191,11 +194,11 @@ if (view === 'grid' || view === 'night') {
   camera.lookAt(0, 0, 1.4);
 } else if (view === 'game') {
   // About what the game camera sees: a small crowd, about 12m away, looking down at 40 degrees.
-  const pick: AnimalId[] = ['wolf', 'bunny', 'shark', 'fox', 'octopus', 'penguin', 'bat', 'deer', 'squid', 'axolotl'];
+  const pick = (q.get('animal')?.split(',') ?? ['wolf', 'bunny', 'shark', 'fox', 'octopus', 'penguin', 'bat', 'deer', 'squid', 'axolotl']) as AnimalId[];
   pick.forEach((id, i) => {
     const a = (i / pick.length) * Math.PI * 2;
     const r = place(make({ animal: id, color: ANIMALS.find((x) => x.id === id)!.colors[0] }), Math.cos(a) * 3.2, Math.sin(a) * 2.4, i % 3 === 0 ? 'walk' : i % 3 === 1 ? 'idle' : 'wave', i % 3 === 0 ? 1.6 : 0, -a + Math.PI / 2);
-    if (i === 4) r.setGhost(true);
+    if (i === 4 && !q.has('animal')) r.setGhost(true);
   });
   place(buildStoryteller(), 0, 0, 'idle', 0, 0.3);
   camera.position.set(0, 7.7, 9.2);
@@ -416,7 +419,7 @@ function frame(now: number) {
       tris[`${i}`] = triangles(r.rig);
       faces[`${i}`] = { ...audits.get(r.rig), coplanar: coplanar(r.rig) };
     });
-    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, rigs: tris, faces };
+    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, rigs: tris, faces, traces };
     (window as unknown as { done: boolean }).done = true;
   } else if (frames === 12) {
     const tris: Record<string, number> = {};
