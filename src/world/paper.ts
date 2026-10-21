@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { Builder, placeMatrix, type Vec3 } from './build';
+import { placeMatrix, type Vec3 } from './build';
 
 /**
  * The papercraft kit: shapes built from a few low-poly bases, pushed into shape, nudged so every flat face
- * is a slightly different size and angle (like folded card), and coloured face by face so markings have
- * crisp edges along the folds. Everything is seeded, so an animal looks the same on every screen.
+ * is a slightly different size and angle (like folded card), and coloured face by face so markings are crisp
+ * regions of the surface itself (never a second surface laid on top). Everything is seeded, so an animal
+ * looks the same on every screen.
  */
 
 export type Color = THREE.ColorRepresentation;
@@ -15,6 +16,38 @@ export type Color = THREE.ColorRepresentation;
  * sit on it; `c` and `n` are the face's centre and normal where it ends up.
  */
 export type Paint = (u: THREE.Vector3, c: THREE.Vector3, n: THREE.Vector3) => Color | null | undefined | false;
+
+/**
+ * Faces collected for one part of a model: positions, colours, and how far along a bendy part (a tail, a
+ * tentacle) each corner is, for skinning it across several bones (-1 for corners that ride one bone).
+ */
+export class Fold {
+  pos: number[] = [];
+  col: number[] = [];
+  along: number[] = [];
+  get empty(): boolean {
+    return this.pos.length === 0;
+  }
+  get faces(): number {
+    return this.pos.length / 9;
+  }
+  /** A plain geometry (position and colour) for parts that aren't skinned. */
+  geometry(): THREE.BufferGeometry {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));
+    g.computeVertexNormals();
+    g.computeBoundingSphere();
+    return g;
+  }
+}
+
+/** Counts of faces built and faces that point into their own shape (which should never happen). */
+export const audit = { faces: 0, inward: 0 };
+export function resetAudit() {
+  audit.faces = 0;
+  audit.inward = 0;
+}
 
 /** Welds a primitive's corners so nudging a corner moves every face that meets there. */
 function weld(g: THREE.BufferGeometry, spin = 0): THREE.BufferGeometry {
@@ -37,15 +70,13 @@ export const BASE = {
   /** A unit-high seven-sided limb in three bands, centred on the origin. */
   limb: weld(new THREE.CylinderGeometry(1, 1, 1, 7, 3)),
   limb5: weld(new THREE.CylinderGeometry(1, 1, 1, 5, 1)),
-  /** Pyramids with a flat face to the front (+z), apex up: ears, beaks, spines, horns. */
+  /** Pyramids with a flat face to the front (+z), apex up: beaks, spines, horns. */
   pyramid: weld(new THREE.ConeGeometry(1, 1, 4, 1), Math.PI / 4),
   /** A three-sided pyramid with a flat face to the front. */
   tri: weld(new THREE.ConeGeometry(1, 1, 3, 1), Math.PI),
   /** A five-sided cone, apex up, in two bands. */
   cone5: weld(new THREE.ConeGeometry(1, 1, 5, 2)),
   box: weld(new THREE.BoxGeometry(1, 1, 1)),
-  /** A seven-by-five sphere: chunky facets for small round things. */
-  ball: weld(new THREE.SphereGeometry(1, 7, 5)),
 };
 export type BaseName = keyof typeof BASE;
 
@@ -89,39 +120,41 @@ const vb = new THREE.Vector3();
 const vc = new THREE.Vector3();
 const centre = new THREE.Vector3();
 const unitCentre = new THREE.Vector3();
+const axisCentre = new THREE.Vector3();
 const normal = new THREE.Vector3();
 const tmp = new THREE.Vector3();
 const tint = new THREE.Color();
 
 /**
- * Splits a welded, placed geometry (with a `unit` attribute) into flat faces, paints each, and adds it.
- * Each face gets its own slight shade, like separate pieces of card.
+ * Splits a placed geometry into flat faces, paints each one, and adds them to a fold. The geometry carries
+ * `unit` (where each corner was on the plain unit shape), `axis` (a point inside the shape near that corner,
+ * for checking the face points outward) and optionally `along`.
  */
-function finish(b: Builder, g: THREE.BufferGeometry, color: Color, paint: Paint | undefined, tone: number) {
+function finish(f: Fold, g: THREE.BufferGeometry, color: Color, paint: Paint | undefined, tone: number) {
   const flat = g.index ? g.toNonIndexed() : g;
   const p = flat.getAttribute('position') as THREE.BufferAttribute;
   const u = flat.getAttribute('unit') as THREE.BufferAttribute;
-  const colors = new Float32Array(p.count * 3);
-  for (let f = 0; f < p.count; f += 3) {
-    va.fromBufferAttribute(p, f);
-    vb.fromBufferAttribute(p, f + 1);
-    vc.fromBufferAttribute(p, f + 2);
+  const ax = flat.getAttribute('axis') as THREE.BufferAttribute;
+  const al = flat.getAttribute('along') as THREE.BufferAttribute | undefined;
+  for (let i = 0; i < p.count; i += 3) {
+    va.fromBufferAttribute(p, i);
+    vb.fromBufferAttribute(p, i + 1);
+    vc.fromBufferAttribute(p, i + 2);
     centre.copy(va).add(vb).add(vc).multiplyScalar(1 / 3);
     normal.subVectors(vc, vb).cross(tmp.subVectors(va, vb)).normalize();
-    unitCentre.fromBufferAttribute(u, f).add(vb.fromBufferAttribute(u, f + 1)).add(vc.fromBufferAttribute(u, f + 2)).multiplyScalar(1 / 3);
+    axisCentre.fromBufferAttribute(ax, i).add(tmp.fromBufferAttribute(ax, i + 1)).add(tmp.fromBufferAttribute(ax, i + 2)).multiplyScalar(1 / 3);
+    audit.faces++;
+    if (normal.dot(tmp.subVectors(centre, axisCentre)) < 0) audit.inward++;
+    unitCentre.fromBufferAttribute(u, i).add(tmp.fromBufferAttribute(u, i + 1)).add(tmp.fromBufferAttribute(u, i + 2)).multiplyScalar(1 / 3);
     const painted = paint?.(unitCentre, centre, normal);
     tint.set(painted || color);
     tint.multiplyScalar(1 + (hash(centre) - 0.5) * tone);
+    for (const v of [va, vb, vc]) f.pos.push(v.x, v.y, v.z);
     for (let k = 0; k < 3; k++) {
-      colors[(f + k) * 3] = tint.r;
-      colors[(f + k) * 3 + 1] = tint.g;
-      colors[(f + k) * 3 + 2] = tint.b;
+      f.col.push(tint.r, tint.g, tint.b);
+      f.along.push(al ? al.getX(i + k) : -1);
     }
   }
-  const clean = new THREE.BufferGeometry();
-  clean.setAttribute('position', p);
-  clean.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  b.addColored(clean);
   if (flat !== g) flat.dispose();
   g.dispose();
 }
@@ -144,8 +177,8 @@ export interface Solid {
   tone?: number;
 }
 
-/** Folds a solid and adds it to a builder. */
-export function solid(b: Builder, rnd: () => number, s: Solid): void {
+/** Folds a solid and adds it to a fold. */
+export function solid(f: Fold, rnd: () => number, s: Solid): void {
   let name = s.base ?? 'ico1';
   if (LOW && (name === 'ico3' || name === 'ico2')) name = 'ico1';
   else if (LOW && name === 'ico1' && !(typeof s.r === 'number' ? s.r > 0.07 : Math.max(...s.r) > 0.07)) name = 'ico0';
@@ -157,6 +190,7 @@ export function solid(b: Builder, rnd: () => number, s: Solid): void {
   const r = typeof s.r === 'number' ? ([s.r, s.r, s.r] as Vec3) : s.r;
   const j = s.jitter ?? 0.04;
   const v = new THREE.Vector3();
+  const mid = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
     v.fromBufferAttribute(pos, i);
     unit[i * 3] = v.x;
@@ -165,10 +199,17 @@ export function solid(b: Builder, rnd: () => number, s: Solid): void {
     s.bend?.(v);
     if (j > 0) v.set(v.x + (rnd() - 0.5) * 2 * j, v.y + (rnd() - 0.5) * 2 * j, v.z + (rnd() - 0.5) * 2 * j);
     pos.setXYZ(i, v.x * r[0], v.y * r[1], v.z * r[2]);
+    mid.add(tmp.set(v.x * r[0], v.y * r[1], v.z * r[2]));
   }
+  mid.multiplyScalar(1 / pos.count);
+  const axis = new Float32Array(pos.count * 3);
+  for (let i = 0; i < pos.count; i++) axis.set([mid.x, mid.y, mid.z], i * 3);
   g.setAttribute('unit', new THREE.BufferAttribute(unit, 3));
-  g.applyMatrix4(s.matrix ?? placeMatrix({ pos: s.pos, rot: s.rot }));
-  finish(b, g, s.color, s.paint, s.tone ?? 0.06);
+  g.setAttribute('axis', new THREE.BufferAttribute(axis, 3));
+  const m = s.matrix ?? placeMatrix({ pos: s.pos, rot: s.rot });
+  g.applyMatrix4(m);
+  (g.getAttribute('axis') as THREE.BufferAttribute).applyMatrix4(m);
+  finish(f, g, s.color, s.paint, s.tone ?? 0.06);
 }
 
 /** A placement that points a shape's +y from `from` towards `to`, centred between them. */
@@ -184,7 +225,7 @@ export function along(from: Vec3, to: Vec3, roll = 0): { matrix: THREE.Matrix4; 
 
 /** A tapering faceted limb from one point to another (r0 at `from`, r1 at `to`), flattened front to back by `depth`. */
 export function pillar(
-  b: Builder,
+  f: Fold,
   rnd: () => number,
   from: Vec3,
   to: Vec3,
@@ -195,7 +236,7 @@ export function pillar(
 ): void {
   const { matrix, len } = along(from, to, opts.roll);
   const depth = opts.depth ?? 1;
-  solid(b, rnd, {
+  solid(f, rnd, {
     base: opts.base ?? 'limb',
     r: [1, len, 1],
     matrix,
@@ -218,8 +259,9 @@ export interface Tube {
   radii: number[];
   /** Sides round the tube (6 by default). */
   sides?: number;
-  /** Squashes the cross-section across its second axis (flat tails, flippers). */
+  /** Squashes the cross-section across its second axis (flat tails, flippers), or by this much at each point. */
   flat?: number;
+  flats?: number[];
   /** How far each corner may wander, as a fraction of the local radius. */
   jitter?: number;
   color: Color;
@@ -227,34 +269,38 @@ export interface Tube {
   paint?: Paint;
   /** Round the ends off (true) or leave them pointed at the path's ends. */
   round?: boolean;
-  /** Which way the flat side faces at the start (defaults to sideways). */
+  /** Which way the first axis of the cross-section points at the start (defaults to sideways). */
   up?: Vec3;
   tone?: number;
 }
 
-/** A faceted tube along a path, closed at both ends: tails, tentacles, horns, necks, the snail's foot. */
-export function tube(b: Builder, rnd: () => number, t: Tube): void {
+/** A faceted tube along a path, closed at both ends: tails, tentacles, horns, the snail's foot and shell. */
+export function tube(f: Fold, rnd: () => number, t: Tube): void {
   const n = Math.max(3, (t.sides ?? 6) - (LOW ? 1 : 0));
   const pts = t.pts.map((p) => new THREE.Vector3(...p));
   const m = pts.length;
   const flat = t.flat ?? 1;
   const j = t.jitter ?? 0.08;
   // Frames carried along the path so the tube doesn't twist.
-  const tangents = pts.map((_p, i) => {
-    const a = pts[Math.max(0, i - 1)];
-    const c = pts[Math.min(m - 1, i + 1)];
-    return c.clone().sub(a).normalize();
-  });
+  const tangents = pts.map((_p, i) => pts[Math.min(m - 1, i + 1)].clone().sub(pts[Math.max(0, i - 1)]).normalize());
   let side = new THREE.Vector3(...(t.up ?? [1, 0, 0]));
   if (Math.abs(side.dot(tangents[0])) > 0.95) side = new THREE.Vector3(0, 0, 1);
   side.sub(tangents[0].clone().multiplyScalar(side.dot(tangents[0]))).normalize();
   const positions: number[] = [];
   const units: number[] = [];
+  const axes: number[] = [];
+  const alongs: number[] = [];
+  const round = t.round ?? true;
+  // Inside points near each end, so the end faces check as outward even when the end is pointed.
+  const a0 = pts[0].clone().addScaledVector(tangents[0], t.radii[0] * 0.3);
+  const a1 = pts[m - 1].clone().addScaledVector(tangents[m - 1], -t.radii[m - 1] * 0.3);
   for (let i = 0; i < m; i++) {
     const tan = tangents[i];
     side.sub(tan.clone().multiplyScalar(side.dot(tan))).normalize();
     const other = tan.clone().cross(side).normalize();
     const r = t.radii[i];
+    const fl = t.flats?.[i] ?? flat;
+    const inside = i === 0 ? pts[0].clone().lerp(a0, 0.5) : i === m - 1 ? pts[m - 1].clone().lerp(a1, 0.5) : pts[i];
     for (let s = 0; s < n; s++) {
       const a = (s / n) * Math.PI * 2 + (i % 2) * (Math.PI / n) * 0.5;
       const cx = Math.cos(a);
@@ -263,38 +309,43 @@ export function tube(b: Builder, rnd: () => number, t: Tube): void {
       const p = pts[i]
         .clone()
         .addScaledVector(side, cx * r + (rnd() - 0.5) * 2 * jr)
-        .addScaledVector(other, cz * r * flat + (rnd() - 0.5) * 2 * jr * flat)
+        .addScaledVector(other, cz * r * fl + (rnd() - 0.5) * 2 * jr * fl)
         .addScaledVector(tan, (rnd() - 0.5) * jr);
       positions.push(p.x, p.y, p.z);
       units.push(cx, i / (m - 1), cz);
+      axes.push(inside.x, inside.y, inside.z);
+      alongs.push(i / (m - 1));
     }
   }
-  // The two end points.
-  const round = t.round ?? true;
   const startTip = pts[0].clone().addScaledVector(tangents[0], -(round ? t.radii[0] * 0.7 : 0));
   const endTip = pts[m - 1].clone().addScaledVector(tangents[m - 1], round ? t.radii[m - 1] * 0.7 : 0);
   const s0 = m * n;
   positions.push(startTip.x, startTip.y, startTip.z, endTip.x, endTip.y, endTip.z);
   units.push(0, 0, 0, 0, 1, 0);
+  axes.push(a0.x, a0.y, a0.z, a1.x, a1.y, a1.z);
+  alongs.push(0, 1);
   const index: number[] = [];
+  // Wound so each face's front is on the outside.
   for (let i = 0; i < m - 1; i++) {
     for (let s = 0; s < n; s++) {
       const a = i * n + s;
-      const bq = i * n + ((s + 1) % n);
+      const b = i * n + ((s + 1) % n);
       const c = (i + 1) * n + s;
       const d = (i + 1) * n + ((s + 1) % n);
-      index.push(a, c, bq, bq, c, d);
+      index.push(a, b, c, b, d, c);
     }
   }
   for (let s = 0; s < n; s++) {
-    index.push(s0, s, (s + 1) % n);
-    index.push(s0 + 1, (m - 1) * n + ((s + 1) % n), (m - 1) * n + s);
+    index.push(s0, (s + 1) % n, s);
+    index.push(s0 + 1, (m - 1) * n + s, (m - 1) * n + ((s + 1) % n));
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
   g.setAttribute('unit', new THREE.Float32BufferAttribute(units, 3));
+  g.setAttribute('axis', new THREE.Float32BufferAttribute(axes, 3));
+  g.setAttribute('along', new THREE.Float32BufferAttribute(alongs, 1));
   g.setIndex(index);
-  finish(b, g, t.color, t.paint, t.tone ?? 0.07);
+  finish(f, g, t.color, t.paint, t.tone ?? 0.06);
 }
 
 /** Points along a gentle curve, from a start heading a direction and turning by `curl` (Euler angles) per step. */
@@ -311,15 +362,91 @@ export function curve(start: Vec3, dir: Vec3, steps: number, step: number, curl:
   return out;
 }
 
-/** A thin flat sheet (wing membranes, fins) as a fan of faces round a centre, both sides. */
-export function sheet(b: Builder, centreP: Vec3, rim: Vec3[], color: Color, parent?: THREE.Matrix4): void {
-  const pos: number[] = [];
-  for (let i = 0; i < rim.length - 1; i++) {
-    const a = rim[i];
-    const c = rim[i + 1];
-    pos.push(...centreP, ...a, ...c, ...centreP, ...c, ...a);
+export interface Card {
+  /** Half-width at the base, height, and depth front to back. */
+  w: number;
+  h: number;
+  d: number;
+  matrix: THREE.Matrix4;
+  /** The back, the rim round the front, and the recessed inner panel. */
+  back: Color;
+  rim: Color;
+  inner?: Color;
+  /** How much of the front the inner panel takes (0 to 1) and how far it's set back (a fraction of the depth). */
+  inset?: number;
+  recess?: number;
+  /** Leans the tip back (a fraction of the height). */
+  lean?: number;
+}
+
+/**
+ * A pointed ear folded from card: a three-sided pyramid whose front face is inset into a rim and a slightly
+ * recessed inner panel, so the inside of the ear is part of the same surface (no second layer to flicker).
+ */
+export function card(f: Fold, rnd: () => number, o: Card): void {
+  const { w, h, d } = o;
+  const jit = () => (rnd() - 0.5) * 0.08;
+  const FL = new THREE.Vector3(-w * (1 + jit()), 0, d * 0.3);
+  const FR = new THREE.Vector3(w * (1 + jit()), 0, d * 0.3);
+  const B = new THREE.Vector3(0, 0, -d * 0.9);
+  const A = new THREE.Vector3(w * jit() * 0.5, h * (1 + jit() * 0.5), -(o.lean ?? 0.15) * h);
+  const C = FL.clone().add(FR).add(A).multiplyScalar(1 / 3);
+  const fn = FR.clone().sub(FL).cross(A.clone().sub(FL)).normalize();
+  const s = o.inset ?? 0.62;
+  const inner = (p: THREE.Vector3) =>
+    C.clone()
+      .addScaledVector(p.clone().sub(C), s)
+      .addScaledVector(new THREE.Vector3(0, 1, 0), -h * 0.06)
+      .addScaledVector(fn, -(o.recess ?? 0.25) * d);
+  const IL = inner(FL);
+  const IR = inner(FR);
+  const IA = inner(A);
+  const faces: [THREE.Vector3[], Color][] = [
+    [[FL, FR, IR, IL], o.rim],
+    [[FR, A, IA, IR], o.rim],
+    [[A, FL, IL, IA], o.rim],
+    [[IL, IR, IA], o.inner ?? o.rim],
+    [[FR, B, A], o.back],
+    [[B, FL, A], o.back],
+    [[FL, B, FR], o.back],
+  ];
+  const mid = FL.clone().add(FR).add(B).add(A).multiplyScalar(0.25);
+  const positions: number[] = [];
+  const units: number[] = [];
+  const colorsByFace: Color[] = [];
+  for (const [poly, c] of faces) {
+    for (let i = 1; i < poly.length - 1; i++) {
+      for (const p of [poly[0], poly[i], poly[i + 1]]) {
+        positions.push(p.x, p.y, p.z);
+        units.push(p.x / w, p.y / h, p.z / d);
+      }
+      colorsByFace.push(c);
+    }
   }
   const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  b.add(g, color, parent ?? new THREE.Matrix4());
+  g.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  g.setAttribute('unit', new THREE.Float32BufferAttribute(units, 3));
+  const axis = new Float32Array(positions.length);
+  for (let i = 0; i < positions.length; i += 3) axis.set([mid.x, mid.y, mid.z], i);
+  g.setAttribute('axis', new THREE.BufferAttribute(axis, 3));
+  g.applyMatrix4(o.matrix);
+  (g.getAttribute('axis') as THREE.BufferAttribute).applyMatrix4(o.matrix);
+  let face = 0;
+  finish(f, g, o.back, () => colorsByFace[face++], 0.05);
+}
+
+/** A thin flat sheet (wing membranes, fins) as a fan of faces round a centre, on both sides. */
+export function sheet(f: Fold, centreP: Vec3, rim: Vec3[], color: Color, matrix?: THREE.Matrix4): void {
+  const c = new THREE.Color(color);
+  const p = new THREE.Vector3();
+  for (let i = 0; i < rim.length - 1; i++) {
+    const tri = [centreP, rim[i], rim[i + 1], centreP, rim[i + 1], rim[i]];
+    for (const q of tri) {
+      p.set(...q);
+      if (matrix) p.applyMatrix4(matrix);
+      f.pos.push(p.x, p.y, p.z);
+      f.col.push(c.r, c.g, c.b);
+      f.along.push(-1);
+    }
+  }
 }

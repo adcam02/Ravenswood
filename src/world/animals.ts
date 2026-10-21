@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import { Builder, card, glow, soft, wet, type Vec3 } from './build';
+import { card, glow, soft, wet, type Vec3 } from './build';
 import { buildBack, buildFace, buildNeck, type BackFit, type BuiltPiece, type FaceFit, type NeckFit } from './dressup';
 import { buildHat, type BuiltHat, type HatFit } from './hats';
 import { buildItem, disposeObject } from './items';
-import { lowDetail, pillar, seedOf, seeded, solid, tube } from './paper';
-import { RECIPES, col, colorsFor, mix, newKit, onHead, type Kit, type Shape } from './species';
+import { Fold, lowDetail, pillar, seedOf, seeded, solid, tube } from './paper';
+import { RECIPES, profileOf } from './recipes';
+import { col, colorsFor, mix, newKit, onHead, type Kit, type Mannerism, type Profile, type Shape } from './species';
 import { animalInfo, type Anim, type AnimalId, type BackId, type FaceId, type HatId, type Item, type ItemKind, type Look, type NeckId } from './types';
 
 export { buildPet, type Pet } from './pets';
@@ -17,9 +18,10 @@ export interface DressUp {
 }
 
 /**
- * Papercraft animals, folded in code from faceted shapes (see species.ts). Each moving part (torso, head,
- * eyes, each arm and leg, the tail) is a single vertex-coloured mesh hung on a pivot, and everything moves
- * procedurally, so there are no model files or animation clips to load.
+ * Papercraft animals, folded in code from faceted card (see species.ts and recipes.ts). Each animal is one
+ * skinned mesh (the body, plus the eyes in their own material) on a small skeleton: body, neck, eyes, arms,
+ * legs and tail, plus whatever extra bones the species needs (ears, tail segments, a nose, eye stalks).
+ * Everything moves procedurally, in the species' own style, so there are no model files or clips to load.
  */
 
 export interface RigState {
@@ -42,7 +44,7 @@ export interface Rig {
   setGhost(on: boolean): void;
   /** Puts a hat on (or takes it off). The Storyteller never wears one. Raises `headHeight` to clear it. */
   setHat(hat: HatId | null): void;
-  /** 'low' swaps in a cheaper version of every part, for players far away. */
+  /** 'low' swaps in a cheaper version of the model, for players far away. */
   setDetail(level: 'high' | 'low'): void;
   /** Puts on (or takes off) face, neck and back pieces; a field left out is left as it is, null takes it off. */
   setDressUp(d: DressUp): void;
@@ -106,6 +108,16 @@ const restPose = (): Pose => ({
   carry: 0,
 });
 
+/** Rotation, offset from rest and scale for one of the extra bones (ears, tail segments, nose, stalks). */
+type AuxPose = [number, number, number, number, number, number, number];
+type AuxMap = Map<string, AuxPose>;
+const restAux = (): AuxPose => [0, 0, 0, 0, 0, 0, 1];
+function aux(A: AuxMap, name: string): AuxPose {
+  let a = A.get(name);
+  if (!a) A.set(name, (a = restAux()));
+  return a;
+}
+
 /**
  * How each thing is carried: where the paw goes (up from the shoulder, and forward of the front of the
  * body), how far the arm swings out, and whether both paws hold it in front of the middle of the body.
@@ -140,10 +152,133 @@ const HOLD: Record<ItemKind, Hold> = {
   grimoire: { dy: -0.12, dz: 0.12, out: 0.0, both: true },
 };
 
+/** How long each idle mannerism takes, in seconds. */
+const CLIP_LEN: Record<Mannerism, number> = {
+  earSwivel: 2.4,
+  earTwitch: 1.1,
+  tailSwish: 2.4,
+  headTilt: 2.2,
+  sniff: 2.1,
+  rubPaws: 2.6,
+  noseWiggle: 1.5,
+  hop: 1.2,
+  stalks: 3.4,
+  stretch: 3.2,
+  headSwivel: 2.8,
+  slowBlink: 1.8,
+  lickPaw: 3.0,
+  tailCurl: 2.6,
+  wag: 2.0,
+  pant: 2.6,
+  sway: 3.2,
+  scratch: 2.2,
+  flap: 1.6,
+  throat: 2.0,
+  chill: 4.5,
+  wingStretch: 2.8,
+  lookAround: 3.0,
+};
+
+const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
+/** Eases in over the first fifth and out over the last. */
+const envelope = (p: number) => {
+  const x = clamp01(Math.min(p / 0.2, (1 - p) / 0.2));
+  return x * x * (3 - 2 * x);
+};
+
 const GHOST_EYES = new THREE.MeshBasicMaterial({ color: '#3a4a7a', transparent: true, opacity: 0.85 });
 
+// ---------------------------------------------------------------- skeleton and skin
+
+const STANDARD = ['body', 'neck', 'eyes', 'armL', 'armR', 'legL', 'legR', 'tail'];
+
+interface Skel {
+  names: string[];
+  parent: Map<string, string | null>;
+  local: Map<string, THREE.Vector3>;
+  /** Where each bone sits at rest, in the model's space. */
+  rest: Map<string, THREE.Vector3>;
+}
+
+function skeletonOf(k: Kit): Skel {
+  const j = k.joints;
+  const defs: [string, string | null, Vec3][] = [
+    ['body', null, [0, 0, 0]],
+    ['neck', 'body', j.neck],
+    ['eyes', 'neck', [0, k.eyeY, 0]],
+    ['armL', 'body', j.shoulder],
+    ['armR', 'body', [-j.shoulder[0], j.shoulder[1], j.shoulder[2]]],
+    ['legL', 'body', j.hip],
+    ['legR', 'body', [-j.hip[0], j.hip[1], j.hip[2]]],
+    ['tail', 'body', j.tail],
+    ...k.bones.map((b): [string, string, Vec3] => [b.name, b.parent, b.pos]),
+  ];
+  const sk: Skel = { names: [], parent: new Map(), local: new Map(), rest: new Map() };
+  for (const [name, parent, pos] of defs) {
+    sk.names.push(name);
+    sk.parent.set(name, parent);
+    sk.local.set(name, new THREE.Vector3(...pos));
+    sk.rest.set(name, new THREE.Vector3(...pos).add(parent ? sk.rest.get(parent)! : new THREE.Vector3()));
+  }
+  return sk;
+}
+
+/** Puts every part into the model's space and ties each corner to its bone (or blends it along a chain). */
+function skin(k: Kit, sk: Skel): THREE.BufferGeometry {
+  const index = new Map(sk.names.map((n, i) => [n, i]));
+  const pos: number[] = [];
+  const colr: number[] = [];
+  const si: number[] = [];
+  const sw: number[] = [];
+  const groups: [number, number][] = [];
+  for (const eyesPass of [false, true]) {
+    const start = pos.length / 3;
+    for (const p of k.parts.values()) {
+      if (Boolean(p.eyes) !== eyesPass || p.fold.empty) continue;
+      const o = sk.rest.get(p.space) ?? new THREE.Vector3();
+      const b = index.get(p.bone) ?? 0;
+      const chain = p.chain?.map((n) => index.get(n) ?? b);
+      const f = p.fold;
+      for (let v = 0; v < f.pos.length / 3; v++) {
+        pos.push(f.pos[v * 3] + o.x, f.pos[v * 3 + 1] + o.y, f.pos[v * 3 + 2] + o.z);
+        colr.push(f.col[v * 3], f.col[v * 3 + 1], f.col[v * 3 + 2]);
+        const t = f.along[v];
+        if (chain && t >= 0) {
+          const n = chain.length;
+          const x = t * n;
+          const i = Math.min(n - 1, Math.floor(x));
+          if (i >= n - 1) {
+            si.push(chain[n - 1], 0, 0, 0);
+            sw.push(1, 0, 0, 0);
+          } else {
+            si.push(chain[i], chain[i + 1], 0, 0);
+            sw.push(1 - (x - i), x - i, 0, 0);
+          }
+        } else {
+          si.push(b, 0, 0, 0);
+          sw.push(1, 0, 0, 0);
+        }
+      }
+    }
+    groups.push([start, pos.length / 3 - start]);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(colr, 3));
+  g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
+  g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
+  g.addGroup(groups[0][0], groups[0][1], 0);
+  g.addGroup(groups[1][0], groups[1][1], 1);
+  g.computeVertexNormals();
+  g.computeBoundingSphere();
+  return g;
+}
+
+// ---------------------------------------------------------------- the rig
+
 interface RigParts {
-  parts: Kit;
+  kit: Kit;
+  profile: Profile;
   material: THREE.Material;
   ghostColor: THREE.Color;
   floats: boolean;
@@ -156,39 +291,22 @@ interface RigParts {
   flaps?: boolean;
   /** Slower, droopier idling with half-closed eyes (the sloth). */
   sleepy?: boolean;
+  /** The right arm only comes out to hold or gesture. */
+  tendril?: boolean;
   /** Extra things that hang off the body (the Storyteller's lantern). */
-  extras?: (body: THREE.Group, hand: THREE.Group, armL: THREE.Group) => void;
+  extras?: (body: THREE.Object3D, hand: THREE.Group, armL: THREE.Object3D) => void;
   eyeMaterial?: THREE.Material;
   /** Where a hat sits; none for the Storyteller, who never wears one. */
   hatFit?: HatFit;
-  /** Builds the same animal with the light shapes, and the key its parts are cached under. */
+  /** Builds the same animal with lighter shapes, and the key its geometry is cached under. */
   lowKit?: () => Kit;
   lowKey?: string;
   /** Where dress-up goes; none for the Storyteller. */
   dressFit?: { face: FaceFit; neck: NeckFit; back: BackFit };
 }
 
-type PartName = 'torso' | 'head' | 'eyes' | 'armL' | 'armR' | 'legL' | 'legR' | 'tail';
-const PART_NAMES: PartName[] = ['torso', 'head', 'eyes', 'armL', 'armR', 'legL', 'legR', 'tail'];
-
 /** Distant versions of each animal and colour, shared by every rig that needs one. Never disposed: they're small. */
-const lowCache = new Map<string, Partial<Record<PartName, THREE.BufferGeometry>>>();
-
-function lowParts(key: string, make: () => Kit): Partial<Record<PartName, THREE.BufferGeometry>> {
-  const hit = lowCache.get(key);
-  if (hit) return hit;
-  const kit = lowDetail(make);
-  const out: Partial<Record<PartName, THREE.BufferGeometry>> = {};
-  for (const name of PART_NAMES) {
-    const b = kit[name];
-    if (b.empty) continue;
-    const g = b.geometry(0);
-    if (name === 'eyes') g.translate(0, -kit.eyeY, 0);
-    out[name] = g;
-  }
-  lowCache.set(key, out);
-  return out;
-}
+const lowCache = new Map<string, THREE.BufferGeometry>();
 
 /** The angle (about x) and stretch that point an arm's grip from its shoulder at a target, both in body space. */
 function aim(shoulder: THREE.Vector3, grip: THREE.Vector3, ty: number, tz: number): { a: number; s: number } {
@@ -203,18 +321,20 @@ class AnimalRig implements Rig {
   root = new THREE.Group();
   headHeight = 1;
   private float = new THREE.Group();
-  private body = new THREE.Group();
-  private neck = new THREE.Group();
-  private eyes = new THREE.Group();
-  private armL = new THREE.Group();
-  private armR = new THREE.Group();
-  private legL = new THREE.Group();
-  private legR = new THREE.Group();
-  private tail = new THREE.Group();
+  private bones = new Map<string, THREE.Bone>();
+  private body: THREE.Bone;
+  private neck: THREE.Bone;
+  private armL: THREE.Bone;
+  private armR: THREE.Bone;
+  private legL: THREE.Bone;
+  private legR: THREE.Bone;
+  private tail: THREE.Bone;
+  private blinkers: THREE.Bone[];
+  private extra: string[];
   private hand = new THREE.Group();
   private handTilt = new THREE.Group();
-  private meshes: THREE.Mesh[] = [];
-  private eyeMesh: THREE.Mesh;
+  private mesh: THREE.SkinnedMesh;
+  private sk: Skel;
   private material: THREE.Material;
   private eyeMaterial: THREE.Material;
   private ghostMaterial: THREE.MeshStandardMaterial;
@@ -226,19 +346,25 @@ class AnimalRig implements Rig {
   private hold: Hold | null = null;
   private ghost = false;
   private pose = restPose();
+  private auxNow: AuxMap = new Map();
   private phase = 0;
   private blinkAt = 2 + Math.random() * 3;
   private blinkT = -1;
   private seed = Math.random() * 100;
+  private prof: Profile;
+  private clip: { name: Mannerism; t0: number; dur: number; side: number; data: number[] } | null = null;
+  private nextClip = 1.5 + Math.random() * 3;
+  private shut = 0;
+  private grow = 0;
   private floats: boolean;
   private hover: number;
   private flaps: boolean;
   private tentacles: boolean;
   private noLegs: boolean;
   private sleepy: boolean;
+  private tendril: boolean;
   private owned: THREE.Material[] = [];
-  private parts: Partial<Record<PartName, THREE.Mesh>> = {};
-  private highGeo = new Map<THREE.Mesh, THREE.BufferGeometry>();
+  private highGeo: THREE.BufferGeometry;
   private detail: 'high' | 'low' = 'high';
   private lowKit?: () => Kit;
   private lowKey?: string;
@@ -257,17 +383,20 @@ class AnimalRig implements Rig {
   private mouth: THREE.Vector3;
   private eyePos: THREE.Vector3;
   private hasLegs: boolean;
+  private shape: Shape;
   private v = new THREE.Vector3();
 
   constructor(p: RigParts) {
-    const k = p.parts;
+    const k = p.kit;
     const j = k.joints;
+    this.prof = p.profile;
     this.floats = p.floats;
     this.hover = p.hover ?? 0.35;
     this.flaps = Boolean(p.flaps);
     this.tentacles = p.tentacles;
     this.noLegs = Boolean(p.noLegs);
     this.sleepy = Boolean(p.sleepy);
+    this.tendril = Boolean(p.tendril);
     this.material = p.material;
     this.eyeMaterial = p.eyeMaterial ?? p.material;
     this.hatFit = p.hatFit;
@@ -279,49 +408,48 @@ class AnimalRig implements Rig {
     this.shoulder = new THREE.Vector3(-j.shoulder[0], j.shoulder[1], j.shoulder[2]);
     this.grip = new THREE.Vector3(...j.hand);
     this.seat = k.seat;
+    this.shape = k.shape;
     const s = k.shape;
     this.front = s.tc[2] + s.tr[2] * 1.02;
     this.mouth = new THREE.Vector3(...(k.nose ?? [0, s.hc[1] - s.hr[1] * 0.4, s.hc[2] + s.hr[2]])).add(new THREE.Vector3(...j.neck));
     this.eyePos = new THREE.Vector3(k.eyeX, k.eyeY, k.eyeZ).add(new THREE.Vector3(...j.neck));
     this.hasLegs = !k.legL.empty;
 
+    // The skeleton, at rest.
+    this.sk = skeletonOf(k);
+    for (const name of this.sk.names) {
+      const b = new THREE.Bone();
+      b.name = name;
+      b.position.copy(this.sk.local.get(name)!);
+      const parent = this.sk.parent.get(name);
+      (parent ? this.bones.get(parent)! : this.float).add(b);
+      this.bones.set(name, b);
+    }
+    const bone = (n: string) => this.bones.get(n)!;
+    this.body = bone('body');
+    this.neck = bone('neck');
+    this.armL = bone('armL');
+    this.armR = bone('armR');
+    this.legL = bone('legL');
+    this.legR = bone('legR');
+    this.tail = bone('tail');
+    this.blinkers = k.blink.map(bone).filter(Boolean);
+    this.extra = this.sk.names.filter((n) => !STANDARD.includes(n));
     this.root.add(this.float);
-    this.float.add(this.body);
-    this.body.add(this.neck, this.armL, this.armR, this.legL, this.legR, this.tail);
-    this.neck.position.set(...j.neck);
-    this.armL.position.set(j.shoulder[0], j.shoulder[1], j.shoulder[2]);
-    this.armR.position.set(-j.shoulder[0], j.shoulder[1], j.shoulder[2]);
-    this.legL.position.set(j.hip[0], j.hip[1], j.hip[2]);
-    this.legR.position.set(-j.hip[0], j.hip[1], j.hip[2]);
-    this.tail.position.set(...j.tail);
     this.hand.position.set(...j.hand);
     this.armR.add(this.hand);
     this.hand.add(this.handTilt);
 
-    const mk = (name: PartName, b: Builder, parent: THREE.Object3D, mat = this.material) => {
-      if (b.empty) return null;
-      const m = b.mesh(mat, { cast: true, receive: false, crease: 0 });
-      parent.add(m);
-      this.meshes.push(m);
-      this.parts[name] = m;
-      return m;
-    };
-    mk('torso', k.torso, this.body);
-    mk('head', k.head, this.neck);
-    this.eyes.position.set(0, k.eyeY, 0);
-    this.neck.add(this.eyes);
-    // Eye geometry is built around the neck; shift it so blinking squashes around the eyes.
-    const eg = k.eyes.geometry(0);
-    eg.translate(0, -k.eyeY, 0);
-    this.eyeMesh = new THREE.Mesh(eg, this.eyeMaterial);
-    this.eyeMesh.castShadow = false;
-    this.eyes.add(this.eyeMesh);
-    this.parts.eyes = this.eyeMesh;
-    mk('armL', k.armL, this.armL);
-    mk('armR', k.armR, this.armR);
-    mk('legL', k.legL, this.legL);
-    mk('legR', k.legR, this.legR);
-    mk('tail', k.tail, this.tail);
+    // One skinned mesh for the whole animal, eyes in their own material.
+    this.highGeo = skin(k, this.sk);
+    this.mesh = new THREE.SkinnedMesh(this.highGeo, [this.material, this.eyeMaterial]);
+    this.mesh.castShadow = true;
+    this.mesh.receiveShadow = false;
+    this.float.add(this.mesh);
+    this.root.updateMatrixWorld(true);
+    this.mesh.bind(new THREE.Skeleton(this.sk.names.map(bone)));
+    // Everything an animal does stays within this, so there's no need to work it out each frame.
+    this.mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.5, 0), 1.4);
 
     this.ghostMaterial = new THREE.MeshStandardMaterial({
       color: p.ghostColor,
@@ -336,8 +464,8 @@ class AnimalRig implements Rig {
     this.owned.push(this.ghostMaterial);
 
     // A faceted wisp that replaces the legs of ghosts (and the Storyteller).
-    const wb = new Builder();
-    tube(wb, seeded(7), {
+    const wf = new Fold();
+    tube(wf, seeded(7), {
       pts: [
         [0, 0.36, 0.0],
         [0, 0.22, -0.02],
@@ -350,7 +478,7 @@ class AnimalRig implements Rig {
       round: false,
       color: '#ffffff',
     });
-    this.wisp = new THREE.Mesh(wb.geometry(0), this.ghostMaterial);
+    this.wisp = new THREE.Mesh(wf.geometry(), this.ghostMaterial);
     this.wisp.visible = false;
     this.body.add(this.wisp);
 
@@ -367,8 +495,6 @@ class AnimalRig implements Rig {
     p.extras?.(this.body, this.handTilt, this.armL);
 
     if (this.noLegs) {
-      this.legL.visible = false;
-      this.legR.visible = false;
       this.wisp.visible = true;
       this.wisp.material = this.material;
     }
@@ -376,9 +502,31 @@ class AnimalRig implements Rig {
     // Measure the head with the rig at rest.
     this.applyPose(1);
     this.root.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(this.neck);
-    this.headHeight = box.max.y + (this.floats ? this.hover : 0);
+    this.headHeight = this.measureHead() + (this.floats ? this.hover : 0);
     this.baseHeadHeight = this.headHeight;
+  }
+
+  /** The top of everything that rides on the neck, at rest. */
+  private measureHead(): number {
+    const pos = this.mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const idx = this.mesh.geometry.getAttribute('skinIndex') as THREE.BufferAttribute;
+    const onHead = new Set<number>();
+    this.sk.names.forEach((n, i) => {
+      for (let b: string | null | undefined = n; b; b = this.sk.parent.get(b)) {
+        if (b === 'neck') {
+          onHead.add(i);
+          break;
+        }
+      }
+    });
+    let top = 0;
+    for (let i = 0; i < pos.count; i++) if (onHead.has(idx.getX(i))) top = Math.max(top, pos.getY(i));
+    return top;
+  }
+
+  /** For the test bench: the rig's insides. */
+  inspect() {
+    return { mesh: this.mesh, bones: this.bones, shape: this.shape, item: this.item, body: this.body, neck: this.neck, profile: this.prof, hold: this.hold };
   }
 
   setHat(hat: HatId | null) {
@@ -404,7 +552,7 @@ class AnimalRig implements Rig {
     this.hat = { id: hat, built, holder };
     this.applyHatGhost();
     // The name label and anything floating over the head have to clear the hat.
-    const top = this.neck.position.y + fit.pos[1] + built.top * fit.scale + (this.floats ? this.hover : 0);
+    const top = this.sk.rest.get('neck')!.y + fit.pos[1] + built.top * fit.scale + (this.floats ? this.hover : 0);
     this.headHeight = Math.max(this.baseHeadHeight, top);
   }
 
@@ -449,17 +597,14 @@ class AnimalRig implements Rig {
     if (level === this.detail) return;
     if (level === 'low') {
       if (!this.lowKit || !this.lowKey) return;
-      const low = lowParts(this.lowKey, this.lowKit);
-      for (const name of PART_NAMES) {
-        const mesh = this.parts[name];
-        const g = low[name];
-        if (!mesh || !g) continue;
-        if (!this.highGeo.has(mesh)) this.highGeo.set(mesh, mesh.geometry);
-        mesh.geometry = g;
+      let g = lowCache.get(this.lowKey);
+      if (!g) {
+        const lk = lowDetail(this.lowKit);
+        g = skin(lk, this.sk);
+        lowCache.set(this.lowKey, g);
       }
-    } else {
-      for (const [mesh, g] of this.highGeo) mesh.geometry = g;
-    }
+      this.mesh.geometry = g;
+    } else this.mesh.geometry = this.highGeo;
     this.detail = level;
   }
 
@@ -483,16 +628,9 @@ class AnimalRig implements Rig {
   setGhost(on: boolean) {
     if (on === this.ghost) return;
     this.ghost = on;
-    for (const m of this.meshes) {
-      m.material = on ? this.ghostMaterial : this.material;
-      m.castShadow = !on;
-    }
-    this.eyeMesh.material = on ? GHOST_EYES : this.eyeMaterial;
-    if (!this.noLegs) {
-      this.legL.visible = !on;
-      this.legR.visible = !on;
-      this.wisp.visible = on;
-    }
+    this.mesh.material = on ? [this.ghostMaterial, GHOST_EYES] : [this.material, this.eyeMaterial];
+    this.mesh.castShadow = !on;
+    if (!this.noLegs && this.hasLegs) this.wisp.visible = on;
     this.wisp.material = on || !this.noLegs ? this.ghostMaterial : this.material;
     if (this.drips) this.drips.visible = !on;
     this.item?.traverse((o) => (o.castShadow = !on));
@@ -518,8 +656,7 @@ class AnimalRig implements Rig {
   private carryPose(P: Pose, sway: number) {
     const h = this.hold;
     if (!h) return;
-    const sh = this.shoulder;
-    this.reach(P, h.both ? 'both' : 'r', sh.y + h.dy, this.front + h.dz, h.out);
+    this.reach(P, h.both ? 'both' : 'r', this.shoulder.y + h.dy, this.front + h.dz, h.out);
     P.arx += sway;
     if (h.both) {
       P.alx += sway;
@@ -527,61 +664,347 @@ class AnimalRig implements Rig {
     }
   }
 
-  private target(s: RigState): Pose {
-    const P = restPose();
-    const t = s.t + this.seed;
+  /** Walking and running, in the species' own gait. */
+  private gait(P: Pose, A: AuxMap, s: RigState) {
+    const run = s.anim === 'run';
+    const w = this.phase;
     const sin = Math.sin;
-    const sh = this.shoulder;
-    switch (s.anim) {
-      case 'walk':
-      case 'run': {
-        const run = s.anim === 'run';
-        const w = this.phase;
-        const A = THREE.MathUtils.clamp(Math.max(s.speed, run ? 3 : 1.5) / 3.6, 0.35, 0.95);
-        P.llx = sin(w) * A;
-        P.lrx = -sin(w) * A;
-        // The front legs swing too, like an animal's, a little less than the back ones.
-        P.alx = -0.08 - sin(w) * A * 0.55;
-        P.arx = -0.08 + sin(w) * A * 0.55;
-        P.by = Math.abs(sin(w)) * (run ? 0.05 : 0.028);
-        P.brz = sin(w) * 0.045;
+    const prof = this.prof;
+    const amp = THREE.MathUtils.clamp(Math.max(s.speed, run ? 3 : 1.5) / 3.6, 0.35, 0.95) * prof.stride;
+    switch (prof.gait) {
+      case 'hop': {
+        // Both back feet together: kick off, tuck up in the air, reach forward to land.
+        const up = Math.max(0, sin(w));
+        const down = Math.max(0, -sin(w));
+        P.by = up * (run ? 0.13 : 0.085);
+        P.brx = 0.05 + up * 0.14;
+        P.llx = P.lrx = up * 0.6 - down * 0.25;
+        P.alx = P.arx = -0.55 - up * 0.35;
+        P.alz = 0.05;
+        P.arz = -0.05;
+        P.hrx = -up * 0.12;
+        aux(A, 'earL')[0] = aux(A, 'earR')[0] = -0.2 - up * 0.45;
+        break;
+      }
+      case 'slither': {
+        // The back of the foot draws up, then the front pushes on: a slow stretch and contract.
+        const k = sin(w);
+        aux(A, 'rear')[5] = 0.05 * k;
+        P.hrx = -0.08 * Math.max(0, -k) + 0.04;
+        P.brx = 0;
+        aux(A, 'stalkL')[0] = aux(A, 'stalkR')[0] = 0.18 + 0.05 * k;
+        break;
+      }
+      case 'amble': {
+        // A rolling, hunched amble, front paws swinging like front legs.
+        P.llx = sin(w) * amp;
+        P.lrx = -sin(w) * amp;
+        P.alx = -0.2 - sin(w) * amp * 0.75;
+        P.arx = -0.2 + sin(w) * amp * 0.75;
+        P.alz = 0.04;
+        P.arz = -0.04;
+        P.brz = sin(w) * 0.08;
+        P.bry = sin(w) * 0.06;
+        P.by = Math.abs(sin(w)) * 0.018;
+        P.brx = run ? 0.18 : 0.06;
+        P.hrx = -P.brx * 0.6 + sin(w * 2) * 0.03;
+        P.hrz = -sin(w) * 0.05;
+        P.try = sin(w) * 0.3;
+        P.trx = run ? 0.2 : 0.05;
+        break;
+      }
+      default: {
+        // A light, quick trot.
+        P.llx = sin(w) * amp;
+        P.lrx = -sin(w) * amp;
+        P.alx = -0.08 - sin(w) * amp * 0.55;
+        P.arx = -0.08 + sin(w) * amp * 0.55;
+        P.by = Math.abs(sin(w)) * (run ? 0.05 : 0.03);
+        P.brz = sin(w) * 0.04;
         P.brx = run ? 0.14 : 0.05;
         P.hrx = -P.brx * 0.6;
         P.try = sin(w) * 0.35;
         P.trx = run ? 0.25 : 0.08;
-        if (this.hold) {
-          const left = P.alx;
-          this.carryPose(P, sin(w) * 0.06);
-          if (!this.hold.both) P.alx = left;
-        }
-        break;
+        aux(A, 'tail1')[1] = sin(w - 0.8) * 0.2;
+        aux(A, 'tail2')[1] = sin(w - 1.6) * 0.25;
       }
-      case 'sit': {
-        // Sat on its bottom like the papercraft raccoon: back feet forward, front legs straight down to the ground.
-        P.by = -this.seat + 0.004;
-        P.llx = P.lrx = -1.3;
-        P.llz = 0.16;
-        P.lrz = -0.16;
-        const sy = sh.y + P.by;
-        const reachDown = Math.hypot(this.grip.y, this.grip.z) + 0.03;
-        const a = sy < reachDown ? Math.acos(THREE.MathUtils.clamp(sy / reachDown, 0, 1)) : 0;
-        P.alx = P.arx = -a - 0.12;
-        P.sl = P.sr = sy > reachDown ? THREE.MathUtils.clamp(sy / reachDown, 1, 1.25) : 1;
-        // Front paws close together, just in front of the back feet.
-        P.alz = -0.1;
-        P.arz = 0.1;
-        // The tail curls round on the ground beside it.
+    }
+    if (prof.earsBack && prof.gait !== 'hop') aux(A, 'earL')[0] = aux(A, 'earR')[0] = -prof.earsBack * (run ? 1 : 0.5);
+    if (this.hold) {
+      const left = [P.alx, P.alz, P.sl] as const;
+      this.carryPose(P, prof.gait === 'hop' ? 0 : sin(w) * 0.06);
+      if (!this.hold.both) [P.alx, P.alz, P.sl] = left;
+    }
+  }
+
+  /** Sitting down, in the species' own way. */
+  private sit(P: Pose, A: AuxMap, t: number) {
+    const sh = this.shoulder;
+    const style = this.prof.sit;
+    if (style === 'settle' || !this.hasLegs) {
+      // Settling low: the head bows a touch and the stalks relax.
+      P.by = -0.01;
+      P.hrx = 0.12;
+      aux(A, 'rear')[5] = 0.025;
+      aux(A, 'stalkL')[0] = aux(A, 'stalkR')[0] = 0.3;
+      aux(A, 'stalkL')[2] = 0.12;
+      aux(A, 'stalkR')[2] = -0.12;
+      return;
+    }
+    P.by = -this.seat + 0.004;
+    if (style === 'feet') {
+      // Sat back with the big feet out in front, paws resting on the tummy.
+      P.brx = -0.14;
+      P.llx = P.lrx = -1.5;
+      P.llz = 0.22;
+      P.lrz = -0.22;
+      this.reach(P, 'both', sh.y - 0.2, this.front + 0.01, -0.06);
+      P.hrx = 0.1;
+      P.trx = 0.4;
+    } else {
+      // Back feet forward, front legs straight down to the ground, like the papercraft raccoon.
+      P.llx = P.lrx = -1.3;
+      P.llz = 0.16;
+      P.lrz = -0.16;
+      const sy = sh.y + P.by;
+      const reachDown = Math.hypot(this.grip.y, this.grip.z) + 0.03;
+      const a = sy < reachDown ? Math.acos(THREE.MathUtils.clamp(sy / reachDown, 0, 1)) : 0;
+      P.alx = P.arx = -a - 0.12;
+      P.sl = P.sr = sy > reachDown ? THREE.MathUtils.clamp(sy / reachDown, 1, 1.25) : 1;
+      P.alz = -0.1;
+      P.arz = 0.1;
+      if (style === 'wrap') {
+        // The tail swept round to lie over the front feet, head tilted.
+        P.trx = 0.35;
+        P.try = -1.45;
+        aux(A, 'tail1')[1] = -0.75;
+        aux(A, 'tail2')[1] = -0.85;
+        aux(A, 'tail1')[0] = -0.25;
+        aux(A, 'tail2')[0] = -0.35;
+        P.hrz = 0.16;
+        P.hry = 0.12 + Math.sin(t * 0.3) * 0.08;
+      } else {
+        // The tail curled round on the ground beside it.
         P.trx = 0.22;
         P.try = -0.7;
-        P.hry = sin(t * 0.35) * 0.2;
-        if (this.hold) {
-          const left = [P.alx, P.alz, P.sl] as const;
-          this.carryPose(P, 0);
-          if (!this.hold.both) [P.alx, P.alz, P.sl] = left;
-        }
+        aux(A, 'tail1')[1] = -0.3;
+        P.hry = Math.sin(t * 0.35) * 0.2;
+      }
+    }
+    if (this.hold) {
+      const left = [P.alx, P.alz, P.sl] as const;
+      this.carryPose(P, 0);
+      if (!this.hold.both) [P.alx, P.alz, P.sl] = left;
+    }
+  }
+
+  /** The little things it does while standing about, one at a time. */
+  private mannerism(P: Pose, A: AuxMap, t: number) {
+    if (!this.clip && t >= this.nextClip && this.prof.idles.length) {
+      const name = this.prof.idles[Math.floor(Math.random() * this.prof.idles.length)];
+      const r = () => Math.random() * 2 - 1;
+      this.clip = { name, t0: t, dur: CLIP_LEN[name], side: Math.random() < 0.5 ? -1 : 1, data: [r(), r(), r(), r()] };
+    }
+    const c = this.clip;
+    if (!c) return;
+    const p = (t - c.t0) / c.dur;
+    if (p >= 1 || p < 0) {
+      this.clip = null;
+      this.nextClip = t + 2.5 + Math.random() * 4.5;
+      return;
+    }
+    const e = envelope(p);
+    const sd = c.side;
+    const sin = Math.sin;
+    const sh = this.shoulder;
+    const blendTo = (target: Pose, keys: (keyof Pose)[]) => {
+      for (const key of keys) P[key] += (target[key] - P[key]) * e;
+    };
+    switch (c.name) {
+      case 'earSwivel': {
+        // One ear turns out to listen, then the other, then both come back.
+        const a = envelope(clamp01(p / 0.65));
+        const b = envelope(clamp01((p - 0.3) / 0.65));
+        aux(A, sd > 0 ? 'earL' : 'earR')[1] += sd * 0.7 * a;
+        aux(A, sd > 0 ? 'earR' : 'earL')[1] += -sd * 0.7 * b;
+        aux(A, 'earL')[0] -= 0.1 * Math.max(a, b);
+        aux(A, 'earR')[0] -= 0.1 * Math.max(a, b);
+        P.hry += sd * 0.12 * e;
         break;
       }
+      case 'earTwitch': {
+        // A quick double flick of one ear.
+        const f = sin(p * Math.PI * 4);
+        aux(A, sd > 0 ? 'earL' : 'earR')[0] -= 0.5 * f * f * e;
+        aux(A, sd > 0 ? 'earL' : 'earR')[2] += sd * 0.15 * f * e;
+        break;
+      }
+      case 'tailSwish': {
+        const w = p * Math.PI * 2 * 1.5;
+        P.try += sin(w) * 0.6 * e;
+        aux(A, 'tail1')[1] += sin(w - 0.8) * 0.4 * e;
+        aux(A, 'tail2')[1] += sin(w - 1.6) * 0.5 * e;
+        break;
+      }
+      case 'headTilt':
+        P.hrz += sd * 0.34 * e;
+        P.hry += sd * 0.14 * e;
+        P.hrx -= 0.06 * e;
+        aux(A, 'earL')[1] += 0.2 * e;
+        aux(A, 'earR')[1] -= 0.2 * e;
+        break;
+      case 'sniff': {
+        // Nose up, quick little sniffs.
+        P.hrx -= 0.22 * e;
+        P.hrx += sin(t * 26) * 0.02 * e;
+        const n = aux(A, 'nose');
+        n[0] += sin(t * 30) * 0.18 * e;
+        n[6] = 1 + 0.15 * Math.max(0, sin(t * 30)) * e;
+        break;
+      }
+      case 'rubPaws': {
+        // Both paws together in front of the chest, rubbing.
+        const T = restPose();
+        this.reach(T, 'both', sh.y - 0.1, this.front + 0.02, -0.14);
+        blendTo(T, ['alx', 'arx', 'alz', 'arz', 'sl', 'sr']);
+        const r = sin(t * 13) * 0.09 * e;
+        P.alz += r;
+        P.arz += r;
+        P.alx += sin(t * 13 + 1.5) * 0.05 * e;
+        P.arx -= sin(t * 13 + 1.5) * 0.05 * e;
+        P.hrx += 0.12 * e;
+        break;
+      }
+      case 'noseWiggle': {
+        const n = aux(A, 'nose');
+        n[0] += sin(t * 26) * 0.25 * e;
+        n[1] += sin(t * 19) * 0.18 * e;
+        n[6] = 1 + 0.12 * sin(t * 26) * e;
+        P.hrx += sin(t * 13) * 0.02 * e;
+        break;
+      }
+      case 'hop': {
+        // Two little hops on the spot.
+        const h = Math.max(0, sin(p * Math.PI * 4)) * e;
+        P.by += 0.075 * h;
+        P.llx += 0.5 * h;
+        P.lrx += 0.5 * h;
+        P.brx += 0.08 * h;
+        aux(A, 'earL')[0] -= 0.35 * h;
+        aux(A, 'earR')[0] -= 0.35 * h;
+        break;
+      }
+      case 'stalks': {
+        // Each eye stalk looks somewhere of its own, one after the other.
+        const a = envelope(clamp01(p / 0.7));
+        const b = envelope(clamp01((p - 0.25) / 0.7));
+        const L = aux(A, 'stalkL');
+        const R = aux(A, 'stalkR');
+        L[0] += c.data[0] * 0.45 * a;
+        L[2] += (0.25 + c.data[1] * 0.3) * a;
+        R[0] += c.data[2] * 0.45 * b;
+        R[2] -= (0.25 + c.data[3] * 0.3) * b;
+        P.hry += c.data[0] * 0.15 * e;
+        break;
+      }
+      case 'stretch': {
+        // Stretches up and forward, the foot drawing out behind, then settles back down.
+        aux(A, 'rear')[5] -= 0.045 * e;
+        P.hrx -= 0.28 * e;
+        P.by += 0.012 * e;
+        aux(A, 'stalkL')[0] -= 0.25 * e;
+        aux(A, 'stalkR')[0] -= 0.25 * e;
+        aux(A, 'stalkL')[2] += 0.12 * e;
+        aux(A, 'stalkR')[2] -= 0.12 * e;
+        break;
+      }
+      case 'headSwivel':
+        P.hry += sd * 1.1 * envelope(clamp01(p / 0.8));
+        break;
+      case 'slowBlink':
+        this.shut = Math.max(this.shut, e);
+        break;
+      case 'chill':
+        this.shut = Math.max(this.shut, 0.55 * e);
+        P.hrx += 0.06 * e;
+        break;
+      case 'lookAround':
+        P.hry += sin(p * Math.PI * 2) * 0.55 * e;
+        P.hrx -= 0.05 * e;
+        break;
+      case 'tailCurl':
+        aux(A, 'tail1')[0] -= 0.6 * e;
+        aux(A, 'tail2')[0] -= 0.8 * e;
+        break;
+      case 'wag':
+        P.try = sin(t * 16) * 0.6 * e + P.try * (1 - e);
+        break;
+      case 'pant':
+        P.hrx += sin(t * 14) * 0.03 * e - 0.05 * e;
+        P.by += sin(t * 14) * 0.004 * e;
+        break;
+      case 'sway':
+        P.brz += sin(p * Math.PI * 2) * 0.08 * e;
+        P.hrz -= sin(p * Math.PI * 2) * 0.05 * e;
+        break;
+      case 'scratch': {
+        const T = restPose();
+        this.reach(T, 'r', sh.y - 0.18, this.front - 0.02, 0.05);
+        blendTo(T, ['arx', 'arz', 'sr']);
+        P.arz += sin(t * 18) * 0.1 * e;
+        P.hrx += 0.15 * e;
+        break;
+      }
+      case 'lickPaw': {
+        const T = restPose();
+        this.reach(T, 'r', this.mouth.y - 0.06, this.mouth.z + 0.02, 0.02);
+        blendTo(T, ['arx', 'arz', 'sr']);
+        P.hrx += (0.18 + sin(t * 9) * 0.05) * e;
+        P.hry -= 0.15 * e;
+        break;
+      }
+      case 'flap':
+      case 'wingStretch': {
+        const k = c.name === 'flap' ? sin(t * 14) * 0.4 : 0;
+        P.alz += (1.4 + k) * e;
+        P.arz -= (1.4 + k) * e;
+        break;
+      }
+      case 'throat':
+        aux(A, 'throat')[6] = 1 + Math.max(0, sin(t * 9)) * 0.3 * e;
+        break;
+    }
+  }
+
+  private target(s: RigState): { P: Pose; A: AuxMap } {
+    const P = restPose();
+    const A: AuxMap = new Map();
+    const t = s.t + this.seed;
+    const sin = Math.sin;
+    const sh = this.shoulder;
+    const prof = this.prof;
+    if (s.anim !== 'idle') this.clip = null;
+    this.shut = 0;
+    switch (s.anim) {
+      case 'walk':
+      case 'run':
+        this.gait(P, A, s);
+        break;
+      case 'sit':
+        this.sit(P, A, t);
+        break;
       case 'sleep':
+        if (!this.hasLegs) {
+          // Drawn in: head down, stalks pulled in.
+          P.hrx = 0.35;
+          for (const n of ['stalkL', 'stalkR']) {
+            const a = aux(A, n);
+            a[0] = 0.6;
+            a[6] = 0.4;
+          }
+          aux(A, 'rear')[5] = 0.03;
+          break;
+        }
         // On its back, head towards the back of the root, centred on the origin.
         P.brx = -Math.PI / 2;
         P.by = 0.18;
@@ -593,6 +1016,7 @@ class AnimalRig implements Rig {
         P.lrz = -0.15;
         P.hry = 0.25;
         P.trx = 0.6;
+        aux(A, 'earL')[0] = aux(A, 'earR')[0] = 0.3;
         break;
       case 'wave':
         P.arz = -2.3 + sin(t * 9) * 0.35;
@@ -600,6 +1024,7 @@ class AnimalRig implements Rig {
         P.hrz = 0.1;
         P.brz = 0.04;
         P.try = sin(t * 6) * 0.4;
+        if (prof.gait === 'hop') P.by = Math.max(0, sin(t * 4.5)) * 0.03;
         break;
       case 'hand':
         P.arz = -2.75;
@@ -612,9 +1037,10 @@ class AnimalRig implements Rig {
         P.alz = 2.45 + k;
         P.arz = -(2.45 + k);
         P.alx = P.arx = -0.2;
-        P.by = Math.abs(sin(t * 5)) * 0.1;
+        P.by = Math.abs(sin(t * 5)) * (prof.gait === 'hop' ? 0.14 : 0.1);
         P.hrx = -0.18;
         P.try = sin(t * 10) * 0.5;
+        aux(A, 'earL')[0] = aux(A, 'earR')[0] = -0.25;
         break;
       }
       case 'dance': {
@@ -629,9 +1055,14 @@ class AnimalRig implements Rig {
         P.lrx = Math.max(0, -b) * -0.55;
         P.hrz = b * 0.15;
         P.try = b * 0.6;
+        aux(A, 'earL')[2] = b * 0.25;
+        aux(A, 'earR')[2] = b * 0.25;
+        aux(A, 'rear')[3] = b * 0.04;
+        aux(A, 'stalkL')[2] = 0.2 + b * 0.25;
+        aux(A, 'stalkR')[2] = -0.2 + b * 0.25;
         break;
       }
-      case 'laugh': {
+      case 'laugh':
         P.hrx = -0.32 + sin(t * 16) * 0.06;
         P.brz = sin(t * 18) * 0.035;
         P.by = Math.abs(sin(t * 9)) * 0.025;
@@ -639,13 +1070,14 @@ class AnimalRig implements Rig {
         this.reach(P, 'both', sh.y - 0.24, this.front + 0.03, 0.04);
         P.try = sin(t * 9) * 0.3;
         break;
-      }
       case 'cry':
         P.hrx = 0.34 + sin(t * 12) * 0.03;
         // Paws up over the eyes.
         this.reach(P, 'both', this.eyePos.y - 0.06, this.eyePos.z + 0.07, -0.08);
         P.brz = sin(t * 14) * 0.025;
         P.by = -0.01;
+        aux(A, 'earL')[0] = aux(A, 'earR')[0] = 0.35;
+        aux(A, 'stalkL')[0] = aux(A, 'stalkR')[0] = 0.45;
         break;
       case 'work': {
         const k = sin(t * 7) * 0.05;
@@ -692,25 +1124,46 @@ class AnimalRig implements Rig {
         break;
       }
       default: {
-        // Idle: a little breathing, glancing about and a lazy tail.
+        // Idle: breathing, a lazy tail, the paws carried the species' way, and now and then a mannerism.
         const slow = this.sleepy ? 0.45 : 1;
-        P.hry = sin(t * 0.37 * slow) * 0.22 * (sin(t * 0.13) > 0 ? 1 : 0.3);
-        P.hrz = sin(t * 0.29 * slow) * 0.05;
-        P.try = sin(t * 1.6 * slow) * 0.25;
-        P.by = sin(t * 2.2 * slow) * 0.006;
-        P.alz = 0.1 + sin(t * 2.2 * slow) * 0.02;
-        P.arz = -0.1 - sin(t * 2.2 * slow) * 0.02;
+        P.hry = sin(t * 0.37 * slow) * 0.12 * (sin(t * 0.13) > 0 ? 1 : 0.3);
+        P.hrz = sin(t * 0.29 * slow) * 0.04;
+        P.try = sin(t * 1.6 * slow) * prof.tailSway;
+        aux(A, 'tail1')[1] = sin(t * 1.6 * slow - 0.7) * prof.tailSway * 0.6;
+        aux(A, 'tail2')[1] = sin(t * 1.6 * slow - 1.4) * prof.tailSway * 0.8;
+        P.by = sin(t * 2.2 * slow) * 0.005;
+        if (prof.paws) {
+          P.alx = P.arx = -prof.paws + sin(t * 2.2) * 0.02;
+          P.alz = -0.08;
+          P.arz = 0.08;
+        } else {
+          P.alz = 0.1 + sin(t * 2.2 * slow) * 0.02;
+          P.arz = -0.1 - sin(t * 2.2 * slow) * 0.02;
+        }
+        if (prof.gait === 'slither') {
+          aux(A, 'rear')[5] = sin(t * 0.9) * 0.006;
+          aux(A, 'stalkL')[2] = 0.08 + sin(t * 0.7) * 0.05;
+          aux(A, 'stalkR')[2] = -0.08 + sin(t * 0.8 + 1) * 0.05;
+        }
         if (this.sleepy) {
           P.hrx = 0.2 + sin(t * 0.6) * 0.04;
           P.alz = 0.25;
           P.arz = -0.25;
         }
+        this.mannerism(P, A, t);
         if (this.hold) {
-          const left = [P.alx, P.alz] as const;
+          const left = [P.alx, P.alz, P.sl] as const;
           this.carryPose(P, sin(t * 2.2 * slow) * 0.02);
-          if (!this.hold.both) [P.alx, P.alz] = left;
+          if (!this.hold.both) [P.alx, P.alz, P.sl] = left;
         }
       }
+    }
+    // The species' posture on top: a hunch or an upright carriage, with the face kept level.
+    if (s.anim !== 'sleep') {
+      const lean = prof.lean * (s.anim === 'sit' ? 0.5 : 1);
+      P.brx += lean;
+      P.hrx += prof.head - lean;
+      P.hrz += prof.tilt;
     }
     if (s.speaking) {
       P.hrx += sin(t * 13) * 0.04;
@@ -722,7 +1175,6 @@ class AnimalRig implements Rig {
       P.llx *= 0.4;
       P.lrx *= 0.4;
     }
-    if (!this.hasLegs && s.anim === 'sit') P.by = 0;
     if (this.flaps && (s.anim === 'idle' || s.anim === 'walk' || s.anim === 'run' || s.anim === 'sit' || s.anim === 'fish')) {
       // Wings beat on their own: quicker on the move, lazier when sitting, and the right wing keeps
       // still enough to hold whatever is in it.
@@ -739,12 +1191,20 @@ class AnimalRig implements Rig {
       } else P.arz -= beat * amp * 0.15;
       P.by += Math.max(0, beat) * 0.02;
     }
-    return P;
+    return { P, A };
   }
 
-  private applyPose(k: number, target?: Pose) {
+  private applyPose(k: number, target?: { P: Pose; A: AuxMap }) {
     const P = this.pose;
-    if (target) for (const key of POSE_KEYS) P[key] += (target[key] - P[key]) * k;
+    if (target) {
+      for (const key of POSE_KEYS) P[key] += (target.P[key] - P[key]) * k;
+      for (const name of this.extra) {
+        const now = this.auxNow.get(name) ?? restAux();
+        const want = target.A.get(name) ?? restAux();
+        for (let i = 0; i < 7; i++) now[i] += (want[i] - now[i]) * k;
+        this.auxNow.set(name, now);
+      }
+    }
     this.body.position.set(0, P.by, P.bz);
     this.body.rotation.set(P.brx, P.bry, P.brz);
     this.neck.rotation.set(P.hrx, P.hry, P.hrz);
@@ -754,7 +1214,19 @@ class AnimalRig implements Rig {
     this.armR.scale.set(1, P.sr, 1);
     this.legL.rotation.set(P.llx, 0, P.llz);
     this.legR.rotation.set(P.lrx, 0, P.lrz);
+    // Ghosts float on a wisp instead of legs: the legs fold away into the hips.
+    const legs = this.ghost ? 0.001 : 1;
+    this.legL.scale.setScalar(legs);
+    this.legR.scale.setScalar(legs);
     this.tail.rotation.set(P.trx, P.try, 0);
+    for (const name of this.extra) {
+      const a = this.auxNow.get(name) ?? restAux();
+      const b = this.bones.get(name)!;
+      const rest = this.sk.local.get(name)!;
+      b.rotation.set(a[0], a[1], a[2]);
+      b.position.set(rest.x + a[3], rest.y + a[4], rest.z + a[5]);
+      b.scale.setScalar(a[6]);
+    }
     // Keep the held item level whatever the arm is doing, then tip it on purpose.
     this.hand.quaternion.copy(this.armR.quaternion).invert();
     this.hand.scale.set(1, 1 / P.sr, 1);
@@ -764,13 +1236,19 @@ class AnimalRig implements Rig {
       const v = this.v.copy(this.grip).multiply(this.armR.scale).applyEuler(this.armR.rotation).add(this.armR.position);
       this.item.position.x = -v.x * P.carry;
     }
+    // A tendril only comes out when there's something to hold or a gesture to make.
+    if (this.tendril) this.armR.scale.multiplyScalar(Math.max(0.001, this.grow));
   }
 
   update(s: RigState) {
     const dt = Math.min(Math.max(s.dt, 0), 0.1);
     if (s.anim === 'walk' || s.anim === 'run') {
       const sp = THREE.MathUtils.clamp(s.speed || (s.anim === 'run' ? 4 : 2), 0.8, 7);
-      this.phase += dt * (5 + sp * 1.6);
+      this.phase += dt * (5 + sp * 1.6) * this.prof.cadence;
+    }
+    if (this.tendril) {
+      const out = Boolean(this.item) || !(s.anim === 'idle' || s.anim === 'walk' || s.anim === 'run' || s.anim === 'sit' || s.anim === 'sleep');
+      this.grow += ((out ? 1 : 0) - this.grow) * (1 - Math.exp(-dt * 8));
     }
     const target = this.target(s);
     this.applyPose(1 - Math.exp(-dt * 14), target);
@@ -782,21 +1260,24 @@ class AnimalRig implements Rig {
     this.float.position.y += (fy - this.float.position.y) * (1 - Math.exp(-dt * 6));
     if (floating) this.wisp.rotation.z = Math.sin(s.t * 3 + this.seed) * 0.15;
 
-    // Blinking.
+    // Blinking (and eyes half shut for some mannerisms).
     this.blinkAt -= dt;
     if (this.blinkAt <= 0 && this.blinkT < 0) this.blinkT = 0;
+    let open = 1;
     if (this.blinkT >= 0) {
       this.blinkT += dt;
       const b = this.blinkT / 0.14;
-      this.eyes.scale.y = b < 1 ? Math.max(0.12, Math.abs(1 - b * 2)) : 1;
+      open = b < 1 ? Math.max(0.12, Math.abs(1 - b * 2)) : 1;
       if (b >= 1) {
         this.blinkT = -1;
         this.blinkAt = 2 + Math.random() * 4;
       }
     }
-    if (s.anim === 'sleep') this.eyes.scale.y = 0.12;
-    else if (s.anim === 'laugh') this.eyes.scale.y = 0.35;
-    else if (this.sleepy && s.anim === 'idle') this.eyes.scale.y = Math.min(this.eyes.scale.y, 0.5);
+    open = Math.min(open, 1 - 0.88 * this.shut);
+    if (s.anim === 'sleep') open = 0.12;
+    else if (s.anim === 'laugh') open = 0.35;
+    else if (this.sleepy && s.anim === 'idle') open = Math.min(open, 0.5);
+    for (const b of this.blinkers) b.scale.y = open * b.scale.x;
 
     if (this.drips && !this.ghost) this.updateDrips(dt);
     this.hat?.built.update?.(s.t + this.seed);
@@ -837,16 +1318,14 @@ class AnimalRig implements Rig {
     this.setItem(null);
     this.setHat(null);
     this.setDressUp({ face: null, neck: null, back: null });
-    // Back to this rig's own geometry first: the distant versions are shared and stay cached.
+    // Back to this rig's own geometry first: the distant version is shared and stays cached.
     this.setDetail('high');
-    for (const m of this.meshes) m.geometry.dispose();
-    this.eyeMesh.geometry.dispose();
+    this.highGeo.dispose();
+    this.mesh.skeleton.dispose();
     this.wisp.geometry.dispose();
     this.drips?.geometry.dispose();
     this.root.traverse((o) => {
-      if (o !== this.root && (o as THREE.Mesh).isMesh && !this.meshes.includes(o as THREE.Mesh) && o !== this.eyeMesh && o !== this.wisp && o !== this.drips) {
-        (o as THREE.Mesh).geometry.dispose();
-      }
+      if (o !== this.mesh && o !== this.wisp && o !== this.drips && (o as THREE.Mesh).isMesh) (o as THREE.Mesh).geometry.dispose();
     });
     for (const m of this.owned) m.dispose();
     this.root.removeFromParent();
@@ -857,11 +1336,11 @@ export function buildAnimal(look: Look): Rig {
   const info = animalInfo(look.animal);
   const coat = /^#[0-9a-f]{6}$/i.test(look.color) ? look.color : info.colors[0];
   const k = newKit(info.id);
-  const c = colorsFor(coat);
-  const res = RECIPES[info.id](k, c, coat);
+  const res = RECIPES[info.id](k, colorsFor(coat, info.id), coat);
   const aquatic = res.aquatic ?? info.aquatic;
   const rig = new AnimalRig({
-    parts: k,
+    kit: k,
+    profile: profileOf(info.id),
     material: res.jelly ? jelly() : aquatic ? wet() : soft(),
     eyeMaterial: card(),
     ghostColor: mix(coat, '#e6f0ff', 0.75),
@@ -871,12 +1350,13 @@ export function buildAnimal(look: Look): Rig {
     tentacles: res.legs === 'tentacles',
     aquatic,
     sleepy: res.sleepy,
+    tendril: res.tendril,
     hatFit: hatFit(info.id, k),
     dressFit: dressFit(info.id, k),
     lowKey: `${info.id}:${coat}`,
     lowKit: () => {
       const lk = newKit(info.id);
-      RECIPES[info.id](lk, colorsFor(coat), coat);
+      RECIPES[info.id](lk, colorsFor(coat, info.id), coat);
       return lk;
     },
   });
@@ -892,9 +1372,9 @@ function torsoR(s: Shape, y: number) {
   return s.tr[0] * Math.sqrt(Math.max(0, 1 - u * u)) * (1 - 0.42 * sm);
 }
 
-/** Some bodies need their neck ring or back placed by hand: the snail's back is its shell, the squid's its mantle. */
+/** Some bodies need their neck ring or back placed by hand: the snail's back is its shell. */
 const DRESS_NUDGE: Partial<Record<AnimalId, { neck?: Partial<NeckFit>; back?: Partial<BackFit>; floating?: boolean }>> = {
-  snail: { neck: { centre: [0, 0.33, 0.28], r: 0.11, tilt: 0.35 }, back: { centre: [0, 0.36, -0.08], r: 0.18, depth: 0.25, top: 0.58, bottom: 0.16 }, floating: true },
+  snail: { neck: { centre: [0, 0.3, 0.27], r: 0.105, tilt: 0.3 }, back: { centre: [0, 0.36, -0.1], r: 0.17, depth: 0.25, top: 0.6, bottom: 0.16 }, floating: true },
 };
 
 function dressFit(id: AnimalId, k: Kit): { face: FaceFit; neck: NeckFit; back: BackFit } {
@@ -986,10 +1466,10 @@ export function buildStoryteller(): Rig {
   k.shape.hc = [0, 0.27, 0];
   k.shape.hr = [0.25, 0.27, 0.25];
   solid(k.head, rnd, {
-    base: 'ico2',
+    base: 'ico3',
     r: k.shape.hr,
     pos: k.shape.hc,
-    jitter: 0.05,
+    jitter: 0.03,
     color: ROBE,
     paint: (u) => {
       const d = Math.hypot(u.x / 0.78, (u.y + 0.08) / 0.82);
@@ -998,7 +1478,7 @@ export function buildStoryteller(): Rig {
       return null;
     },
   });
-  solid(k.head, rnd, { base: 'pyramid', r: [0.12, 0.24, 0.1], pos: [0, 0.52, -0.12], rot: [-0.7, 0, 0], jitter: 0.04, color: ROBE });
+  solid(k.head, rnd, { base: 'pyramid', r: [0.12, 0.24, 0.1], pos: [0, 0.52, -0.12], rot: [-0.7, 0, 0], jitter: 0.03, color: ROBE });
   k.eyeY = 0.28;
   k.eyeX = 0.075;
   k.eyeR = 0.035;
@@ -1007,16 +1487,17 @@ export function buildStoryteller(): Rig {
     solid(k.eyes, rnd, { base: 'ico0', r: [0.036, 0.02, 0.012], pos: [side * 0.075, 0.28, 0.235], rot: [0, side * 0.3, -side * 0.25], jitter: 0.03, color: '#ffe08a', tone: 0 });
   }
   // Wide sleeves for arms, with gold cuffs and pale hands.
-  for (const b of [k.armL, k.armR]) {
-    pillar(b, rnd, [0, 0.03, 0], [0, -0.27, 0.01], 0.06, 0.095, ROBE, { paint: (u) => (u.y > 0.36 ? TRIM : null) });
-    solid(b, rnd, { base: 'ico1', r: [0.045, 0.045, 0.05], pos: [0, -0.31, 0.02], jitter: 0.06, color: '#d8d0f0' });
+  for (const f of [k.armL, k.armR]) {
+    pillar(f, rnd, [0, 0.03, 0], [0, -0.27, 0.01], 0.06, 0.095, ROBE, { paint: (u) => (u.y > 0.36 ? TRIM : null) });
+    solid(f, rnd, { base: 'ico1', r: [0.045, 0.045, 0.05], pos: [0, -0.31, 0.02], jitter: 0.04, color: '#d8d0f0' });
   }
   k.joints.hand = [0, -0.31, 0.07];
   k.seat = 0;
   const lanternGlow = glow('#ffcf6a', 1.6);
   const eyeGlow = new THREE.MeshBasicMaterial({ color: '#ffe08a' });
   return new AnimalRig({
-    parts: k,
+    kit: k,
+    profile: { ...profileOf('raccoon'), lean: 0, head: 0, paws: 0, idles: ['lookAround', 'headTilt'], sit: 'settle', gait: 'trot', tailSway: 0 },
     material: soft(),
     eyeMaterial: eyeGlow,
     ghostColor: col('#cbbcf0'),
@@ -1027,18 +1508,19 @@ export function buildStoryteller(): Rig {
     extras: (_body, _hand, armL) => {
       // The lantern hangs from the left sleeve, so the right paw is free for anything else.
       const lantern = new THREE.Group();
-      const lb = new Builder();
+      const lf = new Fold();
       const lr = seeded(seedOf('lantern'));
       const iron = '#4d3a2a';
-      solid(lb, lr, { base: 'limb', r: [0.07, 0.03, 0.07], pos: [0, 0.12, 0], jitter: 0.02, color: iron });
-      solid(lb, lr, { base: 'cone5', r: [0.075, 0.07, 0.075], pos: [0, 0.17, 0], jitter: 0.03, color: iron });
-      solid(lb, lr, { base: 'ico0', r: 0.02, pos: [0, 0.22, 0], jitter: 0.02, color: iron });
-      solid(lb, lr, { base: 'limb', r: [0.075, 0.025, 0.075], pos: [0, -0.05, 0], jitter: 0.02, color: iron });
+      solid(lf, lr, { base: 'limb', r: [0.07, 0.03, 0.07], pos: [0, 0.12, 0], jitter: 0.02, color: iron });
+      solid(lf, lr, { base: 'cone5', r: [0.075, 0.07, 0.075], pos: [0, 0.17, 0], jitter: 0.03, color: iron });
+      solid(lf, lr, { base: 'ico0', r: 0.02, pos: [0, 0.22, 0], jitter: 0.02, color: iron });
+      solid(lf, lr, { base: 'limb', r: [0.075, 0.025, 0.075], pos: [0, -0.05, 0], jitter: 0.02, color: iron });
       for (let i = 0; i < 5; i++) {
         const a = (i / 5) * Math.PI * 2;
-        solid(lb, lr, { base: 'box', r: [0.012, 0.16, 0.012], pos: [Math.cos(a) * 0.06, 0.035, Math.sin(a) * 0.06], jitter: 0, color: iron });
+        solid(lf, lr, { base: 'box', r: [0.012, 0.16, 0.012], pos: [Math.cos(a) * 0.06, 0.035, Math.sin(a) * 0.06], jitter: 0, color: iron });
       }
-      const frame = lb.mesh(soft(), { cast: true, receive: false, crease: 0 });
+      const frame = new THREE.Mesh(lf.geometry(), soft());
+      frame.castShadow = true;
       const flame = new THREE.Mesh(new THREE.IcosahedronGeometry(0.06, 0), lanternGlow);
       flame.scale.set(0.9, 1.3, 0.9);
       flame.position.y = 0.035;

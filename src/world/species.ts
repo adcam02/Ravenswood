@@ -1,12 +1,12 @@
 import * as THREE from 'three';
-import { Builder, type Vec3 } from './build';
-import { curve, pillar, seedOf, seeded, solid, tube, type BaseName, type Color, type Paint } from './paper';
-import type { AnimalId } from './types';
+import type { Vec3 } from './build';
+import { Fold, along, card, curve, pillar, seedOf, seeded, solid, tube, type BaseName, type Color, type Paint } from './paper';
 
 /**
- * The papercraft animals: every species folded from a few faceted shapes on one body plan (a pear-shaped
- * body wide at the base, a head about a third of the height set a little forward, straight pillar arms
- * ending in paws, short sturdy legs with chunky feet, and a big tail), with markings as crisp colour panels.
+ * The papercraft kit for the animals: one body plan (a pear-shaped body wide at the base, a head about a
+ * third of the height set a little forward, straight pillar arms ending in paws, short sturdy legs with
+ * chunky feet, and a big tail), the faceted pieces every species is folded from, and the bones they hang on.
+ * The species themselves, and how each one carries itself, are in recipes.ts.
  */
 
 // ---------------------------------------------------------------- kit
@@ -30,15 +30,39 @@ export interface Joints {
   hand: Vec3;
 }
 
+/**
+ * One piece of the model: its faces, the bone whose space they were built in, and the bone (or chain of
+ * bones, for a bendy tail) they move with.
+ */
+export interface Part {
+  fold: Fold;
+  space: string;
+  bone: string;
+  chain?: string[];
+  /** Drawn with the eye material (and squashed for blinks). */
+  eyes?: boolean;
+}
+
+/** An extra bone beyond the standard ones, at a spot in its parent's space. */
+export interface BoneDef {
+  name: string;
+  parent: string;
+  pos: Vec3;
+}
+
 export interface Kit {
-  torso: Builder;
-  head: Builder;
-  eyes: Builder;
-  armL: Builder;
-  armR: Builder;
-  legL: Builder;
-  legR: Builder;
-  tail: Builder;
+  parts: Map<string, Part>;
+  bones: BoneDef[];
+  /** Bones that squash shut for a blink. */
+  blink: string[];
+  torso: Fold;
+  head: Fold;
+  eyes: Fold;
+  armL: Fold;
+  armR: Fold;
+  legL: Fold;
+  legR: Fold;
+  tail: Fold;
   shape: Shape;
   joints: Joints;
   /** How far down the body may drop to sit on the ground. */
@@ -73,9 +97,77 @@ export interface RecipeResult {
   flaps?: boolean;
   /** Translucent, like a jellyfish. */
   jelly?: boolean;
+  /** The right arm is a little tendril that only comes out to hold or gesture (the snail). */
+  tendril?: boolean;
 }
 
 export type Recipe = (k: Kit, c: Colors, coat: string) => RecipeResult;
+
+// ---------------------------------------------------------------- personality
+
+/** How an animal gets about. */
+export type Gait = 'trot' | 'amble' | 'hop' | 'slither' | 'waddle' | 'lumber' | 'scuttle' | 'flap' | 'slow' | 'float';
+/** How it sits down. */
+export type SitStyle = 'tuck' | 'wrap' | 'feet' | 'settle';
+/** Little things it does now and then while standing about. */
+export type Mannerism =
+  | 'earSwivel'
+  | 'earTwitch'
+  | 'tailSwish'
+  | 'headTilt'
+  | 'sniff'
+  | 'rubPaws'
+  | 'noseWiggle'
+  | 'hop'
+  | 'stalks'
+  | 'stretch'
+  | 'headSwivel'
+  | 'slowBlink'
+  | 'lickPaw'
+  | 'tailCurl'
+  | 'wag'
+  | 'pant'
+  | 'sway'
+  | 'scratch'
+  | 'flap'
+  | 'throat'
+  | 'chill'
+  | 'wingStretch'
+  | 'lookAround';
+
+export interface Profile {
+  /** Forward lean of the body when standing (radians), and the head's pitch and roll on top of it. */
+  lean: number;
+  head: number;
+  tilt: number;
+  /** Front paws held in front of the chest when idle (radians forward), instead of hanging. */
+  paws: number;
+  gait: Gait;
+  /** Steps a second, relative to the usual, and how far the legs swing. */
+  cadence: number;
+  stride: number;
+  sit: SitStyle;
+  idles: Mannerism[];
+  /** How much the tail sways at rest, and whether the ears lie back when moving. */
+  tailSway: number;
+  earsBack: number;
+}
+
+export const defaultProfile = (): Profile => ({
+  lean: 0,
+  head: 0,
+  tilt: 0,
+  paws: 0,
+  gait: 'trot',
+  cadence: 1,
+  stride: 1,
+  sit: 'tuck',
+  idles: ['lookAround', 'headTilt'],
+  tailSway: 0.25,
+  earsBack: 0,
+});
+
+// ---------------------------------------------------------------- the standard body
 
 export const defaultShape = (): Shape => ({ hr: [0.205, 0.172, 0.185], hc: [0, 0.15, 0.06], tr: [0.235, 0.26, 0.19], tc: [0, 0.36, 0] });
 
@@ -87,16 +179,25 @@ export const defaultJoints = (): Joints => ({
   hand: [0, -0.3, 0.06],
 });
 
+/** Adds (or finds) a part built in `space`'s coordinates and moving with `bone`. */
+export function part(k: Kit, name: string, space: string, opts: { bone?: string; chain?: string[]; eyes?: boolean } = {}): Fold {
+  const hit = k.parts.get(name);
+  if (hit) return hit.fold;
+  const fold = new Fold();
+  k.parts.set(name, { fold, space, bone: opts.bone ?? space, chain: opts.chain, eyes: opts.eyes });
+  return fold;
+}
+
+/** Adds an extra bone at a spot in its parent's space. */
+export function bone(k: Kit, name: string, parent: string, pos: Vec3) {
+  if (!k.bones.some((b) => b.name === name)) k.bones.push({ name, parent, pos });
+}
+
 export function newKit(id: string): Kit {
-  return {
-    torso: new Builder(),
-    head: new Builder(),
-    eyes: new Builder(),
-    armL: new Builder(),
-    armR: new Builder(),
-    legL: new Builder(),
-    legR: new Builder(),
-    tail: new Builder(),
+  const k = {
+    parts: new Map<string, Part>(),
+    bones: [] as BoneDef[],
+    blink: ['eyes'],
     shape: defaultShape(),
     joints: defaultJoints(),
     seat: 0.17,
@@ -106,7 +207,16 @@ export function newKit(id: string): Kit {
     eyeZ: 0.2,
     nose: null,
     rnd: seeded(seedOf(id)),
-  };
+  } as unknown as Kit;
+  k.torso = part(k, 'torso', 'body');
+  k.head = part(k, 'head', 'neck');
+  k.eyes = part(k, 'eyes', 'neck', { bone: 'eyes', eyes: true });
+  k.armL = part(k, 'armL', 'armL');
+  k.armR = part(k, 'armR', 'armR');
+  k.legL = part(k, 'legL', 'legL');
+  k.legR = part(k, 'legR', 'legR');
+  k.tail = part(k, 'tail', 'tail');
+  return k;
 }
 
 // ---------------------------------------------------------------- colour
@@ -124,6 +234,14 @@ export const CHARCOAL = '#38332f';
 export const PINK = '#d99a98';
 const WARM = '#a48d74';
 
+/**
+ * Swatches retuned to sit with the card palette (the picker's swatch on the left, what gets folded on the
+ * right). The raccoon's default grey becomes the reference sculpture's warm grey-green.
+ */
+const SWATCH: Record<string, string> = {
+  'raccoon:#8a8c94': '#8e8b7c',
+};
+
 /** The player's colour, a touch muted and warmed so every coat sits in the same papery palette. */
 export function mute(c: Color): THREE.Color {
   const x = col(c);
@@ -133,8 +251,8 @@ export function mute(c: Color): THREE.Color {
   return x.lerp(col(WARM), 0.08);
 }
 
-export function colorsFor(coat: string): Colors {
-  const c = mute(coat);
+export function colorsFor(coat: string, id?: string): Colors {
+  const c = mute(SWATCH[`${id}:${coat.toLowerCase()}`] ?? coat);
   return {
     coat: c,
     light: mix(c, CREAM, 0.62),
@@ -150,7 +268,7 @@ export const smooth = (a: number, b: number, x: number) => {
   const t = clamp((x - a) / (b - a), 0, 1);
   return t * t * (3 - 2 * t);
 };
-const v3 = (p: THREE.Vector3): Vec3 => [p.x, p.y, p.z];
+export const v3 = (p: THREE.Vector3): Vec3 => [p.x, p.y, p.z];
 
 /** A placement from a position and Euler angles. */
 export function frame(pos: Vec3 | THREE.Vector3, rot: Vec3 = [0, 0, 0]): THREE.Matrix4 {
@@ -187,6 +305,29 @@ function facing(n: THREE.Vector3, roll = 0): THREE.Quaternion {
   return q;
 }
 
+/** Distance from a point to a segment, in 2D, and how far along the segment the nearest point is. */
+export function segDist(px: number, py: number, ax: number, ay: number, bx: number, by: number): { d: number; t: number } {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const t = clamp(((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy), 0, 1);
+  return { d: Math.hypot(px - ax - dx * t, py - ay - dy * t), t };
+}
+
+/** A painter for round spots scattered over a unit shape, only where `where` allows. */
+export function spotted(seed: number, n: number, size: number, color: Color, where: (d: THREE.Vector3) => boolean = () => true): Paint {
+  const rnd = seeded(seed);
+  const centres: THREE.Vector3[] = [];
+  for (let tries = 0; centres.length < n && tries < n * 40; tries++) {
+    const d = new THREE.Vector3(rnd() * 2 - 1, rnd() * 2 - 1, rnd() * 2 - 1);
+    if (d.lengthSq() > 1 || d.lengthSq() < 0.01) continue;
+    d.normalize();
+    if (!where(d) || centres.some((c) => c.distanceTo(d) < size * 1.7)) continue;
+    centres.push(d);
+  }
+  const t = new THREE.Vector3();
+  return (u) => (centres.some((c) => t.copy(u).normalize().distanceTo(c) < size) ? color : null);
+}
+
 // ---------------------------------------------------------------- body
 
 export interface BodyOpts {
@@ -208,10 +349,10 @@ export function body(k: Kit, o: BodyOpts) {
   const pear = o.pear ?? 0.5;
   const bw = o.bellyW ?? 0.55;
   solid(k.torso, k.rnd, {
-    base: 'ico2',
+    base: 'ico3',
     r: s.tr,
     pos: s.tc,
-    jitter: o.jitter ?? 0.05,
+    jitter: o.jitter ?? 0.022,
     bend: (v) => {
       const t = (v.y + 1) / 2;
       const w = 1 - pear * smooth(0.25, 1, t);
@@ -221,6 +362,7 @@ export function body(k: Kit, o: BodyOpts) {
       if (v.y < -0.72) v.y = -0.72 + (v.y + 0.72) * 0.3;
     },
     color: o.color,
+    tone: 0.05,
     paint: (u, c, n) => {
       const p = o.paint?.(u, c, n);
       if (p) return p;
@@ -228,17 +370,16 @@ export function body(k: Kit, o: BodyOpts) {
       return null;
     },
   });
-  const bottom = s.tc[1] - s.tr[1] * 0.76;
-  k.seat = bottom;
+  k.seat = s.tc[1] - s.tr[1] * 0.76;
   if (o.haunch !== false) {
     const hc = typeof o.haunch === 'string' || o.haunch instanceof THREE.Color ? o.haunch : o.color;
     for (const side of [-1, 1]) {
       solid(k.torso, k.rnd, {
-        base: 'ico1',
+        base: 'ico2',
         r: [s.tr[0] * 0.5, s.tr[1] * 0.44, s.tr[2] * 0.8],
         pos: [side * s.tr[0] * 0.66, s.tc[1] - s.tr[1] * 0.5, s.tc[2] - s.tr[2] * 0.12],
         rot: [0.25, side * 0.3, 0],
-        jitter: 0.06,
+        jitter: 0.03,
         color: hc,
       });
     }
@@ -279,7 +420,7 @@ export function head(k: Kit, o: HeadOpts) {
     o.bend?.(v);
   };
   k.headBend = bend;
-  solid(k.head, k.rnd, { base: o.base ?? 'ico2', r: k.shape.hr, pos: k.shape.hc, jitter: o.jitter ?? 0.05, bend, color: o.color, paint: o.paint });
+  solid(k.head, k.rnd, { base: o.base ?? 'ico3', r: k.shape.hr, pos: k.shape.hc, jitter: o.jitter ?? 0.022, bend, color: o.color, paint: o.paint, tone: 0.05 });
 }
 
 export interface MuzzleOpts {
@@ -297,6 +438,8 @@ export interface MuzzleOpts {
   droop?: number;
   noseW?: number;
   noseH?: number;
+  /** The nose on its own bone, so it can twitch and sniff. */
+  twitch?: boolean;
   paint?: Paint;
 }
 
@@ -310,11 +453,11 @@ export function muzzle(k: Kit, o: MuzzleOpts) {
   const root = onHead(k, 0, o.dy ?? -0.32);
   const c = root.clone().add(new THREE.Vector3(0, 0, len * 0.45));
   solid(k.head, k.rnd, {
-    base: 'ico1',
+    base: 'ico2',
     r: [w, h, len],
     pos: v3(c),
     rot: [droop, 0, 0],
-    jitter: 0.05,
+    jitter: 0.025,
     bend: (v) => {
       const f = Math.max(0, v.z);
       v.x *= 1 - point * f;
@@ -324,26 +467,35 @@ export function muzzle(k: Kit, o: MuzzleOpts) {
     color: o.color,
     paint: o.paint,
   });
-  // The nose: a small faceted wedge on the tip.
   const tipZ = c.z + len * (1 - point * 0.15) * Math.cos(droop) * 0.95;
   const tipY = c.y + h * 0.4 - Math.sin(droop) * len * 0.9;
   const nw = o.noseW ?? Math.max(0.03, w * 0.48);
-  const nh = o.noseH ?? nw * 0.72;
-  // A rounded triangle, wide on top and pointed underneath.
-  solid(k.head, k.rnd, {
-    base: 'ico0',
+  nose(k, o.nose, [0, tipY, tipZ], nw, o.noseH, o.twitch);
+}
+
+/** A faceted triangular nose, wide on top and pointed underneath. */
+export function nose(k: Kit, color: Color, p: Vec3, nw: number, nh = nw * 0.72, twitch = false) {
+  let f = k.head;
+  let at: Vec3 = p;
+  if (twitch) {
+    bone(k, 'nose', 'neck', p);
+    f = part(k, 'nose', 'nose');
+    at = [0, 0, 0];
+  }
+  solid(f, k.rnd, {
+    base: 'ico1',
     r: [nw, nh, nw * 0.8],
-    pos: [0, tipY, tipZ],
+    pos: at,
     rot: [0.3, 0, 0],
-    jitter: 0.03,
+    jitter: 0.02,
     bend: (v) => {
-      v.x *= 1 + v.y * 0.45;
+      v.x *= 1 + v.y * 0.5;
       if (v.y > 0.3) v.y = 0.3 + (v.y - 0.3) * 0.5;
     },
-    color: o.nose,
-    tone: 0.14,
+    color,
+    tone: 0.12,
   });
-  k.nose = [0, tipY - nh * 0.3, tipZ + nw * 0.6];
+  k.nose = [p[0], p[1] - nh * 0.3, p[2] + nw * 0.6];
 }
 
 export interface EyeOpts {
@@ -379,13 +531,13 @@ export function eyes(k: Kit, o: EyeOpts = {}) {
     const m = new THREE.Matrix4().compose(p, q, new THREE.Vector3(1, 1, 1));
     if (o.ring) {
       const rs = o.ringSize ?? 1.45;
-      solid(k.eyes, k.rnd, { base: 'ico1', r: [ew * rs, eh * rs, ed * 0.9], matrix: inside(m, [0, 0, -ed * 0.35]), jitter: 0.04, color: o.ring, tone: 0.05 });
+      solid(k.eyes, k.rnd, { base: 'ico1', r: [ew * rs, eh * rs, ed * 0.75], matrix: inside(m, [0, 0, -ed * 0.5]), jitter: 0.03, color: o.ring, tone: 0.05 });
     }
     solid(k.eyes, k.rnd, {
-      base: 'ico0',
+      base: 'ico1',
       r: [ew, eh, ed],
       matrix: m,
-      jitter: 0.03,
+      jitter: 0.02,
       bend: (v) => {
         // Pointed at the corners, like an almond.
         v.y *= 1 - 0.35 * Math.abs(v.x);
@@ -393,7 +545,7 @@ export function eyes(k: Kit, o: EyeOpts = {}) {
       color: o.color ?? INK,
       tone: 0.1,
     });
-    solid(k.eyes, k.rnd, { base: 'ico0', r: [ew * 0.3, eh * 0.3, ed * 0.3], matrix: inside(m, [ew * 0.3, eh * 0.38, ed * 0.75]), jitter: 0.02, color: '#fbf6ec', tone: 0 });
+    solid(k.eyes, k.rnd, { base: 'ico0', r: [ew * 0.3, eh * 0.3, ed * 0.3], matrix: inside(m, [ew * 0.3, eh * 0.38, ed * 0.8]), jitter: 0.02, color: '#fbf6ec', tone: 0 });
   }
   k.eyeY = p.y;
   k.eyeX = Math.abs(p.x);
@@ -404,6 +556,10 @@ export function eyes(k: Kit, o: EyeOpts = {}) {
 export interface EarOpts {
   color: Color;
   inner?: Color;
+  /** The rim round the front of a pointed ear (defaults to the coat). */
+  rim?: Color;
+  /** The back of a pointed ear (defaults to the coat; the fox's are dark). */
+  back?: Color;
   /** Where the ear's base sits on the head (unit sphere), and its size. */
   x?: number;
   y?: number;
@@ -412,77 +568,75 @@ export interface EarOpts {
   d?: number;
   /** Leaning outward, and back. */
   splay?: number;
-  back?: number;
-  /** A coloured tip (fox) and how far down it reaches (0 to 1). */
-  tip?: Color;
-  tipFrom?: number;
-  /** 'pointy' pyramids, 'round' discs, or 'long' rabbit ears. */
+  rake?: number;
+  /** 'pointy' cards, 'round' discs, or 'long' rabbit ears. */
   kind?: 'pointy' | 'round' | 'long';
-  /** Droop a long ear forward or flop it to the side. */
+  /** Flop a long ear sideways (a dog's). */
   flop?: number;
+  /** Turn the ear to face more sideways. */
+  turn?: number;
+  /** How much of a pointed ear's front is the inner panel. */
+  inset?: number;
 }
 
+/** Ears, each on its own bone at its base so it can swivel and twitch. */
 export function ears(k: Kit, o: EarOpts) {
   const kind = o.kind ?? 'pointy';
   const w = o.w ?? 0.075;
   const h = o.h ?? 0.13;
   const d = o.d ?? 0.04;
   for (const side of [-1, 1]) {
+    const name = side > 0 ? 'earL' : 'earR';
     const base = onHead(k, side * (o.x ?? 0.55), o.y ?? 0.72, -0.012);
-    const splay = side * -(o.splay ?? 0.32);
-    const m = frame(base, [-(o.back ?? 0.1), 0, splay]);
+    bone(k, name, 'neck', v3(base));
+    const f = part(k, name, name);
+    const m = frame([0, 0, 0], [-(o.rake ?? 0.1), side * (o.turn ?? 0), side * -(o.splay ?? 0.32)]);
     if (kind === 'round') {
-      solid(k.head, k.rnd, { base: 'ico1', r: [w, w * 0.92, d], matrix: inside(m, [0, w * 0.55, 0]), jitter: 0.05, color: o.color });
-      if (o.inner) solid(k.head, k.rnd, { base: 'ico0', r: [w * 0.6, w * 0.55, d * 0.4], matrix: inside(m, [0, w * 0.5, d * 0.72]), jitter: 0.04, color: o.inner });
+      // A thick disc, with the inside painted on its front.
+      solid(f, k.rnd, {
+        base: 'ico2',
+        r: [w, w * 0.92, d],
+        matrix: inside(m, [0, w * 0.55, 0]),
+        jitter: 0.025,
+        color: o.color,
+        paint: o.inner ? (u) => (u.z > 0.45 && Math.hypot(u.x, u.y + 0.08) < 0.62 ? o.inner : null) : undefined,
+      });
       continue;
     }
     if (kind === 'long') {
-      const flop = (o.flop ?? 0) * side;
-      const lm = inside(m, [0, 0, 0], [0, 0, flop]);
-      solid(k.head, k.rnd, {
-        base: 'ico1',
+      const lm = inside(m, [0, 0, 0], [0, 0, (o.flop ?? 0) * side]);
+      solid(f, k.rnd, {
+        base: 'ico2',
         r: [w, h, d],
         matrix: inside(lm, [0, h * 0.85, 0]),
-        jitter: 0.05,
+        jitter: 0.02,
         bend: (v) => {
           // Narrow at the root, widest two thirds up, rounded to a blunt point.
           const t = (v.y + 1) / 2;
           v.x *= 0.55 + 0.6 * Math.sin(Math.min(1, t * 1.25) * Math.PI * 0.62);
           if (v.z < 0) v.z *= 0.7;
+          // A shallow groove down the front.
+          if (v.z > 0) v.z *= 1 - 0.35 * (1 - Math.abs(v.x));
         },
         color: o.color,
-        paint: o.tip ? (u) => (u.y > (o.tipFrom ?? 0.6) ? o.tip : null) : undefined,
+        paint: o.inner ? (u) => (u.z > 0.3 && Math.abs(u.x) < 0.62 && u.y > -0.78 && u.y < 0.86 ? o.inner : null) : undefined,
       });
-      if (o.inner) {
-        solid(k.head, k.rnd, {
-          base: 'ico1',
-          r: [w * 0.55, h * 0.78, d * 0.35],
-          matrix: inside(lm, [0, h * 0.85, d * 0.72]),
-          jitter: 0.04,
-          bend: (v) => {
-            const t = (v.y + 1) / 2;
-            v.x *= 0.55 + 0.6 * Math.sin(Math.min(1, t * 1.25) * Math.PI * 0.62);
-          },
-          color: o.inner,
-        });
-      }
       continue;
     }
-    // Pointy: a pyramid with its flat face forward, and a smaller dark panel just proud of that face.
-    solid(k.head, k.rnd, {
-      base: 'pyramid',
-      r: [w, h, d],
-      matrix: inside(m, [0, h * 0.5, 0]),
-      jitter: 0.03,
-      color: o.color,
-      paint: o.tip ? (u) => (u.y > 0.5 - (o.tipFrom ?? 0.35) ? o.tip : null) : undefined,
-    });
-    if (o.inner) {
-      const ih = h * 0.72;
-      const dz = 0.707 * d * (1 - 0.06 - 0.72) + 0.005;
-      solid(k.head, k.rnd, { base: 'pyramid', r: [w * 0.62, ih, d * 0.72], matrix: inside(m, [0, h * 0.06 + ih * 0.5, dz]), jitter: 0.02, color: o.inner });
-    }
+    card(f, k.rnd, { w, h, d, matrix: m, back: o.back ?? o.color, rim: o.rim ?? o.color, inner: o.inner, inset: o.inset });
   }
+}
+
+/** A small curved mouth line on the face (a smile when `curve` is above 0). */
+export function mouth(k: Kit, o: { w?: number; y?: number; curve?: number; color?: Color; r?: number; out?: number } = {}) {
+  const w = o.w ?? 0.2;
+  const y = o.y ?? -0.5;
+  const pts: Vec3[] = [];
+  for (let i = 0; i <= 6; i++) {
+    const t = (i / 6) * 2 - 1;
+    pts.push(v3(onHead(k, t * w, y + (o.curve ?? 0.1) * t * t, (o.out ?? 0) + 0.003)));
+  }
+  tube(k.head, k.rnd, { pts, radii: pts.map((_, i) => (o.r ?? 0.006) * (i === 0 || i === 6 ? 0.6 : 1)), sides: 4, jitter: 0.03, color: o.color ?? INK, up: [0, 0, 1] });
 }
 
 // ---------------------------------------------------------------- limbs
@@ -496,6 +650,11 @@ export interface ArmOpts {
   /** Length from shoulder to the top of the paw, and thickness. */
   len?: number;
   r?: number;
+  /** Claws on the paw (sloths, bears). */
+  claws?: Color;
+  clawLen?: number;
+  /** Build only the right arm (the snail's tendril). */
+  rightOnly?: boolean;
 }
 
 /** Front legs as straight faceted pillars ending in paws: they're the arms. */
@@ -504,21 +663,28 @@ export function arms(k: Kit, o: ArmOpts) {
   const r = o.r ?? 0.055;
   const sockFrom = o.sockFrom ?? 0.45;
   const paw = o.paw ?? o.sock ?? o.color;
-  for (const b of [k.armL, k.armR]) {
-    pillar(b, k.rnd, [0, 0.03, 0], [0, -len, 0], r, r * 0.86, o.color, {
+  for (const f of o.rightOnly ? [k.armR] : [k.armL, k.armR]) {
+    pillar(f, k.rnd, [0, 0.03, 0], [0, -len, 0], r, r * 0.86, o.color, {
       depth: 0.92,
       paint: o.sock ? (u) => (u.y + 0.5 > sockFrom ? o.sock : null) : undefined,
     });
-    solid(b, k.rnd, {
+    solid(f, k.rnd, {
       base: 'ico1',
       r: [r * 1.12, r * 0.85, r * 1.25],
       pos: [0, -len - r * 0.25, r * 0.28],
-      jitter: 0.06,
+      jitter: 0.03,
       bend: (v) => {
         if (v.y < -0.5) v.y = -0.5 + (v.y + 0.5) * 0.4;
       },
       color: paw,
     });
+    if (o.claws) {
+      for (const i of [-1, 0, 1]) {
+        const from: Vec3 = [i * r * 0.55, -len - r * 0.5, r * 0.9];
+        const to: Vec3 = [i * r * 0.65, -len - r * 0.5 - (o.clawLen ?? 0.05) * 0.6, r * 1.3 + (o.clawLen ?? 0.05) * 0.5];
+        spike(f, k.rnd, from, to, r * 0.22, o.claws, r * 0.16);
+      }
+    }
   }
   k.joints.hand = [0, -len - r * 0.25, r * 0.28 + r * 1.05];
 }
@@ -532,6 +698,8 @@ export interface LegOpts {
   footH?: number;
   /** A sole panel under the foot (bunnies' pink pads). */
   sole?: Color;
+  /** Little dark hooves instead of paws. */
+  hoof?: boolean;
 }
 
 /** Short sturdy hind legs with chunky feet resting on the ground. */
@@ -540,13 +708,17 @@ export function legs(k: Kit, o: LegOpts) {
   const r = o.r ?? 0.058;
   const fh = o.footH ?? 0.045;
   const fl = o.footLen ?? r * 1.7;
-  for (const b of [k.legL, k.legR]) {
-    pillar(b, k.rnd, [0, 0.02, 0], [0, -hipY + fh, 0.0], r, r * 0.92, o.color, { depth: 1 });
-    solid(b, k.rnd, {
+  for (const f of [k.legL, k.legR]) {
+    pillar(f, k.rnd, [0, 0.02, 0], [0, -hipY + fh, 0.0], r, r * 0.92, o.color, { depth: 1 });
+    if (o.hoof) {
+      solid(f, k.rnd, { base: 'limb', r: [r * 1.05, fh * 1.6, r * 1.05], pos: [0, -hipY + fh * 0.8, 0.01], jitter: 0.02, color: o.foot ?? CHARCOAL });
+      continue;
+    }
+    solid(f, k.rnd, {
       base: 'ico1',
       r: [r * 1.15, fh, fl],
       pos: [0, -hipY + fh * 0.62, fl * 0.42],
-      jitter: 0.05,
+      jitter: 0.03,
       bend: (v) => {
         if (v.y < -0.62) v.y = -0.62;
         if (v.z > 0) v.y *= 1 - 0.25 * v.z;
@@ -561,16 +733,16 @@ export function legs(k: Kit, o: LegOpts) {
 
 export interface TailOpts {
   color: Color;
-  /** Rings of a second colour (raccoon, red panda), and how many bands. */
+  /** Rings of a second colour (raccoon, red panda): this many tube segments to each band. */
   rings?: Color;
-  bands?: number;
+  ringEvery?: number;
   /** A tip of another colour, from this far along (0 to 1). */
   tip?: Color;
   tipFrom?: number;
   len?: number;
   /** Radius at its fattest. */
   r?: number;
-  /** Which way it heads from the body and how it curls each step. */
+  /** Which way it heads from the body and how it curls over its whole length (Euler angles). */
   dir?: Vec3;
   curl?: Vec3;
   steps?: number;
@@ -578,27 +750,42 @@ export interface TailOpts {
   profile?: number[];
   flat?: number;
   sides?: number;
+  up?: Vec3;
 }
 
-/** A big faceted tail along a gentle curve. */
+const sample = (prof: number[], t: number) => {
+  const x = t * (prof.length - 1);
+  const i = Math.min(prof.length - 2, Math.floor(x));
+  return prof[i] + (prof[i + 1] - prof[i]) * (x - i);
+};
+
+/** A big faceted tail along a gentle curve, skinned over three bones so it can swish and curl. */
 export function tail(k: Kit, o: TailOpts) {
-  const steps = o.steps ?? 5;
+  const steps = o.steps ?? 12;
   const len = o.len ?? 0.4;
-  const pts = curve([0, 0, 0.02], o.dir ?? [0, -0.3, -1], steps, len / steps, o.curl ?? [0.3, 0, 0]);
+  const curl = o.curl ?? [1.5, 0, 0];
+  const pts = curve([0, 0, 0.02], o.dir ?? [0, -0.3, -1], steps, len / steps, [curl[0] / steps, curl[1] / steps, curl[2] / steps]);
   const prof = o.profile ?? [0.45, 0.85, 1, 0.95, 0.75, 0.4];
   const r = o.r ?? 0.09;
-  const radii = pts.map((_, i) => r * prof[Math.min(prof.length - 1, Math.round((i / (pts.length - 1)) * (prof.length - 1)))]);
-  const bands = o.bands ?? 6;
+  const radii = pts.map((_, i) => r * sample(prof, i / (pts.length - 1)));
+  const every = o.ringEvery ?? 2;
+  // Bones a third and two thirds of the way along.
+  const p1 = pts[Math.round(steps / 3)];
+  const p2 = pts[Math.round((steps * 2) / 3)];
+  bone(k, 'tail1', 'tail', p1);
+  bone(k, 'tail2', 'tail1', [p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2]]);
+  k.parts.get('tail')!.chain = ['tail', 'tail1', 'tail2'];
   tube(k.tail, k.rnd, {
     pts,
     radii,
     sides: o.sides ?? 7,
     flat: o.flat,
-    jitter: 0.1,
+    up: o.up,
+    jitter: 0.06,
     color: o.color,
     paint: (u) => {
       if (o.tip && u.y >= (o.tipFrom ?? 0.8)) return o.tip;
-      if (o.rings && Math.floor(u.y * bands + 0.5) % 2 === 1) return o.rings;
+      if (o.rings && Math.floor(Math.min(steps - 1, Math.floor(u.y * steps)) / every) % 2 === 1) return o.rings;
       return null;
     },
   });
@@ -606,238 +793,198 @@ export function tail(k: Kit, o: TailOpts) {
 
 /** A round puff of a tail. */
 export function puffTail(k: Kit, color: Color, r = 0.065) {
-  solid(k.tail, k.rnd, { base: 'ico1', r: [r, r, r * 0.9], pos: [0, 0.01, -r * 0.4], jitter: 0.1, color });
+  solid(k.tail, k.rnd, { base: 'ico2', r: [r, r, r * 0.9], pos: [0, 0.01, -r * 0.4], jitter: 0.05, color });
 }
 
-// ---------------------------------------------------------------- species
+// ---------------------------------------------------------------- birds, fish and the rest
 
-/** A plain stand-in for the animals not refolded yet: the shared body plan in the coat colour. */
-function plain(k: Kit, c: Colors): RecipeResult {
-  body(k, { color: c.coat, belly: c.light });
-  head(k, { color: c.coat });
-  muzzle(k, { color: c.light, nose: INK });
-  eyes(k);
-  ears(k, { color: c.coat, inner: c.inner });
-  arms(k, { color: c.coat, paw: c.dark });
-  legs(k, { color: c.coat, foot: c.dark });
-  tail(k, { color: c.coat, tip: c.light });
-  return {};
+/** A pyramid pointing from one point to another (spines, toes, claws, fins). */
+export function spike(f: Fold, rnd: () => number, from: Vec3, to: Vec3, w: number, color: Color, d = w, base: BaseName = 'pyramid', jitter = 0.02) {
+  const { matrix, len } = along(from, to);
+  solid(f, rnd, { base, r: [w, len, d], matrix, jitter, color });
 }
 
-const RACCOON_MASK = '#3a3634';
-const RACCOON_CREAM = '#e4d6bb';
+export interface BeakOpts {
+  color: Color;
+  lower?: Color;
+  len?: number;
+  w?: number;
+  h?: number;
+  dy?: number;
+  /** Tips the point down (a hooked beak). */
+  hook?: number;
+  /** A flat rounded bill (ducks, the platypus) instead of a pointed beak. */
+  bill?: boolean;
+  paint?: Paint;
+}
 
-export const RECIPES: Record<AnimalId, Recipe> = {
-  raccoon(k, c) {
-    const mask = mix(c.coat, RACCOON_MASK, 0.82);
-    const cream = mix(c.coat, RACCOON_CREAM, 0.85);
-    const sock = mix(c.coat, RACCOON_MASK, 0.75);
-    body(k, { color: c.coat, belly: mix(c.coat, cream, 0.22), bellyW: 0.5, haunch: c.coat });
-    head(k, {
-      color: c.coat,
-      cheeks: 0.12,
-      ruff: 0.3,
+/** A beak or bill on the front of the face. */
+export function beak(k: Kit, o: BeakOpts) {
+  const len = o.len ?? 0.09;
+  const w = o.w ?? 0.045;
+  const h = o.h ?? 0.04;
+  const root = onHead(k, 0, o.dy ?? -0.2, -0.015);
+  const hook = o.hook ?? 0.1;
+  if (o.bill) {
+    solid(k.head, k.rnd, {
+      base: 'ico2',
+      r: [w, h, len],
+      pos: [0, root.y, root.z + len * 0.6],
+      rot: [hook, 0, 0],
+      jitter: 0.02,
+      bend: (v) => {
+        v.x *= 1 + 0.25 * Math.max(0, v.z);
+        if (v.y < 0) v.y *= 0.6;
+      },
+      color: o.color,
+      paint: o.paint,
+    });
+    k.nose = [0, root.y + h * 0.4, root.z + len * 1.4];
+    return;
+  }
+  solid(k.head, k.rnd, { base: 'pyramid', r: [w, len, h], pos: [0, root.y + h * 0.15, root.z + len * 0.45], rot: [Math.PI / 2 + hook, 0, 0], jitter: 0.015, color: o.color, paint: o.paint });
+  solid(k.head, k.rnd, { base: 'pyramid', r: [w * 0.8, len * 0.7, h * 0.6], pos: [0, root.y - h * 0.45, root.z + len * 0.32], rot: [Math.PI / 2 - 0.05, 0, 0], jitter: 0.015, color: o.lower ?? o.color });
+  k.nose = [0, root.y + h * 0.1 - Math.sin(hook) * len * 0.9, root.z + len * 0.95];
+}
+
+export interface WingOpts {
+  color: Color;
+  /** Darker flight feathers at the tip. */
+  tip?: Color;
+  /** Bands of another colour across the wing (an owl's barring). */
+  bars?: Color;
+  len?: number;
+  w?: number;
+  d?: number;
+}
+
+/** Folded wings for arms: broad at the shoulder, tapering to a feathered point. */
+export function wings(k: Kit, o: WingOpts) {
+  const len = o.len ?? 0.27;
+  const w = o.w ?? 0.085;
+  const d = o.d ?? 0.032;
+  for (const [f, side] of [
+    [k.armL, 1],
+    [k.armR, -1],
+  ] as const) {
+    solid(f, k.rnd, {
+      base: 'ico2',
+      r: [d, len * 0.56, w],
+      pos: [side * 0.012, -len * 0.45, -0.012],
+      rot: [0.08, 0, side * 0.04],
+      jitter: 0.02,
+      bend: (v) => {
+        const t = (1 - v.y) / 2;
+        v.z *= 1 - 0.5 * t * t;
+        v.x *= 1 - 0.45 * t;
+        if (v.y < -0.4) v.z -= (v.y + 0.4) * 0.25;
+      },
+      color: o.color,
       paint: (u) => {
-        const ax = Math.abs(u.x);
-        // The bandit mask across the eyes, a cream brow over it and cream below, a grey stripe down the middle.
-        if (u.z < -0.15) return null;
-        const brow = 0.36 - ax * 0.12;
-        if (u.y > brow - 0.02 && u.y < brow + 0.2 && ax > 0.1 && ax < 0.78 && u.z > 0.2) return cream;
-        if (u.y <= brow - 0.02 && u.y > -0.34 + ax * 0.15 && ax > 0.12) return mask;
-        if (u.y <= -0.2 && u.z > -0.1) return cream;
-        if (ax > 0.82 && u.y < 0.05 && u.y > -0.6) return cream;
+        if (o.tip && u.y < -0.42) return o.tip;
+        if (o.bars && u.y < 0.3 && Math.floor((u.y + 1) * 5) % 2 === 1) return o.bars;
         return null;
       },
     });
-    muzzle(k, { color: cream, nose: RACCOON_MASK, w: 0.085, h: 0.062, len: 0.1, dy: -0.36, point: 0.3, droop: 0.14 });
-    eyes(k, { x: 0.37, y: 0.07, size: 0.85, wide: 1.3, slant: 0.18, color: '#141011', out: 0.006 });
-    ears(k, { color: cream, inner: mask, x: 0.6, y: 0.7, w: 0.085, h: 0.13, d: 0.042, splay: 0.34 });
-    arms(k, { color: c.coat, sock, sockFrom: 0.38 });
-    legs(k, { color: sock, foot: sock });
-    tail(k, { color: c.coat, rings: mask, bands: 7, tip: mask, tipFrom: 0.86, r: 0.105, len: 0.42, dir: [0, -0.35, -1], curl: [0.2, -0.3, 0], profile: [0.5, 0.85, 1, 1, 0.9, 0.6] });
-    return {};
-  },
-  fox(k, c) {
-    const white = mix(c.coat, CREAM, 0.85);
-    const sock = mix(c.coat, CHARCOAL, 0.78);
-    k.shape.hr = [0.19, 0.16, 0.18];
-    body(k, { color: c.coat, belly: white, bellyW: 0.45, pear: 0.48 });
-    head(k, {
-      color: c.coat,
-      cheeks: 0.18,
-      ruff: 0.22,
-      paint: (u) => {
-        const ax = Math.abs(u.x);
-        // White cheeks sweeping up from the jaw.
-        if (u.z > 0.05 && u.y < -0.12 - ax * 0.12 + 0.18 * ax * ax) return white;
-        if (ax > 0.8 && u.y < 0.05 && u.y > -0.55) return white;
-        return null;
+  }
+  k.joints.hand = [0, -len * 0.9, 0.04];
+}
+
+/** Flat paddles for arms (seals, penguins). */
+export function flippers(k: Kit, o: { color: Color; under?: Color; len?: number; w?: number }) {
+  const len = o.len ?? 0.24;
+  const w = o.w ?? 0.06;
+  for (const [f, side] of [
+    [k.armL, 1],
+    [k.armR, -1],
+  ] as const) {
+    solid(f, k.rnd, {
+      base: 'ico2',
+      r: [0.022, len * 0.55, w],
+      pos: [side * 0.012, -len * 0.45, 0.01],
+      rot: [0.1, 0, side * 0.08],
+      jitter: 0.02,
+      bend: (v) => {
+        const t = (1 - v.y) / 2;
+        v.z *= 0.75 + 0.4 * Math.sin(t * Math.PI * 0.85);
       },
+      color: o.color,
+      paint: o.under ? (u) => (u.x * side < -0.4 ? o.under : null) : undefined,
     });
-    muzzle(k, {
-      color: c.coat,
-      nose: INK,
-      w: 0.07,
-      h: 0.055,
-      len: 0.12,
-      dy: -0.3,
-      point: 0.55,
-      droop: 0.1,
-      noseW: 0.024,
-      paint: (u) => (u.y < 0.05 ? white : null),
-    });
-    eyes(k, { x: 0.4, y: 0.1, size: 0.95, wide: 1.4, slant: 0.32, color: '#1a1412' });
-    ears(k, { color: c.coat, inner: white, tip: sock, tipFrom: 0.3, x: 0.52, y: 0.72, w: 0.085, h: 0.16, d: 0.04, splay: 0.24 });
-    arms(k, { color: c.coat, sock, sockFrom: 0.42 });
-    legs(k, { color: sock, foot: sock });
-    tail(k, {
-      color: c.coat,
-      tip: white,
-      tipFrom: 0.78,
-      r: 0.1,
-      len: 0.48,
-      dir: [0, -0.15, -1],
-      curl: [0.22, 0.05, 0],
-      profile: [0.35, 0.75, 1, 1, 0.85, 0.55, 0.25],
-      steps: 6,
-    });
-    return {};
-  },
-  bunny(k, c) {
-    const pale = mix(c.coat, CREAM, 0.55);
-    const pink = mix(c.coat, '#e3a0a6', 0.75);
-    k.shape.hr = [0.19, 0.17, 0.175];
-    k.shape.tr = [0.195, 0.24, 0.17];
-    body(k, { color: c.coat, belly: pale, bellyW: 0.5, pear: 0.45 });
-    head(k, { color: c.coat, cheeks: 0.2, crown: 0.85 });
-    // Two puffy cheeks either side of a little pink nose.
-    for (const side of [-1, 1]) {
-      const p = onHead(k, side * 0.14, -0.38, -0.01);
-      solid(k.head, k.rnd, { base: 'ico1', r: [0.042, 0.034, 0.034], pos: [p.x, p.y, p.z + 0.012], jitter: 0.05, color: pale });
+  }
+  k.joints.hand = [0, -len * 0.88, 0.05];
+}
+
+export interface BirdLegOpts {
+  color: Color;
+  webbed?: boolean;
+  r?: number;
+  /** Foot size. */
+  foot?: number;
+}
+
+/** Thin legs with three toes, or a webbed foot. */
+export function birdLegs(k: Kit, o: BirdLegOpts) {
+  const hipY = k.joints.hip[1];
+  const r = o.r ?? 0.022;
+  const s = o.foot ?? 1;
+  const y = -hipY + 0.012;
+  for (const f of [k.legL, k.legR]) {
+    pillar(f, k.rnd, [0, 0.02, 0], [0, y + 0.01, 0.01], r, r * 0.85, o.color, { base: 'limb5' });
+    if (o.webbed) {
+      solid(f, k.rnd, {
+        base: 'ico1',
+        r: [0.06 * s, 0.016, 0.085 * s],
+        pos: [0, y, 0.045 * s],
+        jitter: 0.02,
+        bend: (v) => {
+          v.x *= 0.45 + 0.55 * (v.z + 1) * 0.5;
+          if (v.y < -0.3) v.y = -0.3;
+        },
+        color: o.color,
+      });
+    } else {
+      for (const a of [-0.55, 0, 0.55]) spike(f, k.rnd, [Math.sin(a) * 0.01, y, 0.01], [Math.sin(a) * 0.07 * s, y, 0.01 + Math.cos(a) * 0.075 * s], 0.016 * s, o.color, 0.012 * s);
+      spike(f, k.rnd, [0, y, 0.0], [0, y, -0.045 * s], 0.012 * s, o.color, 0.01 * s);
     }
-    const np = onHead(k, 0, -0.22, 0.01);
-    solid(k.head, k.rnd, { base: 'ico0', r: [0.022, 0.016, 0.014], pos: v3(np), rot: [0.3, 0, 0], jitter: 0.03, color: pink, tone: 0.1 });
-    k.nose = [np.x, np.y, np.z + 0.012];
-    eyes(k, { x: 0.42, y: 0.1, size: 1.05, wide: 0.95, slant: 0.05, color: '#1c1416' });
-    ears(k, { kind: 'long', color: c.coat, inner: pink, x: 0.3, y: 0.82, w: 0.05, h: 0.19, d: 0.03, splay: 0.12, back: 0.18 });
-    arms(k, { color: c.coat, len: 0.22, r: 0.046 });
-    k.joints.hip = [0.1, 0.16, -0.01];
-    legs(k, { color: c.coat, foot: c.coat, r: 0.06, footLen: 0.11, footH: 0.045, sole: pale });
-    puffTail(k, pale, 0.07);
-    return {};
-  },
-  snail(k, c, coat) {
-    // The coat colour is the shell; the snail itself is a soft putty colour.
-    const skin = mix('#cdbf98', coat, 0.12);
-    const belly = mix(skin, CREAM, 0.4);
-    const shell = c.coat;
-    const line = mix(coat, CHARCOAL, 0.5);
-    k.shape.tc = [0, 0.15, 0.02];
-    k.shape.tr = [0.17, 0.12, 0.34];
-    k.shape.hc = [0, 0.08, 0.02];
-    k.shape.hr = [0.115, 0.11, 0.11];
-    k.joints.neck = [0, 0.36, 0.27];
-    k.joints.shoulder = [0.11, 0.27, 0.34];
-    k.joints.tail = [0, 0.05, -0.28];
-    // The foot: long and low, rising at the front into the head.
-    tube(k.torso, k.rnd, {
-      pts: [
-        [0, 0.05, -0.3],
-        [0, 0.06, -0.14],
-        [0, 0.07, 0.06],
-        [0, 0.12, 0.23],
-        [0, 0.24, 0.3],
-        [0, 0.36, 0.29],
-      ],
-      radii: [0.07, 0.125, 0.14, 0.135, 0.12, 0.1],
-      sides: 7,
-      flat: 0.8,
-      up: [1, 0, 0],
-      jitter: 0.08,
-      color: skin,
-      paint: (_u, _c, n) => (n.y < -0.6 ? belly : null),
-    });
-    // The shell: a faceted tube wound into a coil on the back, banded like growth rings. It starts low at the
-    // front, tucked into the foot, then runs up the front, over the top, down the back and in.
-    const sc = new THREE.Vector3(0, 0.4, -0.08);
-    const coil: Vec3[] = [];
-    const radii: number[] = [];
-    const turns = 2.2 * Math.PI;
-    const steps = 24;
-    const a0 = 0.5;
-    for (let i = 0; i <= steps; i++) {
-      const a = a0 + (i / steps) * turns;
-      const R = 0.2 * Math.exp(-0.3 * (a - a0));
-      coil.push([-0.03 + 0.06 * (i / steps), sc.y - R * Math.cos(a), sc.z + R * Math.sin(a)]);
-      radii.push(0.74 * R * 1.25 + 0.006);
-    }
-    tube(k.torso, k.rnd, {
-      pts: coil,
-      radii,
-      sides: 7,
-      flat: 0.8,
-      up: [1, 0, 0],
-      jitter: 0.07,
-      color: shell,
-      paint: (u) => (Math.floor(u.y * 13) % 2 ? mix(shell, line, 0.3) : null),
-    });
-    k.seat = 0;
-    head(k, { color: skin, cheeks: 0.06, crown: 0.9 });
-    const np = onHead(k, 0, -0.25, 0.004);
-    solid(k.head, k.rnd, { base: 'ico0', r: [0.026, 0.018, 0.018], pos: v3(np), jitter: 0.03, color: mix(skin, CHARCOAL, 0.18) });
-    k.nose = [np.x, np.y, np.z + 0.014];
-    // Eyes on stalks, each a dark bead on the end.
-    let tip = new THREE.Vector3();
-    for (const side of [-1, 1]) {
-      const from = onHead(k, side * 0.3, 0.72, -0.02);
-      tip = new THREE.Vector3(side * 0.08, 0.32, 0.07);
-      pillar(k.head, k.rnd, v3(from), v3(tip), 0.021, 0.015, skin, { base: 'limb5' });
-      solid(k.head, k.rnd, { base: 'ico1', r: 0.033, pos: v3(tip), jitter: 0.06, color: skin });
-      const m = frame(tip.clone().add(new THREE.Vector3(0, 0.004, 0.025)));
-      solid(k.eyes, k.rnd, { base: 'ico0', r: [0.021, 0.023, 0.014], matrix: m, jitter: 0.03, color: INK, tone: 0.1 });
-      solid(k.eyes, k.rnd, { base: 'ico0', r: 0.007, matrix: inside(m, [0.007, 0.009, 0.011]), jitter: 0.02, color: '#fbf6ec', tone: 0 });
-      // The short feelers lower down.
-      const lf = onHead(k, side * 0.32, -0.1, -0.01);
-      pillar(k.head, k.rnd, v3(lf), [side * 0.075, lf.y + 0.035, lf.z + 0.05], 0.011, 0.008, skin, { base: 'limb5' });
-    }
-    k.eyeY = tip.y;
-    k.eyeX = 0.08;
-    k.eyeR = 0.033;
-    k.eyeZ = tip.z + 0.04;
-    // Little nubs of arms at the front of the body, so it can still carry a mug.
-    arms(k, { color: skin, len: 0.07, r: 0.036 });
-    return { legs: 'none' };
-  },
-  wolf: plain,
-  bear: plain,
-  cat: plain,
-  dog: plain,
-  deer: plain,
-  owl: plain,
-  koala: plain,
-  hedgehog: plain,
-  panda: plain,
-  penguin: plain,
-  otter: plain,
-  frog: plain,
-  axolotl: plain,
-  shark: plain,
-  octopus: plain,
-  duck: plain,
-  platypus: plain,
-  capybara: plain,
-  redpanda: plain,
-  quokka: plain,
-  sloth: plain,
-  seal: plain,
-  puffin: plain,
-  fennec: plain,
-  chinchilla: plain,
-  highland: plain,
-  squid: plain,
-  bat: plain,
-  raven: plain,
-  wombat: plain,
-  jellyfish: plain,
-  gecko: plain,
-};
+  }
+}
+
+/** Spines over part of a solid: little pyramids standing out along its surface. */
+export function spines(
+  f: Fold,
+  rnd: () => number,
+  centre: Vec3,
+  r: Vec3,
+  n: number,
+  len: number,
+  color: Color | ((i: number) => Color),
+  where: (d: THREE.Vector3) => boolean,
+  opts: { w?: number; sweep?: Vec3; sink?: number } = {},
+) {
+  const w = opts.w ?? 0.28;
+  const sweep = opts.sweep ?? [0, 0.25, -0.35];
+  const sink = opts.sink ?? 0.92;
+  const golden = Math.PI * (3 - Math.sqrt(5));
+  let made = 0;
+  for (let i = 0; i < n * 3 && made < n; i++) {
+    const y = 1 - ((i + 0.5) / (n * 3)) * 2;
+    const rad = Math.sqrt(1 - y * y);
+    const d = new THREE.Vector3(Math.cos(i * golden) * rad, y, Math.sin(i * golden) * rad);
+    if (!where(d)) continue;
+    const from = new THREE.Vector3(centre[0] + d.x * r[0] * sink, centre[1] + d.y * r[1] * sink, centre[2] + d.z * r[2] * sink);
+    const dir = new THREE.Vector3(d.x / r[0], d.y / r[1], d.z / r[2]).normalize().add(new THREE.Vector3(...sweep)).normalize();
+    const l = len * (0.8 + rnd() * 0.4);
+    spike(f, rnd, v3(from), v3(from.clone().addScaledVector(dir, l)), l * w, typeof color === 'function' ? color(made) : color, l * w, 'tri', 0.04);
+    made++;
+  }
+}
+
+/** A tapering horn, tentacle or stalk along a curve, from thick to a point. */
+export function horn(f: Fold, rnd: () => number, start: Vec3, dir: Vec3, len: number, r: number, color: Color, opts: { curl?: Vec3; steps?: number; sides?: number; end?: number; paint?: Paint; flat?: number } = {}) {
+  const steps = opts.steps ?? 5;
+  const c = opts.curl ?? [0, 0, 0];
+  const pts = curve(start, dir, steps, len / steps, [c[0] / steps, c[1] / steps, c[2] / steps]);
+  const end = opts.end ?? 0.15;
+  tube(f, rnd, { pts, radii: pts.map((_, i) => r * (1 - (1 - end) * (i / steps))), sides: opts.sides ?? 5, jitter: 0.05, round: false, color, paint: opts.paint, flat: opts.flat });
+}
