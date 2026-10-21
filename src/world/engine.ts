@@ -254,7 +254,8 @@ export class Engine {
   /** Voice volumes follow a timer rather than the frames, which stop while the tab is hidden. */
   private stopVoice: (() => void) | null = null;
   /** The end-of-game celebration on our stool: dancing or crying, until then. */
-  private party: { anim: Anim; until: number } | null = null;
+  /** The end-of-game dance (or cry), and how long it has left to run on screen. */
+  private party: { anim: Anim; left: number } | null = null;
   private partyTimer: ReturnType<typeof setTimeout> | null = null;
   private lastFish = -1;
   /** Over the square when the game ends. */
@@ -1199,7 +1200,7 @@ export class Engine {
     this.partyTimer = setTimeout(() => {
       this.partyTimer = null;
       this.takeMeetingSeat();
-      this.party = { anim: won ? 'dance' : 'cry', until: this.clock.elapsedTime + (won ? 18 : 8) };
+      this.party = { anim: won ? 'dance' : 'cry', left: won ? 18 : 8 };
     }, 700);
   }
 
@@ -1384,7 +1385,11 @@ export class Engine {
     else if (st && v.reading) anim = 'fish';
     else if (voting) anim = 'hand';
     else if (this.emote) anim = this.emote.anim;
-    else if (this.party && t < this.party.until && this.seated?.y === STOOL_Y) anim = this.party.anim;
+    else if (this.party && this.party.left > 0 && this.seated?.y === STOOL_Y) {
+      // Counted in time actually shown, so a stall or the tab being in the background doesn't eat it.
+      this.party.left -= dt;
+      anim = this.party.anim;
+    }
     else if (this.seated) anim = this.seated.anim;
     local.anim = anim;
     local.speaking = voice.speaking();
