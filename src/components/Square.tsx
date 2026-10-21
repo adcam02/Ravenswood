@@ -148,7 +148,7 @@ function SeatSpot({ seat, geo, i }: { seat: SeatView; geo: Geometry; i: number }
   const view = useView();
   const pick = useUI((s) => s.pick);
   const menuSeat = useUI((s) => s.menuSeat);
-  const note = useNotes((s) => s.notes[seat.id]);
+  const note = useNotes((s) => s.notes[seat.id]?.guess);
   const pt = geo.pts[i];
   const t = geo.t;
   const nom = view.nomination;

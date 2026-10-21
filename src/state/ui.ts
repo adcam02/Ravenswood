@@ -6,7 +6,8 @@ export type Modal =
   | { kind: 'script' }
   | { kind: 'bag' }
   | { kind: 'wake' }
-  | { kind: 'character'; seatId: string; purpose: 'role' | 'shown' | 'note' }
+  /** 'note' is a player's private guess at what someone really is; 'claim' what they say they are. */
+  | { kind: 'character'; seatId: string; purpose: 'role' | 'shown' | 'note' | 'claim' }
   | { kind: 'reminder'; seatId: string }
   | { kind: 'bluff'; index: number }
   | { kind: 'fabled' }

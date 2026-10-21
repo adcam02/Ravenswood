@@ -57,6 +57,10 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      up over anyone voting. Executing the player on the block (mark them, then Kill) plays out at the
      gallows for the whole town: a drumroll, the gavel, the trapdoor drops, a short swing and a puff of
      smoke, then they walk on as a ghost.
+   - **Who's who**: the top of each player's **Notepad** lists every other player with two token
+     slots: the character they claim, and the one you think they really are. Click a slot to choose
+     the character; a guess that differs from the claim gets a red ring. Only that player sees it,
+     and it's kept in their own browser.
    - **The Slayer**: when the script has one, every living player gets a red **Slayer** button on their
      menu during the day. Anyone can use it once a game to claim to be the Slayer and choose a player
      (dead ones too, for a Zombuul that has already "died");

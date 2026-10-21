@@ -3,7 +3,7 @@ import { go } from '../App';
 import { ALL_ROLES, defaultAlignment, genericIcon, getRole, jinxesFor, nightReminder, TEAM_SINGULAR, rolesOfTeam } from '../data';
 import { player } from '../net/client';
 import { NEEDS_SHOWN, seatName, st, useHost } from '../state/host';
-import { notes } from '../state/notes';
+import { notes, useNotes } from '../state/notes';
 import { ui, useUI } from '../state/ui';
 import { useView } from '../state/view';
 import { BagModal } from './Bag';
@@ -73,7 +73,7 @@ function Scope({ all, setAll, query, setQuery }: { all: boolean; setAll: (v: boo
 
 const playable = ALL_ROLES.filter((r) => r.team !== 'fabled' && r.team !== 'loric').map((r) => r.id);
 
-function CharacterModal({ seatId, purpose }: { seatId: string; purpose: 'role' | 'shown' | 'note' }) {
+function CharacterModal({ seatId, purpose }: { seatId: string; purpose: 'role' | 'shown' | 'note' | 'claim' }) {
   const view = useView();
   const seat = view.seats.find((s) => s.id === seatId);
   const raw = useHost((s) => s.g.seats.find((x) => x.id === seatId));
@@ -83,21 +83,30 @@ function CharacterModal({ seatId, purpose }: { seatId: string; purpose: 'role' |
   const ids = all ? playable : view.script.roles;
   const tags: Record<string, string> = {};
   if (view.mode === 'st') for (const s of view.seats) if (s.roleId && s.id !== seatId) tags[s.roleId] = s.label;
+  const noted = useNotes((s) => s.notes[seatId]);
   if (!seat) return null;
 
-  const current = purpose === 'role' ? raw?.roleId : purpose === 'shown' ? raw?.shownRoleId : undefined;
+  const mine = purpose === 'note' || purpose === 'claim';
+  const current =
+    purpose === 'role' ? raw?.roleId : purpose === 'shown' ? raw?.shownRoleId : purpose === 'note' ? noted?.guess : noted?.claim;
   const pick = (id: string) => {
     if (purpose === 'role') st.setRole(seatId, id);
     else if (purpose === 'shown') st.setShownRole(seatId, id);
-    else notes.set(seatId, id);
+    else notes.set(seatId, purpose === 'note' ? 'guess' : 'claim', id);
     ui.close();
   };
   const title =
-    purpose === 'role' ? `Character for ${seat.label}` : purpose === 'shown' ? `What ${seat.label} thinks they are` : `Your guess for ${seat.label}`;
+    purpose === 'role'
+      ? `Character for ${seat.label}`
+      : purpose === 'shown'
+        ? `What ${seat.label} thinks they are`
+        : purpose === 'claim'
+          ? `What ${seat.label} claims to be`
+          : `What you think ${seat.label} really is`;
   const eyebrow =
     purpose === 'shown'
       ? `Really the ${getRole(raw?.roleId)?.name ?? '…'}. Players see this instead.`
-      : purpose === 'note'
+      : mine
         ? 'Only you can see this'
         : view.revealed && seat.claimed
           ? 'They’ll see the change straight away'
@@ -109,7 +118,13 @@ function CharacterModal({ seatId, purpose }: { seatId: string; purpose: 'role' |
       eyebrow={eyebrow}
       size="lg"
       footer={
-        current ? (
+        mine ? (
+          current ? (
+            <button className="btn quiet" onClick={() => (notes.set(seatId, purpose === 'note' ? 'guess' : 'claim', null), ui.close())}>
+              <Icon name="x" /> {purpose === 'note' ? 'Clear my guess' : 'Clear their claim'}
+            </button>
+          ) : undefined
+        ) : current ? (
           <button
             className="btn quiet"
             onClick={() => {
@@ -120,10 +135,6 @@ function CharacterModal({ seatId, purpose }: { seatId: string; purpose: 'role' |
           >
             <Icon name="x" /> {purpose === 'role' ? 'Remove character' : 'Show their real character'}
           </button>
-        ) : purpose === 'note' ? (
-          <button className="btn quiet" onClick={() => (notes.set(seatId, null), ui.close())}>
-            <Icon name="x" /> Clear my guess
-          </button>
         ) : undefined
       }
     >
@@ -133,9 +144,9 @@ function CharacterModal({ seatId, purpose }: { seatId: string; purpose: 'role' |
         onPick={pick}
         selected={current ? [current] : []}
         dimmed={purpose === 'shown' ? inPlay : undefined}
-        tags={purpose === 'note' ? undefined : tags}
+        tags={mine ? undefined : tags}
         query={query}
-        teams={purpose === 'note' ? ['townsfolk', 'outsider', 'minion', 'demon'] : undefined}
+        teams={mine ? ['townsfolk', 'outsider', 'minion', 'demon'] : undefined}
       />
     </Modal>
   );
@@ -486,8 +497,8 @@ function PlayerSettings() {
         )}
         <div className="setting">
           <div>
-            <strong>Your guesses</strong>
-            <span>The characters you’ve pencilled onto other seats</span>
+            <strong>Your notes on players</strong>
+            <span>The claims and guesses you’ve noted for other players</span>
           </div>
           <button className="btn quiet" onClick={() => (notes.clear(), ui.close())}>
             Clear them

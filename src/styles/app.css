@@ -1127,6 +1127,104 @@ button.my-card:hover {
 .side-body:has(.notepad) {
   display: grid;
 }
+.notepad:has(.whos-who) {
+  grid-template-rows: auto auto minmax(240px, 1fr);
+  height: auto;
+  min-height: 100%;
+}
+.notepad:has(.whos-who) .notepad-paper {
+  min-height: 240px;
+}
+
+/* Who's who: what each player claims, and what you think they really are. */
+.whos-who {
+  display: grid;
+  gap: 4px;
+}
+.whos-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px 76px;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 10px;
+}
+.whos-row:not(.whos-head):nth-child(even) {
+  background: rgba(255, 255, 255, 0.035);
+}
+.whos-head {
+  padding-bottom: 0;
+  font-family: var(--font-caps);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.whos-head span:not(:first-child) {
+  text-align: center;
+}
+.whos-seat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 17px;
+}
+.whos-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.whos-seat svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--text-faint);
+}
+.whos-row.dead .whos-label {
+  color: var(--text-dim);
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 255, 255, 0.3);
+}
+.whos-slot {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 4px 2px;
+  border-radius: 10px;
+  transition: background 0.15s;
+}
+.whos-slot:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.whos-slot .token {
+  --size: 40px;
+}
+.whos-empty {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1.5px dashed var(--line-strong);
+  color: var(--text-faint);
+  font-size: 17px;
+}
+.whos-role {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.whos-slot:not(.set) .whos-role {
+  color: var(--text-faint);
+}
+/* Claims one thing, but you think they're something else. */
+.whos-row.odd .whos-slot:last-child .token {
+  box-shadow: 0 0 0 2px rgba(217, 56, 76, 0.7);
+  border-radius: 50%;
+}
 
 /* ---------------------------------------------------------------- player layout on phones */
 

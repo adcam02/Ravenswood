@@ -185,7 +185,7 @@ export function SeatMenu({ seat, geo, pt }: { seat: SeatView; geo: Geometry; pt:
 }
 
 export function PlayerSeatMenu({ seat, geo, pt }: { seat: SeatView; geo: Geometry; pt: { x: number; y: number } }) {
-  const note = useNotes((s) => s.notes[seat.id]);
+  const note = useNotes((s) => s.notes[seat.id]?.guess);
   const close = () => ui.menu(null);
   const noteRole = getRole(note);
   if (seat.isMe) {
@@ -226,7 +226,7 @@ export function PlayerSeatMenu({ seat, geo, pt }: { seat: SeatView; geo: Geometr
           {note ? 'Change my guess' : 'Guess their character'}
         </Item>
         {note && (
-          <Item icon="x" onClick={() => (notes.set(seat.id, null), close())}>
+          <Item icon="x" onClick={() => (notes.set(seat.id, 'guess', null), close())}>
             Clear my guess
           </Item>
         )}
