@@ -155,12 +155,20 @@ directly. The Storyteller's browser tells each player where everyone is ten time
 who moved since the last message (people somewhere else, who only show on the map, a couple of times a
 second at most), so standing still costs nothing and a night in bed costs almost nothing. Voice uses
 the same lobby: each browser opens a voice line only to people in or near earshot (and to the
-Storyteller), hangs up a little after they wander off, and sets each voice's volume from how far apart
-the two animals are, so a big group doesn't swamp anyone's connection. Voices are sent as mono speech
-at a modest bitrate, a little lower again in a crowd, and a quiet microphone sends almost nothing. If
-the lobby is down, the game falls back to a pool of public Nostr relays (via
+Storyteller), keeps it open but silent for a couple of minutes after they wander off (so the next
+meeting is instant rather than everyone dialling everyone at once), dials new people a couple at a
+time, nearest first, and sets each voice's volume from how far apart the two animals are, so a big
+group doesn't swamp anyone's connection. Voices are sent as mono speech at a modest bitrate, a little
+lower again in a crowd, and a quiet microphone sends almost nothing. A player whose connection can't
+keep up skips a beat of everyone's positions rather than falling further behind. If the lobby is
+down, the game falls back to a pool of public Nostr relays (via
 [Trystero](https://github.com/dmotz/trystero)), but voice needs the lobby. Each player only ever
 receives their own character and information.
+
+Each player's round trip to the Storyteller is measured every couple of seconds. Anyone slower than
+0.8 seconds shows as **slow** on the Storyteller's room chip (hover for who and how slow) and with an
+amber dot by their name in the grimoire, and sees **Slow connection** themselves, with tips. A busy
+computer shows up the same way as a busy line.
 
 If the lobby doesn't work for you, run your own PeerServer and put its address in `docs/config.js`.
 
