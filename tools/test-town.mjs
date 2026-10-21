@@ -21,7 +21,8 @@ const FLAGS = `peer=127.0.0.1:${PEER}&debug&fx=low&fps=4`;
 
 const procs = [];
 function run(cmd, args) {
-  const p = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+  // Its own process group, so stopping it also stops what npx started underneath.
+  const p = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'], detached: true });
   procs.push(p);
   return p;
 }
@@ -696,5 +697,11 @@ console.log('\n' + results.map((r) => r.join('  ')).join('\n'));
 console.log(`\n${results.filter((r) => r[0] === 'PASS').length} of ${results.length} passed`);
 if (errors.length) console.log('\nErrors:\n' + [...new Set(errors)].slice(0, 30).join('\n'));
 await browser.close();
-for (const p of procs) p.kill();
+for (const p of procs) {
+  try {
+    process.kill(-p.pid);
+  } catch {
+    p.kill();
+  }
+}
 process.exit(results.some((r) => r[0] === 'FAIL') || errors.length ? 1 : 0);

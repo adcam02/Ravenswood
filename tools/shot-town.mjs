@@ -6,7 +6,7 @@ import { chromium } from 'playwright';
 const OUT = process.argv[2] || 'test-results/town';
 mkdirSync(OUT, { recursive: true });
 const PORT = 5192;
-const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
+const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { stdio: 'ignore', detached: true });
 const end = Date.now() + 30000;
 while (Date.now() < end) {
   try {
@@ -94,4 +94,8 @@ for (const [name, qs] of Object.entries(views)) {
 }
 if (errors.length) console.log('Errors:', [...new Set(errors)].join('\n'));
 await browser.close();
-vite.kill();
+try {
+  process.kill(-vite.pid);
+} catch {
+  vite.kill();
+}
