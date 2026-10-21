@@ -294,6 +294,9 @@ export function makeStations(): Station[] {
       st.push({ id: `bench-${i}-${k}`, zone: 'town', x: p.x, z: p.z, r: 0.8, job: 'sit', stand: { x: p.x, z: p.z, ry: b.ry }, y: 0.45, label: 'Sit' });
     }),
   );
+  // Activities are easy to step into: a generous area round each (the nearest wins where two overlap).
+  // Seats and beds keep a small one, so walking past doesn't keep offering to sit.
+  for (const s of st) if (s.job !== 'sit' && s.job !== 'sleep') s.r = Math.min(3.2, Math.max(2.4, s.r * 1.6));
   return st;
 }
 

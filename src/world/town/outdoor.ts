@@ -938,11 +938,16 @@ function cottage(p: Paint, r: () => number, slot: number, smoke: (v: THREE.Vecto
   if (r() < 0.6) collect?.perches.push(new THREE.Vector3((r() - 0.5) * 3, 2.98 + 1.7 + 0.32, 0).applyMatrix4(p.m));
 }
 
-function washhouse(p: Paint, r: () => number) {
+/**
+ * The washhouse: `shell` is the posts, beams and roof (which fade when they hide someone standing under
+ * them); `props` is the floor, pump, tubs, basket and rack, which always stay solid.
+ */
+function washhouse(shell: Paint, props: Paint, r: () => number) {
+  const p = shell;
   const { w, d } = WASHHOUSE;
   // A flagstone floor, turned posts with braces, a plate and a tiled roof.
-  p.block('#bdb3a3', w + 0.4, 0.15, d + 0.4, 0, 0, 0);
-  for (let x = -w / 2; x < w / 2; x += 0.9) for (let z = -d / 2; z < d / 2; z += 0.9) p.box(shade('#bdb3a3', (((x * 3 + z * 7) % 5) / 5 - 0.5) * 0.08), 0.84, 0.03, 0.84, x + 0.45, 0.16, z + 0.45);
+  props.block('#bdb3a3', w + 0.4, 0.15, d + 0.4, 0, 0, 0);
+  for (let x = -w / 2; x < w / 2; x += 0.9) for (let z = -d / 2; z < d / 2; z += 0.9) props.box(shade('#bdb3a3', (((x * 3 + z * 7) % 5) / 5 - 0.5) * 0.08), 0.84, 0.03, 0.84, x + 0.45, 0.16, z + 0.45);
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
     p.block(WOOD, 0.24, 2.6, 0.24, sx * (w / 2 - 0.2), 0.15, sz * (d / 2 - 0.2));
     p.block(shade(WOOD, -0.1), 0.34, 0.12, 0.34, sx * (w / 2 - 0.2), 0.15, sz * (d / 2 - 0.2));
@@ -954,16 +959,16 @@ function washhouse(p: Paint, r: () => number) {
   p.prism(WOOD_LIGHT, w - 0.2, 1.1, d - 0.4, 0, 2.84, 0);
   p.roof('#5f7fa8', w, d, 1.3, 2.84, 0.45, 0.16);
   // A pump at the back, with a handle and a spout over a trough.
-  p.block('#4a5a6a', 0.3, 1.1, 0.3, 0, 0.15, -d / 2 + 0.5);
-  p.cyl('#4a5a6a', 0.2, 0.08, 0, 1.28, -d / 2 + 0.5, 12);
-  p.box('#4a5a6a', 0.08, 0.08, 0.5, 0, 1.15, -d / 2 + 0.7);
-  p.box('#4a5a6a', 0.06, 0.06, 0.2, 0, 1.05, -d / 2 + 0.95, 0.8);
-  p.box('#3a4a5a', 0.06, 0.9, 0.06, -0.2, 1.3, -d / 2 + 0.4, 0, 0, -0.5);
-  p.sphere('#c9a24f', 0.05, 0.05, 0.05, -0.42, 1.68, -d / 2 + 0.4);
-  p.block(STONE_DARK, 0.9, 0.3, 0.5, 0, 0.15, -d / 2 + 1.0);
-  p.box('#8fd0e8', 0.8, 0.02, 0.4, 0, 0.42, -d / 2 + 1.0);
+  props.block('#4a5a6a', 0.3, 1.1, 0.3, 0, 0.15, -d / 2 + 0.5);
+  props.cyl('#4a5a6a', 0.2, 0.08, 0, 1.28, -d / 2 + 0.5, 12);
+  props.box('#4a5a6a', 0.08, 0.08, 0.5, 0, 1.15, -d / 2 + 0.7);
+  props.box('#4a5a6a', 0.06, 0.06, 0.2, 0, 1.05, -d / 2 + 0.95, 0.8);
+  props.box('#3a4a5a', 0.06, 0.9, 0.06, -0.2, 1.3, -d / 2 + 0.4, 0, 0, -0.5);
+  props.sphere('#c9a24f', 0.05, 0.05, 0.05, -0.42, 1.68, -d / 2 + 0.4);
+  props.block(STONE_DARK, 0.9, 0.3, 0.5, 0, 0.15, -d / 2 + 1.0);
+  props.box('#8fd0e8', 0.8, 0.02, 0.4, 0, 0.42, -d / 2 + 1.0);
   for (const t of TUBS) {
-    const q = p.at(t.x - WASHHOUSE.x, 0.15, t.z - WASHHOUSE.z);
+    const q = props.at(t.x - WASHHOUSE.x, 0.15, t.z - WASHHOUSE.z);
     // Tubs made of staves with iron hoops, full of suds.
     q.taper(WOOD, 0.85, 0.72, 0.62, 0, 0, 0, 16);
     for (let k = 0; k < 16; k++) {
@@ -975,7 +980,7 @@ function washhouse(p: Paint, r: () => number) {
     for (let k = 0; k < 7; k++) q.ico('#ffffff', 0.07 + r() * 0.07, (r() - 0.5) * 0.75, 0.62, (r() - 0.5) * 0.75, 1);
   }
   // A basket of washing, a washboard, soap on a dish, and a drying rack.
-  const b = p.at(0, 0.15, 0.9);
+  const b = props.at(0, 0.15, 0.9);
   b.taper('#c9a46a', 1.2, 0.35, 0.35, 0, 0, 0, 12);
   for (let k = 0; k < 12; k++) {
     const a = (k / 12) * Math.PI * 2;
@@ -984,14 +989,14 @@ function washhouse(p: Paint, r: () => number) {
   b.torus('#a8834f', 0.38, 0.02, 0, 0.35, 0, Math.PI / 2);
   b.ico('#f2a7b8', 0.18, -0.1, 0.38, 0, 1);
   b.ico('#8fc1e8', 0.16, 0.12, 0.4, 0.05, 1);
-  p.box(WOOD_LIGHT, 0.4, 0.7, 0.05, 1.9, 0.5, -0.8, -0.3);
+  props.box(WOOD_LIGHT, 0.4, 0.7, 0.05, 1.9, 0.5, -0.8, -0.3);
   for (let k = 0; k < 8; k++) p.box(shade(WOOD_LIGHT, -0.1), 0.34, 0.02, 0.02, 1.9, 0.25 + k * 0.06, -0.8 + 0.03 + k * 0.018, -0.3);
-  p.cyl('#e8dcc0', 0.1, 0.02, -1.8, 0.16, 0.9, 12);
-  p.box('#f6d55c', 0.12, 0.05, 0.08, -1.8, 0.2, 0.9, 0, 0.4, 0);
+  props.cyl('#e8dcc0', 0.1, 0.02, -1.8, 0.16, 0.9, 12);
+  props.box('#f6d55c', 0.12, 0.05, 0.08, -1.8, 0.2, 0.9, 0, 0.4, 0);
   for (const x of [-2.2, -1.2]) p.post(WOOD, 0.03, 1.1, x, 0.15, -1.2, 8);
   for (let k = 0; k < 3; k++) p.cyl(WOOD, 0.015, 1.0, -1.7, 0.6 + k * 0.3, -1.2, 6, 0, 0, Math.PI / 2);
-  p.box('#8fc1e8', 0.3, 0.26, 0.02, -1.5, 1.05, -1.2);
-  p.box('#f2a7b8', 0.25, 0.2, 0.02, -1.9, 1.08, -1.2);
+  props.box('#8fc1e8', 0.3, 0.26, 0.02, -1.5, 1.05, -1.2);
+  props.box('#f2a7b8', 0.25, 0.2, 0.02, -1.9, 1.08, -1.2);
 }
 
 function washingLines(p: Paint) {
@@ -1448,7 +1453,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     const c = local(BAKERY.x, BAKERY.z, BAKERY.ry, lx, lz);
     colliders.push({ kind: 'circle', x: c.x, z: c.z, r: 0.45 });
   }
-  washhouse(solo(WASHHOUSE.x, WASHHOUSE.z), r);
+  washhouse(solo(WASHHOUSE.x, WASHHOUSE.z), painter(WASHHOUSE.x, WASHHOUSE.z), r);
   washingLines(painter(0, 0));
   dock(painter(0, 0));
   const water = pond(group, painter(0, 0), r);
