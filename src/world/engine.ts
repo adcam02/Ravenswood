@@ -83,6 +83,8 @@ export interface WorldSeat {
   dead: boolean;
   /** A character to show over their head, if this viewer may see it. */
   roleId: string | null;
+  /** What they really are, when that's not the character they hold (the Drunk's Townsfolk). */
+  really?: string | null;
   evil: boolean;
   /** Wearing the gold star for counting the sheep. */
   star: boolean;
@@ -590,6 +592,7 @@ export class Engine {
     if (key === 'st') return { name: 'The Storyteller', look: null, ghost: false, storyteller: true, isMe: v.mode === 'st', role: null, badge: null };
     const s = v.seats.find((x) => x.id === key);
     const role = s?.roleId ? getRole(s.roleId) : undefined;
+    const really = s?.really ? getRole(s.really) : undefined;
     let badge: string | null = null;
     if (v.nomination?.nomineeId === key) badge = 'nominated';
     if (v.marked?.seatId === key) badge = 'on the block';
@@ -600,7 +603,7 @@ export class Engine {
       ghost: Boolean(s?.dead) && !(this.show?.alive && this.show.seatId === key),
       storyteller: false,
       isMe: key === v.mySeatId,
-      role: role ? { name: role.name, icon: iconUrl(role, s?.evil ? 'evil' : 'good'), evil: Boolean(s?.evil) } : null,
+      role: role ? { name: really ? `${role.name} (${really.name})` : role.name, icon: iconUrl(role, s?.evil ? 'evil' : 'good'), evil: Boolean(s?.evil) } : null,
       badge,
       star: Boolean(s?.star),
       voting: Boolean(v.nomination && v.nomination.status !== 'done' && v.nomination.votes.includes(key)),

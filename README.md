@@ -39,7 +39,10 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
 5. **The Storyteller carries the grimoire.** Press **Open grimoire** (or Tab) and the camera swoops in
    over your shoulder as the book opens in your hands; its pages hold the circle of seats, the bag, the
    night order and everything else from the Grimoire. Fill the bag, deal characters and press **Show
-   players their characters**. Close it to float off again.
+   players their characters**. Close it to float off again. Put the Drunk in the bag as it is: as at
+   a real table it goes out as a Townsfolk that isn't in play (change which when handing out), the
+   player only ever sees that Townsfolk, and your grimoire shows their Townsfolk token with an "Is the
+   Drunk" reminder beside it (the Marionette works the same way).
    - **Night**: everyone is tucked up in bed in their own bedroom, fire out, moon and stars in the
      window, and nobody can get up until morning. Press E for a go at **counting sheep**: how many white
      sheep jumped the fence, from either side? Every jump counts as one; the odd goat or wolf slips

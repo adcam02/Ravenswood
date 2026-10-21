@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { defaultAlignment, getRole } from '../data';
-import { st, useHost } from '../state/host';
+import { DISGUISED, st, useHost } from '../state/host';
 import { notes, useNotes } from '../state/notes';
 import { ui, useUI } from '../state/ui';
 import { useView, type SeatView } from '../state/view';
@@ -69,7 +69,7 @@ export function SeatMenu({ seat, geo, pt }: { seat: SeatView; geo: Geometry; pt:
     <Popover geo={geo} pt={pt}>
       <header className="menu-head">
         <strong>{seat.label}</strong>
-        <span>{role ? role.name : 'No character yet'}</span>
+        <span>{!role ? 'No character yet' : DISGUISED[role.id] && shown ? `${shown.name}, secretly the ${role.name}` : role.name}</span>
       </header>
 
       <div className="menu-group">

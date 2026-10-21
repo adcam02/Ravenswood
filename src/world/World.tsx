@@ -6,7 +6,7 @@ import { ambience } from '../lib/ambience';
 import { presence } from '../game/presence';
 import { clientLink, player } from '../net/client';
 import { hostLink } from '../net/host';
-import { st, townAction, useHost } from '../state/host';
+import { DISGUISED, heldRole, st, townAction, useHost } from '../state/host';
 import { useUI } from '../state/ui';
 import { useJoin } from '../components/town/JoinFlow';
 import { ViewContext, type View } from '../state/view';
@@ -56,8 +56,10 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
       name: s.label,
       look: s.look,
       dead: s.dead,
-      // Characters float over heads for the Storyteller, and for everyone once the grimoire is revealed.
-      roleId: mode === 'st' || view.grimoireRevealed ? s.roleId : null,
+      // Characters float over heads for the Storyteller (the Drunk's Townsfolk, with "(Drunk)"), and for everyone
+      // once the grimoire is revealed.
+      roleId: view.grimoireRevealed ? s.roleId : mode === 'st' ? heldRole(s) : null,
+      really: !view.grimoireRevealed && mode === 'st' && s.roleId && DISGUISED[s.roleId] && s.shownRoleId ? s.roleId : null,
       evil: s.alignment === 'evil',
       star: s.star,
     })),

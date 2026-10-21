@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { clamp } from '../lib/util';
 import { useNotes } from '../state/notes';
-import { st } from '../state/host';
+import { disguise, DISGUISED, heldRole, st } from '../state/host';
 import { ui, useUI } from '../state/ui';
 import { useView, type SeatView } from '../state/view';
 import { player } from '../net/client';
@@ -186,6 +186,15 @@ function SeatSpot({ seat, geo, i }: { seat: SeatView; geo: Geometry; i: number }
   const rs = Math.max(30, t * 0.5);
 
   const blank = seat.isMe || seat.claimed ? 'unknown' : 'empty';
+  // The Drunk's seat shows the Townsfolk token they hold, with an "Is the Drunk" reminder first in its row.
+  const secret = st_ ? disguise(seat) : null;
+  const shift = secret ? 1 : 0;
+  const at = (j: number) =>
+    ({
+      left: ux * (t * 0.5 + rs * 0.62 + j * rs * 0.9) + (j % 2 ? -uy : uy) * rs * 0.18,
+      top: uy * (t * 0.5 + rs * 0.62 + j * rs * 0.9) + (j % 2 ? ux : -ux) * rs * 0.18,
+      '--size': `${rs}px`,
+    }) as React.CSSProperties;
 
   return (
     <div
@@ -211,33 +220,33 @@ function SeatSpot({ seat, geo, i }: { seat: SeatView; geo: Geometry; i: number }
         .join(' ')}
       style={{ left: pt.x, top: pt.y, '--t': `${t}px`, zIndex: menuSeat === seat.id ? 30 : 10 } as React.CSSProperties}
     >
+      {secret && seat.roleId && (
+        <button
+          className="seat-reminder is-disguise"
+          style={at(0)}
+          title={`${seat.label} holds this token, but ${secret.replace(/^Is/, 'is')}. Click to change which character they think they are.`}
+          onClick={() => ui.open({ kind: 'character', seatId: seat.id, purpose: 'shown' })}
+        >
+          <ReminderToken roleId={seat.roleId} text={secret} />
+        </button>
+      )}
       {st_ &&
         seat.reminders.map((r, j) => (
-          <button
-            key={r.id}
-            className="seat-reminder"
-            style={{
-              left: ux * (t * 0.5 + rs * 0.62 + j * rs * 0.9) + (j % 2 ? -uy : uy) * rs * 0.18,
-              top: uy * (t * 0.5 + rs * 0.62 + j * rs * 0.9) + (j % 2 ? ux : -ux) * rs * 0.18,
-              '--size': `${rs}px`,
-            } as React.CSSProperties}
-            title={`Remove “${r.text}”`}
-            onClick={() => st.removeReminder(seat.id, r.id)}
-          >
+          <button key={r.id} className="seat-reminder" style={at(j + shift)} title={`Remove “${r.text}”`} onClick={() => st.removeReminder(seat.id, r.id)}>
             <ReminderToken roleId={r.roleId} text={r.text} />
           </button>
         ))}
 
       <button className="seat-token" onClick={onClick} aria-label={seat.label}>
         <Token
-          roleId={seat.roleId}
+          roleId={st_ ? heldRole(seat) : seat.roleId}
           alignment={seat.alignment}
           dead={seat.dead}
           deadBadge={view.grimoireRevealed}
           blank={blank}
           className={seat.traveller ? 'is-traveller' : ''}
         />
-        {st_ && seat.shownRoleId && (
+        {st_ && seat.shownRoleId && !(seat.roleId && DISGUISED[seat.roleId]) && (
           <span className="seat-shown" title="What this player believes they are">
             <Token roleId={seat.shownRoleId} label={false} />
           </span>

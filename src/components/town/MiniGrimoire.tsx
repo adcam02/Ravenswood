@@ -1,3 +1,4 @@
+import { disguise, heldRole } from '../../state/host';
 import { useUI } from '../../state/ui';
 import { useView } from '../../state/view';
 import { Icon } from '../Icon';
@@ -45,7 +46,12 @@ export function MiniGrimoire() {
                 .join(' ')}
               style={{ left: `calc(50% + ${x}px)`, top: `calc(50% + ${y}px)` }}
             >
-              <Token roleId={hide ? null : s.roleId} alignment={s.alignment} dead={s.dead} deadBadge={false} blank={s.claimed ? 'unknown' : 'empty'} label={false} />
+              <Token roleId={hide ? null : heldRole(s)} alignment={s.alignment} dead={s.dead} deadBadge={false} blank={s.claimed ? 'unknown' : 'empty'} label={false} />
+              {!hide && disguise(s) && (
+                <b className="mini-secret" title={disguise(s)!}>
+                  <Token roleId={s.roleId} label={false} />
+                </b>
+              )}
               <em>{s.label}</em>
               {s.awake && <b className="mini-eye">👁</b>}
               {voted && <b className="mini-paw">✋</b>}

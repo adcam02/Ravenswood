@@ -812,8 +812,19 @@
   box-shadow: 0 0 20px rgba(240, 212, 143, 0.15);
 }
 .deal-token {
+  position: relative;
   border-radius: 50%;
   transition: transform 0.2s var(--ease-out);
+}
+/* The Drunk's reminder, tucked on the Townsfolk token they hold. */
+.deal-secret {
+  position: absolute;
+  right: -10px;
+  bottom: -6px;
+  pointer-events: none;
+}
+.deal-secret .reminder {
+  --size: 34px;
 }
 .deal-token .token {
   --size: 64px;

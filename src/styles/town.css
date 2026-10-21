@@ -1225,6 +1225,16 @@
   right: auto;
   left: 0;
 }
+.mini-secret {
+  position: absolute;
+  top: 12px;
+  left: 1px;
+  font-style: normal;
+}
+/* The Drunk's real character, small, on the corner of the Townsfolk token they hold. */
+.mini-seat .mini-secret .token {
+  --size: 15px;
+}
 .mini-star {
   position: absolute;
   bottom: 14px;

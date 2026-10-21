@@ -156,7 +156,11 @@ export function seatsWithRole(g: GameState, roleId: string): { seat: Seat; belie
 /** The grimoire as the Spy would see it, taken now. */
 export function grimoireSnapshot(g: GameState): GrimoireSnapshot {
   return {
-    seats: g.seats.map((s, i) => ({ id: s.id, name: s.name || `Seat ${i + 1}`, roleId: s.roleId, dead: s.dead, reminders: s.reminders.map((r) => r.text) })),
+    // Laid out as on the table: the Drunk's Townsfolk token, with its Drunk reminder.
+    seats: g.seats.map((s, i) => {
+      const marked = disguise(s);
+      return { id: s.id, name: s.name || `Seat ${i + 1}`, roleId: heldRole(s), dead: s.dead, reminders: [...(marked ? [marked] : []), ...s.reminders.map((r) => r.text)] };
+    }),
     bluffs: g.bluffs.filter(Boolean) as string[],
   };
 }
@@ -319,6 +323,21 @@ function suggestShown(g: GameState, seat: Seat): string | null {
 }
 
 export const NEEDS_SHOWN = new Set(['drunk', 'lunatic', 'marionette']);
+
+/**
+ * Characters whose player holds another character's token instead, as at a real table: the Drunk's player gets a
+ * Townsfolk token from the bag. The grimoire shows the token they hold, with this reminder of what they really are.
+ * (Not the Lunatic: the Demon they think they are is in play, so that would show the Demon twice.)
+ */
+export const DISGUISED: Record<string, string> = { drunk: 'Is the Drunk', marionette: 'Is the Marionette' };
+
+/** The token on a seat as the Storyteller lays out the grimoire: the one its player holds. */
+export const heldRole = (s: { roleId: string | null; shownRoleId?: string | null }): string | null =>
+  s.roleId && DISGUISED[s.roleId] && s.shownRoleId ? s.shownRoleId : s.roleId;
+
+/** The reminder that goes with a disguised character's token, if the seat has one. */
+export const disguise = (s: { roleId: string | null; shownRoleId?: string | null }): string | null =>
+  s.roleId && DISGUISED[s.roleId] && s.shownRoleId ? DISGUISED[s.roleId] : null;
 
 // ---------------------------------------------------------------- the store
 

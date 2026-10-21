@@ -12,12 +12,12 @@ import {
   type Team,
 } from '../data';
 import { shuffle } from '../lib/util';
-import { isTraveller, NEEDS_SHOWN, st, useHost } from '../state/host';
+import { disguise, DISGUISED, heldRole, isTraveller, NEEDS_SHOWN, st, useHost } from '../state/host';
 import { ui } from '../state/ui';
 import { CharacterGrid } from './CharacterGrid';
 import { Icon } from './Icon';
 import { Modal } from './Modal';
-import { Token } from './Token';
+import { ReminderToken, Token } from './Token';
 
 type Step = 'fill' | 'deal';
 
@@ -69,6 +69,7 @@ function Fill() {
   const counts: Record<string, number> = {};
   for (const id of g.bag) counts[id] = (counts[id] ?? 0) + 1;
   const notes = [...new Set(g.bag)].map((id) => getRole(id)).filter((r) => r && setupNote(r));
+  const disguised = [...new Set(g.bag)].filter((id) => DISGUISED[id]).map((id) => getRole(id)!);
   const byTeam = rolesByTeam(g.script.roles);
 
   const toggle = (id: string) => {
@@ -122,11 +123,17 @@ function Fill() {
           </button>
         </div>
       </div>
-      {notes.length > 0 && (
+      {notes.length + disguised.length > 0 && (
         <div className="setup-notes">
           {notes.map((r) => (
             <span key={r!.id} className="setup-note">
               <Token roleId={r!.id} label={false} /> <b>{r!.name}</b> {setupNote(r!)}
+            </span>
+          ))}
+          {disguised.map((r) => (
+            <span key={r.id} className="setup-note">
+              <Token roleId={r.id} label={false} /> <b>{r.name}</b> goes out as a Townsfolk: whoever gets it is shown one that isn’t in play, and
+              your grimoire shows that token with an “{DISGUISED[r.id]}” reminder.
             </span>
           ))}
         </div>
@@ -251,16 +258,30 @@ function Deal() {
           const role = getRole(s.roleId);
           const needsShown = s.roleId && NEEDS_SHOWN.has(s.roleId);
           const shown = getRole(s.shownRoleId);
+          // The Drunk's player holds a Townsfolk token: shown as that, with the Drunk reminder on it.
+          const secret = disguise(s);
+          const disguisedSeat = Boolean(s.roleId && DISGUISED[s.roleId]);
           return (
             <div key={s.id} className={`deal-seat ${selected === s.id ? 'on' : ''} ${!role ? 'empty' : ''}`}>
               <button className="deal-token" onClick={() => clickSeat(s.id)} aria-label={`Seat ${i + 1}`}>
-                <Token roleId={s.roleId} blank="empty" />
+                <Token roleId={heldRole(s)} blank="empty" />
+                {secret && (
+                  <span className="deal-secret">
+                    <ReminderToken roleId={s.roleId!} text={secret} />
+                  </span>
+                )}
               </button>
               <div className="deal-who">
                 <strong>{s.name || `Seat ${i + 1}`}</strong>
-                <span>{role ? role.name : 'No character'}</span>
+                <span>{!role ? 'No character' : disguisedSeat ? (shown ? `${shown.name}, secretly the ${role.name}` : `The ${role.name}: choose their Townsfolk`) : role.name}</span>
               </div>
-              {needsShown && (
+              {needsShown && disguisedSeat && (
+                <button className={`deal-shown ${showFor === s.id ? 'open' : ''}`} onClick={() => setShowFor(showFor === s.id ? null : s.id)} title="Which character they're shown, and think they are">
+                  <span>their token</span>
+                  <em>{shown ? 'Change' : 'Choose'}</em>
+                </button>
+              )}
+              {needsShown && !disguisedSeat && (
                 <button className={`deal-shown ${showFor === s.id ? 'open' : ''}`} onClick={() => setShowFor(showFor === s.id ? null : s.id)}>
                   <span>thinks they are</span>
                   <Token roleId={s.shownRoleId} blank="empty" label={false} />
