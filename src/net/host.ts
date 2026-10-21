@@ -13,7 +13,7 @@ import { fromPose, toPose, type Item, type Pose } from '../world/types';
 import { joinMesh, type Mesh } from './mesh';
 import { newWorldLink, worldUpdate, type WorldLink } from './world';
 import { useUpdate } from '../lib/version';
-import { hostPeerId, linkAlive, peerDisabled, peerOptions, type LinkStatus } from './peer';
+import { hostPeerId, linkAlive, peerDisabled, peerOptions, routeOf, type LinkStatus, type Route } from './peer';
 
 interface HostNet {
   status: LinkStatus;
@@ -40,6 +40,16 @@ interface Link {
   alive?: () => boolean;
   /** Bytes queued and not yet sent. */
   backlog?: () => number;
+  /** How the connection is going underneath (PeerJS only). */
+  route?: () => Promise<Route | null>;
+}
+
+/** One player's line to the Storyteller, for the list in Settings. */
+export interface PlayerLine {
+  playerId: string;
+  route: Route['route'] | 'backup';
+  ms: number | null;
+  via?: string;
 }
 
 interface LinkMeta {
@@ -47,6 +57,8 @@ interface LinkMeta {
   lastSeen: number;
   /** Problems this page has reported. */
   oops?: number;
+  /** Their latest round trip to us as they measure it (milliseconds). */
+  rtt?: number;
   sentPublic?: string;
   sentPrivate?: string;
   /** What this player has been told about where everyone is. */
@@ -212,6 +224,7 @@ class HostLink {
       isOpen: () => conn.open,
       alive: () => linkAlive(conn),
       backlog: () => conn.dataChannel?.bufferedAmount ?? 0,
+      route: () => routeOf(conn.peerConnection),
     };
     this.links.set(link, { playerId: null, lastSeen: Date.now(), world: newWorldLink() });
     conn.on('data', (raw) => this.receive(link, raw as ClientMessage));
@@ -292,7 +305,10 @@ class HostLink {
     meta.lastSeen = Date.now();
     if (msg.t === 'ping') {
       link.send({ t: 'pong', at: typeof msg.at === 'number' ? msg.at : undefined });
-      if (meta.playerId && typeof msg.rtt === 'number' && Number.isFinite(msg.rtt)) this.noteSpeed(meta.playerId, msg.rtt);
+      if (meta.playerId && typeof msg.rtt === 'number' && Number.isFinite(msg.rtt)) {
+        meta.rtt = msg.rtt;
+        this.noteSpeed(meta.playerId, msg.rtt);
+      }
       return;
     }
     if (msg.t === 'hello') {
@@ -473,6 +489,24 @@ class HostLink {
     if (now === null) delete next[playerId];
     else next[playerId] = now;
     useHostNet.setState({ slow: next });
+  }
+
+  /**
+   * Every player's line: direct or through a relay (or the backup route, which has no voice), and the round trip.
+   * The connection's own measure where there is one; otherwise the player's.
+   */
+  async lines(): Promise<PlayerLine[]> {
+    const out: PlayerLine[] = [];
+    for (const [link, meta] of [...this.links]) {
+      if (!meta.playerId || !link.isOpen()) continue;
+      if (link.kind === 'mesh') {
+        out.push({ playerId: meta.playerId, route: 'backup', ms: meta.rtt ?? null });
+        continue;
+      }
+      const r = await link.route?.();
+      out.push({ playerId: meta.playerId, route: r?.route ?? 'direct', ms: r?.ms ?? meta.rtt ?? null, via: r?.via });
+    }
+    return out;
   }
 
   /** For the debug console: how much the world updates have cost so far, in bytes. */

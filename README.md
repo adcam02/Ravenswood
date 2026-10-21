@@ -168,7 +168,9 @@ receives their own character and information.
 Each player's round trip to the Storyteller is measured every couple of seconds. Anyone slower than
 0.8 seconds shows as **slow** on the Storyteller's room chip (hover for who and how slow) and with an
 amber dot by their name in the grimoire, and sees **Slow connection** themselves, with tips. A busy
-computer shows up the same way as a busy line.
+computer shows up the same way as a busy line. The Storyteller's **Game** settings list every player's
+connection live: the network's own round trip (green under 150 ms) and whether they're **direct**,
+through a **relay** (and which), or on the **backup route** (no voice).
 
 If the lobby doesn't work for you, run your own PeerServer and put its address in `docs/config.js`.
 

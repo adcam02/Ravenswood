@@ -42,6 +42,40 @@ export function peerDisabled(): boolean {
 
 export type LinkStatus = 'starting' | 'open' | 'reconnecting' | 'waiting' | 'error';
 
+export interface Route {
+  /** Straight between the two browsers, or through a TURN relay. */
+  route: 'direct' | 'relay';
+  /** The network's own round trip, in milliseconds (what the connection measures, not counting busy pages). */
+  ms: number | null;
+  /** Which relay, when it's ours (the far end's relay doesn't say). */
+  via?: string;
+}
+
+/** How a WebRTC connection is actually going: which way it found to connect, and its round trip. */
+export async function routeOf(pc: RTCPeerConnection | null | undefined): Promise<Route | null> {
+  if (!pc) return null;
+  try {
+    const stats = await pc.getStats();
+    type Stat = { type: string; [k: string]: unknown };
+    let pair: Stat | undefined;
+    stats.forEach((s: Stat) => {
+      if (s.type === 'transport' && typeof s.selectedCandidatePairId === 'string') pair = stats.get(s.selectedCandidatePairId);
+    });
+    // (Firefox doesn't name the pair in use on the transport.)
+    if (!pair) stats.forEach((s: Stat) => void (s.type === 'candidate-pair' && s.nominated && s.state === 'succeeded' && (pair ??= s)));
+    if (!pair) return null;
+    const local = stats.get(pair.localCandidateId as string) as Stat | undefined;
+    const remote = stats.get(pair.remoteCandidateId as string) as Stat | undefined;
+    const ours = local?.candidateType === 'relay';
+    const relayed = ours || remote?.candidateType === 'relay';
+    const host = typeof local?.url === 'string' ? local.url.replace(/^turns?:/, '').split(/[:?]/)[0] : undefined;
+    const rtt = pair.currentRoundTripTime;
+    return { route: relayed ? 'relay' : 'direct', ms: typeof rtt === 'number' ? Math.round(rtt * 1000) : null, via: ours ? host : relayed ? 'their relay' : undefined };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Whether a PeerJS channel's connection itself is still up (its WebRTC link connected and the data channel open),
  * as opposed to merely quiet. A busy page can go quiet for a while; that's no reason to tear down a healthy link.

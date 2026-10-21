@@ -2449,6 +2449,52 @@
 .setting.problems > div {
   min-width: 0;
 }
+/* Each player's line to the Storyteller. */
+.setting.lines > div {
+  flex: 1;
+  min-width: 0;
+}
+.line-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+  max-height: 220px;
+  overflow-y: auto;
+  font-size: 13.5px;
+}
+.line-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 70px minmax(0, 1.4fr);
+  gap: 10px;
+  align-items: baseline;
+}
+.line-list b {
+  font-weight: 400;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.line-ms {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.line-ms.good {
+  color: #6fdc8c;
+}
+.line-ms.fair {
+  color: #f2b84b;
+}
+.line-ms.poor {
+  color: #ff8a8a;
+}
+.line-route {
+  color: var(--text-dim);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
 .problem-list {
   margin: 8px 0 0;
   padding: 0;

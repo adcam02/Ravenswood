@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { go } from '../App';
 import { ALL_ROLES, defaultAlignment, genericIcon, getRole, jinxesFor, nightReminder, TEAM_SINGULAR, rolesOfTeam } from '../data';
 import { player } from '../net/client';
+import { hostLink, type PlayerLine } from '../net/host';
 import { NEEDS_SHOWN, seatName, st, useHost } from '../state/host';
 import { notes, useNotes } from '../state/notes';
 import { ui, useUI } from '../state/ui';
@@ -414,6 +415,7 @@ function StorytellerSettings() {
           </button>
         </div>
         <EndGameSetting />
+        <PlayerLines />
         <PlayerProblems />
         <div className="setting">
           <div>
@@ -444,6 +446,48 @@ function StorytellerSettings() {
         </div>
       </div>
     </Modal>
+  );
+}
+
+/**
+ * Each player's line to the Storyteller, refreshed every couple of seconds while Settings is open: the network's round
+ * trip, and whether they're straight through, through a relay, or on the backup route (which has no voice).
+ */
+function PlayerLines() {
+  const g = useHost((s) => s.g);
+  const [lines, setLines] = useState<PlayerLine[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    const read = () => void hostLink.lines().then((l) => live && setLines(l));
+    read();
+    const t = setInterval(read, 2000);
+    return () => {
+      live = false;
+      clearInterval(t);
+    };
+  }, []);
+  if (!lines?.length) return null;
+  const name = (pid: string) => g.seats.find((s) => s.playerId === pid)?.name || 'Someone joining';
+  const feel = (ms: number | null) => (ms === null ? '' : ms < 150 ? 'good' : ms < 400 ? 'fair' : 'poor');
+  const sorted = [...lines].sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0));
+  return (
+    <div className="setting lines">
+      <div>
+        <strong>Connections</strong>
+        <span>Each player’s round trip to you. Under 150 ms feels instant; a relay adds a little.</span>
+        <ul className="line-list">
+          {sorted.map((l) => (
+            <li key={l.playerId}>
+              <b>{name(l.playerId)}</b>
+              <span className={`line-ms ${feel(l.ms)}`}>{l.ms === null ? '…' : `${l.ms} ms`}</span>
+              <span className="line-route">
+                {l.route === 'backup' ? 'backup route (no voice)' : l.route === 'relay' ? `relay${l.via ? ` (${l.via})` : ''}` : 'direct'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
   );
 }
 
