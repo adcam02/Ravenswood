@@ -15,5 +15,19 @@
 // Leave it as null to use the free shared PeerJS relay, which works but is often busy.
 window.RAVENSWOOD_CONFIG = {
   peer: null,
-  relay: null,
+  // Our own Metered relay (credential created 21 Oct 2026). To change it, make a new credential in the
+  // Metered dashboard (TURN Server, then Credentials) and swap the username and credential below.
+  relay: [
+    { urls: 'stun:stun.relay.metered.ca:80' },
+    {
+      urls: [
+        'turn:global.relay.metered.ca:80',
+        'turn:global.relay.metered.ca:80?transport=tcp',
+        'turn:global.relay.metered.ca:443',
+        'turns:global.relay.metered.ca:443?transport=tcp',
+      ],
+      username: '66e3ca55209153d9669e0112',
+      credential: 'fRCUesiC+CzFi/xK',
+    },
+  ],
 };
