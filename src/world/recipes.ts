@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Vec3 } from './build';
 import { all, any, armForms, beakForm, earForms, earMarks, finForm, headForm, legForms, membraneWings, region, sculptOf, snoutForm, sock as sockOf, tailForm, tentacleForms, torso, unitOf, useSurface, wingForms } from './forms';
 import { curve, pillar, solid } from './paper';
-import { ellipsoid, rod, spiral, type Probe } from './sculpt';
+import { ellipsoid, pyramid, rod, spiral, type Probe } from './sculpt';
 import {
   CHARCOAL,
   CREAM,
@@ -480,8 +480,8 @@ const shark: Recipe = (k, c) => {
     marks: [
       // Three short gill slits low on each side of the neck, just under the head.
       {
-        color: dark,
-        f: all(region(k, 'head', 'chest', 'belly'), (q) => 0.175 - Math.abs(q.p.x), (q) => Math.abs(q.p.y - 0.465) - 0.042, (q) => Math.min(...[0.0, 0.05, 0.1].map((z) => Math.abs(q.p.z - z))) - 0.017),
+        color: mix(c.coat, CHARCOAL, 0.7),
+        f: all(region(k, 'head', 'chest', 'belly'), (q) => 0.17 - Math.abs(q.p.x), (q) => Math.abs(q.p.y - 0.48) - 0.045, (q) => Math.min(...[-0.04, 0.03, 0.1].map((z) => Math.abs(q.p.z - z))) - 0.022),
       },
       // A white underside from the snout back along the jaw and down the tummy, under a sweeping line.
       { color: white, f: all(region(k, 'muzzle'), (q) => q.p.y - (snout.mid(q.p) - snout.r * 0.15)) },
@@ -677,7 +677,7 @@ const bat: Recipe = (k, c) => {
   headForm(k, { r: [0.22, 0.2, 0.2], at: [0, 0.15, 0.03], cheeks: [[0.1, -0.08, 0.03], [0.08, 0.07, 0.08]] });
   const snout = snoutForm(k, { dy: -0.3, len: 0.04, ra: 0.075, rb: 0.06, drop: 0.0, squash: [1.1, 0.85, 1] });
   earForms(k, { x: 0.5, y: 0.62, w: 0.095, h: 0.22, d: 0.035, splay: 0.42, rake: 0.05, cup: 0.5, notch: true });
-  membraneWings(k, { len: 0.46, span: 0.3, d: 0.022, fingers: [0.4, 0.66, 0.9] });
+  membraneWings(k, { len: 0.46, span: 0.3, d: 0.022, fingers: [0.4, 0.66, 0.9], elbow: 0.34 });
   legForms(k, { r0: 0.032, r1: 0.026, foot: [0.035, 0.02, 0.05] });
   useSurface(k);
   eyes(k, { x: 0.36, y: 0.08, size: 1.1, wide: 1, slant: 0.05, color: '#140c10' });
@@ -688,7 +688,7 @@ const bat: Recipe = (k, c) => {
     base: c.coat,
     marks: [
       { color: pink, f: any(...ears.map((e) => e.inner)) },
-      { color: membrane, f: region(k, 'armLWeb', 'armRWeb', 'armLPaw', 'armRPaw') },
+      { color: membrane, f: region(k, 'armLWeb', 'armRWeb', 'armLHand', 'armRHand') },
       { color: belly, f: region(k, 'muzzle') },
       { color: belly, f: frontOval(k, ['belly', 'chest'], 0, 0.36, 0.11, 0.15) },
     ],
@@ -745,6 +745,487 @@ const frog: Recipe = (k, c) => {
   return { aquatic: true };
 };
 
+const plus = (a: Vec3, b: Vec3): Vec3 => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
+
+/** Evenly spread directions over a sphere (a Fibonacci spiral), for scattering spines. */
+function fibonacci(n: number): THREE.Vector3[] {
+  return Array.from({ length: n }, (_, i) => {
+    const y = 1 - (2 * (i + 0.5)) / n;
+    const r = Math.sqrt(1 - y * y);
+    const a = i * Math.PI * (3 - Math.sqrt(5));
+    return new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r);
+  });
+}
+
+/** A chain of tapering rods through some points (horns, antlers, gill stalks), each melted into the last. */
+function chain(k: Kit, bone: string, pts: Vec3[], radii: number[], name: string, melt = 0.03) {
+  const sc = sculptOf(k);
+  for (let i = 0; i + 1 < pts.length; i++) {
+    sc.add(rod(bone, pts[i], pts[i + 1], radii[i], radii[i + 1], { k: i === 0 ? melt : 0.02, anchor: pts[0], reach: 0.08, name: `${name}${i}`, thin: true }));
+  }
+}
+
+const raven: Recipe = (k, c) => {
+  const beak = mix(c.coat, '#3c3c44', 0.6);
+  const sheen = mix(c.coat, '#4c5c9c', 0.32);
+  const leg = mix(c.coat, '#45454c', 0.6);
+  // Sleek and glossy, leaning forward: a smooth pear of a body, a round head with a big heavy beak, wings
+  // folded down its sides and a long wedge of a tail.
+  k.joints.neck = [0, 0.58, 0.06];
+  k.joints.shoulder = [0.17, 0.48, 0];
+  k.joints.hip = [0.07, 0.15, 0];
+  k.joints.tail = [0, 0.22, -0.18];
+  torso(k, {
+    belly: [
+      [0, 0.32, -0.02],
+      [0.19, 0.25, 0.2],
+    ],
+    chest: [
+      [0, 0.48, 0.04],
+      [0.17, 0.14, 0.17],
+    ],
+    melt: 0.18,
+  });
+  headForm(k, { r: [0.18, 0.17, 0.18], at: [0, 0.13, 0.04], melt: 0.12 });
+  const beakTip = beakForm(k, { dy: -0.04, len: 0.17, w: 0.05, h: 0.047, drop: 0.32 });
+  wingForms(k, { len: 0.38, w: 0.12, d: 0.035, fwd: -0.08, out: 0.12 });
+  legForms(k, { r0: 0.034, r1: 0.028, foot: [0.042, 0.022, 0.08], fwd: 0.05 });
+  finForm(k, 'tail', k.joints.tail, { len: 0.2, w: 0.1, d: 0.036, rot: [-(Math.PI / 2 + 0.45), 0, 0], name: 'tailFan' });
+  useSurface(k);
+  // Dark eyes, ringed with grey so they read against the black.
+  eyes(k, { x: 0.42, y: 0.14, size: 0.85, wide: 1, slant: 0.1, color: '#0c0a10', ring: mix(c.coat, '#9a9aaa', 0.55), ringSize: 1.35 });
+  k.nose = beakTip;
+  k.marks = {
+    base: c.coat,
+    marks: [
+      { color: beak, f: region(k, 'beak') },
+      { color: leg, f: region(k, /^leg/) },
+      // A blue-black sheen over the wings and tail.
+      { color: sheen, f: region(k, 'armL', 'armR', 'foreL', 'foreR', 'armLPaw', 'armRPaw', 'tailFan') },
+    ],
+  };
+  return {};
+};
+
+const squid: Recipe = (k, c) => {
+  const light = mix(c.coat, '#ffffff', 0.45);
+  const deep = mix(c.coat, '#5a2a4a', 0.38);
+  // A fish turned on end: a tall pointed mantle standing up out of the back of a round head with big eyes,
+  // a fin each side at the top, and a skirt of short arms underneath (two long ones to hold things).
+  k.joints.neck = [0, 0.36, 0.02];
+  k.joints.shoulder = [0.13, 0.33, 0.1];
+  k.joints.hip = [0.1, 0.18, -0.02];
+  k.joints.tail = [0, 0.3, -0.15];
+  torso(k, {
+    belly: [
+      [0, 0.25, 0],
+      [0.17, 0.11, 0.16],
+    ],
+    chest: [
+      [0, 0.33, 0.02],
+      [0.16, 0.08, 0.15],
+    ],
+  });
+  headForm(k, { r: [0.21, 0.17, 0.19], at: [0, 0.1, 0.03], melt: 0.1 });
+  const sc = sculptOf(k);
+  const n = k.joints.neck;
+  // The mantle, on the neck so it moves with the head: an egg rising out of the back of the head to a point.
+  sc.add(ellipsoid('neck', [0, n[1] + 0.31, n[2] - 0.05], [0.145, 0.27, 0.135], { k: 0.08, name: 'mantle' }));
+  sc.add(rod('neck', [0, n[1] + 0.45, n[2] - 0.05], [0, n[1] + 0.68, n[2] - 0.06], 0.105, 0.025, { k: 0.06, name: 'mantleTip' }));
+  // Fins either side of the point, together an arrowhead.
+  finForm(k, 'neck', [0.07, n[1] + 0.5, n[2] - 0.05], { len: 0.14, w: 0.08, d: 0.034, rot: [0, 0, -0.8], name: 'finL', melt: 0.04 });
+  finForm(k, 'neck', [-0.07, n[1] + 0.5, n[2] - 0.05], { len: 0.14, w: 0.08, d: 0.034, rot: [0, 0, 0.8], name: 'finR', melt: 0.04 });
+  armForms(k, { len: 0.2, r0: 0.045, r1: 0.034, paw: [0.036, 0.03, 0.045], fwd: 0.75, out: 0.3 });
+  tentacleForms(k, { count: 3, len: 0.24, r0: 0.042, r1: 0.03, root: [0.08, 0.15, -0.01], rim: 0.08, spread: 2.3, hang: 0.7, curl: 0.06, melt: 0.09 });
+  useSurface(k);
+  eyes(k, { x: 0.5, y: 0.02, size: 1.35, wide: 1, slant: 0, color: '#141018', ring: light, ringSize: 1.4 });
+  mouth(k, { w: 0.12, y: -0.42, curve: 0.06, r: 0.006 });
+  k.marks = {
+    base: c.coat,
+    marks: [
+      // Darker fins and point, and a darker band round the mantle.
+      { color: deep, f: region(k, 'finL', 'finR', 'mantleTip') },
+      { color: deep, f: all(region(k, 'mantle'), (q) => Math.abs(q.p.y - (n[1] + 0.36)) - 0.035) },
+      // Paler undersides to the arms.
+      { color: light, f: all(region(k, /^leg/, /^fore/, 'armLPaw', 'armRPaw'), (q) => q.p.y - 0.05) },
+    ],
+  };
+  return { aquatic: true, legs: 'tentacles' };
+};
+
+const hedgehog: Recipe = (k, c) => {
+  const face = mix(c.coat, CREAM, 0.72);
+  const spine = mix(c.coat, '#33241a', 0.4);
+  const tip = mix(c.coat, CREAM, 0.7);
+  // A round little ball: a pale face with a pointed snout poking out of a coat of spines over its back and
+  // the top of its head, small round ears, tiny paws and feet.
+  k.joints.neck = [0, 0.44, 0.07];
+  k.joints.shoulder = [0.14, 0.34, 0.13];
+  k.joints.hip = [0.1, 0.13, -0.02];
+  k.joints.tail = [0, 0.15, -0.2];
+  const bellyC: Vec3 = [0, 0.26, -0.03];
+  const bellyR: Vec3 = [0.23, 0.22, 0.22];
+  torso(k, {
+    belly: [bellyC, bellyR],
+    chest: [
+      [0, 0.37, 0.05],
+      [0.17, 0.12, 0.16],
+    ],
+    melt: 0.18,
+  });
+  const headAt: Vec3 = [0, 0.1, 0.07];
+  const headR: Vec3 = [0.17, 0.15, 0.16];
+  headForm(k, { r: headR, at: headAt, melt: 0.12 });
+  const snout = snoutForm(k, { dy: -0.22, len: 0.1, ra: 0.065, rb: 0.03, drop: 0.03, squash: [1, 0.9, 1], thin: true });
+  earForms(k, { x: 0.62, y: 0.42, w: 0.05, h: 0.06, d: 0.03, round: true, splay: 0.3, rake: 0.1, cup: 0.5 });
+  armForms(k, { len: 0.13, r0: 0.04, r1: 0.035, paw: [0.036, 0.026, 0.042], fwd: 0.7, out: 0.2 });
+  legForms(k, { r0: 0.046, r1: 0.04, foot: [0.046, 0.026, 0.07], fwd: 0.04 });
+  // Spines: chunky cones standing out all over the back and over the crown, lying back a little.
+  const sc = sculptOf(k);
+  const spines: number[] = [];
+  const up = new THREE.Vector3(0, 1, 0);
+  const coat = (bone: string, c0: Vec3, r: Vec3, n: number, keep: (d: THREE.Vector3) => boolean) => {
+    for (const d of fibonacci(n)) {
+      if (!keep(d)) continue;
+      const p = new THREE.Vector3(c0[0] + r[0] * d.x, c0[1] + r[1] * d.y, c0[2] + r[2] * d.z);
+      const nrm = new THREE.Vector3(d.x / r[0], d.y / r[1], d.z / r[2]).normalize().add(new THREE.Vector3(0, 0.1, -0.45)).normalize();
+      const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().setFromUnitVectors(up, nrm));
+      spines.push(sc.shapes.length);
+      sc.add(pyramid(bone, v3(p.addScaledVector(nrm, -0.045)), 0.055, 0.12, 0.055, { rot: [e.x, e.y, e.z], k: 0.012, round: 0.02, name: `spine${spines.length}`, thin: true }));
+    }
+  };
+  coat('body', bellyC, bellyR, 44, (d) => d.z < 0.3 && d.y > -0.3);
+  const hc = plus(k.joints.neck, headAt);
+  coat('neck', hc, headR, 26, (d) => d.z < -0.05 + d.y * 0.4 && d.y > -0.2);
+  useSurface(k);
+  eyes(k, { x: 0.4, y: 0.06, size: 0.85, wide: 1, slant: 0.05, color: '#140e0c' });
+  nose(k, INK, onSnout(k, snout.nose), 0.024, 0.018);
+  const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
+  // How far up its own spine a point is (0 at the root, 1 at the point).
+  const spineT = (q: Probe) => {
+    let best = -1;
+    let bd = Infinity;
+    for (const i of spines) {
+      const d = q.dist(i);
+      if (d < bd) {
+        bd = d;
+        best = i;
+      }
+    }
+    return sc.shapes[best].unit!(q.p).y;
+  };
+  const prickly = region(k, /^spine/);
+  k.marks = {
+    base: c.coat,
+    marks: [
+      { color: mix(c.coat, '#e8a0a0', 0.6), f: any(...ears.map((e) => e.inner)) },
+      // Pale points to the spines, dark below.
+      { color: tip, f: all(prickly, (q) => 0.62 - spineT(q)) },
+      { color: spine, f: prickly },
+      // A pale face, front and paws; the rest under the spines brown.
+      { color: face, f: region(k, 'muzzle', 'earL', 'earR') },
+      { color: face, f: all(region(k, 'head'), (q) => -q.p.z + hc[2] - 0.02) },
+      { color: face, f: frontOval(k, ['belly', 'chest'], 0, 0.27, 0.16, 0.2) },
+      { color: face, f: region(k, /^arm/, /^fore/, /^leg/) },
+    ],
+  };
+  return {};
+};
+
+const axolotl: Recipe = (k, c) => {
+  const gill = mix(c.coat, '#c0306a', 0.55);
+  const pale = mix(c.coat, '#ffffff', 0.4);
+  // A soft newt standing up: a wide flat head with a wide smile, three gill stalks fanning out each side,
+  // little hands and feet, and a long flat tail with a fin along the top.
+  k.joints.neck = [0, 0.5, 0.06];
+  k.joints.shoulder = [0.15, 0.4, 0.1];
+  k.joints.hip = [0.1, 0.15, -0.04];
+  k.joints.tail = [0, 0.2, -0.18];
+  torso(k, {
+    belly: [
+      [0, 0.28, -0.02],
+      [0.19, 0.22, 0.18],
+    ],
+    chest: [
+      [0, 0.42, 0.04],
+      [0.16, 0.12, 0.15],
+    ],
+  });
+  const headAt: Vec3 = [0, 0.1, 0.05];
+  headForm(k, { r: [0.25, 0.155, 0.2], at: headAt, melt: 0.12 });
+  const hc = plus(k.joints.neck, headAt);
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 3; i++) {
+      const a = 0.35 + i * 0.5;
+      const base: Vec3 = [side * 0.2, hc[1] - 0.03 + i * 0.045, hc[2] - 0.06];
+      const mid: Vec3 = [side * (0.2 + Math.cos(a) * 0.08), base[1] + Math.sin(a) * 0.08, base[2] - 0.035];
+      const tipP: Vec3 = [side * (0.2 + Math.cos(a + 0.25) * 0.15), base[1] + Math.sin(a + 0.25) * 0.15, base[2] - 0.06];
+      chain(k, 'neck', [base, mid, tipP], [0.032, 0.03, 0.028], `gill${side > 0 ? 'L' : 'R'}${i}_`);
+    }
+  }
+  armForms(k, { len: 0.17, r0: 0.04, r1: 0.033, paw: [0.042, 0.02, 0.045], fwd: 0.5, out: 0.3 });
+  legForms(k, { r0: 0.05, r1: 0.042, foot: [0.05, 0.022, 0.07] });
+  const tp = tailPath(0.46, [0, -0.35, -1], [0.25, 0.2, 0], 0.085, [1, 0.85, 0.7, 0.5, 0.3]);
+  const tailAt = tailForm(k, tp);
+  const midT = tp.pts[Math.round(tp.pts.length * 0.55)];
+  finForm(k, 'tail1', plus(k.joints.tail, midT), { len: 0.07, w: 0.04, d: 0.12, rot: [0.25, 0, 0], name: 'tailFin', melt: 0.04 });
+  useSurface(k);
+  eyes(k, { x: 0.55, y: 0.18, size: 0.7, wide: 1, slant: 0, color: '#141018' });
+  mouth(k, { w: 0.55, y: -0.32, curve: 0.1, r: 0.0065 });
+  k.marks = {
+    base: c.coat,
+    marks: [
+      { color: gill, f: region(k, /^gill/) },
+      { color: pale, f: region(k, 'tailFin') },
+      { color: pale, f: frontOval(k, ['belly', 'chest'], 0, 0.3, 0.14, 0.2) },
+      { color: pale, f: all(region(k, /^tail\d/), (q) => 0.12 - tailAt(q.p) + (q.p.y > 0.2 ? 1 : 0)) },
+    ],
+  };
+  return { aquatic: true };
+};
+
+const gecko: Recipe = (k, c) => {
+  const belly = mix(c.coat, CREAM, 0.6);
+  const band = mix(c.coat, '#5a3424', 0.5);
+  // A little lizard standing up: a big round head with huge eyes and a wide grin, a slim body, wide hands and
+  // feet, and a long fat tail curling out behind, banded across the back.
+  k.joints.neck = [0, 0.5, 0.06];
+  k.joints.shoulder = [0.12, 0.42, 0.08];
+  k.joints.hip = [0.09, 0.16, -0.03];
+  k.joints.tail = [0, 0.19, -0.15];
+  torso(k, {
+    belly: [
+      [0, 0.28, -0.02],
+      [0.16, 0.2, 0.15],
+    ],
+    chest: [
+      [0, 0.42, 0.03],
+      [0.13, 0.11, 0.12],
+    ],
+  });
+  headForm(k, { r: [0.2, 0.15, 0.19], at: [0, 0.12, 0.06], melt: 0.1 });
+  snoutForm(k, { dy: -0.2, len: 0.06, ra: 0.12, rb: 0.085, drop: 0.02, squash: [1.2, 0.62, 1] });
+  armForms(k, { len: 0.2, r0: 0.035, r1: 0.03, paw: [0.052, 0.02, 0.05], fwd: 0.45, out: 0.35 });
+  legForms(k, { r0: 0.045, r1: 0.036, foot: [0.06, 0.02, 0.07] });
+  const tailAt = tailForm(k, tailPath(0.6, [0, -0.45, -1], [0.9, 0.35, 0], 0.08, [1, 0.92, 0.8, 0.62, 0.45, 0.32]));
+  useSurface(k);
+  // Huge eyes up on the sides of the head, gold round the pupils.
+  eyes(k, { x: 0.5, y: 0.3, size: 1.5, wide: 1, slant: 0, color: '#1a1410', ring: '#e2b040', ringSize: 1.3 });
+  mouth(k, { w: 0.6, y: -0.3, curve: 0.1, r: 0.006 });
+  const back = region(k, 'belly', 'chest');
+  k.marks = {
+    base: c.coat,
+    marks: [
+      { color: belly, f: frontOval(k, ['belly', 'chest'], 0, 0.3, 0.12, 0.2) },
+      // Broad bands across the back and round the tail.
+      { color: band, f: all(back, (q) => q.p.z + 0.02, (q) => 0.55 - Math.sin((q.p.y - 0.1) * 26)) },
+      { color: band, f: all(region(k, /^tail\d/), (q) => 0.55 - Math.sin(tailAt(q.p) * Math.PI * 7)) },
+    ],
+  };
+  return {};
+};
+
+const highland: Recipe = (k, c) => {
+  const horn = '#ece0c4';
+  const hornTip = '#4a3e34';
+  const nosePink = mix(c.coat, '#e8b8a8', 0.65);
+  const hoof = mix(c.coat, CHARCOAL, 0.75);
+  const shag = mix(c.coat, '#f6e6c8', 0.25);
+  // A big shaggy cow: a broad body fringed with long hair, a wide head with a pale muzzle, a long fringe
+  // flopping down over its eyes, ears out sideways under long horns that sweep out and up, and a tufted tail.
+  k.joints.neck = [0, 0.6, 0.08];
+  k.joints.shoulder = [0.17, 0.48, 0.13];
+  k.joints.hip = [0.12, 0.2, -0.05];
+  k.joints.tail = [0, 0.32, -0.24];
+  const bellyC: Vec3 = [0, 0.36, -0.04];
+  const bellyR: Vec3 = [0.26, 0.25, 0.25];
+  torso(k, {
+    belly: [bellyC, bellyR],
+    chest: [
+      [0, 0.5, 0.05],
+      [0.21, 0.15, 0.2],
+    ],
+    haunch: [
+      [0.13, 0.22, -0.08],
+      [0.11, 0.13, 0.16],
+    ],
+    melt: 0.2,
+  });
+  const headAt: Vec3 = [0, 0.11, 0.08];
+  const headR: Vec3 = [0.21, 0.17, 0.18];
+  headForm(k, { r: headR, at: headAt, melt: 0.12 });
+  const snout = snoutForm(k, { dy: -0.32, len: 0.07, ra: 0.12, rb: 0.105, drop: 0.03, squash: [1.15, 0.8, 1] });
+  earForms(k, { x: 0.85, y: 0.2, w: 0.065, h: 0.11, d: 0.03, splay: 1.35, rake: 0.1, cup: 0.5, round: true });
+  const sc = sculptOf(k);
+  const hc = plus(k.joints.neck, headAt);
+  // Horns: out sideways from the top of the head, sweeping up to a point.
+  for (const side of [-1, 1]) {
+    const b: Vec3 = [side * 0.13, hc[1] + 0.12, hc[2] - 0.02];
+    const pts: Vec3[] = [b, [side * 0.26, hc[1] + 0.13, hc[2] - 0.01], [side * 0.36, hc[1] + 0.2, hc[2]], [side * 0.39, hc[1] + 0.3, hc[2] + 0.02]];
+    chain(k, 'neck', pts, [0.04, 0.034, 0.026, 0.017], `horn${side > 0 ? 'L' : 'R'}_`, 0.04);
+  }
+  // The fringe: a shaggy lock from the crown, hanging down over the eyes in ragged points.
+  sc.add(ellipsoid('neck', [0, hc[1] + 0.11, hc[2] + 0.07], [0.19, 0.09, 0.13], { k: 0.06, name: 'fringe' }));
+  for (let i = -2; i <= 2; i++) {
+    sc.add(ellipsoid('neck', [i * 0.07, hc[1] + 0.02 - Math.abs(i) * 0.012, hc[2] + 0.16 - Math.abs(i) * 0.025], [0.052, 0.085, 0.048], { k: 0.035, name: 'fringe' }));
+  }
+  // Long hair hanging in locks round the bottom of the body.
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 + 0.3;
+    sc.add(ellipsoid('body', [bellyC[0] + Math.cos(a) * bellyR[0] * 0.82, bellyC[1] - bellyR[1] * 0.55, bellyC[2] + Math.sin(a) * bellyR[2] * 0.82], [0.075, 0.1, 0.075], { k: 0.05, name: 'shag' }));
+  }
+  armForms(k, { len: 0.3, r0: 0.07, r1: 0.06, paw: [0.06, 0.048, 0.065], fwd: 0.3, out: 0.16 });
+  legForms(k, { r0: 0.08, r1: 0.066, foot: [0.066, 0.048, 0.08] });
+  const tailAt = tailForm(k, tailPath(0.3, [0, -0.85, -0.5], [0, 0, 0], 0.035, [1, 0.9, 0.9, 1.5, 1.9]));
+  useSurface(k);
+  // Eyes peeping out from under the fringe.
+  eyes(k, { x: 0.38, y: -0.16, size: 0.8, wide: 1.15, slant: 0.05, color: '#1a1412' });
+  nose(k, mix(nosePink, CHARCOAL, 0.45), onSnout(k, snout.nose), 0.04, 0.022);
+  const hornT = (q: Probe) => hc[1] + 0.25 - q.p.y;
+  k.marks = {
+    base: c.coat,
+    marks: [
+      { color: hornTip, f: all(region(k, /^horn/), hornT) },
+      { color: horn, f: region(k, /^horn/) },
+      { color: nosePink, f: all(region(k, 'muzzle'), (q) => -q.p.z + hc[2] + 0.2) },
+      { color: shag, f: region(k, 'fringe') },
+      { color: hoof, f: all(region(k, /^leg/), (q) => q.p.y - 0.06) },
+      { color: hoof, f: all(region(k, 'armLPaw', 'armRPaw'), (q) => q.p.y - (k.joints.shoulder[1] - 0.36)) },
+      { color: mix(c.coat, CHARCOAL, 0.3), f: all(region(k, /^tail\d/), (q) => 0.75 - tailAt(q.p)) },
+    ],
+  };
+  return {};
+};
+
+const deer: Recipe = (k, c) => {
+  const white = mix(c.coat, CREAM, 0.85);
+  const dark = mix(c.coat, '#2b211d', 0.72);
+  const antler = '#e4d6b8';
+  // Slender and gentle: long legs, a longer neck, big wide ears, a white bob of a tail, a dark nose, pale spots
+  // down its back, and small branching antlers.
+  k.joints.neck = [0, 0.66, 0.07];
+  k.joints.shoulder = [0.11, 0.52, 0.12];
+  k.joints.hip = [0.09, 0.24, -0.06];
+  k.joints.tail = [0, 0.36, -0.2];
+  torso(k, {
+    belly: [
+      [0, 0.39, -0.06],
+      [0.17, 0.2, 0.17],
+    ],
+    chest: [
+      [0, 0.52, 0.04],
+      [0.14, 0.14, 0.13],
+    ],
+    haunch: [
+      [0.1, 0.28, -0.08],
+      [0.09, 0.11, 0.13],
+    ],
+    ruff: [
+      [0, 0.62, 0.06],
+      [0.09, 0.09, 0.09],
+    ],
+    melt: 0.2,
+  });
+  const headAt: Vec3 = [0, 0.15, 0.06];
+  headForm(k, { r: [0.15, 0.145, 0.155], at: headAt });
+  const snout = snoutForm(k, { dy: -0.3, len: 0.11, ra: 0.075, rb: 0.052, drop: 0.045, squash: [1, 0.85, 1], thin: true });
+  earForms(k, { x: 0.8, y: 0.3, w: 0.065, h: 0.17, d: 0.035, splay: 1.05, rake: 0.12, cup: 0.55, long: true });
+  const hc = plus(k.joints.neck, headAt);
+  // Antlers: a beam up and out from the crown with a tine forward off it.
+  for (const side of [-1, 1]) {
+    const b: Vec3 = [side * 0.07, hc[1] + 0.12, hc[2] - 0.02];
+    const m: Vec3 = [side * 0.12, hc[1] + 0.22, hc[2] - 0.04];
+    chain(k, 'neck', [b, m, [side * 0.17, hc[1] + 0.31, hc[2] - 0.07]], [0.027, 0.024, 0.021], `antler${side > 0 ? 'L' : 'R'}_`);
+    chain(k, 'neck', [m, [side * 0.13, hc[1] + 0.28, hc[2] + 0.04]], [0.024, 0.021], `antler${side > 0 ? 'L' : 'R'}T`);
+  }
+  armForms(k, { len: 0.32, r0: 0.045, r1: 0.036, paw: [0.036, 0.032, 0.045], fwd: 0.3, out: 0.12 });
+  legForms(k, { r0: 0.05, r1: 0.036, foot: [0.036, 0.032, 0.05] });
+  const j = k.joints.tail;
+  sculptOf(k).add(ellipsoid('tail', [j[0], j[1] + 0.02, j[2] - 0.03], [0.05, 0.065, 0.04], { k: 0.025, anchor: j, reach: 0.07, name: 'bob' }));
+  useSurface(k);
+  eyes(k, { x: 0.45, y: 0.1, size: 1.1, wide: 1.15, slant: 0.12, color: '#1a1210' });
+  nose(k, INK, onSnout(k, snout.nose), 0.026, 0.02);
+  const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
+  // Pale spots in two rows down each side of the back.
+  const spotsAt: Vec3[] = [];
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 4; i++) {
+      spotsAt.push([side * 0.075, 0.5 - i * 0.055, -0.08 - i * 0.04]);
+      spotsAt.push([side * 0.13, 0.46 - i * 0.055, -0.04 - i * 0.04]);
+    }
+  }
+  const spot = (q: Probe) => Math.min(...spotsAt.map((s) => Math.hypot(q.p.x - s[0], q.p.y - s[1], (q.p.z - s[2]) * 0.6))) - 0.034;
+  k.marks = {
+    base: c.coat,
+    marks: [
+      { color: antler, f: region(k, /^antler/) },
+      { color: white, f: any(...ears.map((e) => e.inner)) },
+      { color: dark, f: any(...ears.map((e) => e.back)) },
+      { color: white, f: all(region(k, 'muzzle'), (q) => q.p.y - (snout.mid(q.p) - snout.r * 0.2)) },
+      { color: white, f: all(region(k, 'chest', 'ruff'), (q) => -q.p.z, (q) => Math.hypot(q.p.x / 0.07, (q.p.y - 0.6) / 0.06) - 1) },
+      { color: white, f: frontOval(k, ['belly'], 0, 0.3, 0.1, 0.12) },
+      { color: white, f: region(k, 'bob') },
+      { color: white, f: all(region(k, 'belly', 'chest', 'haunchL', 'haunchR'), (q) => q.p.z + 0.02, spot) },
+      { color: dark, f: all(region(k, /^leg/), (q) => q.p.y - 0.06) },
+      { color: dark, f: all(region(k, 'armLPaw', 'armRPaw'), (q) => q.p.y - (k.joints.shoulder[1] - 0.37)) },
+    ],
+  };
+  return {};
+};
+
+const sloth: Recipe = (k, c) => {
+  const face = mix(c.coat, CREAM, 0.7);
+  const mask = mix(c.coat, '#33241a', 0.68);
+  const claw = '#ece2c8';
+  // Round and slow: a fuzzy pear of a body, long arms ending in three big pale claws, a pale round face with a
+  // dark stripe back through each eye, and a gentle smile.
+  k.joints.neck = [0, 0.56, 0.05];
+  k.joints.shoulder = [0.17, 0.47, 0.06];
+  k.joints.hip = [0.1, 0.16, -0.03];
+  k.joints.tail = [0, 0.2, -0.18];
+  torso(k, {
+    belly: [
+      [0, 0.32, -0.03],
+      [0.21, 0.23, 0.19],
+    ],
+    chest: [
+      [0, 0.46, 0.03],
+      [0.18, 0.13, 0.16],
+    ],
+    melt: 0.2,
+  });
+  headForm(k, { r: [0.19, 0.17, 0.17], at: [0, 0.12, 0.06], melt: 0.12 });
+  const snout = snoutForm(k, { dy: -0.26, len: 0.04, ra: 0.075, rb: 0.065, drop: 0.01, squash: [1.2, 0.85, 1] });
+  armForms(k, { len: 0.36, r0: 0.05, r1: 0.042, paw: [0.045, 0.035, 0.05], fwd: 0.3, out: 0.32 });
+  // Three long claws curving down from each paw.
+  const sc = sculptOf(k);
+  for (const side of ['L', 'R']) {
+    const paw = sc.named(`arm${side}Paw`)!.c;
+    for (let i = -1; i <= 1; i++) {
+      const a: Vec3 = [paw.x + i * 0.025, paw.y - 0.015, paw.z + 0.025];
+      chain(k, `fore${side}`, [a, [a[0], a[1] - 0.05, a[2] + 0.025], [a[0], a[1] - 0.085, a[2] + 0.005]], [0.018, 0.016, 0.014], `claw${side}${i + 1}_`, 0.02);
+    }
+  }
+  legForms(k, { r0: 0.055, r1: 0.046, foot: [0.05, 0.03, 0.07] });
+  useSurface(k);
+  eyes(k, { x: 0.36, y: 0.08, size: 0.8, wide: 1, slant: 0, color: '#140e0c' });
+  nose(k, mix(c.coat, '#1a1210', 0.85), onSnout(k, snout.nose), 0.03, 0.022);
+  mouth(k, { w: 0.24, y: -0.48, curve: 0.08, r: 0.006 });
+  const head = unitOf(k, 'head');
+  const faceR = region(k, 'head', 'muzzle');
+  k.marks = {
+    base: c.coat,
+    marks: [
+      { color: claw, f: region(k, /^claw/) },
+      // A dark stripe back from each eye, then the pale face round it.
+      { color: mask, f: all(faceR, (q) => 0.16 - Math.abs(head(q).x), (q) => Math.abs(head(q).x) - 0.9, (q) => Math.abs(head(q).y - 0.08 + (Math.abs(head(q).x) - 0.36) * 0.25) - 0.085, (q) => -0.3 - head(q).z) },
+      { color: face, f: all(faceR, (q) => 0.05 - head(q).z) },
+      { color: face, f: region(k, 'muzzle') },
+    ],
+  };
+  return { sleepy: true };
+};
+
 export const RECIPES: Record<AnimalId, Recipe> = {
   raccoon,
   fox,
@@ -754,15 +1235,15 @@ export const RECIPES: Record<AnimalId, Recipe> = {
   bear: plain,
   cat: plain,
   dog: plain,
-  deer: plain,
+  deer,
   owl,
   koala: plain,
-  hedgehog: plain,
+  hedgehog,
   panda: plain,
   penguin,
   otter: plain,
   frog,
-  axolotl: plain,
+  axolotl,
   shark,
   octopus,
   duck,
@@ -770,18 +1251,18 @@ export const RECIPES: Record<AnimalId, Recipe> = {
   capybara: plain,
   redpanda: plain,
   quokka: plain,
-  sloth: plain,
+  sloth,
   seal: plain,
   puffin: plain,
   fennec: plain,
   chinchilla: plain,
-  highland: plain,
-  squid: plain,
+  highland,
+  squid,
   bat,
-  raven: plain,
+  raven,
   wombat: plain,
   jellyfish,
-  gecko: plain,
+  gecko,
 };
 
 /** How each species carries itself. Anything left out is the plain default. */
@@ -808,6 +1289,22 @@ const PROFILES: Partial<Record<AnimalId, Partial<Profile>>> = {
   duck: { lean: 0.04, head: -0.03, gait: 'waddle', cadence: 1.15, stride: 0.6, sit: 'settle', idles: ['flap', 'headTilt', 'wag'], tailSway: 0.2 },
   // Always on the wing: flaps along, scratches an ear, looks about.
   bat: { gait: 'flap', cadence: 1.2, sit: 'settle', idles: ['wingStretch', 'scratch', 'lookAround'], tailSway: 0 },
+  // Glossy and watchful: leans forward, tilts its head at things, stretches a wing.
+  raven: { lean: 0.08, head: -0.03, gait: 'waddle', cadence: 1.1, stride: 0.7, sit: 'settle', idles: ['headTilt', 'lookAround', 'wingStretch'], tailSway: 0.08 },
+  // Ripples along on its arms like the octopus, sways and stretches.
+  squid: { gait: 'scuttle', cadence: 1, sit: 'settle', idles: ['sway', 'chill', 'stretch'], tailSway: 0 },
+  // Snuffles about on quick little steps, nose always going.
+  hedgehog: { lean: 0.04, head: -0.04, paws: 0.1, gait: 'trot', cadence: 1.5, stride: 0.6, sit: 'tuck', idles: ['sniff', 'noseWiggle', 'lookAround'], tailSway: 0 },
+  // Waddles with a swish of its tail, smiling.
+  axolotl: { lean: 0.02, head: -0.02, gait: 'waddle', cadence: 0.9, stride: 0.7, sit: 'settle', idles: ['headTilt', 'tailSwish', 'chill'], tailSway: 0.3 },
+  // Quick and alert, the tail curling.
+  gecko: { lean: 0.05, head: -0.04, gait: 'trot', cadence: 1.3, stride: 0.8, sit: 'tuck', idles: ['lookAround', 'tailCurl', 'headTilt'], tailSway: 0.3 },
+  // Big and unhurried: ambles, swishes its tail.
+  highland: { lean: 0.04, head: -0.02, gait: 'amble', cadence: 0.75, stride: 0.9, sit: 'tuck', idles: ['chill', 'headTilt', 'tailSwish'], tailSway: 0.2 },
+  // Light on its feet, ears always moving.
+  deer: { lean: -0.02, head: -0.06, gait: 'trot', cadence: 1.1, stride: 1, sit: 'tuck', idles: ['earTwitch', 'lookAround', 'headTilt'], tailSway: 0.1 },
+  // Very slow: a dawdling amble, slow blinks and long stretches.
+  sloth: { lean: 0.06, head: -0.04, gait: 'amble', cadence: 0.5, stride: 0.8, sit: 'tuck', idles: ['slowBlink', 'stretch', 'headTilt'], tailSway: 0 },
   // Squat and still, its throat pulsing; hops everywhere.
   frog: { lean: 0.05, head: -0.06, gait: 'hop', cadence: 1, sit: 'settle', idles: ['throat', 'slowBlink', 'hop'], tailSway: 0 },
 };

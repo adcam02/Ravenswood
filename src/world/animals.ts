@@ -848,7 +848,8 @@ class AnimalRig implements Rig {
    * staying clear of the side of the head (a bunny can't get a paw over its ears).
    */
   private raise(P: Pose, side: 'r' | 'both', y: number, extra = 0) {
-    const out = this.besideHead(extra);
+    // (A wing goes up and out wide, so its membrane doesn't sweep across the head.)
+    const out = this.besideHead(extra) + (this.flaps ? 0.22 : 0);
     const sh = this.shoulder;
     const z = this.headC.z;
     const L = this.paw.length() * 1.25;
@@ -870,7 +871,7 @@ class AnimalRig implements Rig {
 
   /** Whether a winged flier has its wings folded: whenever it isn't flying or gesturing with them. */
   private folded(s: RigState): boolean {
-    return s.anim === 'idle' || s.anim === 'sit' || s.anim === 'sleep' || s.anim === 'drink' || s.anim === 'fish';
+    return s.anim === 'idle' || s.anim === 'sit' || s.anim === 'sleep' || s.anim === 'drink' || s.anim === 'fish' || s.anim === 'laugh' || s.anim === 'cry';
   }
 
   /** The pose everything starts from, with the arms hanging the way this animal's do. */
@@ -1519,12 +1520,14 @@ class AnimalRig implements Rig {
       // Wings folded down and round the back like a cloak (the right one still holding whatever is in it),
       // breathing a little.
       const b = sin(t * 1.6) * 0.03;
-      P.alz = FOLD.z + b;
-      P.alx = FOLD.x;
-      P.aly = -FOLD.y;
-      P.el = FOLD.el;
-      P.wl = FOLD.w;
-      P.sl = 1;
+      if (!this.hold?.both) {
+        P.alz = FOLD.z + b;
+        P.alx = FOLD.x;
+        P.aly = -FOLD.y;
+        P.el = FOLD.el;
+        P.wl = FOLD.w;
+        P.sl = 1;
+      }
       if (!this.hold) {
         P.arz = -FOLD.z - b;
         P.arx = FOLD.x;
@@ -1533,6 +1536,12 @@ class AnimalRig implements Rig {
         P.wr = FOLD.w;
         P.sr = 1;
       }
+    }
+    if (this.flaps) {
+      // A wing bent at the elbow (holding something, gesturing) gathers its membrane in, as a bat's does, so
+      // it doesn't bunch up against the body.
+      P.wl = Math.min(P.wl, Math.max(FOLD.w, 1 - P.el * 0.8));
+      P.wr = Math.min(P.wr, Math.max(FOLD.w, 1 - P.er * 0.8));
     }
     if (this.flaps && (s.anim === 'walk' || s.anim === 'run')) {
       // Flying: the wings beat, quicker the faster it goes, and the right wing keeps still enough to hold

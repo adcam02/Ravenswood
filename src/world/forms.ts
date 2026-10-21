@@ -285,13 +285,14 @@ export function wingForms(k: Kit, o: WingOpts) {
  * A bat's wings: thin finger-bone arms held out wide, with a membrane spread below each from the shoulder to
  * the tip. Made (and bound) spread out, which is how they're held while flapping.
  */
-export function membraneWings(k: Kit, o: { len: number; span: number; d: number; fwd?: number; out?: number; fingers?: number[] }) {
+export function membraneWings(k: Kit, o: { len: number; span: number; d: number; fwd?: number; out?: number; fingers?: number[]; elbow?: number }) {
   const sc = sculptOf(k);
   const sh = k.joints.shoulder;
   const fwd = o.fwd ?? 0.15;
   const out = o.out ?? 1.45;
   k.bind ??= {};
-  const elbow = o.len * 0.45;
+  // A short upper arm and a long forearm, as a bat's are.
+  const elbow = o.len * (o.elbow ?? 0.45);
   k.elbow = elbow;
   const tipAt: Vec3 = [0, -o.len * 0.92, 0.02];
   for (const side of [-1, 1]) {
@@ -309,13 +310,15 @@ export function membraneWings(k: Kit, o: { len: number; span: number; d: number;
     const at = (u: number, v: number, z = 0) => local([down * v, -u, z]);
     const e = at(elbow, 0);
     sc.add(rod(name, s, e, 0.032, 0.026, { k: 0.05, anchor: s, reach: 0.12, name }));
-    sc.add(rod(fore, e, at(o.len, 0), 0.026, 0.016, { k: 0.03, anchor: e, reach: 0.06, name: fore, thin: true }));
+    sc.add(rod(fore, e, at(o.len, 0), 0.028, 0.022, { k: 0.03, anchor: e, reach: 0.06, name: fore, thin: true }));
     const webs = [
       { c: [o.span * 0.45, elbow * 0.55], r: [o.span * 0.5, elbow * 0.62] },
       { c: [o.span * 0.4, elbow + (o.len - elbow) * 0.42], r: [o.span * 0.42, (o.len - elbow) * 0.58] },
     ];
     sc.add(ellipsoid(name, at(webs[0].c[1], webs[0].c[0], -0.005), [webs[0].r[0], webs[0].r[1], o.d], { rot, k: 0.04, anchor: s, reach: 0.12, name: `${name}Web`, thin: true }));
-    sc.add(ellipsoid(fore, at(webs[1].c[1], webs[1].c[0], -0.005), [webs[1].r[0], webs[1].r[1], o.d], { rot, k: 0.03, anchor: e, reach: 0.08, name: `${name}Paw`, thin: true }));
+    sc.add(ellipsoid(fore, at(webs[1].c[1], webs[1].c[0], -0.005), [webs[1].r[0], webs[1].r[1], o.d], { rot, k: 0.03, anchor: e, reach: 0.04, name: `${name}Hand`, thin: true }));
+    // The wing's "paw" is its tip, where it takes hold of things.
+    sc.guides.push(ellipsoid(fore, at(o.len * 0.9, 0.02), [0.05, 0.06, 0.04], { rot, name: `${name}Paw` }));
     // Fingers: struts fanning from the wrist out to the trailing edge, standing a little proud of the
     // membrane, which is scalloped between them (round bites out of the edge, leaving a point at each).
     const fingers = (o.fingers ?? []).map((f) => f * o.len).sort((a, b) => a - b);
