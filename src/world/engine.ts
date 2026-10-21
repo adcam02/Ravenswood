@@ -483,6 +483,8 @@ export class Engine {
         if (this.bellTimer) clearTimeout(this.bellTimer);
         this.bellTimer = setTimeout(() => this.goToSquare(), 2500);
       }
+      // The Storyteller who rang it from inside a house comes out to the middle of the ring.
+      if (v.mode === 'st' && this.me && zoneKind(local.zone) === 'house') this.place('town', MEETING_CENTRE.x, MEETING_CENTRE.z, Math.PI, true);
     }
     if (v.weather !== this.weather) {
       this.weather = v.weather;
@@ -636,6 +638,9 @@ export class Engine {
     if (key === this.lastPhaseKey) return;
     const first = !this.lastPhaseKey;
     this.lastPhaseKey = key;
+    // Morning: the Storyteller leaves the last bedside they visited and comes back out with everyone (inside a
+    // house they'd hear nobody).
+    if (this.me && v.mode === 'st' && !first && prev && v.phase === 'day' && zoneKind(local.zone) === 'house') this.goToSquareSpawn(true);
     if (!this.me || v.mode !== 'player') return;
     if (first || !prev) {
       // Joining (or reloading) in the night still means bed.
