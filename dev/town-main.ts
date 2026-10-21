@@ -75,7 +75,7 @@ town.setHomeOwner('Abbey');
 town.setGraves(['Colter', 'Mika']);
 if (q.has('meeting')) town.setMeeting({ n: 8, nominee: 2, nominator: 6, hand: 4, active: true, votes: [0, 4, 6] });
 if (q.has('bell')) town.bellRing();
-if (q.has('gallows')) town.setGallows(num('gallows', 1), 'Steele is executed');
+if (q.has('gallows')) town.setGallows({ open: num('gallows', 1), label: 'Steele is executed', ring: num('ring', 0), rope: num('rope', 0.97), swing: num('swing', 0), puff: num('puff', 0) });
 
 const clock = new THREE.Clock();
 let frames = 0;

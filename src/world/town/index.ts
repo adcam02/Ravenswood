@@ -34,6 +34,29 @@ import { buildOutdoor } from './outdoor';
 import { signBoard, TextSign } from './sign';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 
+/** How the gallows looks at a moment of the hanging. */
+export interface GallowsState {
+  /** The trapdoor: 0 shut, 1 hanging open. */
+  open: number;
+  /** The sign over the gallows ('' for none). */
+  label: string;
+  /** Metres from the beam down to the knot (GALLOWS_ROPE_REST when the noose hangs empty). */
+  rope?: number;
+  /** 0: the empty loop hangs upright; 1: it lies flat, round a neck. */
+  ring?: number;
+  /** The rope's swing from the beam, in radians, side to side. */
+  swing?: number;
+  /** A puff of smoke from the trapdoor, 0 to 1 through it (0 for none). */
+  puff?: number;
+}
+/**
+ * The beam's underside above the platform; the rope's length to the knot when the noose hangs empty; and how
+ * far to the side of the neck the knot sits (beside the ear, as hangmen tie it), so the rope clears the head.
+ */
+export const GALLOWS_BEAM = 2.92;
+export const GALLOWS_ROPE_REST = 0.97;
+export const GALLOWS_KNOT = 0.34;
+
 export interface TownWorld {
   groups: Record<ZoneKind, THREE.Group>;
   colliders: Record<ZoneKind, Collider[]>;
@@ -59,8 +82,8 @@ export interface TownWorld {
   occluders: THREE.Mesh[];
   /** Where the condemned stands, on the trapdoor. */
   gallowsSpot: Spot & { y: number };
-  /** Opens the trapdoor (0 shut, 1 open) and lets out the rope, in metres below the noose. */
-  setGallows(open: number, label: string, rope?: number): void;
+  /** The gallows during a hanging: see GallowsState. */
+  setGallows(s: GallowsState): void;
   follow(x: number, z: number): void;
   update(dt: number, t: number): void;
   bellRing(): void;
@@ -477,10 +500,11 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     const wood = '#5a3d2a';
     const plank = '#7a5236';
     // The platform, with a square hole in the middle, as four slabs.
-    b.add(G.box(), plank, { pos: [0, PLAT_H - 0.06, -0.85], scale: [2.6, 0.12, 0.9] });
-    b.add(G.box(), plank, { pos: [0, PLAT_H - 0.06, 0.85], scale: [2.6, 0.12, 0.9] });
-    b.add(G.box(), plank, { pos: [-0.95, PLAT_H - 0.06, 0], scale: [0.7, 0.12, 0.8] });
-    b.add(G.box(), plank, { pos: [0.95, PLAT_H - 0.06, 0], scale: [0.7, 0.12, 0.8] });
+    // The hole matches the trapdoor (1.2 by 1.1), so the door never overlaps the boards.
+    b.add(G.box(), plank, { pos: [0, PLAT_H - 0.06, -0.925], scale: [2.6, 0.12, 0.75] });
+    b.add(G.box(), plank, { pos: [0, PLAT_H - 0.06, 0.925], scale: [2.6, 0.12, 0.75] });
+    b.add(G.box(), plank, { pos: [-0.95, PLAT_H - 0.06, 0], scale: [0.7, 0.12, 1.1] });
+    b.add(G.box(), plank, { pos: [0.95, PLAT_H - 0.06, 0], scale: [0.7, 0.12, 1.1] });
     // Dark underneath, so the drop looks deep.
     b.add(G.box(), '#120d10', { pos: [0, PLAT_H / 2 - 0.1, 0], scale: [2.5, PLAT_H - 0.2, 2.5] });
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.add(G.box(), wood, { pos: [sx * 1.2, PLAT_H / 2, sz * 1.2], scale: [0.16, PLAT_H, 0.16] });
@@ -489,24 +513,63 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     // Posts and a beam, and a rope with a loop.
     for (const sx of [-1, 1]) b.add(G.box(), wood, { pos: [sx * 1.1, PLAT_H + 1.5, 0], scale: [0.16, 3.0, 0.16] });
     b.add(G.box(), wood, { pos: [0, PLAT_H + 3.0, 0], scale: [2.5, 0.16, 0.16] });
-    b.add(G.cyl(10), '#d8c8a0', { pos: [0, PLAT_H + 2.45, 0], scale: [0.025, 1.0, 0.025] });
-    b.add(G.torus(0.14, 5, 10), '#d8c8a0', { pos: [0, PLAT_H + 1.8, 0], rot: [0, Math.PI / 2, 0], scale: [0.16, 0.16, 0.16] });
+    // A wrap of rope round the beam where the noose hangs from.
+    b.add(G.cyl(10), '#c8b890', { pos: [0, PLAT_H + 3.0, 0], rot: [0, 0, Math.PI / 2], scale: [0.11, 0.14, 0.11] });
     gallows.add(b.mesh(matte()));
   }
   const trap = new THREE.Group();
   trap.position.set(-0.6, PLAT_H, 0);
   {
     const b = new Builder();
-    b.add(G.box(), '#8a5a3a', { pos: [0.6, -0.05, 0], scale: [1.2, 0.1, 1.1] });
-    b.add(G.box(), '#3b3a44', { pos: [0.08, 0.01, 0], scale: [0.1, 0.03, 1.1] });
+    b.add(G.box(), '#8a5a3a', { pos: [0.6, -0.05, 0], scale: [1.18, 0.1, 1.08] });
+    b.add(G.box(), '#3b3a44', { pos: [0.08, 0.01, 0], scale: [0.1, 0.03, 1.08] });
     trap.add(b.mesh(matte()));
   }
   gallows.add(trap);
-  // The rope, let down from the noose when someone hangs from it.
-  const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1, 10), new THREE.MeshLambertMaterial({ color: '#d8c8a0' }));
-  rope.position.set(0, PLAT_H + 1.8, 0);
-  rope.scale.y = 0.001;
-  gallows.add(rope);
+  // The rope and its noose hang from the beam and swing from there; the loop lies flat round a neck.
+  const ropeMat = new THREE.MeshLambertMaterial({ color: '#d8c8a0' });
+  // The rope hangs from the beam beside the trapdoor's middle, so it falls beside the head, not through it.
+  const ropeRig = new THREE.Group();
+  ropeRig.position.set(-GALLOWS_KNOT, PLAT_H + GALLOWS_BEAM, 0);
+  const rope = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 1, 10), ropeMat);
+  const NOOSE_R = 0.15;
+  const noose = new THREE.Mesh(new THREE.TorusGeometry(NOOSE_R, 0.024, 8, 24), ropeMat);
+  const knot = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.16, 10), ropeMat);
+  const tie = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 1, 8), ropeMat);
+  tie.rotation.z = Math.PI / 2;
+  ropeRig.add(rope, noose, knot, tie);
+  gallows.add(ropeRig);
+  // `ring` 0: the empty loop hangs upright under the knot. 1: it lies flat round a neck GALLOWS_KNOT to the side.
+  const placeRope = (len: number, ring: number, swing: number) => {
+    ropeRig.rotation.z = swing;
+    rope.scale.y = Math.max(0.001, len);
+    rope.position.y = -len / 2;
+    knot.position.set(0, -len, 0);
+    noose.position.set(GALLOWS_KNOT * ring, -len - NOOSE_R * (1 - ring), 0);
+    noose.rotation.set((Math.PI / 2) * ring, (Math.PI / 2) * (1 - ring), 0);
+    const reach = Math.max(0.001, (GALLOWS_KNOT - NOOSE_R) * ring);
+    tie.scale.y = reach;
+    tie.position.set(reach / 2, -len, 0);
+    tie.visible = ring > 0.02;
+  };
+  placeRope(GALLOWS_ROPE_REST, 0, 0);
+  // A puff of smoke from the trapdoor when it's over.
+  // Soft faceted clouds, lit but glowing a little so they read as white smoke, not grey balls.
+  const puffMatG = new THREE.MeshLambertMaterial({ color: '#f6f2fa', emissive: '#9a94a6', flatShading: true, transparent: true, opacity: 0, depthWrite: false });
+  const gallowsPuff = new THREE.Group();
+  gallowsPuff.position.set(0, PLAT_H + 0.05, 0);
+  const puffDirs: THREE.Vector3[] = [];
+  const PUFF_N = 16;
+  for (let i = 0; i < PUFF_N; i++) {
+    const a = (i / PUFF_N) * Math.PI * 2 + (i % 3) * 0.4;
+    const out = i < 6 ? 0.25 : 0.6 + (i % 3) * 0.18;
+    puffDirs.push(new THREE.Vector3(Math.cos(a) * out, 0.25 + (i % 5) * 0.22, Math.sin(a) * out * 0.8));
+    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16 + (i % 4) * 0.05, 1), puffMatG);
+    m.rotation.set(i * 0.7, i * 1.3, 0);
+    gallowsPuff.add(m);
+  }
+  gallowsPuff.visible = false;
+  gallows.add(gallowsPuff);
   const gallowsLabelEl = document.createElement('div');
   gallowsLabelEl.className = 'meeting-sign cosy-panel gallows-sign';
   const gallowsLabel = new CSS2DObject(gallowsLabelEl);
@@ -934,16 +997,27 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     gallowsSpot: { x: GALLOWS.x, z: GALLOWS.z, ry: GALLOWS.ry, y: PLAT_H },
     occluders: outdoor.occluders,
 
-    setGallows(open, label, ropeLen = 0) {
-      const key = `${open.toFixed(3)}:${ropeLen.toFixed(3)}`;
+    setGallows({ open, label, rope: len = GALLOWS_ROPE_REST, ring = 0, swing = 0, puff = 0 }) {
+      // (`rope` is beam to knot; see GallowsState.)
+      const key = `${open.toFixed(3)}:${len.toFixed(3)}:${ring.toFixed(3)}:${swing.toFixed(3)}`;
       if (key !== gallowsKey) {
         gallowsKey = key;
         shadowDirty = true;
       }
       trap.rotation.z = -Math.PI * 0.52 * THREE.MathUtils.clamp(open, 0, 1);
-      rope.scale.y = Math.max(0.001, ropeLen);
-      rope.position.y = PLAT_H + 1.8 - ropeLen / 2;
-      gallowsLabelEl.textContent = label;
+      placeRope(len, ring, swing);
+      gallowsPuff.visible = puff > 0 && puff < 1;
+      if (gallowsPuff.visible) {
+        // Billows out fast, then drifts up and thins away.
+        const out = 1 - (1 - puff) * (1 - puff);
+        puffMatG.opacity = 0.92 * Math.pow(1 - puff, 1.4);
+        gallowsPuff.children.forEach((m, i) => {
+          const d = puffDirs[i];
+          m.position.set(d.x * (0.3 + 1.1 * out), d.y * (0.5 + 1.2 * out) + 0.5 * puff, d.z * (0.3 + 1.1 * out));
+          m.scale.setScalar(0.7 + 1.5 * out);
+        });
+      }
+      if (gallowsLabelEl.textContent !== label) gallowsLabelEl.textContent = label;
       gallowsLabel.visible = Boolean(label);
     },
 

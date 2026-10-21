@@ -648,9 +648,11 @@ await check('game: an execution plays out at the gallows for everyone', async ()
   await shot(players.steele, '22-execution-condemned');
   expect((await ghostToAbbey()) === false, 'Steele was already a ghost before the drop');
   if (abbeySat) expect(await players.abbey.evaluate(() => window.__hud.getState().meetingSeated), 'the execution knocked Abbey off her stool');
-  for (const [k, age] of [['a', 1.8], ['b', 2.0], ['c', 2.4], ['d', 3.2]]) await frame(age, `22-drop-${k}`);
+  // The drop, the rope jolting taut, the swing, then the puff with the ghost floating up out of the trapdoor.
+  for (const [k, age] of [['a', 1.75], ['b', 2.3], ['c', 2.9]]) await frame(age, `22-drop-${k}`);
   expect((await ghostToAbbey()) === false, 'Steele turned into a ghost while still hanging');
-  await frame(4.0, '23-execution-puff');
+  await frame(3.5, '23-execution-puff');
+  await frame(3.95, '23-execution-ghost');
   expect((await ghostToAbbey()) === true, 'Steele is not a ghost after the puff');
   for (const p of viewers) await p.evaluate(() => void (window.__engine.showFreeze = null));
   await until(players.steele, () => !window.__engine.show, null, 15000, 'the show to end');

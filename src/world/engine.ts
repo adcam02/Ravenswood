@@ -14,7 +14,7 @@ import { earshot } from '../voice/earshot';
 import { useVoice, voice, type Listener } from '../voice/voice';
 import { AvatarView, type AvatarInfo } from './avatar';
 import { resolve, turnToward } from './collide';
-import { createTown, type TownWorld } from './town';
+import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWorld } from './town';
 import { COTTAGE_NAMES, DOCK, SQUARE_R } from './town/layout';
 
 /** Town features that arrive with the effects pass: called only if the town has them. */
@@ -40,10 +40,11 @@ const onDock = (zone: ZoneId, x: number, z: number) => zone === 'town' && Math.a
 const LOD_FAR = 20;
 const LOD_NEAR = 16;
 const TAG_FAR = 26;
-/** The hanging, in seconds from the start: the drop, how far they fall, the puff into a ghost, the end. */
-const SHOW = { drop: 1.7, dropBy: 0.55, puff: 3.9, end: 4.4 };
-/** The noose hangs this far above the gallows platform. */
-const NOOSE_ABOVE_PLATFORM = 1.8;
+/**
+ * The hanging, in seconds from the start: the noose comes down onto the neck, the drop, the puff of smoke
+ * (the ghost floats up out of the trapdoor over `rise`), and the end.
+ */
+const SHOW = { lower: 0.9, drop: 1.6, puff: 3.3, rise: 0.6, end: 4.3 };
 /** Even with nothing changing, the shadow map is redrawn this often, just in case. */
 const SHADOW_SAFETY_S = 10;
 import {
@@ -1253,9 +1254,9 @@ export class Engine {
     });
 
     let myY = this.seated?.y ?? this.hoverY;
-    let dangle: { swing: number; scale: number } | null = null;
+    let dangle: { swing: number; scale: number; hidden: boolean } | null = null;
     if (this.show?.mine) {
-      const sp = this.showPose(this.showAge(t), this.neckOf(me));
+      const sp = this.showPose(this.showAge(t), this.bodyOf(me));
       local.x = sp.x;
       local.z = sp.z;
       local.ry = sp.ry;
@@ -1270,6 +1271,8 @@ export class Engine {
     me.update(dt, t, anim, local.speaking, false);
     me.rig.root.rotation.z = dangle?.swing ?? 0;
     me.rig.root.scale.setScalar(dangle?.scale ?? 1);
+    // Down in the dark under the gallows, their name tag goes too.
+    me.setTagShown(!dangle?.hidden);
 
     this.checkDoors(v, moving, dx, dz);
     this.checkStations(v);
@@ -1373,11 +1376,20 @@ export class Engine {
       this.gavelled = true;
       gavel();
     }
-    // The trapdoor snaps open on the drop and swings shut once the show is over.
-    const open = age < SHOW.drop ? 0 : age < SHOW.puff + 0.2 ? Math.min(1, (age - SHOW.drop) / 0.12) : Math.max(0, 1 - (age - SHOW.puff - 0.2) / 0.3);
+    // The trapdoor snaps open on the drop and swings shut once the ghost is up.
+    const shut = SHOW.puff + SHOW.rise;
+    const open = age < SHOW.drop ? 0 : age < shut ? Math.min(1, (age - SHOW.drop) / 0.1) : Math.max(0, 1 - (age - shut) / 0.3);
     const av = show.mine ? this.me : this.others.get(show.seatId);
-    const pose = this.showPose(age, this.neckOf(av));
-    this.town.setGallows(open, age < SHOW.puff ? `${show.name} is hanged` : '', age < SHOW.end ? pose.rope : 0);
+    const pose = this.showPose(age, this.bodyOf(av));
+    const over = age >= SHOW.end;
+    this.town.setGallows({
+      open,
+      label: age < SHOW.puff ? `${show.name} is hanged` : '',
+      rope: over ? GALLOWS_ROPE_REST : pose.rope,
+      ring: over ? 0 : pose.ring,
+      swing: over ? 0 : pose.swing,
+      puff: pose.puff,
+    });
     // They only become a ghost at the puff, not before the drop.
     if (show.alive && age >= SHOW.puff) {
       show.alive = false;
@@ -1418,52 +1430,82 @@ export class Engine {
     return this.showFreeze ?? (this.show ? t - this.show.start : 0);
   }
 
-  /** Where a neck sits on this animal, from its feet, for hanging the rope at the right place. */
-  private neckOf(av: AvatarView | null | undefined): number {
-    return Math.max(0.4, (av?.rig.headHeight ?? 1.1) * 0.62);
+  /** How tall this animal is to the top of its head, and roughly where its neck is, from its feet. */
+  private bodyOf(av: AvatarView | null | undefined): { top: number; neck: number } {
+    const top = av?.rig.headHeight ?? 1.1;
+    return { top, neck: Math.min(0.8, Math.max(0.3, top * 0.6)) };
   }
 
   /**
-   * The condemned through the show: on the trapdoor while the noose comes down, then a real fall under
-   * gravity, the rope going taut with a small bounce, and a swing that pivots at the neck and dies away.
-   * `rope` is how far the rope reaches below the noose, so it always ends at the neck.
+   * The condemned through the show. The noose comes down from the beam and settles round the neck; on the
+   * drop they fall under gravity through the trapdoor into the dark beneath, the rope jolts taut with a
+   * small bounce and swings from the beam, settling; then a puff of smoke, the ghost floats up out of the
+   * trapdoor and the empty noose is drawn back up. The body swings with the rope (about the beam), so the
+   * loop stays round the neck. Everything the gallows needs comes back too (rope, ring, swing, puff).
    */
-  private showPose(age: number, neck: number): { x: number; z: number; y: number; ry: number; anim: Anim; swing: number; scale: number; rope: number } {
+  private showPose(age: number, body: { top: number; neck: number }) {
     const spot = this.town.gallowsSpot;
-    const noose = spot.y + NOOSE_ABOVE_PLATFORM;
-    let y = spot.y;
+    const beam = spot.y + GALLOWS_BEAM;
+    const ease = (k: number) => {
+      const c = Math.min(1, Math.max(0, k));
+      return c * c * (3 - 2 * c);
+    };
+    const lowered = ease(age / SHOW.lower);
+    const atNeck = beam - (spot.y + body.neck);
+    let feet = spot.y;
     let swing = 0;
-    let scale = 1;
+    let ring = lowered;
+    let rope = GALLOWS_ROPE_REST + (atNeck - GALLOWS_ROPE_REST) * lowered;
+    let anim: Anim = 'cry';
+    let hidden = false;
+    let puff = 0;
+    // Where the feet end up: far enough down that the head is well below the boards, in the dark.
+    const bottom = spot.y - 0.3 - body.top;
+    const fallFor = Math.sqrt((2 * (spot.y - bottom)) / 9.8);
     const fallT = age - SHOW.drop;
     if (fallT > 0) {
-      const fallFor = Math.sqrt((2 * SHOW.dropBy) / 9.8);
-      if (fallT < fallFor) y = spot.y - 0.5 * 9.8 * fallT * fallT;
+      anim = 'idle';
+      if (fallT < fallFor) feet = spot.y - 4.9 * fallT * fallT;
       else {
         const u = fallT - fallFor;
-        // The rope takes the weight: a quick dip and bounce, then a swing from the neck that settles.
-        y = spot.y - SHOW.dropBy - 0.07 * Math.exp(-6 * u) * Math.sin(16 * u);
-        swing = 0.17 * Math.exp(-0.9 * u) * Math.sin(4.4 * u);
+        feet = bottom - 0.08 * Math.exp(-7 * u) * Math.sin(18 * u);
+        swing = 0.16 * Math.exp(-0.9 * u) * Math.sin(5 * u);
       }
+      rope = beam - (feet + body.neck);
+      hidden = fallT > fallFor * 0.8;
     }
-    if (age > SHOW.puff) scale = Math.max(0.001, 1 - (age - SHOW.puff) / 0.25);
-    // Before the drop, the noose comes down to the neck over the first moments.
-    const reach = noose - (y + neck);
-    const rope = fallT > 0 ? reach : reach * Math.min(1, Math.max(0, (age - 0.2) / 0.7));
-    // Swinging about the neck rather than the feet: shift the body so the neck stays under the rope.
-    const dx = neck * Math.sin(swing);
-    const dy = neck * (1 - Math.cos(swing));
+    const puffT = age - SHOW.puff;
+    if (puffT > 0) {
+      puff = Math.min(1, puffT / 0.9);
+      const r = ease(puffT / SHOW.rise);
+      feet = bottom + (spot.y + 0.12 - bottom) * r;
+      swing *= 1 - r;
+      const hung = beam - (bottom + body.neck);
+      rope = hung + (GALLOWS_ROPE_REST - hung) * r;
+      ring = 1 - r;
+      hidden = puffT < 0.12;
+    }
+    // Swinging with the rope: turn the body about the rope's pivot on the beam, beside the head.
+    const fx = GALLOWS_KNOT;
+    const fy = feet - beam;
+    const c = Math.cos(swing);
+    const sn = Math.sin(swing);
+    const lx = -GALLOWS_KNOT + fx * c - fy * sn;
+    const ly = beam + fx * sn + fy * c;
     return {
-      x: spot.x + Math.cos(spot.ry) * dx,
-      z: spot.z - Math.sin(spot.ry) * dx,
-      y: y + dy,
+      x: spot.x + Math.cos(spot.ry) * lx,
+      z: spot.z - Math.sin(spot.ry) * lx,
+      y: ly,
       ry: spot.ry,
-      anim: fallT > 0 ? 'idle' : 'cry',
+      anim,
       swing,
-      scale,
-      rope: age > SHOW.puff ? Math.max(0, rope * (1 - (age - SHOW.puff) / 0.25)) : rope,
+      scale: 1,
+      hidden,
+      rope,
+      ring,
+      puff,
     };
   }
-
 
   private updateOthers(dt: number, t: number, v: WorldView | null) {
     const seen = new Set<string>();
@@ -1486,9 +1528,9 @@ export class Engine {
       }
       const sitting = p.anim === 'sit' || p.anim === 'sleep';
       let anim: Anim = nom && nom.status !== 'done' && nom.votes.includes(key) ? 'hand' : p.anim;
-      let dangle: { swing: number; scale: number } | null = null;
+      let dangle: { swing: number; scale: number; hidden: boolean } | null = null;
       if (this.show && this.show.seatId === key && local.zone === 'town') {
-        const sp = this.showPose(this.showAge(t), this.neckOf(av));
+        const sp = this.showPose(this.showAge(t), this.bodyOf(av));
         av.setTarget(sp.x, sp.z, sp.ry, sp.y);
         av.snap();
         anim = sp.anim;
@@ -1500,7 +1542,7 @@ export class Engine {
       const far = Math.hypot(av.x - this.camTarget.x, av.z - this.camTarget.z);
       if (far > LOD_FAR) av.setDetail('low');
       else if (far < LOD_NEAR) av.setDetail('high');
-      av.setTagShown(v?.mode === 'st' || key === 'st' || far < TAG_FAR || p.speaking);
+      av.setTagShown(!dangle?.hidden && (v?.mode === 'st' || key === 'st' || far < TAG_FAR || p.speaking));
       av.update(dt, t, anim, p.speaking, true);
       av.rig.root.rotation.z = dangle?.swing ?? 0;
       av.rig.root.scale.setScalar(dangle?.scale ?? 1);
