@@ -12,6 +12,8 @@ declare global {
  * fallback.
  */
 export function iceServers(): RTCIceServer[] {
+  // Testing against a local lobby (?peer=): no relays, so tests never spend the real relay's monthly allowance.
+  if (new URLSearchParams(location.search).has('peer')) return [{ urls: 'stun:stun.l.google.com:19302' }];
   const own = window.RAVENSWOOD_CONFIG?.relay ?? [];
   return [
     ...own,
