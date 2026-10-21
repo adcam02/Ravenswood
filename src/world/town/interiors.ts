@@ -88,22 +88,25 @@ function shell(p: Paint, room: Room, s: Shell, r: () => number) {
   // Back wall and side walls.
   p.box(s.wall, hw * 2 + 0.6, WALL_H, 0.3, 0, WALL_H / 2, -hd - 0.15);
   for (const sx of [-1, 1]) p.box(shade(s.wall, -0.04), 0.3, WALL_H, hd * 2 + 0.3, sx * (hw + 0.15), WALL_H / 2, 0.15);
-  p.box(s.wainscot, hw * 2, 1.0, 0.06, 0, 0.5, -hd + 0.03);
-  for (const sx of [-1, 1]) p.box(shade(s.wainscot, -0.04), 0.06, 1.0, hd * 2, sx * (hw - 0.03), 0.5, 0);
-  // Panelling: battens over the wainscot, a skirting board, and a picture rail higher up.
+  // Anything running round the three walls: the back piece spans the room and the side pieces butt up to
+  // it. No two faces may share a plane (overlapping corners, or a board flush with the panel behind it):
+  // the graphics card can't tell which is in front, and they flicker.
+  const around = (back: THREE.ColorRepresentation, side: THREE.ColorRepresentation, h: number, d: number, y: number, short = 0) => {
+    p.box(back, hw * 2, h, d, 0, y, -hd + d / 2);
+    for (const sx of [-1, 1]) p.box(side, d, h, hd * 2 - d - short, sx * (hw - d / 2), y, (d - short) / 2);
+  };
+  // The panelling stops a little short at the front, so its end isn't flush with the trims' ends.
+  around(s.wainscot, shade(s.wainscot, -0.04), 1.0, 0.06, 0.5, 0.012);
+  // Panelling: battens over the wainscot, a skirting board standing proud of them, and a rail on top.
   for (let x = -hw + 0.5; x < hw - 0.2; x += 0.5) p.box(shade(s.wainscot, -0.08), 0.05, 0.9, 0.03, x, 0.5, -hd + 0.075);
   for (const sx of [-1, 1]) for (let z = -hd + 0.5; z < hd - 0.2; z += 0.5) p.box(shade(s.wainscot, -0.1), 0.03, 0.9, 0.05, sx * (hw - 0.075), 0.5, z);
-  p.box(s.trim, hw * 2, 0.08, 0.1, 0, 1.02, -hd + 0.05);
-  for (const sx of [-1, 1]) p.box(s.trim, 0.1, 0.08, hd * 2, sx * (hw - 0.05), 1.02, 0);
-  p.box(shade(s.trim, -0.05), hw * 2, 0.14, 0.06, 0, 0.07, -hd + 0.03);
-  for (const sx of [-1, 1]) p.box(shade(s.trim, -0.08), 0.06, 0.14, hd * 2, sx * (hw - 0.03), 0.07, 0);
-  p.box(shade(s.trim, 0.05), hw * 2, 0.05, 0.06, 0, WALL_H - 0.75, -hd + 0.03);
-  for (const sx of [-1, 1]) p.box(shade(s.trim, 0.02), 0.06, 0.05, hd * 2, sx * (hw - 0.03), WALL_H - 0.75, 0);
+  around(s.trim, s.trim, 0.08, 0.1, 1.02);
+  around(shade(s.trim, -0.05), shade(s.trim, -0.08), 0.16, 0.11, 0.08);
+  around(shade(s.trim, 0.05), shade(s.trim, 0.02), 0.05, 0.06, WALL_H - 0.75);
   // The wall plate along the top, with a moulded cornice just under it.
   p.box(s.trim, hw * 2 + 0.6, 0.16, 0.36, 0, WALL_H + 0.05, -hd - 0.15);
-  for (const sx of [-1, 1]) p.box(s.trim, 0.36, 0.16, hd * 2 + 0.3, sx * (hw + 0.15), WALL_H + 0.05, 0.15);
-  p.box(shade(s.trim, 0.08), hw * 2, 0.08, 0.1, 0, WALL_H - 0.08, -hd + 0.05);
-  for (const sx of [-1, 1]) p.box(shade(s.trim, 0.06), 0.1, 0.08, hd * 2, sx * (hw - 0.05), WALL_H - 0.08, 0);
+  for (const sx of [-1, 1]) p.box(s.trim, 0.36, 0.16, hd * 2 + 0.27, sx * (hw + 0.15), WALL_H + 0.05, 0.165);
+  around(shade(s.trim, 0.08), shade(s.trim, 0.06), 0.08, 0.1, WALL_H - 0.08);
   // The way out, on the camera side: a door frame and a mat.
   p.box(s.trim, 0.18, 2.5, 0.25, -0.75, 1.25, hd + 0.05);
   p.box(s.trim, 0.18, 2.5, 0.25, 0.75, 1.25, hd + 0.05);

@@ -88,6 +88,20 @@ function mat(x: number, y: number, z: number, rx: number, ry: number, rz: number
 }
 
 /**
+ * Two faces in the same plane (a skirting board flush with the panel behind it, a rug on a rug) flicker,
+ * because the graphics card can't tell which is in front. So every shape grows by its own couple of
+ * millimetres (a golden-ratio step, so shapes painted near each other always differ), far below a pixel
+ * but enough that no two faces ever share a plane. Thin pieces grow by at most a quarter of their size.
+ */
+let shapeCount = 0;
+function apart(m: THREE.Matrix4): THREE.Matrix4 {
+  const d = 0.0006 + 0.005 * ((shapeCount++ * 0.6180339887) % 1);
+  m.decompose(v, q, s);
+  const grow = (x: number) => x + Math.sign(x) * Math.min(2 * d, Math.abs(x) * 0.25);
+  return m.compose(v, q, s.set(grow(s.x), grow(s.y), grow(s.z)));
+}
+
+/**
  * Paints primitives into a set of builders, inside a local frame (a building's position and facing).
  * Boxes, cylinders and cones are given by size and centre; `y` is the centre height unless noted.
  */
@@ -115,7 +129,7 @@ export class Paint {
   }
 
   geo(geo: THREE.BufferGeometry, color: THREE.ColorRepresentation, m: THREE.Matrix4): this {
-    this.layers.main.add(geo, color, m, this.m);
+    this.layers.main.add(geo, color, apart(m), this.m);
     return this;
   }
 

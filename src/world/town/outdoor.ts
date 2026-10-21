@@ -1741,8 +1741,8 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     b.add(G.cyl(6), '#4a3a2a', { pos: [0, 0.1, 0], scale: [0.05, 2.4, 0.05] });
     b.add(G.sphere(6, 4), '#e8c35a', { pos: [0, 1.32, 0], scale: 0.12 });
     b.add(G.box(), '#8a3a5a', { pos: [0.95, 0.65, 0], scale: [1.8, 1.1, 0.03] });
-    b.add(G.box(), '#e8c35a', { pos: [0.95, 0.12, 0], scale: [1.8, 0.1, 0.035] });
-    b.add(G.box(), '#e8c35a', { pos: [0.95, 1.18, 0], scale: [1.8, 0.1, 0.035] });
+    b.add(G.box(), '#e8c35a', { pos: [0.95, 0.12, 0], scale: [1.82, 0.1, 0.035] });
+    b.add(G.box(), '#e8c35a', { pos: [0.95, 1.18, 0], scale: [1.82, 0.1, 0.035] });
     // The raven: a body, a head and a beak, in gold.
     b.add(G.sphere(6, 4), '#e8c35a', { pos: [0.85, 0.62, 0.03], scale: [0.34, 0.2, 0.02] });
     b.add(G.sphere(6, 4), '#e8c35a', { pos: [1.15, 0.78, 0.03], scale: [0.14, 0.13, 0.02] });

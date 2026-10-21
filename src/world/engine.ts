@@ -473,7 +473,8 @@ export class Engine {
       this.lastShowId.add(ex.id);
       const name = v.seats.find((s) => s.id === ex.seatId)?.name ?? 'Someone';
       this.show = { id: ex.id, seatId: ex.seatId, name, start: this.clock.elapsedTime, mine: ex.seatId === v.mySeatId, released: false, alive: true };
-      this.stopEverything();
+      // Everyone stops what they're doing to watch, but anyone on a meeting stool stays sat.
+      if (this.show.mine || this.seated?.y !== STOOL_Y) this.stopEverything();
       const spot = this.town.gallowsSpot;
       if (this.show.mine) {
         this.place('town', spot.x, spot.z, spot.ry, true);
@@ -1253,7 +1254,7 @@ export class Engine {
     let myY = this.seated?.y ?? this.hoverY;
     let dangle: { swing: number; scale: number } | null = null;
     if (this.show?.mine) {
-      const sp = this.showPose(t - this.show.start, this.neckOf(me));
+      const sp = this.showPose(this.showAge(t), this.neckOf(me));
       local.x = sp.x;
       local.z = sp.z;
       local.ry = sp.ry;
@@ -1365,7 +1366,7 @@ export class Engine {
   private runShow(t: number) {
     const show = this.show;
     if (!show) return;
-    const age = t - show.start;
+    const age = this.showAge(t);
     const spot = this.town.gallowsSpot;
     if (age >= SHOW.drop && !this.gavelled) {
       this.gavelled = true;
@@ -1390,6 +1391,15 @@ export class Engine {
     if (age > (show.mine ? SHOW.end : SHOW.end + 0.8)) {
       if (show.mine) {
         this.frozen = false;
+        const v = this.view;
+        // Still in a meeting: back to their own stool, as a ghost. Otherwise they step off beside the gallows.
+        if (v && (v.townHall || v.nomination) && this.meetingIndex() >= 0) {
+          this.place('town', spot.x + 2.2, spot.z + 1.4, Math.PI, false);
+          this.show = null;
+          this.gavelled = false;
+          this.takeMeetingSeat();
+          return;
+        }
         this.place('town', spot.x + 2.2, spot.z + 1.4, Math.PI, false);
       } else {
         const gone = this.others.get(show.seatId);
@@ -1400,6 +1410,12 @@ export class Engine {
     }
   }
 
+
+  /** Tests can hold the show at a moment (`showFreeze`, in seconds) to look at it frame by frame. */
+  showFreeze: number | null = null;
+  private showAge(t: number): number {
+    return this.showFreeze ?? (this.show ? t - this.show.start : 0);
+  }
 
   /** Where a neck sits on this animal, from its feet, for hanging the rope at the right place. */
   private neckOf(av: AvatarView | null | undefined): number {
@@ -1471,7 +1487,7 @@ export class Engine {
       let anim: Anim = nom && nom.status !== 'done' && nom.votes.includes(key) ? 'hand' : p.anim;
       let dangle: { swing: number; scale: number } | null = null;
       if (this.show && this.show.seatId === key && local.zone === 'town') {
-        const sp = this.showPose(t - this.show.start, this.neckOf(av));
+        const sp = this.showPose(this.showAge(t), this.neckOf(av));
         av.setTarget(sp.x, sp.z, sp.ry, sp.y);
         av.snap();
         anim = sp.anim;
@@ -1570,6 +1586,14 @@ export class Engine {
       const flat = dist * Math.cos(pitch);
       wantPos.set(this.camTarget.x + Math.sin(this.yaw) * flat, dist * Math.sin(pitch), this.camTarget.z + Math.cos(this.yaw) * flat);
       wantLook.set(this.camTarget.x, 0.8, this.camTarget.z);
+    }
+    // The near plane sits as far out as the shot allows: depth precision depends mostly on it, and a close
+    // near plane makes faces a hair apart (trims on panelling, rugs on floors) shimmer. Only the
+    // over-the-shoulder book shot needs to see things right in front of the lens.
+    const near = this.view?.reading ? 0.1 : 1.0;
+    if (this.camera.near !== near) {
+      this.camera.near = near;
+      this.camera.updateProjectionMatrix();
     }
     // Closing in on the book is a slow swoop; everything else follows closely.
     let ease = this.view?.reading ? 1 - Math.exp(-dt * 4) : this.show ? 1 - Math.exp(-dt * 6) : 1 - Math.exp(-dt * 9);

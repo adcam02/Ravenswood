@@ -629,27 +629,39 @@ await check('day: the gold star shows on the sheep counter for everyone', async 
 
 await check('game: an execution plays out at the gallows for everyone', async () => {
   const id = await seatOf('Steele');
+  const abbeySat = await players.abbey.evaluate(() => window.__hud.getState().meetingSeated);
   await st.evaluate((id) => {
     window.__st.st.markSeat(id);
     window.__st.st.toggleDead(id);
   }, id);
   await until(players.abbey, () => Boolean(window.__engine.show), null, 15000, 'the show to start for Abbey');
   await until(players.steele, () => Boolean(window.__engine.show?.mine), null, 15000, 'the show to start for Steele');
-  await sleep(900);
-  await shot(players.abbey, '22-execution');
+  // Hold the show at set moments on both screens, so even a slow machine shows every beat.
+  const viewers = [players.abbey, players.steele];
+  const frame = async (age, name) => {
+    for (const p of viewers) await p.evaluate((a) => void (window.__engine.showFreeze = a), age);
+    await sleep(1200);
+    await shot(players.abbey, name);
+  };
+  const ghostToAbbey = () => players.abbey.evaluate((id) => window.__engine.others.get(id)?.ghost, id);
+  await frame(0.6, '22-execution');
   await shot(players.steele, '22-execution-condemned');
-  // Through the drop, frame by frame, as Abbey sees it; Steele stays solid (not a ghost) until the puff.
-  const before = await players.abbey.evaluate((id) => window.__engine.others.get(id)?.ghost, id);
-  expect(before === false, 'Steele was already a ghost before the drop');
-  for (const [k, ms] of [['a', 700], ['b', 350], ['c', 500], ['d', 900]]) {
-    await sleep(ms);
-    await shot(players.abbey, `22-drop-${k}`);
-  }
-  await sleep(2200);
-  await shot(players.abbey, '23-execution-drop');
+  expect((await ghostToAbbey()) === false, 'Steele was already a ghost before the drop');
+  if (abbeySat) expect(await players.abbey.evaluate(() => window.__hud.getState().meetingSeated), 'the execution knocked Abbey off her stool');
+  for (const [k, age] of [['a', 1.8], ['b', 2.0], ['c', 2.4], ['d', 3.2]]) await frame(age, `22-drop-${k}`);
+  expect((await ghostToAbbey()) === false, 'Steele turned into a ghost while still hanging');
+  await frame(4.0, '23-execution-puff');
+  expect((await ghostToAbbey()) === true, 'Steele is not a ghost after the puff');
+  for (const p of viewers) await p.evaluate(() => void (window.__engine.showFreeze = null));
   await until(players.steele, () => !window.__engine.show, null, 15000, 'the show to end');
+  await until(players.abbey, () => !window.__engine.show, null, 15000, 'the show to end for Abbey');
   const dead = await players.abbey.evaluate((id) => window.__client.getState().pub.seats.find((s) => s.id === id)?.dead, id);
   expect(dead, 'Steele is not dead after the execution');
+  // The meeting is still on, so Steele's ghost goes back to its stool.
+  const meeting = await st.evaluate(() => Boolean(window.__host.getState().g.townHall || window.__host.getState().g.nomination));
+  if (meeting) await until(players.steele, () => window.__hud.getState().meetingSeated, null, 20000, 'Steele’s ghost to be back on its stool');
+  await sleep(1500);
+  await shot(players.abbey, '23b-after-execution');
 });
 
 await check('game: the grimoire opens over the town for the Storyteller', async () => {
