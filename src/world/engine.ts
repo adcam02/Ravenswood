@@ -40,6 +40,10 @@ const onDock = (zone: ZoneId, x: number, z: number) => zone === 'town' && Math.a
 const LOD_FAR = 20;
 const LOD_NEAR = 16;
 const TAG_FAR = 26;
+/** The hanging, in seconds from the start: the drop, how far they fall, the puff into a ghost, the end. */
+const SHOW = { drop: 1.7, dropBy: 0.55, puff: 3.9, end: 4.4 };
+/** The noose hangs this far above the gallows platform. */
+const NOOSE_ABOVE_PLATFORM = 1.8;
 /** Even with nothing changing, the shadow map is redrawn this often, just in case. */
 const SHADOW_SAFETY_S = 10;
 import {
@@ -246,7 +250,7 @@ export class Engine {
   private gavelled = false;
   private lastWakeId: string | null = null;
   /** The gallows show in progress: who, and when it started on our clock. */
-  private show: { id: string; seatId: string; name: string; start: number; mine: boolean; released: boolean } | null = null;
+  private show: { id: string; seatId: string; name: string; start: number; mine: boolean; released: boolean; alive: boolean } | null = null;
   /** The Storyteller hovering higher than usual, over someone's bed. */
   private hoverY = 0;
   private nearDoor: { door: Door; locked: string | null } | null = null;
@@ -458,14 +462,15 @@ export class Engine {
     if (ex && ex.id !== this.show?.id && Date.now() - ex.at < 15000 && !this.lastShowId.has(ex.id)) {
       this.lastShowId.add(ex.id);
       const name = v.seats.find((s) => s.id === ex.seatId)?.name ?? 'Someone';
-      this.show = { id: ex.id, seatId: ex.seatId, name, start: this.clock.elapsedTime, mine: ex.seatId === v.mySeatId, released: false };
+      this.show = { id: ex.id, seatId: ex.seatId, name, start: this.clock.elapsedTime, mine: ex.seatId === v.mySeatId, released: false, alive: true };
       this.stopEverything();
       const spot = this.town.gallowsSpot;
       if (this.show.mine) {
         this.place('town', spot.x, spot.z, spot.ry, true);
         this.frozen = true;
+        this.me?.setInfo(this.infoFor(ex.seatId, v));
       }
-      drumroll(2.8);
+      drumroll(SHOW.drop - 0.1);
       ui.banner(`${name} is to be hanged`, 'The town has spoken');
     }
     // Waking someone at night takes the Storyteller to their bedside.
@@ -487,7 +492,8 @@ export class Engine {
     return {
       name: s?.name ?? 'Someone',
       look: s?.look ?? null,
-      ghost: Boolean(s?.dead),
+      // The condemned stay themselves until the puff at the end of the hanging.
+      ghost: Boolean(s?.dead) && !(this.show?.alive && this.show.seatId === key),
       storyteller: false,
       isMe: key === v.mySeatId,
       role: role ? { name: role.name, icon: iconUrl(role, s?.evil ? 'evil' : 'good'), evil: Boolean(s?.evil) } : null,
@@ -1236,7 +1242,7 @@ export class Engine {
     let myY = this.seated?.y ?? this.hoverY;
     let dangle: { swing: number; scale: number } | null = null;
     if (this.show?.mine) {
-      const sp = this.showPose(t - this.show.start);
+      const sp = this.showPose(t - this.show.start, this.neckOf(me));
       local.x = sp.x;
       local.z = sp.z;
       local.ry = sp.ry;
@@ -1350,40 +1356,82 @@ export class Engine {
     if (!show) return;
     const age = t - show.start;
     const spot = this.town.gallowsSpot;
-    const open = Math.max(0, Math.min(1, (age - 2.9) / 0.25));
-    if (age >= 2.9 && !this.gavelled) {
+    if (age >= SHOW.drop && !this.gavelled) {
       this.gavelled = true;
       gavel();
     }
-    const rope = Math.max(0, Math.min(1, (age - 3.1) / 0.3)) * 1.15;
-    this.town.setGallows(open, age < 6.6 ? `${show.name} is hanged` : '', age > 7 ? 0 : rope);
-    if (age > 7) {
+    // The trapdoor snaps open on the drop and swings shut once the show is over.
+    const open = age < SHOW.drop ? 0 : age < SHOW.puff + 0.2 ? Math.min(1, (age - SHOW.drop) / 0.12) : Math.max(0, 1 - (age - SHOW.puff - 0.2) / 0.3);
+    const av = show.mine ? this.me : this.others.get(show.seatId);
+    const pose = this.showPose(age, this.neckOf(av));
+    this.town.setGallows(open, age < SHOW.puff ? `${show.name} is hanged` : '', age < SHOW.end ? pose.rope : 0);
+    // They only become a ghost at the puff, not before the drop.
+    if (show.alive && age >= SHOW.puff) {
+      show.alive = false;
+      const v = this.view;
+      if (v) {
+        if (show.mine) this.me?.setInfo(this.infoFor(show.seatId, v));
+        else this.others.get(show.seatId)?.setInfo(this.infoFor(show.seatId, v));
+      }
+    }
+    if (age > SHOW.end) {
       if (show.mine) {
         this.frozen = false;
-        this.place('town', spot.x + 2.2, spot.z + 1.4, Math.PI, true);
+        this.place('town', spot.x + 2.2, spot.z + 1.4, Math.PI, false);
       }
       this.show = null;
       this.gavelled = false;
     }
   }
 
+
   /** Where the condemned is during the show: on the trapdoor, dropping, yanked up by the rope, dangling, then gone. */
-  private showPose(age: number): { x: number; z: number; y: number; ry: number; anim: Anim; swing: number; scale: number } {
+  /** Where a neck sits on this animal, from its feet, for hanging the rope at the right place. */
+  private neckOf(av: AvatarView | null | undefined): number {
+    return Math.max(0.4, (av?.rig.headHeight ?? 1.1) * 0.62);
+  }
+
+  /**
+   * The condemned through the show: on the trapdoor while the noose comes down, then a real fall under
+   * gravity, the rope going taut with a small bounce, and a swing that pivots at the neck and dies away.
+   * `rope` is how far the rope reaches below the noose, so it always ends at the neck.
+   */
+  private showPose(age: number, neck: number): { x: number; z: number; y: number; ry: number; anim: Anim; swing: number; scale: number; rope: number } {
     const spot = this.town.gallowsSpot;
+    const noose = spot.y + NOOSE_ABOVE_PLATFORM;
     let y = spot.y;
     let swing = 0;
     let scale = 1;
-    if (age > 2.9 && age < 3.3) y = spot.y - 0.7 * ((age - 2.9) / 0.4);
-    else if (age >= 3.3) {
-      // The rope takes the weight: a bounce up to hang just under the noose, then a slow swing.
-      const k = Math.min(1, (age - 3.3) / 0.35);
-      const hang = spot.y + 0.55;
-      y = -0.7 + spot.y + (hang - (spot.y - 0.7)) * (1 - Math.pow(1 - k, 2)) + Math.sin(k * Math.PI) * 0.25;
-      swing = Math.sin((age - 3.3) * 3.2) * 0.14 * Math.max(0, 1 - (age - 3.3) / 4);
+    const fallT = age - SHOW.drop;
+    if (fallT > 0) {
+      const fallFor = Math.sqrt((2 * SHOW.dropBy) / 9.8);
+      if (fallT < fallFor) y = spot.y - 0.5 * 9.8 * fallT * fallT;
+      else {
+        const u = fallT - fallFor;
+        // The rope takes the weight: a quick dip and bounce, then a swing from the neck that settles.
+        y = spot.y - SHOW.dropBy - 0.07 * Math.exp(-6 * u) * Math.sin(16 * u);
+        swing = 0.17 * Math.exp(-0.9 * u) * Math.sin(4.4 * u);
+      }
     }
-    if (age > 6.1) scale = Math.max(0.001, 1 - (age - 6.1) / 0.45);
-    return { x: spot.x, z: spot.z, y, ry: spot.ry, anim: age < 2.9 ? 'cry' : age < 3.3 ? 'idle' : 'cry', swing, scale };
+    if (age > SHOW.puff) scale = Math.max(0.001, 1 - (age - SHOW.puff) / 0.25);
+    // Before the drop, the noose comes down to the neck over the first moments.
+    const reach = noose - (y + neck);
+    const rope = fallT > 0 ? reach : reach * Math.min(1, Math.max(0, (age - 0.2) / 0.7));
+    // Swinging about the neck rather than the feet: shift the body so the neck stays under the rope.
+    const dx = neck * Math.sin(swing);
+    const dy = neck * (1 - Math.cos(swing));
+    return {
+      x: spot.x + Math.cos(spot.ry) * dx,
+      z: spot.z - Math.sin(spot.ry) * dx,
+      y: y + dy,
+      ry: spot.ry,
+      anim: fallT > 0 ? 'idle' : 'cry',
+      swing,
+      scale,
+      rope: age > SHOW.puff ? Math.max(0, rope * (1 - (age - SHOW.puff) / 0.25)) : rope,
+    };
   }
+
 
   private updateOthers(dt: number, t: number, v: WorldView | null) {
     const seen = new Set<string>();
@@ -1408,7 +1456,7 @@ export class Engine {
       let anim: Anim = nom && nom.status !== 'done' && nom.votes.includes(key) ? 'hand' : p.anim;
       let dangle: { swing: number; scale: number } | null = null;
       if (this.show && this.show.seatId === key && local.zone === 'town') {
-        const sp = this.showPose(t - this.show.start);
+        const sp = this.showPose(t - this.show.start, this.neckOf(av));
         av.setTarget(sp.x, sp.z, sp.ry, sp.y);
         av.snap();
         anim = sp.anim;
@@ -1494,8 +1542,8 @@ export class Engine {
     const wantLook = new THREE.Vector3();
     if (this.show && zoneKind(local.zone) === 'town') {
       const g = this.town.gallowsSpot;
-      wantPos.set(g.x + Math.sin(this.yaw + 0.5) * 9, 7.5, g.z + Math.cos(this.yaw + 0.5) * 9);
-      wantLook.set(g.x, 1.6, g.z);
+      wantPos.set(g.x + Math.sin(0.45) * 8.5, 6.4, g.z + Math.cos(0.45) * 8.5);
+      wantLook.set(g.x, g.y + 1.1, g.z);
     } else if (this.view?.reading && this.me) {
       // Over the Storyteller's shoulder, looking down into the open book.
       const root = this.me.rig.root;
@@ -1509,7 +1557,7 @@ export class Engine {
       wantLook.set(this.camTarget.x, 0.8, this.camTarget.z);
     }
     // Closing in on the book is a slow swoop; everything else follows closely.
-    let ease = this.view?.reading || this.show ? 1 - Math.exp(-dt * 4) : 1 - Math.exp(-dt * 9);
+    let ease = this.view?.reading ? 1 - Math.exp(-dt * 4) : this.show ? 1 - Math.exp(-dt * 6) : 1 - Math.exp(-dt * 9);
     if (!this.me && !this.view?.reading) ease = 1;
     this.camPos.lerp(wantPos, ease);
     this.camLook.lerp(wantLook, ease);
