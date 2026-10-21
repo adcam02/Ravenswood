@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SMOOTH_LOOK, card, glow, soft, wet, type Vec3 } from './build';
+import { SMOOTH_LOOK, eyeMaterial, glow, soft, wet, type Vec3 } from './build';
 import { buildBack, buildFace, buildNeck, type BackFit, type BuiltPiece, type FaceFit, type NeckFit } from './dressup';
 import { all, any, armForms, finishSculpt, region, sculptOf, sock, useSurface } from './forms';
 import { buildHat, type BuiltHat, type HatFit } from './hats';
@@ -224,8 +224,6 @@ const envelope = (p: number) => {
 };
 
 const GHOST_EYES = new THREE.MeshBasicMaterial({ color: '#3a4a7a', transparent: true, opacity: 0.85 });
-/** ?look=smooth: the older wet-looking eyes, smooth and a little reflective so the catchlights read as a shine. */
-const glossy = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.22, metalness: 0.05 });
 
 // ---------------------------------------------------------------- skeleton and skin
 
@@ -326,7 +324,7 @@ function skin(k: Kit, sk: Skel): THREE.BufferGeometry {
 }
 
 /**
- * ?look=smooth: corners in the same place share one normal (each face counting by its area), across folds
+ * The smooth finish: corners in the same place share one normal (each face counting by its area), across folds
  * gentler than 60 degrees, so the sculpted surface shades round while spikes and locks keep their edges.
  */
 function smoothNormals(g: THREE.BufferGeometry) {
@@ -1781,7 +1779,7 @@ export function buildAnimal(look: Look): Rig {
     kit: k,
     profile: profileOf(info.id),
     material: aquatic ? wet() : soft(),
-    eyeMaterial: SMOOTH_LOOK ? glossy() : card(),
+    eyeMaterial: eyeMaterial(),
     ghostColor: mix(coat, '#e6f0ff', 0.75),
     floats: Boolean(res.hover),
     hover: res.hover,
@@ -2003,9 +2001,12 @@ export function animalThumbnail(look: Look, size = 128): string {
     if (!thumbRenderer) {
       thumbRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
       thumbRenderer.setPixelRatio(1);
+      // Lit and toned like the town by day, so the picture matches the animal in the game.
+      thumbRenderer.toneMapping = THREE.NeutralToneMapping;
+      thumbRenderer.toneMappingExposure = 1.06;
       thumbScene = new THREE.Scene();
-      thumbScene.add(new THREE.HemisphereLight('#fff8ee', '#8a7a6a', 2.2));
-      const sun = new THREE.DirectionalLight('#fff2dc', 1.6);
+      thumbScene.add(new THREE.HemisphereLight('#cfe8ff', '#a89a80', 1.35));
+      const sun = new THREE.DirectionalLight('#fff1d2', 2.4);
       sun.position.set(1.5, 3, 2.5);
       thumbScene.add(sun);
       thumbCamera = new THREE.PerspectiveCamera(30, 1, 0.1, 20);

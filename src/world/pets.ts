@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Builder, soft, wet, type Vec3 } from './build';
+import { Builder, SMOOTH_LOOK, eyeMaterial, soft, wet, type Vec3 } from './build';
 import { regionOf, sculptGeometry, type Field, type Markings } from './forms';
 import { Sculpt, ellipsoid, rod, type Probe } from './sculpt';
 import type { PetId } from './types';
@@ -17,8 +17,10 @@ export interface Pet {
 }
 
 const sph = (w: number, h: number) => new THREE.SphereGeometry(1, w, h);
-/** Low, faceted spheres and cones for the little separate bits, to match the sculpted bodies. */
-const gem = () => new THREE.IcosahedronGeometry(1, 1);
+/** Spheres and cones for the little separate bits: round in the smooth finish, faceted with ?look=paper. */
+const gem = () => new THREE.IcosahedronGeometry(1, SMOOTH_LOOK ? 2 : 1);
+/** How the bodies are shaded: smooth across gentle folds, or flat facets with ?look=paper. */
+const CREASE = SMOOTH_LOOK ? 60 : 0;
 const spike = (sides = 5) => new THREE.ConeGeometry(1, 1, sides);
 
 /** Each pet's body is cut once, then shared. */
@@ -48,7 +50,7 @@ const GHOST = () =>
 function addEyes(b: Builder, y: number, z: number, x: number, r: number) {
   for (const s of [-1, 1]) {
     b.add(gem(), INK, { pos: [s * x, y, z], scale: [r, r * 1.15, r * 0.7] });
-    b.add(new THREE.IcosahedronGeometry(1, 0), '#ffffff', { pos: [s * x + r * 0.35, y + r * 0.4, z + r * 0.55], scale: r * 0.32 });
+    b.add(new THREE.IcosahedronGeometry(1, SMOOTH_LOOK ? 1 : 0), '#fffdf8', { pos: [s * x + r * 0.35, y + r * 0.4, z + r * 0.55], scale: r * 0.32 });
   }
 }
 
@@ -70,11 +72,11 @@ class PetRig implements Pet {
   constructor(body: Builder, eyes: Builder, eyeY: number, material: THREE.Material = soft()) {
     this.root.add(this.bodyGroup);
     this.materials.push(material);
-    this.addMesh(body.mesh(material, { cast: true, receive: false, crease: 0 }), this.bodyGroup, material);
+    this.addMesh(body.mesh(material, { cast: true, receive: false, crease: CREASE }), this.bodyGroup, material);
     this.eyes.position.y = eyeY;
     const eg = eyes.geometry();
     eg.translate(0, -eyeY, 0);
-    const em = soft();
+    const em = eyeMaterial();
     this.materials.push(em);
     eg.computeVertexNormals();
     this.addMesh(new THREE.Mesh(eg, em), this.eyes, em);
@@ -288,7 +290,7 @@ class Mouse extends PetRig {
     tb.add(tg, pink);
     tg.dispose();
     const tmat = soft();
-    this.tail = this.addMesh(tb.mesh(tmat, { cast: true, receive: false, crease: 0 }), this.bodyGroup, tmat);
+    this.tail = this.addMesh(tb.mesh(tmat, { cast: true, receive: false, crease: CREASE }), this.bodyGroup, tmat);
     this.tail.position.set(0, 0.07, -0.12);
   }
   protected animate(_dt: number, t: number, move: number) {

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Vec3 } from './build';
-import { all, any, armForms, beakForm, earForms, earMarks, finForm, headForm, legForms, membraneWings, piece, region, sculptOf, snoutForm, sock as sockOf, surfaceHit, tailForm, tentacleForms, torso, unitOf, useSurface, wingForms } from './forms';
+import { all, any, armForms, beakForm, earForms, earMarks, finForm, headForm, legForms, membraneWings, piece, region, sculptOf, snoutForm, sock as sockOf, surfaceHit, tailForm, tentacleForms, torso, unitOf, useSurface, whiskers, wingForms } from './forms';
 import { curve, pillar, solid } from './paper';
 import { ellipsoid, pyramid, rod, spiral, type Probe } from './sculpt';
 import {
@@ -91,6 +91,7 @@ const fox: Recipe = (k, c) => {
   useSurface(k);
   eyes(k, { x: 0.4, y: 0.12, size: 0.9, wide: 1.5, slant: 0.32, color: '#1a1412' });
   nose(k, INK, onSnout(k, snout.nose), 0.026, 0.019);
+  whiskers(k, c.coat, { len: 0.1, back: 0.03 });
   const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
   const face = region(k, 'head', 'cheekL', 'cheekR');
   const head = unitOf(k, 'head');
@@ -168,9 +169,11 @@ const raccoon: Recipe = (k, c) => {
   // A thick tail with dark rings round it and a dark tip.
   const tailAt = tailForm(k, tailPath(0.44, [0, -0.3, -1], [0.5, -0.9, 0], 0.12, [0.55, 0.9, 1, 1, 0.9, 0.6]));
   useSurface(k);
-  eyes(k, { x: 0.38, y: 0.06, size: 0.85, wide: 1.3, slant: 0.18, color: '#121010', out: 0.006 });
+  // (No blush: it would sit on the mask.)
+  eyes(k, { x: 0.38, y: 0.06, size: 0.85, wide: 1.3, slant: 0.18, color: '#121010', out: 0.006, blush: false });
   // A dark triangle of a nose on its own bone, for sniffing.
   nose(k, '#2a2624', onSnout(k, snout.nose), 0.03, 0.022, true);
+  whiskers(k, c.coat, { len: 0.11 });
   const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
   const face = region(k, 'head', 'cheekL', 'cheekR');
   const head = unitOf(k, 'head');
@@ -252,6 +255,7 @@ const bunny: Recipe = (k, c) => {
   eyes(k, { x: 0.44, y: 0.1, size: 1.05, wide: 0.95, slant: 0.05, color: '#1c1416' });
   // A little pink nose on its own bone, for wiggling.
   nose(k, pink, onSnout(k, snout.nose, 0.004), 0.021, 0.016, true);
+  whiskers(k, c.coat, { len: 0.1, back: 0.025 });
   const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
   k.marks = {
     base: c.coat,
@@ -1282,6 +1286,7 @@ const seal: Recipe = (k, c) => {
   useSurface(k);
   eyes(k, { x: 0.4, y: 0.1, size: 1.25, wide: 1, slant: 0, color: '#120e10' });
   nose(k, '#2a2224', onSnout(k, snout.nose), 0.028, 0.02);
+  whiskers(k, c.coat, { len: 0.1, sweep: 0.15, color: '#e8e0d4' });
   mouth(k, { w: 0.18, y: -0.52, curve: 0.06, r: 0.006 });
   k.marks = {
     base: c.coat,
@@ -1534,6 +1539,7 @@ const otter: Recipe = (k, c) => {
   useSurface(k);
   eyes(k, { x: 0.42, y: 0.12, size: 0.85, wide: 1, slant: 0.05, color: '#120e10' });
   nose(k, '#2a1e1a', onSnout(k, snout.nose), 0.028, 0.02);
+  whiskers(k, c.coat, { len: 0.09, color: '#e8ddd0' });
   mouth(k, { w: 0.16, y: -0.5, curve: 0.06, r: 0.006 });
   const head = unitOf(k, 'head');
   k.marks = {
@@ -1591,6 +1597,7 @@ const fennec: Recipe = (k, c) => {
   useSurface(k);
   eyes(k, { x: 0.4, y: 0.1, size: 1.15, wide: 1.15, slant: 0.2, color: '#1a1210' });
   nose(k, INK, onSnout(k, snout.nose), 0.022, 0.017);
+  whiskers(k, c.coat, { len: 0.09, back: 0.03 });
   const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
   const head = unitOf(k, 'head');
   k.marks = {
@@ -1692,6 +1699,7 @@ const wolf: Recipe = (k, c) => {
   useSurface(k);
   eyes(k, { x: 0.4, y: 0.14, size: 0.85, wide: 1.4, slant: 0.28, color: '#1a1410', ring: '#c8963a', ringSize: 1.25 });
   nose(k, INK, onSnout(k, snout.nose), 0.028, 0.02);
+  whiskers(k, c.coat, { len: 0.1, back: 0.035 });
   const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
   const head = unitOf(k, 'head');
   k.marks = {
@@ -1808,6 +1816,7 @@ const cat: Recipe = (k, c) => {
   useSurface(k);
   eyes(k, { x: 0.4, y: 0.1, size: 1.05, wide: 1.2, slant: 0.2, color: '#141010', ring: '#8fbf4a', ringSize: 1.35, out: 0.006 });
   nose(k, pink, onSnout(k, snout.nose, 0.004), 0.022, 0.016);
+  whiskers(k, c.coat, { len: 0.12 });
   mouth(k, { w: 0.14, y: -0.55, curve: 0.06, r: 0.005 });
   const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
   const head = unitOf(k, 'head');
@@ -1876,6 +1885,7 @@ const dog: Recipe = (k, c) => {
   }
   eyes(k, { x: 0.38, y: 0.12, size: 0.95, wide: 1, slant: 0, color: '#1a1210' });
   nose(k, INK, onSnout(k, snout.nose), 0.034, 0.024);
+  whiskers(k, c.coat, { len: 0.07, back: 0.04 });
   mouth(k, { w: 0.18, y: -0.6, curve: 0.08, r: 0.006, out: 0.004 });
   k.marks = {
     base: c.coat,
@@ -1926,6 +1936,7 @@ const redpanda: Recipe = (k, c) => {
   useSurface(k);
   eyes(k, { x: 0.38, y: 0.08, size: 0.9, wide: 1, slant: 0.1, color: '#140e0c' });
   nose(k, INK, onSnout(k, snout.nose), 0.026, 0.019);
+  whiskers(k, c.coat, { len: 0.09, color: '#f0e6da' });
   const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
   const head = unitOf(k, 'head');
   k.marks = {
@@ -1989,6 +2000,7 @@ const quokka: Recipe = (k, c) => {
   useSurface(k);
   eyes(k, { x: 0.38, y: 0.12, size: 0.85, wide: 1, slant: 0.05, color: '#140e0c' });
   nose(k, dark, onSnout(k, snout.nose), 0.026, 0.018);
+  whiskers(k, c.coat, { len: 0.07 });
   // The famous smile: a broad upturned line under the nose, from cheek to cheek.
   mouth(k, { w: 0.42, y: -0.42, curve: 0.2, r: 0.011, out: 0.004 });
   const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
@@ -2040,6 +2052,7 @@ const chinchilla: Recipe = (k, c) => {
   useSurface(k);
   eyes(k, { x: 0.42, y: 0.1, size: 1.2, wide: 1, slant: 0.05, color: '#100c0c' });
   nose(k, pink, onSnout(k, snout.nose, 0.004), 0.018, 0.014);
+  whiskers(k, c.coat, { len: 0.13 });
   const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
   k.marks = {
     base: c.coat,

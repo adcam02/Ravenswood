@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { placeMatrix, type Vec3 } from './build';
+import { SMOOTH_LOOK, placeMatrix, type Vec3 } from './build';
 
 /**
  * The papercraft kit: shapes built from a few low-poly bases, pushed into shape, nudged so every flat face
@@ -203,7 +203,8 @@ export function solid(f: Fold, rnd: () => number, s: Solid): void {
   const pos = g.getAttribute('position') as THREE.BufferAttribute;
   const unit = new Float32Array(pos.count * 3);
   const r = typeof s.r === 'number' ? ([s.r, s.r, s.r] as Vec3) : s.r;
-  const j = s.jitter ?? 0.04;
+  // (Even and untoned in the smooth finish.)
+  const j = SMOOTH_LOOK ? 0 : (s.jitter ?? 0.04);
   const v = new THREE.Vector3();
   const mid = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
@@ -224,7 +225,7 @@ export function solid(f: Fold, rnd: () => number, s: Solid): void {
   const m = s.matrix ?? placeMatrix({ pos: s.pos, rot: s.rot });
   g.applyMatrix4(m);
   (g.getAttribute('axis') as THREE.BufferAttribute).applyMatrix4(m);
-  finish(f, g, s.color, s.paint, s.tone ?? 0.06);
+  finish(f, g, s.color, s.paint, SMOOTH_LOOK ? 0 : (s.tone ?? 0.06));
 }
 
 /** A placement that points a shape's +y from `from` towards `to`, centred between them. */

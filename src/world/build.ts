@@ -1,6 +1,5 @@
 import * as THREE from 'three';
-import { mergeGeometries, mergeVertices, toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { SimplifyModifier } from 'three/examples/jsm/modifiers/SimplifyModifier.js';
+import { mergeGeometries, toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 export type Vec3 = [number, number, number];
 
@@ -82,8 +81,7 @@ export class Builder {
   }
 
   mesh(material: THREE.Material, opts: { cast?: boolean; receive?: boolean; crease?: number } = {}): THREE.Mesh {
-    const geo = material.userData.paper ? papercraft(this.geometry(0)) : this.geometry(opts.crease);
-    const mesh = new THREE.Mesh(geo, material);
+    const mesh = new THREE.Mesh(this.geometry(opts.crease), material);
     mesh.castShadow = opts.cast ?? true;
     mesh.receiveShadow = opts.receive ?? true;
     return mesh;
@@ -128,26 +126,29 @@ export const SMOOTH_DEG = 38;
 export const matte = () => new THREE.MeshLambertMaterial({ vertexColors: true });
 
 /**
- * How the animals are shaded. 'card' (the default) is flat-lit folded card with a faint grain; 'toon' is the
- * older storybook cel shading, 'matte' plain, 'shiny' the old glossy look and 'paper' the simplified preview.
- * 'smooth' (an experiment) is the sculpted shapes with the older finish: smooth shading, the storybook
- * material, the older palette and glossy eyes. `?look=toon` (or matte, shiny, paper, smooth) switches it, for comparing.
+ * How the animals are shaded. 'smooth' (the default) is the sculpted shapes smooth-shaded in a soft storybook
+ * finish: painted bands of light with warm shadows, a gentle rim, round glossy eyes. 'card' (or 'paper') is the
+ * flat-lit folded-card papercraft finish; 'toon' the same cel shading on the faceted cut, 'matte' plain and
+ * 'shiny' the old glossy look. `?look=paper` (or card, toon, matte, shiny) switches it, for comparing.
  */
-type CharacterLook = 'card' | 'toon' | 'matte' | 'shiny' | 'paper' | 'smooth';
+type CharacterLook = 'smooth' | 'card' | 'toon' | 'matte' | 'shiny';
 const LOOK: CharacterLook = (() => {
   try {
     const v = new URLSearchParams(location.search).get('look');
-    return v === 'toon' || v === 'matte' || v === 'shiny' || v === 'paper' || v === 'smooth' ? v : 'card';
+    return v === 'paper' || v === 'card' ? 'card' : v === 'toon' || v === 'matte' || v === 'shiny' ? v : 'smooth';
   } catch {
-    return 'card';
+    return 'smooth';
   }
 })();
-/** ?look=smooth: the sculpted animals smooth-shaded, in the older storybook finish (see LOOK). */
+/** The default smooth finish (see LOOK): smooth normals, no facet jitter, the storybook material, cute faces. */
 export const SMOOTH_LOOK = LOOK === 'smooth';
 
-/** A soft four-step ramp: deep shadow, shadow, half-lit, lit. Linear filtering softens the band edges. */
+/**
+ * A soft ramp from deep shadow up to a lit band that stops short of full brightness (so pale coats don't blow
+ * out in daylight), with a gentle mid-tone between so the forms read as rounded. Linear filtering blends it.
+ */
 const RAMP = (() => {
-  const data = new Uint8Array([118, 168, 222, 255]);
+  const data = new Uint8Array([80, 90, 108, 132, 158, 182, 200, 212, 218]);
   const t = new THREE.DataTexture(data, data.length, 1, THREE.RedFormat);
   t.minFilter = THREE.LinearFilter;
   t.magFilter = THREE.LinearFilter;
@@ -170,13 +171,14 @@ function storybook(wetGlint: boolean): THREE.MeshToonMaterial {
         vec3 viewDir = normalize(vViewPosition);
         float facing = clamp(dot(normal, viewDir), 0.0, 1.0);
         // Warm bounce light: the colour itself, gently, everywhere.
-        outgoingLight += diffuseColor.rgb * 0.07;
+        outgoingLight += diffuseColor.rgb * 0.04;
         // A soft rim in the animal's own colour, brightest at the silhouette.
-        outgoingLight += mix(diffuseColor.rgb, vec3(1.0, 0.92, 0.8), 0.35) * pow(1.0 - facing, 2.6) * 0.42;
+        outgoingLight += mix(diffuseColor.rgb, vec3(1.0, 0.92, 0.8), 0.25) * pow(1.0 - facing, 2.8) * 0.24;
         ${wetGlint ? `
         // A little cartoon glint, as if fresh out of the water.
-        float glint = smoothstep(0.955, 0.97, dot(normal, normalize(vec3(-0.35, 0.6, 0.72))));
-        outgoingLight += vec3(1.0) * glint * 0.32;` : ''}
+        // (Small and soft, and fainter on dark coats, where a white glint reads as a grey patch.)
+        float glint = smoothstep(0.96, 0.985, dot(normal, normalize(vec3(-0.35, 0.6, 0.72))));
+        outgoingLight += (diffuseColor.rgb * 0.3 + 0.06) * glint;` : ''}
       }
       #include <opaque_fragment>`,
     );
@@ -186,55 +188,9 @@ function storybook(wetGlint: boolean): THREE.MeshToonMaterial {
 }
 
 /**
- * A papercraft sculpture: each part is simplified into big irregular flat facets (colour patches stay
- * separate, like cut card), lit flat and matte with a faint paper grain. A preview for now (?look=paper).
- */
-function papercraft(geo: THREE.BufferGeometry): THREE.BufferGeometry {
-  const plain = new THREE.BufferGeometry();
-  plain.setAttribute('position', geo.getAttribute('position'));
-  plain.setAttribute('color', geo.getAttribute('color'));
-  const welded = mergeVertices(plain, 1e-4);
-  const count = welded.getAttribute('position').count;
-  // Keep about a sixth of the corners: big facets, the silhouette still reads.
-  let out = count > 60 ? new SimplifyModifier().modify(welded, Math.floor(count * 0.84)) : welded;
-  out = out.index ? out.toNonIndexed() : out;
-  // A little variation in each facet's tone, as if each were a separate piece of card.
-  const col = out.getAttribute('color') as THREE.BufferAttribute;
-  for (let f = 0; f < col.count; f += 3) {
-    const k = 1 + (Math.sin(f * 12.9898) * 43758.5453 - Math.floor(Math.sin(f * 12.9898) * 43758.5453) - 0.5) * 0.07;
-    for (let v = 0; v < 3; v++) col.setXYZ(f + v, col.getX(f + v) * k, col.getY(f + v) * k, col.getZ(f + v) * k);
-  }
-  out.computeVertexNormals();
-  out.computeBoundingSphere();
-  geo.dispose();
-  welded.dispose();
-  return out;
-}
-
-function paperMaterial(): THREE.Material {
-  const m = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
-  m.userData.paper = true;
-  m.onBeforeCompile = (shader) => {
-    shader.fragmentShader = shader.fragmentShader.replace(
-      '#include <opaque_fragment>',
-      `
-      {
-        // A faint paper grain, fixed to the screen so it reads as the card's texture.
-        float grain = fract(sin(dot(floor(gl_FragCoord.xy / 1.5), vec2(12.9898, 78.233))) * 43758.5453);
-        outgoingLight *= 0.97 + grain * 0.06;
-        outgoingLight += diffuseColor.rgb * 0.05;
-      }
-      #include <opaque_fragment>`,
-    );
-  };
-  m.customProgramCacheKey = () => 'paper';
-  return m;
-}
-
-/**
  * Card: the material for the papercraft animals, built by hand with big flat facets. Matte, flat-lit, with a
  * faint paper grain and a touch of warm bounce so shadowed faces stay warm. `wetSheen` adds a soft glint for
- * aquatic animals. (Unlike the ?look=paper preview, nothing is simplified: the models are made faceted.)
+ * aquatic animals (?look=paper).
  */
 export function card(wetSheen = false): THREE.MeshLambertMaterial {
   const m = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
@@ -258,29 +214,29 @@ export function card(wetSheen = false): THREE.MeshLambertMaterial {
   return m;
 }
 
-/** The characters' material: folded card (see LOOK above for the older looks, kept for comparing). */
+/** The characters' material: the storybook finish (see LOOK above for the other looks, kept for comparing). */
 export const soft = (): THREE.Material =>
   LOOK === 'card'
     ? card()
-    : LOOK === 'paper'
-    ? paperMaterial()
-    : LOOK === 'toon' || LOOK === 'smooth'
-    ? storybook(false)
     : LOOK === 'matte'
       ? new THREE.MeshLambertMaterial({ vertexColors: true })
-      : new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0 });
+      : LOOK === 'shiny'
+        ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0 })
+        : storybook(false);
 
 /** Aquatic animals: the same, with a little wet glint (or the old glossy clearcoat with ?look=shiny). */
 export const wet = (): THREE.Material =>
   LOOK === 'card'
     ? card(true)
-    : LOOK === 'paper'
-    ? paperMaterial()
-    : LOOK === 'toon' || LOOK === 'smooth'
-    ? storybook(true)
     : LOOK === 'matte'
       ? new THREE.MeshLambertMaterial({ vertexColors: true })
-      : new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.28, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.12 });
+      : LOOK === 'shiny'
+        ? new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.28, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.12 })
+        : storybook(true);
+
+/** Eyes: smooth and a little reflective, so the catchlights read as a shine (flat card with ?look=paper). */
+export const eyeMaterial = (): THREE.Material =>
+  SMOOTH_LOOK ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.22, metalness: 0.05 }) : card();
 
 /** Things that glow on their own (lit windows, lanterns, the Storyteller). */
 export const glow = (color: THREE.ColorRepresentation, intensity = 1) =>

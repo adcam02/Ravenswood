@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { SMOOTH_LOOK, type Vec3 } from './build';
 import { audit, isLow, seedOf, seeded, type Color } from './paper';
 import { Sculpt, bake, copyMesh, decimate, ellipsoid, folds, labelOf, polygonise, pyramid, rod, settle, snapMarks, type Baked, type Mesh, type Probe, type Shape } from './sculpt';
-import { bone, onHead, part, v3, type Kit } from './species';
+import { BLUSH, bone, luminance, onHead, part, smooth, v3, type Kit } from './species';
 
 /**
  * The sculpted body plan: the shapes each part of an animal is made of, placed on the kit's bones, ready to
@@ -554,10 +554,11 @@ export function finishSculpt(k: Kit, animal: string, coat: string) {
       let high = meshes.get(`${animal}:high`);
       if (!high) {
         // Should that leave a fold somewhere it can't be settled out of, it's cut again on a grid shifted a
-        // little (where the surface passes through the cells differently).
+        // little (where the surface passes through the cells differently). The smooth finish cuts without
+        // jitter, and only if every shift folds tries them again with a little.
         let best = Infinity;
-        for (let i = 0; i < 4 && best > 0; i++) {
-          const cut = polygonise(sc, step, seedOf(animal) + i, SMOOTH_LOOK ? 0 : 0.18, i * 0.37);
+        for (let i = 0; i < (SMOOTH_LOOK ? 8 : 4) && best > 0; i++) {
+          const cut = polygonise(sc, step, seedOf(animal) + i, SMOOTH_LOOK ? (i < 4 ? 0 : 0.06) : 0.18, (i % 4) * 0.37);
           settle(sc, cut);
           const n = folds(cut);
           if (n < best) {
@@ -578,9 +579,9 @@ export function finishSculpt(k: Kit, animal: string, coat: string) {
     const mesh = copyMesh(cut);
     snapMarks(sc, mesh, fields);
     settle(sc, mesh, false);
-    // (?look=smooth: no facet-to-facet tone, and gentler creases, as the older smooth finish had none baked.)
-    const finish = SMOOTH_LOOK ? { tone: 0, depth: 0.12 } : {};
-    baked = bake(sc, mesh, { paint: (q) => colors[labelOf(fields, q)], colors, seed: seedOf(id), ...finish });
+    // (The smooth finish: no facet-to-facet tone, softer creases, and rosy cheeks.)
+    baked = bake(sc, mesh, { paint: (q) => colors[labelOf(fields, q)], colors, seed: seedOf(id), ...(SMOOTH_LOOK ? SMOOTH_BAKE : {}) });
+    if (k.blush) blushOn(baked.fold.pos, baked.fold.col, k.blush);
     cache.set(id, baked);
   }
   const f = part(k, 'skin', 'body');
@@ -593,6 +594,42 @@ export function finishSculpt(k: Kit, animal: string, coat: string) {
 }
 
 // ---------------------------------------------------------------- markings
+
+/** How the smooth finish bakes a surface: evenly toned, with a little less depth in the creases. */
+const SMOOTH_BAKE = { tone: 0, depth: 0.2 };
+
+/**
+ * Blends each corner's colour towards a rosy blush by how near it is to a cheek (on faces turned the cheek's way),
+ * corner by corner, so the blush fades softly out instead of ending in an edge.
+ */
+function blushOn(pos: ArrayLike<number>, col: number[] | Float32Array, spots: NonNullable<Kit['blush']>) {
+  const rose = new THREE.Color(BLUSH);
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const n = new THREE.Vector3();
+  const p = new THREE.Vector3();
+  for (let i = 0; i + 8 < pos.length; i += 9) {
+    a.fromArray(pos, i);
+    b.fromArray(pos, i + 3);
+    c.fromArray(pos, i + 6);
+    n.subVectors(b, a).cross(c.sub(a)).normalize();
+    for (let v = 0; v < 3; v++) {
+      p.fromArray(pos, i + v * 3);
+      let w = 0;
+      for (const s of spots) {
+        const d = p.distanceTo(new THREE.Vector3(...s.at)) / s.r;
+        if (d < 1) w = Math.max(w, (1 - smooth(0.25, 1, d)) * smooth(0.2, 0.6, n.dot(new THREE.Vector3(...s.n))));
+      }
+      if (w <= 0) continue;
+      const j = i + v * 3;
+      w *= 0.6;
+      col[j] += (rose.r - col[j]) * w;
+      col[j + 1] += (rose.g - col[j + 1]) * w;
+      col[j + 2] += (rose.b - col[j + 2]) * w;
+    }
+  }
+}
 
 /** A field over the body for drawing a marking: below zero inside it. */
 export type Field = (q: Probe) => number;
@@ -761,7 +798,8 @@ export function piece(k: Kit, o: PieceOpts) {
     const c = va.clone().add(vb).add(vc).multiplyScalar(1 / 3);
     // Wound to face out from the spine.
     const tri = n.dot(c.sub(mid)) < 0 ? [va, vc, vb] : [va, vb, vc];
-    tint.set(color).multiplyScalar(1 + (rnd() - 0.5) * 0.08);
+    tint.set(color);
+    if (!SMOOTH_LOOK) tint.multiplyScalar(1 + (rnd() - 0.5) * 0.08);
     for (const v of tri) {
       f.pos.push(v.x - origin.x, v.y - origin.y, v.z - origin.z);
       f.col.push(tint.r, tint.g, tint.b);
@@ -785,6 +823,27 @@ export function piece(k: Kit, o: PieceOpts) {
     }
   }
   (k.pieces ??= []).push({ name: o.name, bone: o.bone, root: rings[0].map(v3) });
+}
+
+/**
+ * Fine whiskers, two a side, fanning out from the sides of the muzzle just behind the nose: dark, or pale on a
+ * dark coat. `len` is how long, `back` how far behind the nose tip they start, `sweep` how far back they point.
+ */
+export function whiskers(k: Kit, coat: Color, o: { len?: number; back?: number; drop?: number; sweep?: number; color?: Color } = {}) {
+  if (!k.nose || !SMOOTH_LOOK) return;
+  const color = o.color ?? (luminance(coat) < 0.16 ? '#ece2d2' : '#3a2e2a');
+  const len = o.len ?? 0.11;
+  const tip = new THREE.Vector3(...k.nose).add(new THREE.Vector3(...k.joints.neck));
+  for (const side of [-1, 1]) {
+    [-0.14, 0.1].forEach((tilt, i) => {
+      const from = tip.clone().add(new THREE.Vector3(0, -(o.drop ?? 0.014) + tilt * 0.05, -(o.back ?? 0.035)));
+      const hit = surfaceHit(k, from, new THREE.Vector3(side, tilt * 0.5, 0.25));
+      if (!hit) return;
+      const dir = new THREE.Vector3(side, tilt, -(o.sweep ?? 0.3)).normalize();
+      const pts = [hit.p.clone().addScaledVector(hit.n, -0.009), hit.p.clone().addScaledVector(dir, len * 0.5), hit.p.clone().addScaledVector(dir, len)];
+      piece(k, { bone: 'neck', pts, w: [0.0032, 0.0022, 0], t: [0.0032, 0.0022, 0], across: new THREE.Vector3(0, 1, 0), colors: [color, color], name: `whisker${side > 0 ? 'L' : 'R'}${i}` });
+    });
+  }
 }
 
 /** Where a ray from inside the body (`from`, along `dir`) comes out through the sculpted surface, and which way is out there. */
@@ -838,7 +897,7 @@ export function sculptGeometry(sc: Sculpt, m: Markings, step: number, seed: numb
   let best: Mesh | null = null;
   let fewest = Infinity;
   for (let i = 0; i < 3 && fewest > 0; i++) {
-    const cut = polygonise(sc, step, seed + i, 0.18, i * 0.37);
+    const cut = polygonise(sc, step, seed + i, SMOOTH_LOOK ? 0 : 0.18, i * 0.37);
     settle(sc, cut);
     const n = folds(cut);
     if (n < fewest) {
@@ -849,5 +908,5 @@ export function sculptGeometry(sc: Sculpt, m: Markings, step: number, seed: numb
   const mesh = best!;
   snapMarks(sc, mesh, fields);
   settle(sc, mesh, false);
-  return bake(sc, mesh, { paint: (q) => colors[labelOf(fields, q)], colors, seed }).fold.geometry();
+  return bake(sc, mesh, { paint: (q) => colors[labelOf(fields, q)], colors, seed, ...(SMOOTH_LOOK ? SMOOTH_BAKE : {}) }).fold.geometry();
 }

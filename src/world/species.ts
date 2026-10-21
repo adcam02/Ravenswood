@@ -103,6 +103,8 @@ export interface Kit {
   pieces?: { name: string; bone: string; root: Vec3[] }[];
   /** Holds things this much higher than its shoulders would put them (a squid's arms start low). */
   lift?: number;
+  /** Rosy cheeks, blended softly into the sculpted surface (model space): where, which way they face, how wide. */
+  blush?: { at: Vec3; n: Vec3; r: number }[];
   /** Puts a point near the head (neck space) onto the sculpted surface, `out` beyond it, and which way is out there. */
   surface?: (p: THREE.Vector3, out: number) => THREE.Vector3;
   normalAt?: (p: THREE.Vector3) => THREE.Vector3;
@@ -256,11 +258,12 @@ export const luminance = (c: Color) => {
   return 0.2126 * x.r + 0.7152 * x.g + 0.0722 * x.b;
 };
 
-// (?look=smooth uses the older, brighter ink, white and pink.)
+// (The smooth finish has a softer ink, a warm off-white and a rosier pink; ?look=paper the card palette.)
 export const INK = SMOOTH_LOOK ? '#231c1f' : '#2a2326';
-export const CREAM = SMOOTH_LOOK ? '#fbf8f2' : '#efe3cb';
+export const CREAM = SMOOTH_LOOK ? '#f1e6d3' : '#efe3cb';
 export const CHARCOAL = '#38332f';
-export const PINK = SMOOTH_LOOK ? '#f4a6b4' : '#d99a98';
+export const PINK = SMOOTH_LOOK ? '#eba3ab' : '#d99a98';
+export const BLUSH = '#ee8e9a';
 const WARM = '#a48d74';
 
 /**
@@ -280,9 +283,21 @@ export function mute(c: Color): THREE.Color {
   return x.lerp(col(WARM), 0.08);
 }
 
+/** The smooth finish keeps the coat's own colour, but brings the brightest coats down a little in lightness. */
+function soften(c: Color): THREE.Color {
+  const x = col(c);
+  const hsl = { h: 0, s: 0, l: 0 };
+  x.getHSL(hsl);
+  const value = Math.max(x.r, x.g, x.b);
+  return x.setHSL(hsl.h, hsl.s, hsl.l * (1 - 0.13 * smooth(0.6, 0.95, value)));
+}
+
 export function colorsFor(coat: string, id?: string): Colors {
-  // ?look=smooth keeps the older palette: the coat as chosen, lighter shading and softer darks.
-  if (SMOOTH_LOOK) return { coat: col(coat), light: mix(coat, '#fff8ee', 0.6), dark: mix(coat, '#2a2020', 0.35), inner: mix(coat, PINK, 0.6) };
+  // The smooth finish: the coat as chosen (softened if very bright), warm off-white lights and soft darks.
+  if (SMOOTH_LOOK) {
+    const c = soften(coat);
+    return { coat: c, light: mix(c, '#f6ead8', 0.6), dark: mix(c, '#2a2020', 0.38), inner: mix(c, PINK, 0.6) };
+  }
   const c = mute(SWATCH[`${id}:${coat.toLowerCase()}`] ?? coat);
   return {
     coat: c,
@@ -520,7 +535,7 @@ export function nose(k: Kit, color: Color, p: Vec3, nw: number, nh = nw * 0.72, 
     at = [0, 0, 0];
   }
   solid(f, k.rnd, {
-    base: 'ico1',
+    base: SMOOTH_LOOK ? 'ico2' : 'ico1',
     r: [nw, nh, nw * 0.8],
     pos: at,
     rot: [0.3, 0, 0],
@@ -547,32 +562,37 @@ export interface EyeOpts {
   color?: Color;
   /** A ring or white behind the eye. */
   ring?: Color;
+  /** No rosy cheeks (the smooth finish gives them by default). */
+  blush?: boolean;
   ringSize?: number;
   out?: number;
 }
 
-/** Dark faceted almond eyes with a single highlight facet. */
+/**
+ * The eyes. In the smooth finish they're cute: rounder, bigger and more domed than the species' own shape (less
+ * so inside a ring, which has to fit round them), glossy, with a big catchlight and a little one, and a soft
+ * rosy blush on each cheek below. With ?look=paper, dark faceted almonds with a single highlight facet.
+ */
 export function eyes(k: Kit, o: EyeOpts = {}) {
+  const cute = SMOOTH_LOOK;
   const ux = o.x ?? 0.42;
   const uy = o.y ?? 0.08;
-  const size = o.size ?? 1;
-  const wide = o.wide ?? 1.15;
+  const size = (o.size ?? 1) * (cute ? (o.ring ? 1.08 : 1.22) : 1);
+  const wide = cute ? 1 + ((o.wide ?? 1.15) - 1) * 0.3 : (o.wide ?? 1.15);
   const ew = 0.03 * size * Math.sqrt(wide);
   const eh = (0.03 * size) / Math.sqrt(wide);
-  const ed = 0.016 * size;
+  const ed = (cute ? 0.021 : 0.016) * size;
+  // A ring stays the size the species asked for.
+  const ring = (o.ringSize ?? 1.45) / (cute && o.ring ? 1.08 : 1);
+  const base = cute ? 'ico2' : 'ico1';
+  const jitter = cute ? 0 : 0.02;
   let p = new THREE.Vector3();
   for (const side of [-1, 1]) {
     p = onHead(k, side * ux, uy, (o.out ?? 0) + 0.004);
     const n = headNormal(k, side * ux, uy);
-    const q = facing(n, side * (o.slant ?? 0.12));
+    const q = facing(n, side * (o.slant ?? 0.12) * (cute ? 0.4 : 1));
     const m = new THREE.Matrix4().compose(p, q, new THREE.Vector3(1, 1, 1));
-    // (Round and even, for the glossy eyes of ?look=smooth.)
-    const base = SMOOTH_LOOK ? 'ico2' : 'ico1';
-    const jitter = SMOOTH_LOOK ? 0 : 0.02;
-    if (o.ring) {
-      const rs = o.ringSize ?? 1.45;
-      solid(k.eyes, k.rnd, { base, r: [ew * rs, eh * rs, ed * 0.75], matrix: inside(m, [0, 0, -ed * 0.5]), jitter: jitter * 1.5, color: o.ring, tone: SMOOTH_LOOK ? 0 : 0.05 });
-    }
+    if (o.ring) solid(k.eyes, k.rnd, { base, r: [ew * ring, eh * ring, ed * 0.75], matrix: inside(m, [0, 0, -ed * 0.5]), jitter: jitter * 1.5, color: o.ring, tone: 0.05 });
     solid(k.eyes, k.rnd, {
       base,
       r: [ew, eh, ed],
@@ -580,12 +600,22 @@ export function eyes(k: Kit, o: EyeOpts = {}) {
       jitter,
       bend: (v) => {
         // Pointed at the corners, like an almond.
-        v.y *= 1 - 0.35 * Math.abs(v.x);
+        if (!cute) v.y *= 1 - 0.35 * Math.abs(v.x);
       },
       color: o.color ?? INK,
-      tone: SMOOTH_LOOK ? 0 : 0.1,
+      tone: 0.1,
     });
-    solid(k.eyes, k.rnd, { base: SMOOTH_LOOK ? 'ico1' : 'ico0', r: [ew * 0.3, eh * 0.3, ed * 0.3], matrix: inside(m, [ew * 0.3, eh * 0.38, ed * 0.8]), jitter, color: '#fbf6ec', tone: 0 });
+    if (cute) {
+      solid(k.eyes, k.rnd, { base: 'ico1', r: [ew * 0.34, eh * 0.34, ed * 0.3], matrix: inside(m, [ew * 0.3, eh * 0.36, ed * 0.8]), color: '#fffdf8', tone: 0 });
+      solid(k.eyes, k.rnd, { base: 'ico1', r: [ew * 0.14, eh * 0.14, ed * 0.15], matrix: inside(m, [-ew * 0.34, -eh * 0.34, ed * 0.86]), color: '#fffdf8', tone: 0 });
+      if (o.blush !== false) {
+        // Below the eye and a little out, on the cheek.
+        const bx = side * Math.min(0.8, ux + 0.12);
+        const by = Math.min(uy - 0.4, -0.14);
+        const at = onHead(k, bx, by).add(new THREE.Vector3(...k.joints.neck));
+        (k.blush ??= []).push({ at: v3(at), n: v3(headNormal(k, bx, by)), r: 0.03 * (o.size ?? 1) + 0.01 });
+      }
+    } else solid(k.eyes, k.rnd, { base: 'ico0', r: [ew * 0.3, eh * 0.3, ed * 0.3], matrix: inside(m, [ew * 0.3, eh * 0.38, ed * 0.8]), jitter: 0.02, color: '#fbf6ec', tone: 0 });
   }
   k.eyeY = p.y;
   k.eyeX = Math.abs(p.x);
