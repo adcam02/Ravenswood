@@ -40,16 +40,17 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    night order and everything else from the Grimoire. Fill the bag, deal characters and press **Show
    players their characters**. Close it to float off again.
    - **Night**: everyone is tucked up in bed in their own bedroom, fire out, moon and stars in the
-     window, and nobody can get up until morning. Press E for a go at **counting sheep**: sheep and a
-     few goats jump the fence, goats don't count, and a sheep that jumps back comes off the count. Get
-     it right and you wear a **gold star** over your head all the next day. One go a night. The
+     window, and nobody can get up until morning. Press E for a go at **counting sheep**: how many white
+     sheep jumped the fence, from either side? Every jump counts as one; the odd goat or wolf slips
+     through too, and they don't count. Get it right and you wear a **gold star** over your head all the next day. One go a night. The
      Storyteller wakes players with the same tools as the Grimoire, and can float to a bedside to talk
      to its owner privately.
    - **Day**: everyone comes back outside. Deaths in the night are announced at dawn, and dead players
      become ghosts of their animal: they can still walk around and talk.
    - **Ring the bell** and a bell call pops up on every player's screen, wherever they are, and after a
      moment they're sat on their own stool around the clock tower, in the same order as the grimoire.
-     Once everyone is there the bell stops but the meeting carries on, everyone staying sat, until you
+     Once everyone is there the bell stops but the meeting carries on, everyone staying put on their
+     own stool (they can still wave, cheer and so on from their seat), until you
      press **End meeting** (in the scene bar or under the bell) or night falls. If you reorder the
      seats, players move along to their new stools. During a meeting everyone at the square hears
      everyone else. Nominations and votes play out in 3D: a sign over the tower says who is nominated
@@ -93,9 +94,14 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    - **Click anyone in the town** to open their seat menu right there (wake, mark, kill, float over),
      including **Bring them to me**, which brings that player to stand beside you.
 6. **Hats.** Gold stars, town records, nights in bed and a walk as a ghost unlock hats (a beanie for
-   everyone, then a flower crown, party hat, witch hat, wizard hat, top hat, halo and crown). They're
-   remembered in each player's own browser and chosen under the colours in the animal picker; locked
-   ones say how to earn them.
+   everyone, then a flower crown, party hat, witch hat, wizard hat, top hat, halo and crown). Every
+   job has its own hat too, for doing it perfectly (all five logs split, three stars, a wish come
+   true): a lumberjack beanie for chopping wood, a sou'wester for fishing, a mitre for the bread or
+   wine at church, a chef's hat for baking, a bowler for the bar, a straw sun hat for gardening, a
+   headscarf for the laundry, a feathered cap for darts, a sailor's cap for skimming stones and a
+   leprechaun hat for the wishing well. A new hat pops up on screen with your animal wearing it and a
+   **Wear it now** button. Hats are remembered in each player's own browser and chosen under the
+   colours in the animal picker; locked ones say how to earn them.
 
 ### Controls
 
