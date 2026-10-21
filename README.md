@@ -58,7 +58,8 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      gallows for the whole town: a drumroll, the gavel, the trapdoor drops, a short swing and a puff of
      smoke, then they walk on as a ghost.
    - **The Slayer**: when the script has one, every living player gets a red **Slayer** button on their
-     menu during the day. Anyone can use it once a game to claim to be the Slayer and choose a player;
+     menu during the day. Anyone can use it once a game to claim to be the Slayer and choose a player
+     (dead ones too, for a Zombuul that has already "died");
      the whole town sees the claim. You get a box for every claim, real or not, and nothing happens
      until you answer, so the wait gives nobody away. For someone who isn't the Slayer the box only
      offers "Nothing happens". For the real Slayer it shows who they chose and their character, and

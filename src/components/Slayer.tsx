@@ -20,7 +20,8 @@ export function SlayerModal() {
   const me = view.seats.find((s) => s.isMe);
   const { show, used } = slayerButton(view);
   const [target, setTarget] = useState<string | null>(null);
-  const choices = view.seats.filter((s) => !s.isMe && !s.dead && (s.claimed || s.name));
+  // Dead players too: the Slayer can choose anyone, and a Zombuul that has "died" is still the Demon.
+  const choices = view.seats.filter((s) => !s.isMe && (s.claimed || s.name));
   const chosen = view.seats.find((s) => s.id === target);
   return (
     <Modal title="The Slayer" eyebrow="Once per game" size="sm" className="slayer-modal">
@@ -35,9 +36,10 @@ export function SlayerModal() {
           <h3 className="slayer-ask">Who do you want to kill?</h3>
           <div className="ask-seats">
             {choices.map((s) => (
-              <button key={s.id} className={`ask-seat ${target === s.id ? 'on' : ''}`} onClick={() => setTarget(s.id)}>
+              <button key={s.id} className={`ask-seat ${target === s.id ? 'on' : ''} ${s.dead ? 'dead' : ''}`} onClick={() => setTarget(s.id)}>
                 <span className="ask-num">{s.index + 1}</span>
                 {s.label}
+                {s.dead && <em>dead</em>}
               </button>
             ))}
           </div>
@@ -104,6 +106,7 @@ export function SlayerPrompt() {
             <p>
               {targetName} is {role ? `the ${role.name}` : 'without a character'}
               {demon ? <b className="blood"> (the Demon)</b> : ', not the Demon'}.
+              {target?.dead && ' Everyone sees them as dead already.'}
             </p>
           )}
           <p>If they’re the Demon, would you like to kill {targetName}? Choose no if {byName} is drunk or poisoned.</p>
