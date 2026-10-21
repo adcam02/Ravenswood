@@ -96,6 +96,11 @@ export interface Kit {
   elbow?: number;
   /** Its paws can't come up to its mouth (a jellyfish's arms hang under its bell): it sips from low down. */
   sipLow?: boolean;
+  /**
+   * Crisp pieces built as plain faceted geometry and fixed rigidly to one bone each (spikes, locks of hair),
+   * by name, with the corners of each one's root (model space), which must be sunk into the body.
+   */
+  pieces?: { name: string; bone: string; root: Vec3[] }[];
   /** Holds things this much higher than its shoulders would put them (a squid's arms start low). */
   lift?: number;
   /** Puts a point near the head (neck space) onto the sculpted surface, `out` beyond it, and which way is out there. */

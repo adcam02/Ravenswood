@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Vec3 } from './build';
-import { isLow, seedOf, type Color } from './paper';
+import { audit, isLow, seedOf, seeded, type Color } from './paper';
 import { Sculpt, bake, copyMesh, decimate, ellipsoid, folds, labelOf, polygonise, pyramid, rod, settle, snapMarks, type Baked, type Mesh, type Probe, type Shape } from './sculpt';
 import { bone, onHead, part, v3, type Kit } from './species';
 
@@ -564,8 +564,10 @@ export function finishSculpt(k: Kit, animal: string, coat: string) {
           }
         }
         // Kept under the triangle budget (a long-limbed animal cuts to more), by merging the flattest facets.
+        // (Less, the more crisp pieces are attached to it.)
         const n = high!.tris.length / 3;
-        if (n > MAX_TRIS * 1.03) high = decimate(high!, MAX_TRIS / n, step * 2.5);
+        const cap = Math.max(2000, MAX_TRIS - [...k.parts].filter(([name]) => name.startsWith('piece:')).reduce((sum, [, p]) => sum + p.fold.faces, 0));
+        if (n > cap * 1.03) high = decimate(high!, cap / n, step * 2.5);
         meshes.set(`${animal}:high`, high!);
       }
       cut = low ? decimate(high!, LOW_KEEP, step * 5) : high!;
@@ -690,3 +692,113 @@ export function along(shapes: Shape[], p: THREE.Vector3): number {
   return (best + Math.min(1, Math.max(0, shapes[best].unit!(p).y))) / shapes.length;
 }
 
+
+// ---------------------------------------------------------------- crisp attached pieces
+
+/** Where a bone sits at rest, in the model's space. */
+export function boneAt(k: Kit, name: string): THREE.Vector3 {
+  const j = k.joints;
+  const mirror = (p: Vec3): Vec3 => [-p[0], p[1], p[2]];
+  const own: Record<string, [string | null, Vec3]> = {
+    body: [null, [0, 0, 0]],
+    neck: ['body', j.neck],
+    armL: ['body', j.shoulder],
+    armR: ['body', mirror(j.shoulder)],
+    legL: ['body', j.hip],
+    legR: ['body', mirror(j.hip)],
+    tail: ['body', j.tail],
+  };
+  for (const b of k.bones) own[b.name] ??= [b.parent, b.pos];
+  const at = new THREE.Vector3();
+  for (let n: string | null = name; n; n = own[n]?.[0] ?? null) at.add(new THREE.Vector3(...(own[n]?.[1] ?? [0, 0, 0])));
+  return at;
+}
+
+export interface PieceOpts {
+  bone: string;
+  /** The spine of the piece, from its root (sunk into the body) to its point (model space). */
+  pts: THREE.Vector3[];
+  /** Half its width and half its thickness at each point (the last are usually 0, for a point). */
+  w: number[];
+  t: number[];
+  /** Which way is across it (its width); its thickness is square to that and to its spine. */
+  across: THREE.Vector3;
+  /** A colour for each stretch between points. */
+  colors: Color[];
+  name: string;
+}
+
+/**
+ * A crisp faceted piece fixed rigidly to one bone, built as plain geometry rather than sculpted (the surface
+ * would melt anything this small into a bump): a diamond in section, tapering along its spine to a point, so
+ * it has a ridge down each face. Its root is left open, sunk inside the body.
+ */
+export function piece(k: Kit, o: PieceOpts) {
+  // Far off, just the root and the point: a plain four-sided spike.
+  if (isLow()) {
+    const last = o.pts.length - 1;
+    o = { ...o, pts: [o.pts[0], o.pts[last]], w: [o.w[0], o.w[last]], t: [o.t[0], o.t[last]], colors: [o.colors[last - 1]] };
+  }
+  const f = part(k, `piece:${o.bone}`, o.bone);
+  const origin = boneAt(k, o.bone);
+  const rnd = seeded(seedOf(o.name) + (k.pieces?.length ?? 0));
+  const rings = o.pts.map((p, i) => {
+    const prev = o.pts[Math.max(0, i - 1)];
+    const next = o.pts[Math.min(o.pts.length - 1, i + 1)];
+    const d = next.clone().sub(prev).normalize();
+    const a = o.across.clone().addScaledVector(d, -o.across.dot(d)).normalize();
+    const b = new THREE.Vector3().crossVectors(d, a);
+    return [a, b, a.clone().negate(), b.clone().negate()].map((dir, j) => p.clone().addScaledVector(dir, j % 2 ? o.t[i] : o.w[i]));
+  });
+  const tint = new THREE.Color();
+  const face = (va: THREE.Vector3, vb: THREE.Vector3, vc: THREE.Vector3, mid: THREE.Vector3, color: Color) => {
+    const n = new THREE.Vector3().subVectors(vb, va).cross(new THREE.Vector3().subVectors(vc, va));
+    if (n.lengthSq() < 1e-12) return;
+    const c = va.clone().add(vb).add(vc).multiplyScalar(1 / 3);
+    // Wound to face out from the spine.
+    const tri = n.dot(c.sub(mid)) < 0 ? [va, vc, vb] : [va, vb, vc];
+    tint.set(color).multiplyScalar(1 + (rnd() - 0.5) * 0.08);
+    for (const v of tri) {
+      f.pos.push(v.x - origin.x, v.y - origin.y, v.z - origin.z);
+      f.col.push(tint.r, tint.g, tint.b);
+      f.along.push(-1);
+    }
+    audit.faces++;
+  };
+  for (let i = 0; i + 1 < rings.length; i++) {
+    const mid = o.pts[i].clone().add(o.pts[i + 1]).multiplyScalar(0.5);
+    const tip = o.w[i + 1] === 0 && o.t[i + 1] === 0;
+    for (let j = 0; j < 4; j++) {
+      const a0 = rings[i][j];
+      const a1 = rings[i][(j + 1) % 4];
+      if (tip) face(a0, a1, o.pts[i + 1], mid, o.colors[i]);
+      else {
+        const b0 = rings[i + 1][j];
+        const b1 = rings[i + 1][(j + 1) % 4];
+        face(a0, a1, b1, mid, o.colors[i]);
+        face(a0, b1, b0, mid, o.colors[i]);
+      }
+    }
+  }
+  (k.pieces ??= []).push({ name: o.name, bone: o.bone, root: rings[0].map(v3) });
+}
+
+/** Where a ray from inside the body (`from`, along `dir`) comes out through the sculpted surface, and which way is out there. */
+export function surfaceHit(k: Kit, from: THREE.Vector3, dir: THREE.Vector3): { p: THREE.Vector3; n: THREE.Vector3 } | null {
+  const sc = sculptOf(k);
+  const d = dir.clone().normalize();
+  const p = new THREE.Vector3();
+  let prev = sc.at(from.x, from.y, from.z);
+  if (prev > 0) return null;
+  for (let t = 0.005; t < 1; t += 0.005) {
+    p.copy(from).addScaledVector(d, t);
+    const f = sc.at(p.x, p.y, p.z);
+    if (f > 0) {
+      // Between the last two steps, where the field crosses nought.
+      p.addScaledVector(d, -0.005 * (f / (f - prev)));
+      return { p, n: sc.grad(p.x, p.y, p.z) };
+    }
+    prev = f;
+  }
+  return null;
+}

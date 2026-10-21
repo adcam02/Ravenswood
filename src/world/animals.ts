@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { card, glow, soft, wet, type Vec3 } from './build';
 import { buildBack, buildFace, buildNeck, type BackFit, type BuiltPiece, type FaceFit, type NeckFit } from './dressup';
-import { finishSculpt } from './forms';
+import { all, any, armForms, finishSculpt, region, sculptOf, sock, useSurface } from './forms';
 import { buildHat, type BuiltHat, type HatFit } from './hats';
 import { buildItem, disposeObject } from './items';
-import { Fold, lowDetail, pillar, seedOf, seeded, solid, tube } from './paper';
+import { Fold, lowDetail, seedOf, seeded, solid, tube } from './paper';
+import { ellipsoid, rod, type Probe } from './sculpt';
 import { RECIPES, profileOf } from './recipes';
 import { col, colorsFor, mix, newKit, onHead, type Kit, type Mannerism, type Profile, type Shape } from './species';
 import { animalInfo, type Anim, type AnimalId, type BackId, type FaceId, type HatId, type Item, type ItemKind, type Look, type NeckId } from './types';
@@ -1850,57 +1851,48 @@ const HOLLOW = '#0d0a14';
 
 export function buildStoryteller(): Rig {
   const k = newKit('storyteller');
-  const rnd = k.rnd;
   k.joints.neck = [0, 0.6, 0];
-  k.joints.shoulder = [0.19, 0.62, 0.02];
+  k.joints.shoulder = [0.19, 0.6, 0.02];
   k.shape.tc = [0, 0.4, 0];
   k.shape.tr = [0.28, 0.38, 0.26];
-  // A tall faceted robe that narrows to the shoulders, with a hem and a stripe of gold down the front.
-  tube(k.torso, rnd, {
-    pts: [
-      [0, 0.04, 0],
-      [0, 0.22, 0.0],
-      [0, 0.45, 0.0],
-      [0, 0.66, 0.0],
-    ],
-    radii: [0.3, 0.27, 0.21, 0.15],
-    sides: 8,
-    jitter: 0.06,
-    up: [1, 0, 0],
-    color: ROBE,
-    paint: (u) => (u.y < 0.06 ? TRIM : u.z < -0.93 ? TRIM : null),
-  });
-  solid(k.torso, rnd, { base: 'ico1', r: [0.25, 0.12, 0.21], pos: [0, 0.66, 0], jitter: 0.06, color: ROBE });
-  // The hood: a deep cowl with a dark hollow where a face should be, rimmed in gold, and a point at the back.
   k.shape.hc = [0, 0.27, 0];
   k.shape.hr = [0.25, 0.27, 0.25];
-  solid(k.head, rnd, {
-    base: 'ico3',
-    r: k.shape.hr,
-    pos: k.shape.hc,
-    jitter: 0.03,
-    color: ROBE,
-    paint: (u) => {
-      const d = Math.hypot(u.x / 0.78, (u.y + 0.08) / 0.82);
-      if (u.z > 0.3 && d < 0.8) return HOLLOW;
-      if (u.z > 0.2 && d < 0.98) return TRIM;
-      return null;
-    },
-  });
-  solid(k.head, rnd, { base: 'pyramid', r: [0.12, 0.24, 0.1], pos: [0, 0.52, -0.12], rot: [-0.7, 0, 0], jitter: 0.03, color: ROBE });
+  const sc = sculptOf(k);
+  const n = k.joints.neck;
+  // A tall robe narrowing from a flared hem to the shoulders.
+  sc.add(rod('body', [0, 0.05, 0], [0, 0.6, 0], 0.3, 0.16, { name: 'robe' }));
+  sc.add(ellipsoid('body', [0, 0.07, 0], [0.32, 0.07, 0.3], { k: 0.06, name: 'hem' }));
+  sc.add(ellipsoid('body', [0, 0.6, 0], [0.22, 0.09, 0.18], { k: 0.08, name: 'shoulders' }));
+  // The hood: a deep cowl drooping to a point behind, its front hollowed out into shadow.
+  sc.add(ellipsoid('neck', [0, n[1] + 0.27, 0], [0.25, 0.27, 0.25], { k: 0.06, anchor: n, reach: 0.18, name: 'hood' }));
+  sc.add(rod('neck', [0, n[1] + 0.42, -0.1], [0, n[1] + 0.5, -0.32], 0.12, 0.026, { k: 0.06, name: 'hoodTip' }));
+  const hollow = ellipsoid('neck', [0, n[1] + 0.28, 0.21], [0.17, 0.19, 0.15], { k: 0.03, carve: true, name: 'hollow' });
+  sc.add(hollow);
+  // Wide sleeves flaring to the cuffs, with pale hands.
+  armForms(k, { len: 0.27, r0: 0.06, r1: 0.095, paw: [0.045, 0.045, 0.05], fwd: 0.2, out: 0.2 });
+  useSurface(k);
+  // Two glowing eyes at the back of the hollow.
   k.eyeY = 0.28;
   k.eyeX = 0.075;
   k.eyeR = 0.035;
-  k.eyeZ = 0.26;
+  k.eyeZ = 0.09;
   for (const side of [-1, 1]) {
-    solid(k.eyes, rnd, { base: 'ico0', r: [0.036, 0.02, 0.012], pos: [side * 0.075, 0.28, 0.235], rot: [0, side * 0.3, -side * 0.25], jitter: 0.03, color: '#ffe08a', tone: 0 });
+    solid(k.eyes, k.rnd, { base: 'ico0', r: [0.036, 0.02, 0.012], pos: [side * 0.075, 0.28, 0.09], rot: [0, side * 0.3, -side * 0.25], jitter: 0.03, color: '#ffe08a', tone: 0 });
   }
-  // Wide sleeves for arms, with gold cuffs and pale hands.
-  for (const f of [k.armL, k.armR]) {
-    pillar(f, rnd, [0, 0.03, 0], [0, -0.27, 0.01], 0.06, 0.095, ROBE, { paint: (u) => (u.y > 0.36 ? TRIM : null) });
-    solid(f, rnd, { base: 'ico1', r: [0.045, 0.045, 0.05], pos: [0, -0.31, 0.02], jitter: 0.04, color: '#d8d0f0' });
-  }
-  k.joints.hand = [0, -0.31, 0.07];
+  const inHollow = (q: Probe) => hollow.d(q.p.x, q.p.y, q.p.z);
+  k.marks = {
+    base: ROBE,
+    marks: [
+      { color: HOLLOW, f: (q) => inHollow(q) - 0.012 },
+      // Gold round the opening of the hood, round the hem, down the front and at the cuffs.
+      { color: TRIM, f: (q) => inHollow(q) - 0.045 },
+      { color: '#d8d0f0', f: region(k, 'armLPaw', 'armRPaw') },
+      { color: TRIM, f: any(sock(k, 'L', 0.8), sock(k, 'R', 0.8)) },
+      { color: TRIM, f: all(region(k, 'robe', 'hem', 'shoulders'), (q) => q.p.y - 0.09) },
+      { color: TRIM, f: all(region(k, 'robe', 'hem', 'shoulders'), (q) => Math.abs(q.p.x) - 0.028, (q) => 0.05 - q.p.z) },
+    ],
+  };
+  finishSculpt(k, 'storyteller', ROBE);
   k.seat = 0;
   const lanternGlow = glow('#ffcf6a', 1.6);
   const eyeGlow = new THREE.MeshBasicMaterial({ color: '#ffe08a' });
