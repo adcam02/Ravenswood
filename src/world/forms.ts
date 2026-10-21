@@ -237,6 +237,189 @@ export function armForms(k: Kit, o: ArmOpts) {
   k.joints.hand = [0, pawAt[1], pawAt[2] + o.paw[2] + 0.012];
 }
 
+export interface WingOpts {
+  /** Length from the shoulder to the tip, how wide (front to back) and how thick. */
+  len: number;
+  w: number;
+  d: number;
+  /** How far forward and out it hangs, as for arms. */
+  fwd?: number;
+  out?: number;
+  /** Narrower towards the tip (a flipper keeps more of its width). */
+  taper?: number;
+}
+
+/**
+ * Wings (or flippers) for arms: a broad flat blade hanging from the shoulder down the side, bending half way
+ * on its own bone like an elbow, so a wing tip can hold things just like a paw. The tip is the "paw".
+ */
+export function wingForms(k: Kit, o: WingOpts) {
+  const sc = sculptOf(k);
+  const sh = k.joints.shoulder;
+  const fwd = o.fwd ?? 0.12;
+  const out = o.out ?? 0.18;
+  const taper = o.taper ?? 0.6;
+  k.bind ??= {};
+  const elbow = o.len * 0.45;
+  k.elbow = elbow;
+  const tipAt: Vec3 = [0, -o.len * 0.82, o.w * 0.15];
+  for (const side of [-1, 1]) {
+    const name = side > 0 ? 'armL' : 'armR';
+    const fore = side > 0 ? 'foreL' : 'foreR';
+    const rot: Vec3 = [-fwd, 0, side * out];
+    k.bind[name] = rot;
+    bone(k, fore, name, [0, -elbow, 0]);
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot));
+    const s: Vec3 = [side * sh[0], sh[1], sh[2]];
+    const local = (p: Vec3): Vec3 => add(s, v3(new THREE.Vector3(...p).applyQuaternion(q)));
+    // Flat side to side, broad front to back, the leading edge a little forward of the bone.
+    sc.add(ellipsoid(name, local([0, -elbow * 0.55, -o.w * 0.1]), [o.d, elbow * 0.75, o.w], { rot, k: 0.06, anchor: s, reach: 0.14, name, thin: true }));
+    sc.add(ellipsoid(fore, local([0, -elbow - (o.len - elbow) * 0.45, -o.w * 0.15]), [o.d * 0.9, (o.len - elbow) * 0.6, o.w * taper], { rot, k: 0.04, anchor: local([0, -elbow, 0]), reach: 0.08, name: `${name}Paw`, thin: true }));
+    sc.guides.push(rod(name, s, local([0, -o.len, 0]), o.d, o.d, { name: `${name}Axis` }));
+  }
+  k.joints.paw = tipAt;
+  k.joints.hand = [0, tipAt[1], tipAt[2] + o.w * taper * 0.5 + 0.012];
+}
+
+/**
+ * A bat's wings: thin finger-bone arms held out wide, with a membrane spread below each from the shoulder to
+ * the tip. Made (and bound) spread out, which is how they're held while flapping.
+ */
+export function membraneWings(k: Kit, o: { len: number; span: number; d: number; fwd?: number; out?: number; bites?: number }) {
+  const sc = sculptOf(k);
+  const sh = k.joints.shoulder;
+  const fwd = o.fwd ?? 0.15;
+  const out = o.out ?? 1.45;
+  k.bind ??= {};
+  const elbow = o.len * 0.45;
+  k.elbow = elbow;
+  const tipAt: Vec3 = [0, -o.len * 0.92, 0.02];
+  for (const side of [-1, 1]) {
+    const name = side > 0 ? 'armL' : 'armR';
+    const fore = side > 0 ? 'foreL' : 'foreR';
+    const rot: Vec3 = [-fwd, 0, side * out];
+    k.bind[name] = rot;
+    bone(k, fore, name, [0, -elbow, 0]);
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot));
+    const s: Vec3 = [side * sh[0], sh[1], sh[2]];
+    const local = (p: Vec3): Vec3 => add(s, v3(new THREE.Vector3(...p).applyQuaternion(q)));
+    const e = local([0, -elbow, 0]);
+    // Below the arm once it's spread is the arm's own -x on the left and +x on the right.
+    const down = -side;
+    sc.add(rod(name, s, e, 0.032, 0.026, { k: 0.05, anchor: s, reach: 0.12, name }));
+    sc.add(rod(fore, e, local([0, -o.len, 0]), 0.026, 0.016, { k: 0.03, anchor: e, reach: 0.06, name: fore, thin: true }));
+    sc.add(ellipsoid(name, local([down * o.span * 0.45, -elbow * 0.55, -0.005]), [o.span * 0.5, elbow * 0.62, o.d], { rot, k: 0.04, anchor: s, reach: 0.12, name: `${name}Web`, thin: true }));
+    const webs = [
+      { c: [o.span * 0.45, elbow * 0.55], r: [o.span * 0.5, elbow * 0.62] },
+      { c: [o.span * 0.4, elbow + (o.len - elbow) * 0.42], r: [o.span * 0.42, (o.len - elbow) * 0.58] },
+    ];
+    sc.add(ellipsoid(name, local([down * webs[0].c[0], -webs[0].c[1], -0.005]), [webs[0].r[0], webs[0].r[1], o.d], { rot, k: 0.04, anchor: s, reach: 0.12, name: `${name}Web`, thin: true }));
+    sc.add(ellipsoid(fore, local([down * webs[1].c[0], -webs[1].c[1], -0.005]), [webs[1].r[0], webs[1].r[1], o.d], { rot, k: 0.03, anchor: e, reach: 0.08, name: `${name}Paw`, thin: true }));
+    // Scalloped along the trailing edge: round bites out of it between the fingers, leaving a point at each.
+    const bites = o.bites ?? 0;
+    const edge = (u: number) => Math.max(...webs.map((w) => w.c[0] + w.r[0] * Math.sqrt(Math.max(0, 1 - ((u - w.c[1]) / w.r[1]) ** 2))));
+    for (let i = 0; i < bites; i++) {
+      // (Clear of the body: the inner part of the membrane, along the flank, is left whole.)
+      const u = o.len * (0.3 + (0.7 * (i + 0.5)) / bites);
+      const r = (o.len * 0.7) / bites / 2;
+      sc.add(ellipsoid(fore, local([down * (edge(u) + r * 0.2), -u, 0]), [r * 1.05, r, 0.08], { rot, k: 0.015, carve: true }));
+    }
+    sc.guides.push(rod(name, s, local([0, -o.len, 0]), 0.03, 0.03, { name: `${name}Axis` }));
+  }
+  k.joints.paw = tipAt;
+  k.joints.hand = [0, tipAt[1], tipAt[2] + 0.03];
+}
+
+export interface BeakOpts {
+  /** Where it leaves the face (unit height on the head), how far it sticks out, half-width and half-height. */
+  dy: number;
+  len: number;
+  w: number;
+  h: number;
+  /** A flat duck's bill (a squashed rod) rather than a pointed beak. */
+  flat?: boolean;
+  /** How far it angles down. */
+  drop?: number;
+}
+
+/** A beak or bill out of the face. Returns where its tip is (neck space). */
+export function beakForm(k: Kit, o: BeakOpts): Vec3 {
+  const sc = sculptOf(k);
+  const root = onHead(k, 0, o.dy, -0.01);
+  const n = k.joints.neck;
+  const at = add(n, v3(root));
+  const drop = o.drop ?? 0.2;
+  const dir = new THREE.Vector3(0, -Math.sin(drop), Math.cos(drop));
+  const tip = root.clone().addScaledVector(dir, o.len);
+  if (o.flat) {
+    sc.add(rod('neck', add(at, [0, 0, -0.02]), add(n, v3(tip)), o.w, o.w * 0.9, { k: 0.03, anchor: at, reach: 0.08, name: 'beak', squash: [1, o.h / o.w, 1], thin: true }));
+  } else {
+    // A pyramid lying forward, apex at the tip, turned a quarter so a ridge runs along the top.
+    sc.add(pyramid('neck', add(at, [0, 0, -0.01]), o.w, o.len + 0.01, o.h, { rot: [Math.PI / 2 + drop, Math.PI / 4, 0], k: 0.025, anchor: at, reach: 0.07, round: 0.006, name: 'beak', thin: true }));
+  }
+  return v3(tip);
+}
+
+/** A fin: a thin pointed blade (a pyramid) on a bone, from `base` towards `dir`. */
+export function finForm(k: Kit, bone: string, base: Vec3, o: { len: number; w: number; d: number; rot: Vec3; melt?: number; name: string }) {
+  // Never thinner than the surface can be cut cleanly (a thinner blade folds over at its edges).
+  const d = Math.max(o.d, 0.032);
+  sculptOf(k).add(pyramid(bone, base, o.w, o.len, d, { rot: o.rot, k: o.melt ?? 0.03, anchor: base, reach: Math.max(0.08, o.w * 1.5), round: 0.014, name: o.name, thin: true }));
+}
+
+export interface TentacleOpts {
+  /** How many each side, how long, thick at the root and the tip. */
+  count: number;
+  len: number;
+  r0: number;
+  r1: number;
+  /** Where they leave the body (body space, the left side's middle one), and how far round they spread. */
+  root: Vec3;
+  spread?: number;
+  /** How much they curl up at the tips. */
+  curl?: number;
+  /** How far down they reach before spreading (0 lie flat, 1 hang). */
+  hang?: number;
+  /** How far out round the rim they start, how much they wave from side to side, and how they melt in. */
+  rim?: number;
+  wave?: number;
+  melt?: number;
+}
+
+/** Tentacles in place of legs: tapering curling rods, a bunch on each leg bone so they sway together. */
+export function tentacleForms(k: Kit, o: TentacleOpts): Shape[] {
+  const sc = sculptOf(k);
+  const all: Shape[] = [];
+  const spread = o.spread ?? 1.6;
+  const hang = o.hang ?? 0.3;
+  for (const side of [-1, 1]) {
+    const name = side > 0 ? 'legL' : 'legR';
+    for (let j = 0; j < o.count; j++) {
+      const a = (o.count === 1 ? 0 : j / (o.count - 1) - 0.5) * spread;
+      const dir = new THREE.Vector3(side * Math.cos(a), 0, Math.sin(a));
+      const pts: Vec3[] = [];
+      const n = 5;
+      // Each starts round the rim in its own direction, and (hanging) waves a little as it goes down.
+      const start = new THREE.Vector3(side * Math.abs(o.root[0]), o.root[1], o.root[2]).add(dir.clone().multiplyScalar(o.rim ?? 0));
+      const across = new THREE.Vector3(-dir.z, 0, dir.x);
+      for (let i = 0; i <= n; i++) {
+        const t = i / n;
+        const out = t * o.len * (1 - hang * 0.6);
+        const y = o.root[1] - t * o.len * hang + Math.max(0, t - 0.6) ** 2 * (o.curl ?? 0.15);
+        const wave = Math.sin(t * 6 + j * 1.7) * (o.wave ?? 0) * t;
+        pts.push([start.x + dir.x * out + across.x * wave, Math.max(o.r1 * 0.8 + (o.curl ?? 0.15) * Math.max(0, t - 0.7), y), start.z + dir.z * out + across.z * wave]);
+      }
+      for (let i = 0; i < n; i++) {
+        const r = (t: number) => o.r0 + (o.r1 - o.r0) * t;
+        const sh = rod(name, pts[i], pts[i + 1], r(i / n), r((i + 1) / n), { k: i === 0 ? o.melt ?? 0.06 : 0.025, anchor: pts[i], reach: i === 0 ? 0.14 : 0.06, name: `${name}T${j}_${i}`, thin: true });
+        sc.add(sh);
+        all.push(sh);
+      }
+    }
+  }
+  return all;
+}
+
 export interface LegOpts {
   r0: number;
   r1: number;
@@ -317,6 +500,8 @@ export function useSurface(k: Kit) {
 /** How finely the surface is cut (about 3.5k faces for a whole animal), and how much of it is kept far off. */
 export const STEP = 0.04;
 export const LOW_KEEP = 0.25;
+/** The most faces an animal's surface may have, close up. */
+export const MAX_TRIS = 3500;
 
 /** Cut surfaces by animal (they don't depend on colour), and baked ones by animal, colour and detail. */
 const meshes = new Map<string, Mesh>();
@@ -348,11 +533,19 @@ export function finishSculpt(k: Kit, animal: string, coat: string) {
       if (!high) {
         // Should that leave a fold somewhere it can't be settled out of, it's cut again on a grid shifted a
         // little (where the surface passes through the cells differently).
-        for (let i = 0; i < 4; i++) {
-          high = polygonise(sc, step, seedOf(animal) + i, 0.18, i * 0.37);
-          settle(sc, high);
-          if (!folds(high)) break;
+        let best = Infinity;
+        for (let i = 0; i < 4 && best > 0; i++) {
+          const cut = polygonise(sc, step, seedOf(animal) + i, 0.18, i * 0.37);
+          settle(sc, cut);
+          const n = folds(cut);
+          if (n < best) {
+            best = n;
+            high = cut;
+          }
         }
+        // Kept under the triangle budget (a long-limbed animal cuts to more), by merging the flattest facets.
+        const n = high!.tris.length / 3;
+        if (n > MAX_TRIS * 1.03) high = decimate(high!, MAX_TRIS / n, step * 2.5);
         meshes.set(`${animal}:high`, high!);
       }
       cut = low ? decimate(high!, LOW_KEEP, step * 5) : high!;

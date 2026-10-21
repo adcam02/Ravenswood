@@ -244,8 +244,9 @@ export function card(wetSheen = false): THREE.MeshLambertMaterial {
         outgoingLight *= 0.97 + grain * 0.06;
         outgoingLight += diffuseColor.rgb * 0.06;
         ${wetSheen ? `
-        float glint = smoothstep(0.93, 0.96, dot(normal, normalize(vec3(-0.35, 0.6, 0.72))));
-        outgoingLight += vec3(1.0) * glint * 0.18;` : ''}
+        // Small and soft, and fainter on dark coats (where a white glint reads as a grey patch).
+        float glint = smoothstep(0.965, 0.99, dot(normal, normalize(vec3(-0.35, 0.6, 0.72))));
+        outgoingLight += (diffuseColor.rgb * 0.25 + 0.05) * glint;` : ''}
       }
       #include <opaque_fragment>`,
     );

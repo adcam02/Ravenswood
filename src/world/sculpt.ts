@@ -297,6 +297,7 @@ export class Sculpt {
     for (let j = 0; j < n; j++) {
       const s = S[only ? only[j] : j];
       if (s.carve) {
+        // Bitten out of everything before it.
         if (f === Infinity) continue;
         f = -smin(-f, s.d(x, y, z), s.k);
         continue;

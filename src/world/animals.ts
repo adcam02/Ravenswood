@@ -162,7 +162,7 @@ const HOLD: Record<ItemKind, Hold> = {
   rod: { dy: -0.14, dz: 0.02, out: 0.1 },
   // Heavier things ride lower, but off the ground.
   can: { dy: -0.18, dz: 0.05, out: 0, both: true, hang: 0.1 },
-  washing: { dy: -0.2, dz: 0.07, out: 0.02, both: true, hang: 0.12 },
+  washing: { dy: -0.2, dz: 0.1, out: 0.02, both: true, hang: 0.12 },
   // A bucket hangs by its handle at the side, and is lifted right up to drink from.
   water: { dy: -0.06, dz: 0.02, out: 0.12, sip: [-0.1, -0.07, 0.4], hang: 0.32 },
   // Firewood is hugged against the chest.
@@ -429,6 +429,7 @@ class AnimalRig implements Rig {
   private seat: number;
   /** How far a sculpted animal's back legs swing forward to sit (just enough to keep its feet down). */
   private sitLeg: number | null;
+  private sipLow: boolean;
   /** How the arms hang at rest: forward and out (a sculpted animal's, the way it was made). */
   private armFwd: number;
   private armOut: number;
@@ -474,6 +475,7 @@ class AnimalRig implements Rig {
     this.seat = k.seat;
     const foot = k.sculpt?.named('legLFoot');
     const reach = foot ? k.joints.hip[1] - foot.c.y : 0;
+    this.sipLow = Boolean(k.sipLow);
     this.sitLeg = foot ? -Math.acos(THREE.MathUtils.clamp((reach - k.seat) / reach, -1, 1)) : null;
     const bind = k.bind?.armL;
     this.armFwd = bind ? -bind[0] : 0.14;
@@ -776,11 +778,12 @@ class AnimalRig implements Rig {
    */
   private holdSpot(h: Hold): { y: number; z: number } {
     const low = this.shoulder.y - this.grip.length() * 0.8;
-    const y = Math.max(low, this.shoulder.y + h.dy);
+    // Under a jellyfish's bell, things are kept down below it.
+    const y = Math.min(Math.max(low, this.shoulder.y + h.dy), this.sipLow ? this.shoulder.y - 0.1 : Infinity);
     return {
       // A snail's tendril starts low, so it lifts things up to about the height of its head.
-      y: this.tendril ? Math.max(y + 0.05, (h.hang ?? 0.08) + 0.12, 0.34) : y,
-      z: Math.max(this.front + h.dz, this.front + this.pawR + (this.grip.z - this.paw.z) * 0.8) + (this.tendril ? 0.04 : 0),
+      y: this.tendril ? Math.max(y + 0.05, (h.hang ?? 0.08) + 0.12, 0.42) : y,
+      z: Math.max(this.front + h.dz, this.front + this.pawR + (this.grip.z - this.paw.z) * 0.8) + (this.tendril ? -0.02 : 0),
     };
   }
 
@@ -802,6 +805,17 @@ class AnimalRig implements Rig {
   /** Where a spot on the head (body space, at rest) is once the head is pitched by `hrx`. */
   private headNow(p: THREE.Vector3, hrx: number): THREE.Vector3 {
     return p.clone().sub(this.neckPos).applyAxisAngle(new THREE.Vector3(1, 0, 0), hrx).add(this.neckPos);
+  }
+
+  /** How far the grip can reach from the shoulder (the arm straight). */
+  private reachLength(): number {
+    return this.grip.length();
+  }
+
+  /** How far forward the face is (body space, at rest) at a height. */
+  private faceFront(y: number): number {
+    const u = (y - this.headC.y) / this.headR.y;
+    return this.headC.z + this.headR.z * Math.sqrt(Math.max(0, 1 - u * u));
   }
 
   /** Out to the side of the head, clear of it, as an `out` for `reach`. */
@@ -878,6 +892,60 @@ class AnimalRig implements Rig {
         aux(A, 'stalkL')[0] = aux(A, 'stalkR')[0] = 0.18 + 0.08 * k;
         aux(A, 'stalkL')[2] = 0.06 + sin(w * 0.5) * 0.08;
         aux(A, 'stalkR')[2] = -0.06 + sin(w * 0.5 + 1) * 0.08;
+        break;
+      }
+      case 'waddle': {
+        // Short quick steps and a big rock from foot to foot, wings (or flippers) held out a little for
+        // balance, the head keeping level and the tail wagging the other way.
+        P.llx = sin(w) * amp * 0.9;
+        P.lrx = -sin(w) * amp * 0.9;
+        P.brz = sin(w) * 0.17;
+        P.bry = sin(w) * 0.06;
+        P.by = Math.abs(sin(w)) * 0.03;
+        P.brx = run ? 0.12 : 0.03;
+        P.hrz = -P.brz * 0.7;
+        P.hrx = -P.brx * 0.6;
+        const outward = 0.35 + Math.abs(sin(w)) * 0.12;
+        P.alz = this.armOut + outward;
+        P.arz = -this.armOut - outward;
+        P.alx = P.arx = -this.armFwd - 0.05;
+        P.try = -sin(w) * 0.45;
+        break;
+      }
+      case 'float': {
+        // Drifting along: a slow bob and a lean into the way it's going, everything trailing a beat behind.
+        P.by = sin(w * 0.5) * 0.03;
+        P.brx = run ? 0.25 : 0.14;
+        P.brz = sin(w * 0.5) * 0.05;
+        P.hrx = -P.brx * 0.4;
+        P.alx = P.arx = -this.armFwd + 0.35 + sin(w - 0.8) * 0.15;
+        P.alz = this.armOut + 0.1;
+        P.arz = -this.armOut - 0.1;
+        P.llx = P.lrx = 0.4 + sin(w - 1.2) * 0.15;
+        break;
+      }
+      case 'flap': {
+        // Flying low: the wings beat (see the flapping below), the body bobs with each beat and the feet tuck up.
+        P.by = Math.abs(sin(w)) * 0.04;
+        P.brx = run ? 0.3 : 0.18;
+        P.hrx = -P.brx * 0.7;
+        P.llx = P.lrx = 0.5;
+        P.brz = sin(w * 0.5) * 0.06;
+        break;
+      }
+      case 'scuttle': {
+        // Rippling along on its tentacles: quick little bobs and a roll, the arms paddling too.
+        P.by = Math.abs(sin(w * 2)) * 0.035;
+        P.brz = sin(w) * 0.1;
+        P.bry = sin(w) * 0.08;
+        P.brx = run ? 0.12 : 0.04;
+        P.hrz = -P.brz * 0.5;
+        P.llx = sin(w) * 0.3;
+        P.lrx = -sin(w) * 0.3;
+        P.alx = -this.armFwd - 0.2 - sin(w) * 0.35;
+        P.arx = -this.armFwd - 0.2 + sin(w) * 0.35;
+        P.el = Math.max(0, sin(w)) * 0.6;
+        P.er = Math.max(0, -sin(w)) * 0.6;
         break;
       }
       case 'amble': {
@@ -1192,7 +1260,8 @@ class AnimalRig implements Rig {
         this.sit(P, A, t);
         break;
       case 'sleep':
-        if (!this.hasLegs) {
+        // (Something that floats, a jellyfish or a bat, just draws in where it is.)
+        if (!this.hasLegs || this.floats) {
           // Drawn in: head down, stalks pulled in.
           P.hrx = 0.35;
           for (const n of ['stalkL', 'stalkR']) {
@@ -1272,9 +1341,14 @@ class AnimalRig implements Rig {
       case 'cry':
         P.hrx = 0.34 + sin(t * 12) * 0.03;
         {
-          // Paws up over the eyes (where they are with the head bowed).
+          // Paws up over the eyes (where they are with the head bowed); a paw holding something keeps it.
           const e = this.headNow(this.eyePos, 0.34 + prof.head - prof.lean);
-          this.reach(P, 'both', e.y - 0.02, e.z + this.pawR + 0.025, e.x - Math.abs(sh.x), 'paw');
+          this.reach(P, this.hold ? 'l' : 'both', e.y - 0.02, e.z + this.pawR + 0.025, e.x - Math.abs(sh.x), 'paw');
+          if (this.hold) {
+            const left = [P.alx, P.alz, P.sl, P.el] as const;
+            this.carryPose(P, 0);
+            if (!this.hold.both) [P.alx, P.alz, P.sl, P.el] = left;
+          }
         }
         P.brz = sin(t * 14) * 0.025;
         P.by = -0.01;
@@ -1285,7 +1359,10 @@ class AnimalRig implements Rig {
         const k = sin(t * 7) * 0.05;
         // Short forepaws (the bunny's) scrub up in front of the chest, where they can reach clear of it.
         const low = sh.y - this.grip.length() * (this.grip.length() < 0.22 ? 0.5 : 0.8);
-        this.reach(P, 'both', Math.max(low, sh.y - 0.26) + k, Math.max(this.front + 0.1, this.front + this.pawR + (this.grip.z - this.paw.z)), -0.03);
+        // Low enough that the load stays under the chin (a shark's head comes down low and forward).
+        const wy = Math.min(Math.max(low, sh.y - 0.26), this.headC.y - this.headR.y - 0.16) + k;
+        const wz = Math.max(this.front + 0.14 + (this.hold?.hang ?? 0), this.front + this.pawR + (this.grip.z - this.paw.z));
+        this.reach(P, 'both', wy, wz, -0.03);
         P.alx += k * 2;
         P.arx -= k * 2;
         P.hrx = 0.25;
@@ -1324,10 +1401,24 @@ class AnimalRig implements Rig {
         const th = -tip;
         const m = this.headNow(this.mouth, (tip ? -0.15 : 0.12) + prof.head - prof.lean);
         const y1 = m.y - (cy * Math.cos(th) - cz * Math.sin(th));
-        const z1 = m.z + 0.015 - (cy * Math.sin(th) + cz * Math.cos(th));
-        this.reach(P, 'r', y0 + (y1 - y0) * sip, z0 + (z1 - z0) * sip, h.out * (1 - sip) + (0.03 - Math.abs(sh.x)) * sip);
-        P.hrx = tip ? -sip * 0.15 : sip * 0.12;
-        P.tilt = th * sip;
+        // A flat face (a frog's, an owl's) can't have the paw tucked under its chin: the cup is held just in
+        // front of the face instead.
+        // Clear of the face where the cup's rim comes up to (tipped back towards it), as well as at the paw.
+        const clear = (y: number) => Math.max(this.faceFront(y) + this.pawR + 0.03, this.faceFront(y + cy * Math.cos(th)) + Math.max(0, cy * Math.sin(tip)) + 0.07);
+        let z1 = Math.max(m.z + 0.015 - (cy * Math.sin(th) + cz * Math.cos(th)), clear(y1));
+        let ty = y1;
+        // Short arms (a frog's, a shark's fins) can't bring it right up to the mouth: it's lifted as far as
+        // they reach towards it, out in front of the face.
+        // Short arms (a frog's, a shark's fins) can't bring it up to the mouth at all: it's lifted a little in
+        // front of the chest and tipped a touch, and the head bends to it.
+        const short = this.sipLow || Math.hypot(0.03 - Math.abs(sh.x), ty - sh.y, z1 - sh.z) > this.reachLength() * 1.05;
+        if (short) {
+          ty = y0 + 0.04;
+          z1 = z0 + 0.02;
+        }
+        this.reach(P, 'r', y0 + (ty - y0) * sip, z0 + (z1 - z0) * sip, h.out * (1 - sip) + (short ? h.out : 0.03 - Math.abs(sh.x)) * sip);
+        P.hrx = short ? sip * 0.2 : tip ? -sip * 0.15 : sip * 0.12;
+        P.tilt = th * sip * (short ? 0.35 : 1);
         P.try = sin(t * 2) * 0.2;
         this.freePaw(P);
         break;
@@ -1657,16 +1748,17 @@ function hatFit(id: AnimalId, k: Kit): HatFit {
   };
 }
 
-/** See-through and glossy, for the jellyfish. */
+/**
+ * Glossy, for the jellyfish. (Not see-through: one surface drawn see-through shows its own far side and the
+ * eyes through the back of the bell.)
+ */
 const jelly = () =>
   new THREE.MeshPhysicalMaterial({
     vertexColors: true,
-    roughness: 0.25,
+    roughness: 0.3,
     metalness: 0,
     clearcoat: 1,
-    clearcoatRoughness: 0.15,
-    transparent: true,
-    opacity: 0.8,
+    clearcoatRoughness: 0.2,
     flatShading: true,
   });
 
