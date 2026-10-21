@@ -17,11 +17,11 @@ export function noteProblem(p: Problem) {
   useProblems.setState((s) => ({ list: [...s.list.slice(-29), p] }));
 }
 
-let send: ((message: string, where: string) => void) | null = null;
+let send: ((message: string, where: string) => boolean) | null = null;
 const sent = new Set<string>();
 
 /** Where reports go: set by a player's connection (the Storyteller sees their own problems on screen). */
-export function reportTo(fn: ((message: string, where: string) => void) | null) {
+export function reportTo(fn: ((message: string, where: string) => boolean) | null) {
   send = fn;
 }
 
@@ -35,9 +35,9 @@ const IGNORE = /ResizeObserver loop|Script error\.?$|extension:\/\/|Could not co
 export function reportProblem(error: unknown, where: string) {
   const message = (error instanceof Error ? `${error.name}: ${error.message}` : String(error)).slice(0, 300);
   if (!send || IGNORE.test(message) || sent.has(message) || sent.size >= 8) return;
-  sent.add(message);
   try {
-    send(message, where.slice(0, 80));
+    // Only counted once it's actually gone (not while still connecting), so an early problem is tried again.
+    if (send(message, where.slice(0, 80))) sent.add(message);
   } catch {
     /* never let reporting cause trouble of its own */
   }

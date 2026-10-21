@@ -34,6 +34,8 @@ interface Link {
 interface LinkMeta {
   playerId: string | null;
   lastSeen: number;
+  /** Problems this page has reported. */
+  oops?: number;
   sentPublic?: string;
   sentPrivate?: string;
   /** What this player has been told about where everyone is. */
@@ -287,6 +289,9 @@ class HostLink {
         p.slay(pid, String(msg.seatId));
         break;
       case 'oops': {
+        // A handful per connection at most: a broken page mustn't bury the Storyteller in notes.
+        meta.oops = (meta.oops ?? 0) + 1;
+        if (meta.oops > 10) break;
         const who = useHost.getState().g.seats.find((s) => s.playerId === pid)?.name || 'A player';
         const message = String(msg.message ?? '').slice(0, 300);
         if (!message) break;

@@ -18,6 +18,7 @@ import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWor
 import { COTTAGE_NAMES, DAIS, DOCK, MEETING_CENTRE, SQUARE_R, groundAt } from './town/layout';
 import { Fireworks } from './fireworks';
 import { reportProblem } from '../lib/report';
+import { steadyInterval } from '../lib/ticker';
 
 /** Town features that arrive with the effects pass: called only if the town has them. */
 interface TownFx {
@@ -244,7 +245,10 @@ export class Engine {
   private inBed = false;
   private meetingSeated = false;
   /** Voice volumes follow a timer rather than the frames, which stop while the tab is hidden. */
-  private voiceTimer: ReturnType<typeof setInterval> | null = null;
+  private stopVoice: (() => void) | null = null;
+  /** The end-of-game celebration on our stool: dancing or crying, until then. */
+  private party: { anim: Anim; until: number } | null = null;
+  private partyTimer: ReturnType<typeof setTimeout> | null = null;
   private lastFish = -1;
   /** Over the square when the game ends. */
   private fireworks = new Fireworks(MEETING_CENTRE);
@@ -356,7 +360,7 @@ export class Engine {
       } else this.me?.bubble('Zzz…', 2000);
     };
 
-    this.voiceTimer = setInterval(() => {
+    this.stopVoice = steadyInterval(() => {
       try {
         this.syncVoice(this.view);
       } catch (e) {
@@ -388,7 +392,9 @@ export class Engine {
     const canvas = this.renderer.domElement;
     canvas.removeEventListener('webglcontextlost', this.onContextLost);
     canvas.removeEventListener('webglcontextrestored', this.onContextRestored);
-    if (this.voiceTimer) clearInterval(this.voiceTimer);
+    this.stopVoice?.();
+    if (this.partyTimer) clearTimeout(this.partyTimer);
+    useHud.setState({ gfxLost: null });
     this.unsubUI?.();
     ambience.dispose();
     if (this.bellTimer) clearTimeout(this.bellTimer);
@@ -533,7 +539,11 @@ export class Engine {
     this.syncMe(v);
     this.applyPhase(v, prev);
     if (v.ended && prev && !prev.ended) this.celebrate(v, v.ended.winner);
-    else if (!v.ended && prev?.ended) this.fireworks.stop();
+    else if (!v.ended && prev?.ended) {
+      this.fireworks.stop();
+      this.party = null;
+      if (this.partyTimer) clearTimeout(this.partyTimer);
+    }
     // On a meeting stool: move along if the Storyteller reorders the seats, and get up when the meeting ends.
     if (this.seated?.y === STOOL_Y && local.zone === 'town' && v.mode === 'player') {
       const i = this.meetingIndex();
@@ -1160,11 +1170,16 @@ export class Engine {
     if (v.mode !== 'player') return;
     const mine = v.seats.find((s) => s.id === v.mySeatId);
     const won = Boolean(mine) && mine!.evil === (winner === 'evil');
-    // After any move the dawn makes (out of bed, say), then up on the stool.
-    setTimeout(() => this.takeMeetingSeat(), 700);
-    setTimeout(() => {
-      if (this.me && !this.job) this.emote = { anim: won ? 'dance' : 'cry', until: this.clock.elapsedTime + (won ? 16 : 6) };
-    }, 1700);
+    // A bell rung just before the end mustn't seat us again on top of this.
+    if (this.bellTimer) clearTimeout(this.bellTimer);
+    // Out of the way of any move the dawn makes (out of bed, say), then up on the stool. The celebration is kept
+    // apart from ordinary emotes, so being seated again (the seats reordered) doesn't end it.
+    if (this.partyTimer) clearTimeout(this.partyTimer);
+    this.partyTimer = setTimeout(() => {
+      this.partyTimer = null;
+      this.takeMeetingSeat();
+      this.party = { anim: won ? 'dance' : 'cry', until: this.clock.elapsedTime + (won ? 18 : 8) };
+    }, 700);
   }
 
   private goToSquare() {
@@ -1335,6 +1350,7 @@ export class Engine {
     else if (st && v.reading) anim = 'fish';
     else if (voting) anim = 'hand';
     else if (this.emote) anim = this.emote.anim;
+    else if (this.party && t < this.party.until && this.seated?.y === STOOL_Y) anim = this.party.anim;
     else if (this.seated) anim = this.seated.anim;
     local.anim = anim;
     local.speaking = voice.speaking();

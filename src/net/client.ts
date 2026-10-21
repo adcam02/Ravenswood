@@ -53,9 +53,10 @@ class ClientLink {
 
   /** The lobby connection, which also carries voice. */
   get peerRef(): Peer | null {
-    // Once it has an id: calls carry on through a brief loss of the lobby itself.
-    return this.peer && !this.peer.destroyed && this.peer.id ? this.peer : null;
+    // Once it has opened: calls carry on through a brief loss of the lobby itself (when PeerJS clears its id).
+    return this.peer && !this.peer.destroyed && this.peerOpened ? this.peer : null;
   }
+  private peerOpened = false;
 
   start(room: string) {
     if (this.room === room) return;
@@ -85,9 +86,11 @@ class ClientLink {
     const peer = new Peer(peerOptions());
     this.peer = peer;
     let opened = false;
+    this.peerOpened = false;
     // (Also after reconnecting to the lobby, when the channel to the Storyteller is usually still fine.)
     peer.on('open', () => {
       opened = true;
+      if (this.peer === peer) this.peerOpened = true;
       if (!this.conn?.open) this.connect();
     });
     peer.on('disconnected', () => {

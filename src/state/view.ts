@@ -69,7 +69,7 @@ const label = (name: string, i: number) => name || `Seat ${i + 1}`;
 export function useStorytellerView(): View {
   const g = useHost((s) => s.g);
   const online = useHostNet((s) => s.online);
-  const hide = useUI((s) => s.hideGrimoire);
+  const hide = useUI((s) => s.hideGrimoire) && !g.ended;
   return useMemo(
     () => ({
       mode: 'st',
@@ -130,8 +130,11 @@ export function usePlayerView(): View | null {
       day: pub.day,
       script: pub.script,
       seats: pub.seats.map((s, i) => {
+        // A player's own seat shows what they were told, until the grimoire is revealed and shows the truth
+        // (the Drunk, the Lunatic and the Marionette find out at the end).
+        const mine = priv?.seatId === s.id && !pub.grimoireRevealed;
         const isMe = priv?.seatId === s.id;
-        const roleId = isMe && priv?.roleId ? priv.roleId : s.roleId;
+        const roleId = mine && priv?.roleId ? priv.roleId : s.roleId;
         return {
           id: s.id,
           index: i,
@@ -143,7 +146,7 @@ export function usePlayerView(): View | null {
           ghostVote: s.ghostVote,
           roleId,
           shownRoleId: s.shownRoleId ?? null,
-          alignment: isMe && priv?.roleId ? priv.alignment : s.alignment ?? defaultAlignment(getRole(roleId)?.team),
+          alignment: mine && priv?.roleId ? priv.alignment : s.alignment ?? defaultAlignment(getRole(roleId)?.team),
           reminders: [],
           isMe,
           awake: null,

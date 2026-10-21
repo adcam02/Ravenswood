@@ -14,7 +14,8 @@ const TEAM = { good: 'Good', evil: 'Evil' } as const;
 /** How a player's game ended, from the last death noted against them. */
 function fateOf(view: View, seat: SeatView): { text: string; dead: boolean } {
   const d = [...view.deaths].reverse().find((x) => x.seatId === seat.id);
-  if (!d) return seat.dead ? { text: 'Died', dead: true } : { text: 'Survived', dead: false };
+  // (Day 0: a death from before deaths were logged, so nobody knows when.)
+  if (!d || d.day === 0) return seat.dead ? { text: 'Died', dead: true } : { text: 'Survived', dead: false };
   const when = d.phase === 'night' ? `Night ${d.day}` : `Day ${d.day}`;
   const how: Record<DeathRecord['how'], string> = {
     executed: `Executed on ${when}`,
@@ -34,9 +35,8 @@ const players = (view: View) => view.seats.filter((s) => s.claimed || s.name || 
  */
 export function WinPrompt() {
   const g = useHost((s) => s.g);
-  const [dismissed, setDismissed] = useState<string | null>(null);
   const check = winCheck(g);
-  if (!check || check.key === dismissed) return null;
+  if (!check || check.key === g.winDismissed) return null;
   const good = check.winner === 'good';
   return (
     <div className={`win-prompt surface ${check.winner}`} role="alertdialog" aria-label="Is the game over?">
@@ -44,7 +44,7 @@ export function WinPrompt() {
       <h3>{check.reason}.</h3>
       <p>{good ? 'Unless something keeps the Demon alive (a Scarlet Woman, say), good wins.' : 'With two players left and the Demon alive, evil wins.'}</p>
       <div className="win-choice">
-        <button className="btn" onClick={() => setDismissed(check.key)}>
+        <button className="btn" onClick={() => st.dismissWin(check.key)}>
           Not yet
         </button>
         <button className={`btn ${good ? 'sapphire' : 'blood'}`} onClick={() => st.endGame(check.winner, check.reason)}>
@@ -165,14 +165,16 @@ function awardsFor(view: View): Award[] {
   };
   const out: Award[] = [];
   const first = view.deaths[0];
-  if (first) out.push({ icon: '🪦', title: 'First to fall', who: name(first.seatId), detail: first.phase === 'night' ? `Night ${first.day}` : `Day ${first.day}` });
+  if (first && first.day > 0) out.push({ icon: '🪦', title: 'First to fall', who: name(first.seatId), detail: first.phase === 'night' ? `Night ${first.day}` : `Day ${first.day}` });
   const nominee = top(view.history.map((h) => h.nomineeId));
   if (nominee && nominee[1] >= 2) out.push({ icon: '🔍', title: 'Most suspected', who: name(nominee[0]), detail: `Nominated ${nominee[1]} times` });
   const accuser = top(view.history.map((h) => h.nominatorId));
   if (accuser && accuser[1] >= 2) out.push({ icon: '☝️', title: 'Keenest accuser', who: name(accuser[0]), detail: `${accuser[1]} nominations` });
   const hand = top(view.history.flatMap((h) => h.voters));
   if (hand) out.push({ icon: '✋', title: 'Quickest hand', who: name(hand[0]), detail: `${hand[1]} ${hand[1] === 1 ? 'vote' : 'votes'} raised` });
-  const fish = [...view.town.fish].sort((a, b) => b.cm - a.cm)[0];
+  // This game's fish only (the town's catch log runs on from game to game).
+  const since = view.ended?.since ?? 0;
+  const fish = view.town.fish.filter((f) => f.at >= since).sort((a, b) => b.cm - a.cm)[0];
   if (fish && fish.cm > 0) out.push({ icon: '🎣', title: 'Biggest catch', who: fish.by, detail: `${fish.kind}, ${fish.cm}cm` });
   return out;
 }

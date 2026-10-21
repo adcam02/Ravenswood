@@ -131,7 +131,8 @@ class Voice {
   attach(peer: Peer | null) {
     useVoice.setState({ available: Boolean(peer) });
     if (peer === this.peer) {
-      local.voiceId = peer?.id ?? null;
+      // (PeerJS forgets the id while the lobby is away; it's the same one when it comes back.)
+      if (peer?.id) local.voiceId = peer.id;
       return;
     }
     this.closeAll();

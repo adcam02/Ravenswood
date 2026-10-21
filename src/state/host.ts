@@ -88,6 +88,7 @@ function freshGame(prev?: GameState, keepPlayers = true): GameState {
     slayer: [],
     deaths: [],
     ended: null,
+    startedAt: Date.now(),
     awake: {},
     wakes: [],
     replies: [],
@@ -104,7 +105,8 @@ function loadGame(): GameState | null {
   g.townHall ??= null;
   g.nightDeaths ??= [];
   g.slayer ??= [];
-  g.deaths ??= [];
+  // A game saved before deaths were logged: those already dead are noted without a day.
+  g.deaths ??= g.seats.filter((s) => s.dead).map((s) => ({ seatId: s.id, day: 0, phase: 'day' as const, how: 'other' as const, at: 0 }));
   g.ended ??= null;
   g.town ??= emptyTown();
   g.town.records ??= {};
@@ -206,7 +208,7 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
     ),
     town: g.town,
     slayer: g.slayer.map(({ real: _, ...shot }) => shot),
-    ended: g.ended,
+    ended: g.ended && { winner: g.ended.winner, reason: g.ended.reason, at: g.ended.at, day: g.ended.day, since: g.ended.since },
     // Night deaths stay secret until dawn, so the list only goes out once the game is over.
     deaths: g.ended ? g.deaths : undefined,
   };
@@ -223,7 +225,7 @@ export function slayerOpen(g: { script: { roles: string[] }; phase: Phase; day: 
  * "not yet" holds until something moves on (a Scarlet Woman or a starpass makes a new Demon, say).
  */
 export function winCheck(g: GameState): { winner: 'good' | 'evil'; reason: string; key: string } | null {
-  if (g.ended || (g.day === 0 && g.phase === 'day')) return null;
+  if (g.ended || !g.revealed || (g.day === 0 && g.phase === 'day')) return null;
   const players = g.seats.filter((s) => s.roleId && !isTraveller(s.roleId));
   const demons = players.filter((s) => getRole(s.roleId)?.team === 'demon');
   if (!demons.length) return null;
@@ -956,7 +958,16 @@ export const st = {
     stopClock();
     update((g) => {
       if (g.ended) return;
-      g.ended = { winner, reason, at: Date.now(), day: g.day };
+      // Whatever the grimoire said is settled now, so the question doesn't come back after "carry on playing".
+      g.winDismissed = winCheck(g)?.key ?? g.winDismissed ?? null;
+      g.ended = {
+        winner,
+        reason,
+        at: Date.now(),
+        day: g.day,
+        since: g.startedAt,
+        before: { phase: g.phase, nightDeaths: [...g.nightDeaths], revealed: g.grimoireRevealed },
+      };
       g.grimoireRevealed = true;
       g.phase = 'day';
       g.nightDeaths = [];
@@ -968,13 +979,22 @@ export const st = {
       g.townHall = { id: uid(), at: Date.now(), ring: 0, back: [], gathered: true };
     });
   },
-  /** Takes back calling the game, to carry on playing. */
+  /** Takes back calling the game, to carry on playing just as things were (mid-night, if that's when it was). */
   reopenGame() {
     update((g) => {
+      const before = g.ended?.before;
       g.ended = null;
-      g.grimoireRevealed = false;
+      g.grimoireRevealed = before?.revealed ?? false;
+      if (before) {
+        g.phase = before.phase;
+        g.nightDeaths = before.nightDeaths;
+      }
       g.townHall = null;
     });
+  },
+  /** "Not yet": the game-over question waits until something changes. */
+  dismissWin(key: string) {
+    update((g) => void (g.winDismissed = key));
   },
   /** What came of a Slayer claim: the chosen player dies, or nothing happens. */
   settleSlayer(id: string, kill: boolean) {

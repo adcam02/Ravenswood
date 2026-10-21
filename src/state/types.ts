@@ -170,6 +170,10 @@ export interface GameEnd {
   reason: string;
   at: number;
   day: number;
+  /** When this game began (host clock), so the recap leaves out an earlier game's fish. */
+  since?: number;
+  /** Storyteller only: how things stood, so "carry on playing" puts them back. */
+  before?: { phase: Phase; nightDeaths: string[]; revealed: boolean };
 }
 
 export interface GameState {
@@ -205,6 +209,10 @@ export interface GameState {
   deaths: DeathRecord[];
   /** Set once the Storyteller calls the game. */
   ended: GameEnd | null;
+  /** When this game began. */
+  startedAt?: number;
+  /** The game-over question the Storyteller has answered (or that ending the game settled), so it isn't asked again. */
+  winDismissed?: string | null;
   awake: Record<string, AwakeState>;
   wakes: WakeMessage[];
   replies: WakeReply[];
