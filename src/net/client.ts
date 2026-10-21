@@ -121,7 +121,7 @@ class ClientLink {
       if (this.conn !== conn) return;
       this.lastPong = Date.now();
       this.setPeerState('open');
-      conn.send({ t: 'hello', playerId: playerId(), v: __BUILD__ } satisfies ClientMessage);
+      conn.send({ t: 'hello', playerId: playerId(), v: __BUILD__, delta: true } satisfies ClientMessage);
     });
     conn.on('data', (raw) => {
       if (this.conn !== conn) return;
@@ -153,7 +153,7 @@ class ClientLink {
         const msg = raw as HostMessage;
         if (msg.t === 'host') {
           this.meshHost = peerId;
-          this.mesh?.send({ t: 'hello', playerId: playerId(), v: __BUILD__ } satisfies ClientMessage, peerId);
+          this.mesh?.send({ t: 'hello', playerId: playerId(), v: __BUILD__, delta: true } satisfies ClientMessage, peerId);
           this.refresh();
           return;
         }
@@ -189,7 +189,8 @@ class ClientLink {
       useClient.setState({ priv: msg.p });
     } else if (msg.t === 'world') {
       const me = useClient.getState().priv?.seatId ?? null;
-      if (msg.full) presence.replace(msg.a ?? {}, me);
+      // An older Storyteller page sends everyone every time, without `d`.
+      if (!msg.d || msg.full) presence.replace(msg.a ?? {}, me);
       else presence.merge(msg.a ?? {}, Array.isArray(msg.gone) ? msg.gone : undefined, me);
       presence.announce = Boolean(msg.ann);
     } else if (msg.t === 'gift') {

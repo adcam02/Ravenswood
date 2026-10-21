@@ -37,6 +37,11 @@ interface LinkMeta {
   world: WorldLink;
   /** Whether they were last told the Storyteller is speaking to the whole town. */
   annSent?: boolean;
+  /** Their page understands updates with only what changed (older pages get everyone, every time). */
+  delta?: boolean;
+  /** For older pages: the last full update sent, and when. */
+  legacyJson?: string;
+  legacyAt?: number;
 }
 
 const RETRYABLE = new Set(['network', 'server-error', 'socket-error', 'socket-closed', 'disconnected']);
@@ -210,6 +215,7 @@ class HostLink {
       if (msg.v && msg.v > __BUILD__) useUpdate.setState({ available: true });
       meta.sentPublic = meta.sentPrivate = undefined;
       meta.world = newWorldLink();
+      meta.delta = msg.delta === true;
       // A refreshed tab replaces its old connection on the same route.
       for (const [other, m] of this.links) {
         if (other !== link && other.kind === link.kind && m.playerId === meta.playerId) {
@@ -319,14 +325,32 @@ class HostLink {
     for (const s of useHost.getState().g.seats) if (s.playerId) seatOf.set(s.playerId, s.id);
     const ann = presence.announce || undefined;
     const debug = debugHooks();
+    let legacy: { msg: HostMessage; json: string } | null = null;
     for (const [link, meta] of this.links) {
       if (!meta.playerId || !link.isOpen()) continue;
+      if (!meta.delta) {
+        // An older page (open since before this version): everyone, as before, whenever anything changed.
+        legacy ??= (() => {
+          const msg: HostMessage = { t: 'world', a: Object.fromEntries(poses), ann };
+          return { msg, json: JSON.stringify(msg) };
+        })();
+        if (legacy.json === meta.legacyJson && now - (meta.legacyAt ?? 0) < 1000) continue;
+        meta.legacyJson = legacy.json;
+        meta.legacyAt = now;
+        try {
+          link.send(legacy.msg);
+          if (debug) this.worldBytes += legacy.json.length;
+        } catch {
+          /* a closing channel */
+        }
+        continue;
+      }
       const at = presence.others.get(seatOf.get(meta.playerId) ?? '');
       const update = worldUpdate(now, meta.world, poses, jsons, at ? { zone: at.zone, x: at.x, z: at.z } : { zone: 'town', x: 0, z: 0 });
       // Nothing moved and the announce flag is as they last heard: nothing to send.
       if (!update && Boolean(ann) === Boolean(meta.annSent)) continue;
       meta.annSent = Boolean(ann);
-      const msg: HostMessage = { t: 'world', a: update?.a ?? {}, gone: update?.gone, full: update?.full, ann };
+      const msg: HostMessage = { t: 'world', a: update?.a ?? {}, gone: update?.gone, full: update?.full, d: 1, ann };
       try {
         link.send(msg);
         if (debug) this.worldBytes += JSON.stringify(msg).length;

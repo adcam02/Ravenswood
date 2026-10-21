@@ -252,10 +252,11 @@ export type HostMessage =
   | { t: 'state'; s: PublicState; now?: number; v?: string }
   | { t: 'private'; p: PrivateState }
   /**
-   * Where everyone is, by seat id ('st' for the Storyteller): everything when `full`, otherwise only who moved
-   * since the last message, with `gone` for anyone who left. `ann` is set while the Storyteller speaks to the whole town.
+   * Where everyone is, by seat id ('st' for the Storyteller). With `d` set (pages that said they understand it):
+   * everything when `full`, otherwise only who moved since the last message, with `gone` for anyone who left.
+   * Without `d` it's everyone, every time (older pages). `ann` is set while the Storyteller speaks to the whole town.
    */
-  | { t: 'world'; a: Record<string, Pose | [number, number, number]>; gone?: string[]; full?: true; ann?: boolean }
+  | { t: 'world'; a: Record<string, Pose | [number, number, number]>; gone?: string[]; full?: true; d?: 1; ann?: boolean }
   /** Something put in this player's paw: handed over by `from`, or taken from the bar or the shelf. */
   | { t: 'gift'; item: Item; from: string | null }
   /** The Storyteller calls this player over: they're brought to stand beside the Storyteller. */
@@ -267,7 +268,8 @@ export type HostMessage =
   | { t: 'error'; message: string };
 
 export type ClientMessage =
-  | { t: 'hello'; playerId: string; v?: string }
+  /** `delta`: this page understands world updates that carry only what changed. */
+  | { t: 'hello'; playerId: string; v?: string; delta?: boolean }
   | { t: 'join'; name: string; look: Look }
   /** Looking at an animal in the picker: hold it so nobody else takes it meanwhile (null lets it go). */
   | { t: 'hold'; name: string; animal: string | null }
