@@ -96,6 +96,8 @@ export interface Kit {
   elbow?: number;
   /** Its paws can't come up to its mouth (a jellyfish's arms hang under its bell): it sips from low down. */
   sipLow?: boolean;
+  /** Holds things this much higher than its shoulders would put them (a squid's arms start low). */
+  lift?: number;
   /** Puts a point near the head (neck space) onto the sculpted surface, `out` beyond it, and which way is out there. */
   surface?: (p: THREE.Vector3, out: number) => THREE.Vector3;
   normalAt?: (p: THREE.Vector3) => THREE.Vector3;

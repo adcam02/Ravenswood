@@ -449,6 +449,7 @@ class AnimalRig implements Rig {
   /** How far a sculpted animal's back legs swing forward to sit (just enough to keep its feet down). */
   private sitLeg: number | null;
   private sipLow: boolean;
+  private lift: number;
   /** How the arms hang at rest: forward and out (a sculpted animal's, the way it was made). */
   private armFwd: number;
   private armOut: number;
@@ -495,6 +496,7 @@ class AnimalRig implements Rig {
     const foot = k.sculpt?.named('legLFoot');
     const reach = foot ? k.joints.hip[1] - foot.c.y : 0;
     this.sipLow = Boolean(k.sipLow);
+    this.lift = k.lift ?? 0;
     this.sitLeg = foot ? -Math.acos(THREE.MathUtils.clamp((reach - k.seat) / reach, -1, 1)) : null;
     const bind = k.bind?.armL;
     this.armFwd = bind ? -bind[0] : 0.14;
@@ -802,7 +804,7 @@ class AnimalRig implements Rig {
     const y = Math.min(Math.max(low, this.shoulder.y + h.dy), this.sipLow ? this.shoulder.y - 0.1 : Infinity);
     return {
       // A snail's tendril starts low, so it lifts things up to about the height of its head.
-      y: this.tendril ? Math.max(y + 0.1, (h.hang ?? 0.08) + 0.18, 0.54) : y,
+      y: this.tendril ? Math.max(y + 0.1, (h.hang ?? 0.08) + 0.18, 0.54) : y + this.lift,
       z: Math.max(this.front + h.dz, this.front + this.pawR + (this.grip.z - this.paw.z) * 0.8) + (this.tendril ? -0.02 : 0),
     };
   }
@@ -1387,11 +1389,13 @@ class AnimalRig implements Rig {
         const low = sh.y - this.grip.length() * (this.grip.length() < 0.22 ? 0.5 : 0.8);
         // Low enough that the load stays under the chin (a shark's head comes down low and forward).
         const wy = Math.min(Math.max(low, sh.y - 0.26), this.headC.y - this.headR.y - 0.16) + k;
-        const wz = Math.max(this.front + 0.14 + (this.hold?.hang ?? 0), this.front + this.pawR + (this.grip.z - this.paw.z));
+        // Out past the end of the nose too, so a long snout bobbing over the load doesn't dip into it.
+        const wz = Math.max(this.front + 0.14 + (this.hold?.hang ?? 0), this.front + this.pawR + (this.grip.z - this.paw.z), this.mouth.z + 0.04);
         this.reach(P, 'both', wy, wz, -0.03);
         P.alx += k * 2;
         P.arx -= k * 2;
-        P.hrx = 0.25;
+        // (Short arms hold the load up close: the head stays up, clear of it.)
+        P.hrx = this.grip.length() < 0.22 ? 0.06 : 0.25;
         P.brx = 0.08;
         P.by = Math.abs(sin(t * 7)) * 0.012;
         if (this.hold?.both) P.carry = 1;
