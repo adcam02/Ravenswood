@@ -4,7 +4,7 @@ import { buildItem, disposeObject } from '../items';
 import { BED_SPOTS, wrapAngle, type Collider, type Door, type Spot, type Station, type TownState, type Weather, type ZoneKind } from '../types';
 import { makeBirds, makeGlows, makeMist, makeRain, makeRipples, makeSky, swayUniforms } from './fx';
 import { G, shade } from './kit';
-import { buildInteriors, type Room } from './interiors';
+import { buildInteriors, turnClockwork, type Room } from './interiors';
 import {
   BED,
   BED_H,
@@ -771,6 +771,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     tavern: interiors.rooms.tavern.group,
     bakery: interiors.rooms.bakery.group,
     church: interiors.rooms.church.group,
+    tower: interiors.rooms.tower.group,
     house: interiors.rooms.house.group,
   };
   let zone: ZoneKind = 'town';
@@ -931,6 +932,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       tavern: roomColliders('tavern'),
       bakery: roomColliders('bakery'),
       church: roomColliders('church'),
+      tower: roomColliders('tower'),
       house: roomColliders('house'),
     },
     bounds: {
@@ -938,6 +940,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       tavern: { kind: 'rect', hw: ROOMS.tavern.hw - 0.45, hd: ROOMS.tavern.hd - 0.45 },
       bakery: { kind: 'rect', hw: ROOMS.bakery.hw - 0.45, hd: ROOMS.bakery.hd - 0.45 },
       church: { kind: 'rect', hw: ROOMS.church.hw - 0.45, hd: ROOMS.church.hd - 0.45 },
+      tower: { kind: 'rect', hw: ROOMS.tower.hw - 0.45, hd: ROOMS.tower.hd - 0.45 },
       house: { kind: 'rect', hw: ROOMS.house.hw - 0.45, hd: ROOMS.house.hd - 0.45 },
     },
     doors: makeDoors(),
@@ -1119,6 +1122,14 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         mistK = wantMist > mistK ? Math.min(wantMist, mistK + k) : Math.max(wantMist, mistK - k);
         applyLight();
       }
+      if (bellPending) {
+        bellPending = false;
+        bellStart = t;
+        bellUntil = t + 5;
+      }
+      const ringK = t < bellUntil ? (bellUntil - t) / (bellUntil - bellStart) : 0;
+      const ring = Math.sin((t - bellStart) * 9) * ringK;
+      if (zone === 'tower') turnClockwork(interiors.clockwork, ring);
       if (zone !== 'town') return;
       // Rain, mist, swaying leaves, birds and the pond.
       rain.set(rainK, t, followAt);
@@ -1177,15 +1188,8 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         h.hour.rotation.z = -hr * Math.PI * 2;
         h.minute.rotation.z = -mn * Math.PI * 2;
       }
-      if (bellPending) {
-        bellPending = false;
-        bellStart = t;
-        bellUntil = t + 5;
-      }
-      if (t < bellUntil) {
-        const k = (bellUntil - t) / (bellUntil - bellStart);
-        outdoor.bell.rotation.z = Math.sin((t - bellStart) * 9) * 0.55 * k;
-      } else outdoor.bell.rotation.z *= 0.9;
+      if (t < bellUntil) outdoor.bell.rotation.z = ring * 0.55;
+      else outdoor.bell.rotation.z *= 0.9;
       // Smoke.
       if (outdoor.chimneys.length) {
         for (let i = 0; i < PUFFS; i++) {

@@ -62,6 +62,8 @@ export const CHURCH: Building = { x: 0, z: -23, ry: 0, w: 9, d: 14.4 };
 /** The steeple stands in front of the nave; its front face is the church's door. */
 export const STEEPLE = { z: 7.2, size: 3.8 };
 export const TAVERN: Building = { x: -20, z: 0, ry: Math.PI / 2, w: 11, d: 8 };
+/** The clock tower in the middle of the square. It has a door on every side; the east one opens. */
+export const TOWER: Building = { x: 0, z: 0, ry: Math.PI / 2, w: 3.4, d: 3.4 };
 export const BAKERY: Building = { x: 20, z: 0, ry: -Math.PI / 2, w: 9, d: 7 };
 export const WASHHOUSE = { x: -14, z: 14, w: 7, d: 4 };
 export const TUBS = [
@@ -192,6 +194,7 @@ export const ROOMS: Record<Exclude<ZoneKind, 'town'>, { hw: number; hd: number }
   tavern: { hw: 8, hd: 6 },
   bakery: { hw: 6, hd: 5 },
   church: { hw: 6, hd: 9 },
+  tower: { hw: 5, hd: 5 },
   house: { hw: 5, hd: 4 },
 };
 
@@ -200,6 +203,7 @@ export const ROOM_DOOR: Record<Exclude<ZoneKind, 'town'>, { exit: { x: number; z
   tavern: { exit: { x: 0, z: 5.3, r: 1.0 }, arrive: { x: 0, z: 3.7, ry: Math.PI } },
   bakery: { exit: { x: 0, z: 4.3, r: 1.0 }, arrive: { x: 0, z: 2.8, ry: Math.PI } },
   church: { exit: { x: 0, z: 8.3, r: 1.0 }, arrive: { x: 0, z: 6.8, ry: Math.PI } },
+  tower: { exit: { x: 0, z: 4.3, r: 1.0 }, arrive: { x: 0, z: 2.8, ry: Math.PI } },
   house: { exit: { x: 0, z: 3.3, r: 0.9 }, arrive: { x: 0, z: 1.9, ry: Math.PI } },
 };
 
@@ -231,6 +235,18 @@ export const PEW_ROWS = [-4.6, -2.6, -0.6, 1.4, 3.4, 5.2];
 export const PEW_X = 3.2;
 export const PEW_LEN = 3.6;
 
+/**
+ * The clock room inside the tower. The movement stands in the middle near the back, with its pendulum swinging
+ * under it and rods running off to the dials on the back and side walls (seen from inside, so they read backwards).
+ */
+export const MOVEMENT = { x: 0, z: -2.4, hw: 1.6, hd: 0.35 };
+export const BACK_DIAL = { y: 1.75, r: 1.3 };
+export const SIDE_DIAL = { y: 2.0, r: 1.05, z: MOVEMENT.z };
+export const BELL_ROPE = { x: -3.2, z: -0.6 };
+export const WORKBENCH = { x: -4.45, z: 1.5, hw: 0.4, hd: 1.1, top: 0.9 };
+export const WORK_STOOL = { x: -3.55, z: 1.5, ry: -Math.PI / 2 };
+export const TOWER_BENCH = { x: 4.5, z0: 0, z1: 1.8 };
+
 export const BED = { x: 3.1, z: -2.65, w: 1.7, d: 2.6, top: 0.52 };
 export const HOME_TABLE = { x: -2.6, z: 0.7 };
 export const HOME_CHAIRS = [
@@ -242,14 +258,16 @@ export const HOME_CHAIRS = [
 
 export function makeDoors(): Door[] {
   const doors: Door[] = [];
-  const pub: [Exclude<ZoneKind, 'town' | 'house'>, Building, number, string][] = [
-    ['tavern', TAVERN, TAVERN.d / 2, 'The Raven’s Rest'],
-    ['bakery', BAKERY, BAKERY.d / 2, 'Bakery'],
-    ['church', CHURCH, churchFront, 'Church'],
+  // The last number moves the doorway out: the tower's steps keep everyone further from its door.
+  const pub: [Exclude<ZoneKind, 'town' | 'house'>, Building, number, string, number][] = [
+    ['tavern', TAVERN, TAVERN.d / 2, 'The Raven’s Rest', 0],
+    ['bakery', BAKERY, BAKERY.d / 2, 'Bakery', 0],
+    ['church', CHURCH, churchFront, 'Church', 0],
+    ['tower', TOWER, TOWER.d / 2, 'Clock tower', 0.65],
   ];
-  for (const [kind, b, front, label] of pub) {
-    const trigger = doorPoint(b, 0.55, front);
-    const outside = doorPoint(b, 2.0, front);
+  for (const [kind, b, front, label, out] of pub) {
+    const trigger = doorPoint(b, 0.55 + out, front);
+    const outside = doorPoint(b, 2.0 + out, front);
     doors.push({ id: `${kind}-in`, zone: 'town', x: trigger.x, z: trigger.z, r: 1.0, to: kind, spawn: ROOM_DOOR[kind].arrive, label });
     const ex = ROOM_DOOR[kind].exit;
     doors.push({ id: `${kind}-out`, zone: kind, x: ex.x, z: ex.z, r: ex.r, to: 'town', spawn: { ...outside, ry: b.ry }, label: 'Outside' });
@@ -290,6 +308,11 @@ export function makeStations(): Station[] {
     [-PEW_X - 0.9, -PEW_X + 0.9, PEW_X - 0.9, PEW_X + 0.9].forEach((x, k) =>
       st.push({ id: `pew-${row}-${k}`, zone: 'church', x, z, r: 0.8, job: 'sit', stand: { x, z, ry: Math.PI }, y: 0.46, label: 'Sit' }),
     ),
+  );
+  // The clock tower: a stool at the clockmaker's bench and a bench along the wall.
+  st.push({ id: 'tower-stool', zone: 'tower', x: WORK_STOOL.x, z: WORK_STOOL.z, r: 0.9, job: 'sit', stand: WORK_STOOL, y: 0.62, label: 'Sit' });
+  [0.45, 1.35].forEach((z, i) =>
+    st.push({ id: `tower-bench-${i}`, zone: 'tower', x: TOWER_BENCH.x, z, r: 0.8, job: 'sit', stand: { x: TOWER_BENCH.x, z, ry: -Math.PI / 2 }, y: 0.45, label: 'Sit' }),
   );
   // Home.
   st.push({ id: 'bed', zone: 'house', x: BED.x, z: BED.z + 0.3, r: 1.9, job: 'sleep', stand: { x: BED.x, z: BED.z + 0.25, ry: 0 }, y: BED.top, label: 'Sleep' });
@@ -392,6 +415,17 @@ export function roomColliders(kind: Exclude<ZoneKind, 'town'>): Collider[] {
     c.push(at(0, -7.7, 1.4, 0.65));
     for (const z of PEW_ROWS) for (const sx of [-1, 1]) c.push(at(sx * PEW_X, z + 0.1, PEW_LEN / 2, 0.38));
     for (const sx of [-1, 1]) c.push({ kind: 'circle', x: sx * 2.2, z: -7.4, r: 0.25 });
+  } else if (kind === 'tower') {
+    c.push(at(MOVEMENT.x, MOVEMENT.z, MOVEMENT.hw + 0.15, MOVEMENT.hd + 0.2));
+    // The rod from the movement to the back dial runs at head height, so nobody walks through it.
+    c.push(at(0, (MOVEMENT.z - MOVEMENT.hd - 5) / 2, 0.15, (5 - MOVEMENT.hd + MOVEMENT.z) / 2));
+    c.push({ kind: 'circle', x: BELL_ROPE.x, z: BELL_ROPE.z, r: 0.2 });
+    c.push(at(WORKBENCH.x, WORKBENCH.z, WORKBENCH.hw + 0.05, WORKBENCH.hd + 0.05));
+    c.push({ kind: 'circle', x: WORK_STOOL.x, z: WORK_STOOL.z, r: 0.22 });
+    c.push(at(TOWER_BENCH.x + 0.05, (TOWER_BENCH.z0 + TOWER_BENCH.z1) / 2, 0.3, (TOWER_BENCH.z1 - TOWER_BENCH.z0) / 2));
+    c.push(at(4.7, 2.5, 0.25, 0.6));
+    c.push(at(4.2, 3.6, 0.5, 0.5));
+    c.push({ kind: 'circle', x: 3.2, z: 4.05, r: 0.4 });
   } else if (kind === 'house') {
     c.push(at(BED.x, BED.z, BED.w / 2 + 0.05, BED.d / 2 + 0.05));
     c.push({ kind: 'circle', x: HOME_TABLE.x, z: HOME_TABLE.z, r: 0.75 });

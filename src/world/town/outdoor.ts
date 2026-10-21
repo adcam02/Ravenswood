@@ -9,12 +9,14 @@ import {
   BED_H,
   BED_LEN,
   CHURCH,
+  DAIS,
   DOCK,
   GATE_Z,
   HOUSE_D,
   HOUSE_W,
   LINE_POS,
   LINE_Y,
+  MEETING_CENTRE,
   NOTICEBOARD,
   POND,
   RING_ROAD_R,
@@ -128,6 +130,22 @@ class Tris {
     this.tri(a, b, c, color);
     this.tri(a, c, d, color);
   }
+  /** A quad facing `out`: for the upright sides of things, which `quad` can't tell the way of. */
+  side(a: THREE.Vector3Like, b: THREE.Vector3Like, c: THREE.Vector3Like, d: THREE.Vector3Like, out: THREE.Vector3Like, color: THREE.ColorRepresentation) {
+    const ux = b.x - a.x;
+    const uy = b.y - a.y;
+    const uz = b.z - a.z;
+    const vx = c.x - a.x;
+    const vy = c.y - a.y;
+    const vz = c.z - a.z;
+    const facing = (uy * vz - uz * vy) * out.x + (uz * vx - ux * vz) * out.y + (ux * vy - uy * vx) * out.z;
+    const list = facing >= 0 ? [a, b, c, a, c, d] : [a, c, b, a, d, c];
+    this.c.set(color);
+    for (const p of list) {
+      this.pos.push(p.x, p.y, p.z);
+      this.col.push(this.c.r, this.c.g, this.c.b);
+    }
+  }
   /** A triangle with a colour at each corner, so neighbouring triangles blend instead of showing as patches. */
   triC(a: THREE.Vector3Like, b: THREE.Vector3Like, c: THREE.Vector3Like, ca: THREE.Color, cb: THREE.Color, cc: THREE.Color) {
     const d = c;
@@ -208,16 +226,43 @@ function groundMesh(): THREE.Mesh {
   return mesh;
 }
 
+/** A point on the square, by distance from the middle and angle round from north. */
+const polar = (rad: number, a: number, y: number) => V(rad * Math.sin(a), y, -rad * Math.cos(a));
+
+/**
+ * A stone laid in a ring between radii `ra`–`rb` and angles `a0`–`a1`: a flat top with bevelled edges, and sides
+ * standing up out of the mortar, so each one catches the light. `top` is the highest point (what animals stand on).
+ */
+function ringStone(t: Tris, ra: number, rb: number, a0: number, a1: number, top: number, base: number, bevel: number, col: THREE.Color) {
+  const mid = (ra + rb) / 2;
+  const da = Math.min(bevel / mid, (a1 - a0) / 4);
+  const dr = Math.min(bevel, (rb - ra) / 4);
+  const edge = top - bevel * 0.4;
+  const lo = [polar(ra, a0, edge), polar(ra, a1, edge), polar(rb, a1, edge), polar(rb, a0, edge)];
+  const hi = [polar(ra + dr, a0 + da, top), polar(ra + dr, a1 - da, top), polar(rb - dr, a1 - da, top), polar(rb - dr, a0 + da, top)];
+  const foot = lo.map((p) => V(p.x, base, p.z));
+  t.quad(hi[0], hi[1], hi[2], hi[3], col);
+  const bev = shade(col, -0.07);
+  const wall = shade(col, -0.18);
+  for (let k = 0; k < 4; k++) {
+    const n = (k + 1) % 4;
+    t.quad(lo[k], lo[n], hi[n], hi[k], bev);
+    const out = V((lo[k].x + lo[n].x) / 2 - mid * Math.sin((a0 + a1) / 2), 0, (lo[k].z + lo[n].z) / 2 + mid * Math.cos((a0 + a1) / 2));
+    t.side(lo[k], lo[n], foot[n], foot[k], out, wall);
+  }
+}
+
 function cobbleMesh(): THREE.Mesh {
   const t = new Tris();
   const r = rng(9);
-  // Mortar underneath.
-  const mortar = '#9c907f';
+  // Mortar underneath, sunk between the stones so they stand out.
+  const mortar = '#857a6b';
+  const MORTAR_Y = 0.008;
   const n0 = 48;
   for (let j = 0; j < n0; j++) {
     const a0 = (j / n0) * Math.PI * 2;
     const a1 = ((j + 1) / n0) * Math.PI * 2;
-    t.tri(V(0, 0.035, 0), V(SQUARE_R * Math.sin(a0), 0.035, -SQUARE_R * Math.cos(a0)), V(SQUARE_R * Math.sin(a1), 0.035, -SQUARE_R * Math.cos(a1)), mortar);
+    t.tri(V(0, MORTAR_Y, 0), polar(SQUARE_R, a0, MORTAR_Y), polar(SQUARE_R, a1, MORTAR_Y), mortar);
   }
   const stones = ['#d3c6b2', '#c8baa5', '#dccfbb', '#bfb19c', '#cdbfa9'];
   let rad = 2.9;
@@ -226,34 +271,23 @@ function cobbleMesh(): THREE.Mesh {
     const r1 = Math.min(SQUARE_R - 0.05, rad + w);
     const n = Math.max(8, Math.round((Math.PI * 2 * (rad + w / 2)) / 0.85));
     const off = r() * Math.PI;
-    const ring = false;
     for (let j = 0; j < n; j++) {
       const g = 0.05;
       const a0 = off + (j / n) * Math.PI * 2 + g / rad;
       const a1 = off + ((j + 1) / n) * Math.PI * 2 - g / rad;
-      const ra = rad + g;
-      const rb = r1 - g;
+      // The tops vary between 5 and 6.5 cm, as `groundAt` expects.
       const y = 0.05 + r() * 0.015;
-      const col = ring ? shade('#b98e74', (r() - 0.5) * 0.06) : shade(pick(r, stones), (r() - 0.5) * 0.04);
-      t.quad(
-        V(ra * Math.sin(a0), y, -ra * Math.cos(a0)),
-        V(ra * Math.sin(a1), y, -ra * Math.cos(a1)),
-        V(rb * Math.sin(a1), y, -rb * Math.cos(a1)),
-        V(rb * Math.sin(a0), y, -rb * Math.cos(a0)),
-        col,
-      );
+      ringStone(t, rad + g, r1 - g, a0, a1, y, MORTAR_Y, 0.07, shade(pick(r, stones), (r() - 0.5) * 0.04));
     }
     rad = r1;
   }
-  // A worn kerb around the edge.
+  // A worn kerb of long stones around the edge, standing proud of the grass outside it.
   const nk = 90;
   for (let j = 0; j < nk; j++) {
-    const a0 = (j / nk) * Math.PI * 2;
-    const a1 = ((j + 1) / nk) * Math.PI * 2;
-    const ra = SQUARE_R - 0.05;
-    const rb = SQUARE_R + 0.45;
-    const col = shade('#a99c89', (r() - 0.5) * 0.05);
-    t.quad(V(ra * Math.sin(a0), 0.07, -ra * Math.cos(a0)), V(ra * Math.sin(a1), 0.07, -ra * Math.cos(a1)), V(rb * Math.sin(a1), 0.07, -rb * Math.cos(a1)), V(rb * Math.sin(a0), 0.07, -rb * Math.cos(a0)), col);
+    const g = 0.012;
+    const a0 = (j / nk) * Math.PI * 2 + g / SQUARE_R;
+    const a1 = ((j + 1) / nk) * Math.PI * 2 - g / SQUARE_R;
+    ringStone(t, SQUARE_R - 0.05, SQUARE_R + 0.45, a0, a1, 0.07, -0.01, 0.035, shade('#a99c89', (r() - 0.5) * 0.05));
   }
   const mesh = new THREE.Mesh(t.geometry(), matte());
   mesh.receiveShadow = true;
@@ -304,6 +338,29 @@ export function nearPath(x: number, z: number, margin: number): boolean {
   return false;
 }
 
+const PEBBLES = ['#b8ad9c', '#a59a8a', '#c9bfae', '#958c7f', '#bcae96'];
+
+/** A low, lumpy stone of radius about `rad` with its top `h` above the ground, faceted so it catches the light. */
+function pebble(t: Tris, r: () => number, x: number, z: number, rad: number, h: number, col: THREE.Color) {
+  const n = 6;
+  const turn = r() * Math.PI;
+  const stretch = 0.75 + r() * 0.5;
+  const ring = (k: number, rr: number, y: number) => {
+    const a = turn + (k / n) * Math.PI * 2;
+    const wob = rr * (0.85 + hash(x * 13 + k, z * 7) * 0.3);
+    return V(x + Math.cos(a) * wob * stretch, y, z + Math.sin(a) * wob);
+  };
+  const base = Array.from({ length: n }, (_, k) => ring(k, rad, 0.015));
+  const top = Array.from({ length: n }, (_, k) => ring(k, rad * 0.6, h * 0.8));
+  const peak = V(x, h, z);
+  const dark = shade(col, -0.1);
+  for (let k = 0; k < n; k++) {
+    const m = (k + 1) % n;
+    t.quad(base[k], base[m], top[m], top[k], dark);
+    t.tri(top[k], top[m], peak, col);
+  }
+}
+
 function pathMesh(): THREE.Mesh {
   const t = new Tris();
   const r = rng(21);
@@ -333,6 +390,18 @@ function pathMesh(): THREE.Mesh {
       // Where paths cross, the one drawn later sits a hair higher, so they never flicker against each other.
       const y = 0.024 + lift;
       t.quad(V(ax + nx * wl, y, az + nz * wl), V(bx + nx * nl, y, bz + nz * nl), V(bx - nx * nr, y, bz - nz * nr), V(ax - nx * wr, y, az - nz * wr), shade(pick(r, dirt), (r() - 0.5) * 0.03));
+    }
+    // Stones pressed into the dirt, more of them along the edges where feet don't wear them away.
+    const count = Math.round(len * 1.3);
+    for (let k = 0; k < count; k++) {
+      const along = r();
+      const side = (r() < 0.5 ? -1 : 1) * Math.sqrt(r()) * (w / 2) * 0.92;
+      const x = x0 + (x1 - x0) * along + nx * side;
+      const z = z0 + (z1 - z0) * along + nz * side;
+      if (Math.hypot(x, z) < SQUARE_R + 0.7 || Math.hypot(x, z) > TOWN_R - 2) continue;
+      if (Math.hypot(x - MEETING_CENTRE.x, z - MEETING_CENTRE.z) < DAIS.r1 + 0.4) continue;
+      const flat = r() < 0.15;
+      pebble(t, r, x, z, flat ? 0.18 + r() * 0.1 : 0.05 + r() * 0.09, flat ? 0.035 : 0.03 + r() * 0.035, shade(pick(r, PEBBLES), (r() - 0.5) * 0.06));
     }
   });
   const mesh = new THREE.Mesh(t.geometry(), matte());

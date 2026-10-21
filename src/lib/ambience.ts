@@ -1,7 +1,7 @@
 /**
  * Soft ambient sound, all made in the browser so there's nothing to download: a gentle tune and birds by day,
  * crickets and an owl by night, a breath of wind, water and frogs at the pond, a creaking rope at the gallows,
- * a fire in the tavern and the bakery, and a hush in the church. Everything sits well under the voices.
+ * a fire in the tavern and the bakery, a hush in the church, and the clock ticking inside the tower. Everything sits well under the voices.
  */
 import { GALLOWS, POND } from '../world/town/layout';
 import { zoneKind, type Weather } from '../world/types';
@@ -22,6 +22,7 @@ const LEVEL = {
   crackle: 0.08,
   clink: 0.012,
   hum: 0.028,
+  tick: 0.06,
   rain: 0.09,
   steps: 0.07,
 };
@@ -60,6 +61,8 @@ class Ambience {
   private timer: ReturnType<typeof setInterval> | null = null;
   private state: AmbienceState = { zone: 'town', x: 0, z: 0, night: 0, yaw: 0 };
   private next: Record<string, number> = {};
+  /** The last whole second the tower clock beat on. */
+  private lastBeat = 0;
   private lastNote = 4;
   private padIndex = 0;
   private padUntil = 0;
@@ -94,7 +97,7 @@ class Ambience {
     wetGain.gain.value = 0.45;
     this.wet.connect(wetGain).connect(this.muffle);
     for (const name of ['wind', 'tune', 'pad', 'birds', 'crickets', 'owl', 'pond', 'frog', 'creak']) this.layer(name, this.muffle);
-    for (const name of ['fire', 'crackle', 'clink', 'hum']) this.layer(name, this.master);
+    for (const name of ['fire', 'crackle', 'clink', 'hum', 'tick']) this.layer(name, this.master);
     this.layer('rain', this.muffle);
     this.layer('steps', this.master);
     this.layers.steps.gain.value = LEVEL.steps;
@@ -169,6 +172,7 @@ class Ambience {
     set('crackle', LEVEL.crackle * fire);
     set('clink', LEVEL.clink * (kind === 'tavern' ? 1 : 0));
     set('hum', LEVEL.hum * (kind === 'church' ? 1 : 0));
+    set('tick', LEVEL.tick * (kind === 'tower' ? 1 : 0));
   }
 
   dispose() {
@@ -493,6 +497,15 @@ class Ambience {
       if (kind === 'tavern') this.clink(t);
       this.next.clink = t + 7 + Math.random() * 12;
     }
+    // The tower clock beats on the second, in step with its escape wheel.
+    if (kind === 'tower') {
+      const wall = Date.now() / 1000;
+      const sec = Math.ceil(wall);
+      if (sec !== this.lastBeat && sec - wall < 0.25) {
+        this.lastBeat = sec;
+        this.beat(t + (sec - wall), sec % 2 === 0);
+      }
+    }
   }
 
   /** The tune: a plucked note wandering along the scale, mostly stepwise, with a little room on it. */
@@ -691,6 +704,33 @@ class Ambience {
   }
 
   /** Glasses meeting across the room. */
+  /** One beat of the tower clock: a woody click with a little ring, tick a touch higher than tock. */
+  private beat(at: number, tick: boolean) {
+    const ctx = this.ctx!;
+    const src = ctx.createBufferSource();
+    src.buffer = this.stepNoise;
+    const band = ctx.createBiquadFilter();
+    band.type = 'bandpass';
+    band.frequency.value = tick ? 2600 : 2100;
+    band.Q.value = 6;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(1, at + 0.003);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.06);
+    src.connect(band).connect(g).connect(this.layers.tick);
+    src.start(at, Math.random() * 0.5, 0.08);
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = tick ? 1320 : 1180;
+    const og = ctx.createGain();
+    og.gain.setValueAtTime(0.0001, at);
+    og.gain.exponentialRampToValueAtTime(0.25, at + 0.004);
+    og.gain.exponentialRampToValueAtTime(0.0001, at + 0.18);
+    o.connect(og).connect(this.layers.tick);
+    o.start(at);
+    o.stop(at + 0.2);
+  }
+
   private clink(at: number) {
     const ctx = this.ctx!;
     for (const f of [2400 + Math.random() * 600, 3600 + Math.random() * 800]) {

@@ -36,7 +36,7 @@ interface TownFx {
 /** What's underfoot, for the sound of footsteps. */
 function surfaceAt(zone: ZoneId, x: number, z: number): 'stone' | 'wood' | 'grass' {
   const kind = zoneKind(zone);
-  if (kind === 'church') return 'stone';
+  if (kind === 'church' || kind === 'tower') return 'stone';
   if (kind !== 'town') return 'wood';
   if (Math.abs(x - DOCK.x) < DOCK.w / 2 && z > DOCK.z0 && z < DOCK.z1) return 'wood';
   if (Math.hypot(x, z) < SQUARE_R) return 'stone';
@@ -190,6 +190,7 @@ const PLACE_NAMES: Record<Exclude<ZoneKind, 'house'>, string> = {
   tavern: 'The Raven’s Rest',
   bakery: 'The Bakery',
   church: 'The Church',
+  tower: 'The Clock Tower',
 };
 
 /** Graphics quality: 'high' has shadows and crisp pixels; 'low' is for laptops that can't keep up. */

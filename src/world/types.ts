@@ -306,14 +306,14 @@ export interface Item {
 // ---------------------------------------------------------------- places
 
 /** Every place has its own coordinates. Interiors are centred on 0,0. */
-export type ZoneKind = 'town' | 'tavern' | 'bakery' | 'church' | 'house';
+export type ZoneKind = 'town' | 'tavern' | 'bakery' | 'church' | 'tower' | 'house';
 
-/** 'town', 'tavern', 'bakery', 'church', 'house:<seatId>' for someone's bedroom, or 'cottage:<n>' for a cottage in town. */
+/** 'town', 'tavern', 'bakery', 'church', 'tower', 'house:<seatId>' for someone's bedroom, or 'cottage:<n>' for a cottage in town. */
 export type ZoneId = string;
 
 export function zoneKind(zone: ZoneId): ZoneKind {
   if (zone.startsWith('house:') || zone.startsWith('cottage:')) return 'house';
-  if (zone === 'tavern' || zone === 'bakery' || zone === 'church') return zone;
+  if (zone === 'tavern' || zone === 'bakery' || zone === 'church' || zone === 'tower') return zone;
   return 'town';
 }
 

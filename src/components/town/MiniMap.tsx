@@ -18,6 +18,8 @@ function placeOf(zone: string, x: number, z: number, seatIndex: (id: string) => 
       return [BAKERY.x, BAKERY.z];
     case 'church':
       return [CHURCH.x, CHURCH.z];
+    case 'tower':
+      return [0, 0];
     case 'house': {
       const slot = cottageSlot(zone);
       if (slot !== null) {

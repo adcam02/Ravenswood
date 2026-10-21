@@ -345,6 +345,27 @@ await check('doors: walking into the tavern door goes inside', async () => {
   await shot(p, '05-tavern-inside');
 });
 
+await check('doors: the clock tower opens on its east side, and lets you out again', async () => {
+  const p = players.abbey;
+  const door = await p.evaluate(() => window.__engine.town.doors.find((d) => d.zone === 'town' && d.to === 'tower'));
+  const out = await p.evaluate(() => window.__engine.town.doors.find((d) => d.id === 'tower-out'));
+  expect(door && out, 'no clock tower door');
+  await place(p, 'town', out.spawn.x, out.spawn.z, out.spawn.ry + Math.PI);
+  await sleep(500);
+  await p.evaluate(([x, z]) => {
+    window.__engine.moveTarget = { x, z, y: 0 };
+  }, [door.x, door.z]);
+  await until(p, () => window.__local.zone === 'tower', null, 30000, 'to be inside the clock tower');
+  await sleep(800);
+  await shot(p, '05b-tower-inside');
+  await p.evaluate(([x, z]) => {
+    window.__engine.moveTarget = { x, z, y: 0 };
+  }, [out.x, out.z]);
+  await until(p, () => window.__local.zone === 'town', null, 30000, 'to be back out in the square');
+  const at = await me(p);
+  expect(Math.hypot(at.x - out.spawn.x, at.z - out.spawn.z) < 1.5, `came out at ${at.x.toFixed(1)}, ${at.z.toFixed(1)}`);
+});
+
 await check('jobs: bartending puts a drink on the bar', async () => {
   const p = players.abbey;
   const s = await stationFor(p, 'bartender');

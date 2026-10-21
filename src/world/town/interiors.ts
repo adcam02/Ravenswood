@@ -3,18 +3,25 @@ import { Builder, matte, rng } from '../build';
 import type { ZoneKind } from '../types';
 import { Paint, pick, shade, smoothMesh } from './kit';
 import {
+  BACK_DIAL,
   BAR,
   BAR_STOOLS,
   BED,
+  BELL_ROPE,
   HOME_CHAIRS,
   HOME_TABLE,
+  MOVEMENT,
   OVEN,
   PEW_LEN,
   PEW_ROWS,
   PEW_X,
   ROOMS,
   SHELF,
+  SIDE_DIAL,
   TAVERN_TABLES,
+  TOWER_BENCH,
+  WORKBENCH,
+  WORK_STOOL,
   tableChairs,
 } from './layout';
 import { IRON, WOOD, WOOD_DARK, WOOD_LIGHT, barrel, crate } from './props';
@@ -48,6 +55,8 @@ export interface Interiors {
   /** Glass that shows the sky outside: bright by day, dark at night. */
   glassMaterial: THREE.MeshBasicMaterial;
   ownerSign: TextSign;
+  /** The clock tower's moving parts. */
+  clockwork: Clockwork;
 }
 
 const WALL_H = 3.3;
@@ -571,6 +580,371 @@ function church(p: Paint, glow: Builder, r: () => number) {
   }
 }
 
+// ---------------------------------------------------------------- the clock tower
+
+/** Teeth are this far apart on every gear, so any two of them mesh. */
+const PITCH = 0.08;
+const BRASS = '#c9a24f';
+const STEEL = '#9aa0a8';
+/** Cast iron, painted a dark green. */
+const CAST = '#2f3833';
+const NUMERAL = '#2a2420';
+
+/** The clock room's moving parts, turned by `turnClockwork`. */
+export interface Clockwork {
+  hands: { hour: THREE.Object3D; minute: THREE.Object3D }[];
+  gears: { obj: THREE.Object3D; phase: number; rate: number }[];
+  pendulum: THREE.Object3D;
+  rope: THREE.Object3D;
+}
+
+const gearR = (n: number) => (n * PITCH) / (2 * Math.PI);
+
+/** A gear's place, and the way it turns: `psi` is where its first tooth points, `rate` its turn per turn of the escape wheel. */
+interface GearAt {
+  n: number;
+  x: number;
+  y: number;
+  psi: number;
+  rate: number;
+}
+
+/** The gear of `n` teeth meshing with `from`, off in direction `angle`: placed so its gaps meet the other's teeth. */
+function meshWith(from: GearAt, n: number, angle: number, d = gearR(from.n) + gearR(n)): GearAt {
+  return {
+    n,
+    x: from.x + Math.cos(angle) * d,
+    y: from.y + Math.sin(angle) * d,
+    psi: angle + Math.PI - (from.psi - angle) * (from.n / n) + Math.PI / n,
+    rate: (-from.rate * from.n) / n,
+  };
+}
+
+/** A gear of `n` teeth facing +z, centred on the origin: big ones spoked, small ones solid. */
+function gear(p: Paint, n: number, color: string, thick = 0.05) {
+  const r = gearR(n);
+  const seg = (2 * Math.PI) / n;
+  const rim = r - 0.075;
+  for (let k = 0; k < n; k++) {
+    const a = k * seg;
+    const b = a + seg / 2;
+    p.box(color, PITCH * 0.42, 0.095, thick, -Math.sin(a) * (r - 0.0025), Math.cos(a) * (r - 0.0025), 0, 0, 0, a);
+    p.box(shade(color, -0.04), ((2 * Math.PI * rim) / n) * 1.08, 0.05, thick * 1.1, -Math.sin(b) * rim, Math.cos(b) * rim, 0, 0, 0, b);
+  }
+  const hub = 0.05 + r * 0.12;
+  if (r < 0.3) p.cyl(shade(color, -0.1), r - 0.08, thick * 0.6, 0, 0, 0, Math.max(10, n), Math.PI / 2);
+  else {
+    const spokes = r > 0.5 ? 6 : 5;
+    for (let k = 0; k < spokes; k++) {
+      const a = (k / spokes) * Math.PI * 2;
+      const mid = (hub + rim) / 2;
+      p.box(shade(color, -0.06), 0.045, rim - hub, thick * 0.8, -Math.sin(a) * mid, Math.cos(a) * mid, 0, 0, 0, a);
+    }
+  }
+  p.cyl(shade(color, 0.06), hub, thick * 1.6, 0, 0, 0, 12, Math.PI / 2);
+}
+
+/** A Roman numeral's strokes, upright and centred on the origin, `h` tall. */
+function numeral(text: string, h: number): { x: number; len: number; rz: number }[] {
+  const adv = (c: string) => (c === 'I' ? 0.32 : 0.78) * h;
+  const width = [...text].reduce((w, c) => w + adv(c), 0);
+  const strokes: { x: number; len: number; rz: number }[] = [];
+  let x = -width / 2;
+  for (const c of text) {
+    const cx = x + adv(c) / 2;
+    const w = 0.6 * h;
+    if (c === 'I') strokes.push({ x: cx, len: h, rz: 0 });
+    else if (c === 'V') {
+      const lean = Math.atan2(w / 2, h);
+      const len = Math.hypot(w / 2, h);
+      strokes.push({ x: cx - w / 4, len, rz: lean }, { x: cx + w / 4, len, rz: -lean });
+    } else {
+      const lean = Math.atan2(w, h);
+      const len = Math.hypot(w, h);
+      strokes.push({ x: cx, len, rz: lean }, { x: cx, len, rz: -lean });
+    }
+    x += adv(c);
+  }
+  return strokes;
+}
+
+const HOURS = ['XII', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'];
+
+/**
+ * A clock dial seen from inside the tower: lit glass in a stone surround, with the iron tracery, the numerals
+ * and the hands showing through backwards. Painted in a frame whose +z faces into the room, on the wall's face.
+ */
+function dial(p: Paint, lit: Paint, y: number, R: number, works: Clockwork, place: { x: number; z: number; ry: number }) {
+  p.cyl('#a8a196', R + 0.2, 0.06, 0, y, 0.14, 40, Math.PI / 2);
+  p.torus('#8f887c', R + 0.2, 0.035, 0, y, 0.17);
+  lit.cyl('#fff3d6', R, 0.02, 0, y, 0.185, 40, Math.PI / 2);
+  // Iron rings and spokes holding the glass, then the minute and hour marks.
+  p.torus(NUMERAL, R, 0.035, 0, y, 0.2);
+  p.torus(NUMERAL, R * 0.66, 0.016, 0, y, 0.2);
+  p.torus(NUMERAL, R * 0.3, 0.016, 0, y, 0.2);
+  for (let k = 0; k < 12; k++) {
+    const a = (k / 12) * Math.PI * 2;
+    const mid = R * 0.48;
+    p.box(NUMERAL, 0.016, R * 0.36, 0.01, -Math.sin(a) * mid, y + Math.cos(a) * mid, 0.203, 0, 0, a);
+  }
+  for (let k = 0; k < 60; k++) {
+    const a = (k / 60) * Math.PI * 2;
+    const big = k % 5 === 0;
+    const len = big ? 0.09 : 0.045;
+    const at = R * 0.94 - len / 2;
+    p.box(NUMERAL, big ? 0.024 : 0.012, len, 0.01, -Math.sin(a) * at, y + Math.cos(a) * at, 0.203, 0, 0, a);
+  }
+  // From inside, each numeral sits where its mirror image would, and reads backwards.
+  HOURS.forEach((text, h) => {
+    const a = (h / 12) * Math.PI * 2;
+    const cx = -Math.sin(a) * R * 0.79;
+    const cy = y + Math.cos(a) * R * 0.79;
+    for (const s of numeral([...text].reverse().join(''), R * 0.15)) {
+      p.box(NUMERAL, 0.022, s.len, 0.01, cx + Math.cos(a) * s.x, cy + Math.sin(a) * s.x, 0.203, 0, 0, a + s.rz);
+    }
+  });
+  p.cyl(CAST, 0.1, 0.05, 0, y, 0.22, 14, Math.PI / 2);
+  // The hands turn in a holder at the dial's centre.
+  const holder = new THREE.Group();
+  holder.position.set(place.x + Math.sin(place.ry) * 0.25, y, place.z + Math.cos(place.ry) * 0.25);
+  holder.rotation.y = place.ry;
+  const hand = (len: number, w: number, tip: number, z: number) =>
+    part((q) => {
+      q.box(NUMERAL, w, len + 0.14, 0.02, 0, (len - 0.14) / 2, z);
+      q.box(NUMERAL, tip, tip, 0.02, 0, len * 0.82, z, 0, 0, Math.PI / 4);
+      q.cyl(NUMERAL, w * 1.1, 0.025, 0, -0.12, z, 10, Math.PI / 2);
+    });
+  const hour = hand(R * 0.52, 0.07, 0.15, 0);
+  const minute = hand(R * 0.84, 0.045, 0.09, 0.025);
+  holder.add(hour, minute);
+  works.hands.push({ hour, minute });
+  return holder;
+}
+
+const partMaterial = matte();
+
+/** A moving part: its own mesh, painted about its own origin. It casts no shadow, as the shadows are drawn once. */
+function part(paint: (p: Paint) => void): THREE.Mesh {
+  const b = new Builder();
+  paint(new Paint({ main: b, glass: b }));
+  return smoothMesh(b, partMaterial, { cast: false });
+}
+
+/** A pigeon facing +z, roosting on whatever is at the origin. */
+function pigeon(p: Paint) {
+  p.sphere('#8a8f9a', 0.08, 0.075, 0.13, 0, 0.08, 0);
+  p.sphere('#6f7480', 0.06, 0.03, 0.1, 0, 0.1, -0.12);
+  p.sphere('#5f8a7a', 0.055, 0.05, 0.05, 0, 0.14, 0.08);
+  p.sphere('#9aa0aa', 0.045, 0.045, 0.05, 0, 0.19, 0.11);
+  p.cone('#d9a35a', 0.015, 0.04, 0, 0.19, 0.17, 6);
+  for (const sx of [-1, 1]) p.sphere('#ff8c3a', 0.01, 0.01, 0.01, sx * 0.035, 0.2, 0.13);
+}
+
+function tower(p: Paint, glow: Builder, r: () => number, works: Clockwork): THREE.Object3D {
+  const { hw, hd } = ROOMS.tower;
+  const lit = new Paint({ main: glow, glass: glow });
+  const moving = new THREE.Group();
+  shell(p, 'tower', { floor: ['#a39d93', '#958f85'], wall: '#d8cfc0', wainscot: '#7d6a58', trim: '#5e4a3a', tiles: true }, r);
+  // The dials: a big one on the back wall and one on each side.
+  moving.add(dial(p.at(0, 0, -hd), lit.at(0, 0, -hd), BACK_DIAL.y, BACK_DIAL.r, works, { x: 0, z: -hd, ry: 0 }));
+  for (const sx of [-1, 1]) {
+    const ry = (-sx * Math.PI) / 2;
+    const f = [sx * hw, 0, SIDE_DIAL.z, ry] as const;
+    moving.add(dial(p.at(...f), lit.at(...f), SIDE_DIAL.y, SIDE_DIAL.r, works, { x: sx * hw, z: SIDE_DIAL.z, ry }));
+  }
+
+  // The movement: a low cast-iron frame on a stone plinth, the going train inside it, kept below the back dial.
+  const M = MOVEMENT;
+  const top = 2.05;
+  const bed = 0.75;
+  p.block('#8f8a80', M.hw * 2 + 0.5, 0.14, M.hd * 2 + 0.5, M.x, 0, M.z);
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      p.box(CAST, 0.1, top - 0.14, 0.1, M.x + sx * M.hw, (top + 0.14) / 2, M.z + sz * M.hd);
+      p.cyl(shade(CAST, 0.08), 0.09, 0.08, M.x + sx * M.hw, 0.18, M.z + sz * M.hd, 10);
+      p.ico(BRASS, 0.065, M.x + sx * M.hw, top + 0.1, M.z + sz * M.hd, 1);
+    }
+    for (const y of [bed, top]) p.box(CAST, 0.08, 0.1, M.hd * 2, M.x + sx * M.hw, y, M.z);
+  }
+  for (const sz of [-1, 1]) for (const y of [bed, top]) p.box(CAST, M.hw * 2 + 0.1, 0.1, 0.08, M.x, y, M.z + sz * M.hd);
+  p.box('#46524c', M.hw * 2 - 0.1, top - bed - 0.1, 0.04, M.x, (top + bed) / 2, M.z - M.hd + 0.06);
+  // The going train: the escape wheel in the middle, wheels running off either side.
+  const gz = M.z;
+  const deg = Math.PI / 180;
+  const esc: GearAt = { n: 15, x: M.x, y: 1.35, psi: Math.PI / 2, rate: -1 };
+  const left1 = meshWith(esc, 24, 200 * deg);
+  const left2 = meshWith(left1, 30, 150 * deg);
+  const right1 = meshWith(esc, 32, 0);
+  const right2 = meshWith(right1, 18, 20 * deg);
+  const train: [GearAt, string][] = [
+    [esc, STEEL],
+    [left1, BRASS],
+    [left2, BRASS],
+    [right1, BRASS],
+    [right2, STEEL],
+  ];
+  const addGear = (g: GearAt, color: string, z: number, back: number) => {
+    const mesh = part((q) => gear(q, g.n, color));
+    mesh.position.set(g.x, g.y, z);
+    moving.add(mesh);
+    works.gears.push({ obj: mesh, phase: g.psi - Math.PI / 2, rate: g.rate });
+    // Its arbor, from the plate behind, with a brass cap.
+    p.rod(STEEL, 0.022, g.x, g.y, back, g.x, g.y, z + 0.07, 8);
+    p.ico(BRASS, 0.035, g.x, g.y, z + 0.075, 1);
+  };
+  for (const [g, color] of train) addGear(g, color, gz, M.z - M.hd + 0.08);
+  // The pendulum hangs from the anchor over the escape wheel and swings under the frame.
+  const pend = works.pendulum;
+  pend.position.set(M.x, esc.y + 0.45, gz + 0.08);
+  pend.add(
+    part((q) => {
+      q.cyl(CAST, 0.05, 0.06, 0, 0, 0, 12, Math.PI / 2);
+      for (const sx of [-1, 1]) {
+        q.rod(CAST, 0.02, 0, 0, 0, sx * 0.15, -0.2, 0, 8);
+        q.box(STEEL, 0.035, 0.08, 0.04, sx * 0.15, -0.24, 0, 0, 0, sx * 0.3);
+      }
+      q.rod(STEEL, 0.014, 0, 0, 0, 0, -1.35, 0, 8);
+      q.cyl(BRASS, 0.18, 0.06, 0, -1.38, 0, 24, Math.PI / 2);
+      q.torus(shade(BRASS, -0.12), 0.18, 0.02, 0, -1.38, 0);
+    }),
+  );
+  moving.add(pend);
+  // A brass beat scale under the bob.
+  for (let k = -3; k <= 3; k++) p.box(k ? BRASS : '#8a2f3a', 0.012, k ? 0.03 : 0.05, 0.01, M.x + k * 0.05, 0.205, gz + 0.06);
+  p.box(shade(BRASS, -0.1), 0.4, 0.02, 0.02, M.x, 0.18, gz + 0.06);
+  // Rods off to the dials, with bevel boxes where they turn.
+  p.rod(STEEL, 0.03, M.x, BACK_DIAL.y, M.z - M.hd, 0, BACK_DIAL.y, -hd + 0.2, 8);
+  p.box(CAST, 0.18, 0.18, 0.14, M.x, BACK_DIAL.y, M.z - M.hd - 0.07);
+  for (const sx of [-1, 1]) {
+    p.rod(STEEL, 0.03, M.x + sx * M.hw, SIDE_DIAL.y, SIDE_DIAL.z, sx * (hw - 0.2), SIDE_DIAL.y, SIDE_DIAL.z, 8);
+    p.box(CAST, 0.14, 0.18, 0.18, M.x + sx * (M.hw + 0.07), SIDE_DIAL.y, SIDE_DIAL.z);
+  }
+  // Two pigeons that have found their way in.
+  pigeon(p.at(-0.9, top + 0.05, M.z + M.hd, 0.4));
+  pigeon(p.at(1.05, top + 0.05, M.z - M.hd, -2.4));
+
+  // Big wheels on the back wall, turning with the clock.
+  const wz = -hd + 0.2;
+  const w1: GearAt = { n: 48, x: -3.3, y: 1.75, psi: Math.PI / 2, rate: 0.1 };
+  const w2 = meshWith(w1, 24, Math.PI / 4);
+  const w3 = meshWith(w1, 16, -Math.PI / 3);
+  for (const [g, color] of [
+    [w1, BRASS],
+    [w2, STEEL],
+    [w3, BRASS],
+  ] as [GearAt, string][]) {
+    addGear(g, color, wz, -hd);
+    p.cyl(CAST, 0.12, 0.04, g.x, g.y, -hd + 0.02, 12, Math.PI / 2);
+  }
+  // The weights that drive it all, hanging down from the dark above.
+  for (const [x, h] of [
+    [2.3, 1.3],
+    [2.9, 1.8],
+  ]) {
+    p.cyl('#5a5a60', 0.014, 14 - h, x, (14 + h) / 2, -hd + 0.45, 6);
+    p.cyl(CAST, 0.17, 0.8, x, h - 0.45, -hd + 0.45, 14);
+    p.cyl(BRASS, 0.12, 0.05, x, h - 0.03, -hd + 0.45, 12);
+    p.torus(BRASS, 0.04, 0.012, x, h + 0.02, -hd + 0.45);
+  }
+  // A ladder up to the bells.
+  for (const sx of [-1, 1]) p.rod(WOOD_DARK, 0.035, 4.0 + sx * 0.25, 0, -hd + 0.4, 4.0 + sx * 0.25, WALL_H + 0.2, -hd + 0.12, 6);
+  for (let y = 0.3; y < WALL_H; y += 0.32) p.box(WOOD, 0.5, 0.04, 0.05, 4.0, y, -hd + 0.4 - (y / (WALL_H + 0.2)) * 0.28);
+
+  // The bell rope, down from the bells far above, with its woolly sally to hold.
+  const rope = works.rope;
+  rope.position.set(BELL_ROPE.x, 0, BELL_ROPE.z);
+  rope.add(
+    part((q) => {
+      q.cyl('#c9b48a', 0.022, 14 - 0.95, 0, (14 + 0.95) / 2, 0, 6);
+      ['#b8323a', '#f2ece0', '#2f4f8f', '#f2ece0', '#b8323a', '#f2ece0', '#2f4f8f'].forEach((c, k) => q.cyl(c, 0.06, 0.09, 0, 1.3 + k * 0.09, 0, 10));
+      q.sphere('#c9b48a', 0.05, 0.045, 0.05, 0, 0.95, 0);
+    }),
+  );
+  moving.add(rope);
+
+  // The clockmaker's bench along the left wall.
+  const B = WORKBENCH;
+  p.block(WOOD, B.hw * 2, 0.08, B.hd * 2, B.x, B.top - 0.08, B.z);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) p.box(WOOD_DARK, 0.08, B.top - 0.08, 0.08, B.x + sx * (B.hw - 0.08), (B.top - 0.08) / 2, B.z + sz * (B.hd - 0.1));
+  p.box(WOOD_DARK, B.hw * 2 - 0.1, 0.04, B.hd * 2 - 0.2, B.x, 0.25, B.z);
+  crate(p.at(B.x, 0.27, B.z + 0.5), r, 0.42);
+  // A vice, an oil can, loose wheels, and a little clock being mended.
+  const top0 = B.top;
+  p.box(IRON, 0.16, 0.12, 0.2, B.x + 0.25, top0 + 0.06, B.z - 0.85);
+  p.box(IRON, 0.05, 0.14, 0.24, B.x + 0.36, top0 + 0.07, B.z - 0.85);
+  p.rod(STEEL, 0.012, B.x + 0.4, top0 + 0.08, B.z - 0.98, B.x + 0.4, top0 + 0.08, B.z - 0.72, 6);
+  p.taper('#4f7a5a', 0.06, 0.1, 0.16, B.x - 0.1, top0, B.z - 0.45, 12);
+  p.rod('#4f7a5a', 0.01, B.x - 0.1, top0 + 0.16, B.z - 0.45, B.x + 0.05, top0 + 0.3, B.z - 0.4, 6);
+  [
+    [0.1, -0.1, 0.11, BRASS],
+    [-0.15, 0.15, 0.08, STEEL],
+    [0.15, 0.25, 0.06, BRASS],
+  ].forEach(([dx, dz, rr, c]) => {
+    const x = B.x + (dx as number);
+    const z = B.z + (dz as number);
+    p.cyl(c as string, rr as number, 0.015, x, top0 + 0.008, z, 14);
+    p.cyl(shade(c as string, -0.3), (rr as number) * 0.3, 0.02, x, top0 + 0.01, z, 10);
+  });
+  const mend = p.at(B.x + 0.05, top0, B.z + 0.55, Math.PI / 2);
+  mend.rbox(WOOD_DARK, 0.34, 0.4, 0.16, 0, 0.2, 0, 0.03);
+  mend.cyl('#f3ead6', 0.12, 0.02, 0, 0.24, 0.085, 20, Math.PI / 2);
+  mend.torus(BRASS, 0.12, 0.012, 0, 0.24, 0.095);
+  mend.box(NUMERAL, 0.012, 0.09, 0.01, 0, 0.27, 0.1);
+  mend.box(NUMERAL, 0.012, 0.06, 0.01, 0.02, 0.23, 0.1, 0, 0, -1.2);
+  candle(p, glow, B.x + 0.1, top0, B.z + 0.95, 0.22);
+  // Tools hung on a board above it.
+  p.box(WOOD_LIGHT, 0.04, 0.7, 1.7, -hw + 0.13, 1.75, B.z);
+  for (let k = 0; k < 5; k++) {
+    const z = B.z - 0.6 + k * 0.3;
+    const len = 0.3 + (k % 2) * 0.12;
+    p.box(k % 2 ? IRON : STEEL, 0.03, len, 0.04, -hw + 0.17, 1.95 - len / 2, z);
+    p.box(k % 2 ? WOOD_DARK : '#8a2f3a', 0.04, 0.12, 0.06, -hw + 0.17, 1.95 - len - 0.04, z);
+  }
+  // Its stool.
+  const S = WORK_STOOL;
+  p.cyl(WOOD, 0.2, 0.06, S.x, 0.59, S.z, 14);
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI * 2;
+    p.rod(WOOD_DARK, 0.025, S.x + Math.cos(a) * 0.12, 0.57, S.z + Math.sin(a) * 0.12, S.x + Math.cos(a) * 0.2, 0, S.z + Math.sin(a) * 0.2, 6);
+  }
+
+  // A bench along the right wall, a spare wheel leaning by it, and crates of parts.
+  const T = TOWER_BENCH;
+  const len = T.z1 - T.z0;
+  p.box(WOOD, 0.5, 0.07, len, T.x, 0.42, (T.z0 + T.z1) / 2);
+  p.box(WOOD, 0.06, 0.45, len, hw - 0.12, 0.85, (T.z0 + T.z1) / 2);
+  for (const z of [T.z0 + 0.15, T.z1 - 0.15]) p.box(WOOD_DARK, 0.42, 0.4, 0.06, T.x, 0.2, z);
+  gear(p.at(hw - 0.13, 0.66, 2.5, -Math.PI / 2), 48, '#8a6a3a', 0.06);
+  crate(p.at(4.2, 0, 3.6, 0.2), r, 0.8);
+  crate(p.at(4.25, 0.8, 3.6, -0.1), r, 0.5);
+  barrel(p.at(3.2, 0, 4.05), r);
+  return moving;
+}
+
+/**
+ * Turns the clock room's parts. The going train steps forward on each beat (once a second, as the pendulum
+ * passes the middle) and rests between; the hands show the time; `ring` (-1 to 1) tugs the bell rope.
+ */
+const BEAT_FROM = Math.floor(Date.now() / 1000) * 1000;
+export function turnClockwork(c: Clockwork, ring: number) {
+  const now = Date.now();
+  const d = new Date(now);
+  const hr = ((d.getHours() % 12) + d.getMinutes() / 60) / 12;
+  const mn = (d.getMinutes() + d.getSeconds() / 60) / 60;
+  // Seen from inside, the hands go round the other way.
+  for (const h of c.hands) {
+    h.hour.rotation.z = hr * Math.PI * 2;
+    h.minute.rotation.z = mn * Math.PI * 2;
+  }
+  const sec = (now - BEAT_FROM) / 1000;
+  const beat = Math.floor(sec);
+  const f = Math.min(1, (sec - beat) / 0.12);
+  const turned = (beat + f * f * (3 - 2 * f)) * (Math.PI / 15);
+  for (const g of c.gears) g.obj.rotation.z = g.phase + g.rate * turned;
+  c.pendulum.rotation.z = 0.1 * Math.sin(Math.PI * sec);
+  c.rope.position.y = ring * 0.35;
+}
+
 // ---------------------------------------------------------------- home
 
 function home(p: Paint, glow: Builder, r: () => number, sign: TextSign): THREE.Object3D {
@@ -749,6 +1123,7 @@ function nightWindow(x: number, y: number, z: number, w: number, h: number): THR
 export function buildInteriors(): Interiors {
   const glassMaterial = new THREE.MeshBasicMaterial({ vertexColors: true });
   const glowMaterial = new THREE.MeshBasicMaterial({ vertexColors: true });
+  const clockwork: Clockwork = { hands: [], gears: [], pendulum: new THREE.Group(), rope: new THREE.Group() };
   const ownerSign = new TextSign({ w: 512, h: 512, bg: '#fbf4e6', fg: '#b8506a', round: true, italic: false, size: 120 }, ['Home', 'sweet home']);
   const make = (room: Room, fill: (p: Paint, glow: Builder, r: () => number) => THREE.Object3D | void): THREE.Group => {
     const main = new Builder();
@@ -803,6 +1178,18 @@ export function buildInteriors(): Interiors {
         { pos: [0, 2.6, 2.5], color: '#ffe2a8', intensity: 10, distance: 9 },
       ],
     },
+    tower: {
+      group: make('tower', (p, glow, r) => tower(p, glow, r, clockwork)),
+      hemi: { sky: '#efe8f6', ground: '#5a4e46', intensity: 1.0 },
+      sun: { color: '#fff4e0', intensity: 1.1, dir: [0.2, 1, 0.6] },
+      lights: [
+        // Daylight (or the dial lamps at night) through the back of the faces, and a candle at the bench.
+        { pos: [0, BACK_DIAL.y, -3.9], color: '#fff2d8', intensity: 12, distance: 9 },
+        { pos: [-4.0, SIDE_DIAL.y, SIDE_DIAL.z], color: '#fff2d8', intensity: 6, distance: 6 },
+        { pos: [4.0, SIDE_DIAL.y, SIDE_DIAL.z], color: '#fff2d8', intensity: 6, distance: 6 },
+        { pos: [WORKBENCH.x + 0.4, 1.4, WORKBENCH.z + 0.9], color: '#ffb35a', intensity: 7, distance: 6, flicker: true },
+      ],
+    },
     house: {
       group: make('house', (p, glow, r) => home(p, glow, r, ownerSign)),
       hemi: { sky: '#fff0dc', ground: '#6a4a36', intensity: 1.15 },
@@ -824,5 +1211,5 @@ export function buildInteriors(): Interiors {
       },
     },
   };
-  return { rooms, glassMaterial, ownerSign };
+  return { rooms, glassMaterial, ownerSign, clockwork };
 }

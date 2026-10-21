@@ -18,8 +18,10 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    else has, or is looking at right now, are greyed out with their name, and if two people click the
    same one at the same moment the first gets it and the other is asked to pick again. Anyone named Jarrod is the bunny, skips the picker, and nobody else can be the bunny.
    Then they turn on their microphone (or just listen).
-3. **Wander around town.** Talk to whoever is near you. Step into the tavern, the bakery, the church or
-   anyone's house to talk privately.
+3. **Wander around town.** Talk to whoever is near you. Step into the tavern, the bakery, the church,
+   the clock tower or anyone's house to talk privately. The clock tower opens on its east side, into the
+   clock room: the dials glow from behind (showing the real time, backwards), the movement ticks once a
+   second with its pendulum swinging, and the bell rope jumps whenever the bell rings.
 4. **Daytime jobs**, each a little minigame:
    - **Bartender** at the Raven's Rest: pour drinks onto the bar for anyone to pick up.
    - **Laundry** at the washhouse: scrub the mud out and hang it on the line.
@@ -132,7 +134,7 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
 Everything you hear is made in the browser: the bell, the drumroll, a night tune in the bedroom, and
 a soft ambience around town (a gentle tune and birds by day, crickets and an owl by night, water and
 frogs by the pond, the rope creaking at the gallows, a fire in the tavern and the bakery, a hush in
-the church). It sits well under the voices and can be turned off in the player settings.
+the church, the clock ticking in the tower). It sits well under the voices and can be turned off in the player settings.
 
 The cog by the mic button has push-to-talk (hold V), everyone's volume, and a slider for **each
 person**, for the one who's too loud or too quiet. It's kept in that browser.
