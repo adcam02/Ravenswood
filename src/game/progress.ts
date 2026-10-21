@@ -51,7 +51,7 @@ function save(s: Stored, next: Stored) {
     /* storage blocked: progress lasts this visit */
   }
   const fresh = HATS.filter((h) => h.unlocked(next) && !before.includes(h.id));
-  if (fresh.length) onUnlock?.(fresh[0].id);
+  for (const h of fresh) onUnlock?.(h.id);
 }
 
 let onUnlock: ((hat: HatId) => void) | null = null;

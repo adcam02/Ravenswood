@@ -129,14 +129,15 @@ export function DayClock() {
   );
 }
 
-const useNewHat = create<{ hat: HatId | null }>(() => ({ hat: null }));
+/** Hats just unlocked, waiting their turn on screen (a town record and a perfect job can land together). */
+const useNewHat = create<{ hats: HatId[] }>(() => ({ hats: [] }));
 
 /** Players: remembers stars, records, nights and ghostly walks, and makes a moment of each new hat. */
 export function ProgressWatcher() {
   const view = useView();
   useProgressTracker(view);
   useEffect(() => {
-    whenHatUnlocked((hat) => useNewHat.setState({ hat }));
+    whenHatUnlocked((hat) => useNewHat.setState((s) => ({ hats: s.hats.includes(hat) ? s.hats : [...s.hats, hat] })));
     return () => whenHatUnlocked(() => {});
   }, []);
   return <NewHat />;
@@ -144,12 +145,12 @@ export function ProgressWatcher() {
 
 /** "New hat!": their own animal turning round in it, what it was for, and a button to put it on there and then. */
 function NewHat() {
-  const id = useNewHat((s) => s.hat);
+  const id = useNewHat((s) => s.hats[0]);
   const view = useView();
   const me = view.seats.find((s) => s.isMe);
   const hat = HATS.find((h) => h.id === id);
   if (!hat || !me?.look) return null;
-  const close = () => useNewHat.setState({ hat: null });
+  const close = () => useNewHat.setState((s) => ({ hats: s.hats.slice(1) }));
   const wear = () => {
     const look = { ...me.look!, hat: hat.id };
     // (Remembered for next time too, like choosing it on the way in.)
@@ -158,7 +159,7 @@ function NewHat() {
     close();
   };
   return (
-    <div className="new-hat cosy-panel" role="dialog" aria-label="New hat unlocked">
+    <div key={hat.id} className="new-hat cosy-panel" role="dialog" aria-label="New hat unlocked">
       <div className="new-hat-sparkles" aria-hidden="true">
         {Array.from({ length: 12 }, (_, i) => (
           <i key={i} style={{ '--a': `${i * 30}deg`, '--d': `${(i % 4) * 0.15}s` } as React.CSSProperties} />
