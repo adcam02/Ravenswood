@@ -210,17 +210,27 @@ export function armForms(k: Kit, o: ArmOpts) {
   k.bind ??= {};
   // In the arm's own (untilted) space: straight down to the wrist, the paw just below and a touch forward.
   const pawAt: Vec3 = [0, -o.len - o.paw[1] * 0.35, o.paw[2] * 0.3];
+  // An elbow half way down, so a paw holding something can be brought up in front of the chest.
+  const elbow = o.len * 0.5;
+  k.elbow = elbow;
   for (const side of [-1, 1]) {
     const name = side > 0 ? 'armL' : 'armR';
+    const fore = side > 0 ? 'foreL' : 'foreR';
     const rot: Vec3 = [-fwd, 0, side * out];
     k.bind[name] = rot;
+    bone(k, fore, name, [0, -elbow, 0]);
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot));
     const s: Vec3 = [side * sh[0], sh[1], sh[2]];
     const local = (p: Vec3): Vec3 => add(s, v3(new THREE.Vector3(...p).applyQuaternion(q)));
+    const e = local([0, -elbow, 0]);
     const wrist = local([0, -o.len, 0]);
+    const mid = (o.r0 + o.r1) / 2;
     // Melted into the chest well down the arm, so it grows out of the body rather than lying against it.
-    sc.add(rod(name, add(s, [0, 0.03, -0.015]), wrist, o.r0, o.r1, { k: 0.12, anchor: s, reach: 0.28, name }));
-    sc.add(ellipsoid(name, local(pawAt), o.paw, { rot, k: 0.035, anchor: wrist, reach: 0.08, name: `${name}Paw` }));
+    sc.add(rod(name, add(s, [0, 0.03, -0.015]), e, o.r0, mid, { k: 0.12, anchor: s, reach: 0.28, name }));
+    sc.add(rod(fore, e, wrist, mid, o.r1, { k: 0.05, anchor: e, reach: 0.07, name: fore }));
+    sc.add(ellipsoid(fore, local(pawAt), o.paw, { rot, k: 0.035, anchor: wrist, reach: 0.08, name: `${name}Paw` }));
+    // The whole arm's length, for drawing socks along it.
+    sc.guides.push(rod(name, s, wrist, o.r0, o.r1, { name: `${name}Axis` }));
   }
   // The paw's middle and the grip just in front of it, in the arm's own space.
   k.joints.paw = pawAt;
@@ -446,6 +456,11 @@ export function earMarks(k: Kit, name: string): { inner: Field; front: Field; ba
 export function beyond(k: Kit, name: string, t: number): Field {
   const u = unitOf(k, name);
   return (q) => t - u(q).y;
+}
+
+/** A sock on a front leg: everything from `t` of the way down it (a clean straight top edge) to the paw. */
+export function sock(k: Kit, side: 'L' | 'R', t: number): Field {
+  return all(region(k, `arm${side}`, `fore${side}`, `arm${side}Paw`), beyond(k, `arm${side}Axis`, t));
 }
 
 /** For markings: how far along a chain of shapes (a tail, a shell) a point is, 0 at its root to 1 at its tip. */

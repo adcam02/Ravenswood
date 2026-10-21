@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Vec3 } from './build';
-import { all, any, armForms, beyond, earForms, earMarks, headForm, legForms, region, sculptOf, snoutForm, tailForm, torso, unitOf, useSurface } from './forms';
+import { all, any, armForms, earForms, earMarks, headForm, legForms, region, sculptOf, snoutForm, sock as sockOf, tailForm, torso, unitOf, useSurface } from './forms';
 import { curve, pillar, solid } from './paper';
 import { ellipsoid, rod, spiral, type Probe } from './sculpt';
 import {
@@ -133,7 +133,7 @@ const fox: Recipe = (k, c) => {
       { color: white, f: all(region(k, 'cheekL', 'cheekR'), (q) => head(q).y - 0.05) },
       { color: white, f: all(region(k, 'chest', 'ruff', 'belly'), (q) => -q.p.z, (q) => segDist(q.p.x, q.p.y, 0, 0.36, 0, 0.62).d - 0.075) },
       // Dark socks with a clean straight top, and dark feet.
-      { color: sock, f: any(all(region(k, 'armL', 'armLPaw'), beyond(k, 'armL', 0.5)), all(region(k, 'armR', 'armRPaw'), beyond(k, 'armR', 0.5))) },
+      { color: sock, f: any(sockOf(k, 'L', 0.5), sockOf(k, 'R', 0.5)) },
       { color: sock, f: all(region(k, /^leg/), (q) => q.p.y - 0.14) },
       // A white tip to the tail.
       { color: white, f: all(region(k, /^tail\d/), (q) => 0.8 - tailAt(q.p)) },
@@ -213,7 +213,7 @@ const raccoon: Recipe = (k, c) => {
       { color: cream, f: all(face, (q) => 0.07 - Math.abs(head(q).x), band(0.1, 0.36, 0.7, 0.26, 0.075, 0.06)) },
       { color: cream, f: any(region(k, 'cheekL', 'cheekR'), all(face, (q) => head(q).y + 0.5)) },
       // Dark socks with a clean straight top, and dark feet.
-      { color: sock, f: any(all(region(k, 'armL', 'armLPaw'), beyond(k, 'armL', 0.45)), all(region(k, 'armR', 'armRPaw'), beyond(k, 'armR', 0.45))) },
+      { color: sock, f: any(sockOf(k, 'L', 0.45), sockOf(k, 'R', 0.45)) },
       { color: sock, f: all(region(k, /^leg/), (q) => q.p.y - 0.11) },
       // Dark rings round the tail and a dark tip.
       {

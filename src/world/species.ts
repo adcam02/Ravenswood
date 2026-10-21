@@ -92,6 +92,8 @@ export interface Kit {
   step?: number;
   /** Bones that start turned (Euler angles): a sculpted arm is made hanging the way it's held. */
   bind?: Record<string, Vec3>;
+  /** How far down a sculpted arm its elbow is (it bends there, on its own bone). */
+  elbow?: number;
   /** Puts a point near the head (neck space) onto the sculpted surface, `out` beyond it, and which way is out there. */
   surface?: (p: THREE.Vector3, out: number) => THREE.Vector3;
   normalAt?: (p: THREE.Vector3) => THREE.Vector3;
