@@ -13,7 +13,7 @@ import { fromPose, toPose, type Item, type Pose } from '../world/types';
 import { joinMesh, type Mesh } from './mesh';
 import { newWorldLink, worldUpdate, type WorldLink } from './world';
 import { useUpdate } from '../lib/version';
-import { hostPeerId, peerDisabled, peerOptions, type LinkStatus } from './peer';
+import { hostPeerId, linkAlive, peerDisabled, peerOptions, type LinkStatus } from './peer';
 
 interface HostNet {
   status: LinkStatus;
@@ -29,6 +29,8 @@ interface Link {
   send: (msg: HostMessage) => void;
   close: () => void;
   isOpen: () => boolean;
+  /** The connection underneath is still up, even if the player has gone quiet. */
+  alive?: () => boolean;
 }
 
 interface LinkMeta {
@@ -159,6 +161,7 @@ class HostLink {
       send: (msg) => conn.open && conn.send(msg),
       close: () => conn.close(),
       isOpen: () => conn.open,
+      alive: () => linkAlive(conn),
     };
     this.links.set(link, { playerId: null, lastSeen: Date.now(), world: newWorldLink() });
     conn.on('data', (raw) => this.receive(link, raw as ClientMessage));
@@ -214,11 +217,18 @@ class HostLink {
     this.refreshOnline();
   }
 
+  private lastSweep = Date.now();
   private sweep() {
     const now = Date.now();
-    // The backup route notices departures itself; PeerJS channels can go quiet without closing.
+    // If this page was itself stalled, the quiet may be ours: let the waiting messages through first.
+    const late = now - this.lastSweep > 10000;
+    this.lastSweep = now;
+    if (late) return;
+    // The backup route notices departures itself; PeerJS channels can go quiet without closing. A player whose
+    // connection is still up is only busy (a slow laptop, a heavy moment), so they get much longer.
     for (const [link, meta] of this.links) {
-      if (link.kind === 'peerjs' && now - meta.lastSeen > 20000) {
+      const quiet = now - meta.lastSeen;
+      if (link.kind === 'peerjs' && quiet > (link.alive?.() ? 90000 : 20000)) {
         link.close();
         this.drop(link);
       }

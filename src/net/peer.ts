@@ -41,3 +41,13 @@ export function peerDisabled(): boolean {
 }
 
 export type LinkStatus = 'starting' | 'open' | 'reconnecting' | 'waiting' | 'error';
+
+/**
+ * Whether a PeerJS channel's connection itself is still up (its WebRTC link connected and the data channel open),
+ * as opposed to merely quiet. A busy page can go quiet for a while; that's no reason to tear down a healthy link.
+ */
+export function linkAlive(conn: { peerConnection?: RTCPeerConnection | null; dataChannel?: RTCDataChannel | null } | null | undefined): boolean {
+  const pc = conn?.peerConnection;
+  const state = pc?.connectionState ?? pc?.iceConnectionState;
+  return conn?.dataChannel?.readyState === 'open' && (state === 'connected' || state === 'completed');
+}

@@ -8,7 +8,7 @@ import { game } from '../game/hud';
 import { presence } from '../game/presence';
 import type { Item, Look, Pose } from '../world/types';
 import { joinMesh, type Mesh } from './mesh';
-import { hostPeerId, peerDisabled, peerOptions, type LinkStatus } from './peer';
+import { hostPeerId, linkAlive, peerDisabled, peerOptions, type LinkStatus } from './peer';
 import { reportTo } from '../lib/report';
 
 interface ClientState {
@@ -194,10 +194,17 @@ class ClientLink {
 
   // ---------------------------------------------------------------- shared
 
+  private lastTick = Date.now();
   private tick() {
     const conn = this.conn;
+    const now = Date.now();
+    // A late tick means this page was stalled: the Storyteller's messages may be waiting right behind it.
+    const late = now - this.lastTick > 6000;
+    this.lastTick = now;
     if (conn?.open) {
-      if (Date.now() - this.lastPong > 15000) {
+      // Quiet on a connection that's still up is a busy Storyteller (or a busy us): give it much longer. The ping
+      // still goes on a late tick (a hidden tab's timers are slowed right down); only the judgement waits.
+      if (!late && now - this.lastPong > (linkAlive(conn) ? 45000 : 15000)) {
         conn.close();
         this.conn = null;
         this.setPeerState('reconnecting');
