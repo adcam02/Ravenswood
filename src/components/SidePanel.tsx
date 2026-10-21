@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { editionLogo, getRole, jinxesFor, nightOrderList, nightReminder, NIGHT_SPECIALS, rolesByTeam, TEAM_LABEL, TEAMS, genericIcon } from '../data';
 import { demonInfo, minionInfo, presetFor, wholeEvilTeam } from '../lib/presets';
 import { evilInfoStatus } from '../lib/evilInfo';
@@ -23,7 +23,7 @@ export function SidePanel() {
   const active = view.mode === 'player' || tabs.some((t) => t.id === panel) ? panel : 'reference';
   const titles: Record<string, string> = { reference: 'Characters', notes: 'Notepad', journal: 'What the Storyteller showed you', history: 'Votes' };
   return (
-    <aside className="side-panel surface" aria-label="Side panel">
+    <aside className={`side-panel surface is-${active}`} aria-label="Side panel">
       <header className="side-head">
         {view.mode === 'player' ? (
           <h2 className="side-title">{titles[active] ?? ''}</h2>
@@ -195,6 +195,42 @@ function NightOrderList() {
 
 // ---------------------------------------------------------------- reference sheet
 
+/**
+ * Fits the sheet to the panel without scrolling: two columns, shrinking a little (text and tokens) if need be; if
+ * that would get small, three narrower columns instead, shrinking again down to three quarters size. Again
+ * whenever the panel changes size. Past that it scrolls, rather than getting unreadable.
+ */
+function useFitToHeight(root: React.RefObject<HTMLDivElement | null>, deps: unknown[]) {
+  useLayoutEffect(() => {
+    const el = root.current;
+    const box = el?.closest<HTMLElement>('.side-body');
+    if (!el || !box) return;
+    const over = () => box.scrollHeight > box.clientHeight + 1;
+    const shrink = (floor: number) => {
+      let scale = 1;
+      el.style.setProperty('--fit', '1');
+      while (over() && scale > floor + 0.001) {
+        scale = Math.max(floor, scale - 0.03);
+        el.style.setProperty('--fit', scale.toFixed(2));
+      }
+    };
+    const fit = () => {
+      el.dataset.cols = '2';
+      shrink(0.85);
+      if (!over()) return;
+      el.dataset.cols = '3';
+      shrink(0.75);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(box);
+    // The fonts arriving can change how much fits.
+    document.fonts?.ready.then(fit).catch(() => {});
+    return () => ro.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+}
+
 function Reference() {
   const view = useView();
   const s = view.script;
@@ -205,8 +241,10 @@ function Reference() {
   // Travellers only confuse the sheet unless one is actually sitting in the game.
   const seated = new Set(view.seats.filter((x) => x.traveller && x.roleId).map((x) => x.roleId!));
   const travellers = [...seated].map((id) => getRole(id)).filter((r) => r !== undefined);
+  const root = useRef<HTMLDivElement>(null);
+  useFitToHeight(root, [tab, s.id, s.roles.length, travellers.length, view.fabled.length, jinxes.length]);
   return (
-    <div className="reference">
+    <div className="reference" ref={root}>
       <div className="ref-head">
         <img src={s.logo || editionLogo(s.id)} alt="" onError={(e) => ((e.target as HTMLImageElement).src = editionLogo('custom'))} />
         <div>
@@ -228,7 +266,7 @@ function Reference() {
         </button>
       </div>
       {tab === 'roles' ? (
-        <>
+        <div className="ref-columns">
           {TEAMS.filter((t) => teams[t].length && t !== 'traveller').map((t) => (
             <section key={t} className={`ref-team team-${t}`}>
               <h3>{TEAM_LABEL[t]}</h3>
@@ -292,7 +330,7 @@ function Reference() {
               ))}
             </section>
           )}
-        </>
+        </div>
       ) : (
         <div className="ref-nights">
           {(['first', 'other'] as const).map((k) => (

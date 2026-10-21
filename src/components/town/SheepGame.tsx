@@ -3,16 +3,16 @@ import { game, useHud } from '../../game/hud';
 import { useClient } from '../../net/client';
 
 /**
- * Counting sheep, in bed at night. Sheep (and a few goats) run across and jump the fence; keep the count in your
- * head and say it at the end. Goats don't count, and a sheep that jumps back comes off the count. Right earns a
- * gold star to wear through the next day; it's meant to be hard, so one go a night.
+ * Counting sheep, in bed at night. White sheep run across and jump the fence, from the left or from the right; every
+ * jump is one more, whichever way it goes. Goats and wolves come over too, and don't count. Keep the count in your
+ * head and say it at the end. Right earns a gold star to wear through the next day; one go a night.
  */
 
-type Kind = 'sheep' | 'black' | 'goat';
+type Kind = 'sheep' | 'goat' | 'wolf';
 
 interface Runner {
   kind: Kind;
-  /** Left to right, or back the other way (which uncounts a sheep). */
+  /** Left to right, or right to left. */
   dir: 1 | -1;
   /** When it starts, in seconds, and how long the crossing takes. */
   at: number;
@@ -34,94 +34,85 @@ interface Plan {
   answer: number;
   length: number;
   /** For showing the working afterwards. */
-  over: number;
-  back: number;
+  fromLeft: number;
+  fromRight: number;
   goats: number;
+  wolves: number;
 }
 
 /**
- * One night's sheep. Everyone on the field at once moves at the same speed and keeps well apart, so every
- * runner is always fully in view: nothing overtakes, nothing hides another, and a sheep jumping back only
- * goes when the field is clear. The speed creeps up through the run, and some come in quick bunches.
+ * One night's runners. They come in little bunches going one way; the field clears before anyone comes the other
+ * way, and everyone on the field moves at the same speed and keeps well apart, so every runner is always fully in
+ * view: nothing overtakes, nothing passes another, nothing hides. The speed creeps up through the run.
  */
 function plan(seed: number): Plan {
   let s = seed >>> 0 || 1;
   const r = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
   const runners: Runner[] = [];
   const n = 18 + Math.floor(r() * 8);
-  let over = 0;
-  let back = 0;
-  let goats = 0;
-  let onField = 0; // how many forward sheep have crossed and not come back
+  const tally = { fromLeft: 0, fromRight: 0, goats: 0, wolves: 0 };
+  let dir: 1 | -1 = r() < 0.5 ? 1 : -1;
+  let bunch = 0;
   let t = 1.2;
   // When the field is clear of everyone so far.
   let clearAt = 0;
   for (let i = 0; i < n; i++) {
+    // A new bunch of one to four, more often than not the other way.
+    if (bunch === 0) {
+      if (runners.length && r() < 0.6) dir = dir === 1 ? -1 : 1;
+      bunch = 1 + Math.floor(r() * 4);
+    }
+    bunch -= 1;
     // The crossing time shortens through the run: from 2.6 s down to 1.6 s.
     const dur = 2.6 - Math.min(1, i / n) * 1.0;
     const roll = r();
-    const kind: Kind = roll < 0.15 ? 'goat' : roll < 0.28 ? 'black' : 'sheep';
-    const jumpsBack = kind !== 'goat' && onField > 0 && i > 3 && r() < 0.14;
-    if (jumpsBack) {
-      // Wait for the field to empty, cross back alone, and let the field empty again after.
-      const at = Math.max(t, clearAt + 0.4);
-      runners.push({ kind, dir: -1, at, dur, lane: 1, bob: r() * Math.PI * 2 });
-      back += 1;
-      onField -= 1;
-      clearAt = at + dur;
-      t = clearAt + 0.5;
-      continue;
-    }
-    // Keep a third of the screen between runners at the least (a bunch); usually more.
-    const gap = r() < 0.3 ? 0.36 + r() * 0.1 : 0.6 + r() * 0.7;
+    const kind: Kind = roll < 0.13 ? 'goat' : roll < 0.23 ? 'wolf' : 'sheep';
     const prev = runners[runners.length - 1];
     let at = t;
-    if (prev) {
-      // A third of the screen behind the one ahead as it comes on (at least) ...
+    if (prev && prev.dir === dir) {
+      // A third of the screen behind the one ahead as it comes on (at least, usually more) ...
+      const gap = r() < 0.3 ? 0.36 + r() * 0.1 : 0.6 + r() * 0.7;
       at = Math.max(at, prev.at + gap * prev.dur);
       // ... and, being a little faster, still a third behind when the one ahead leaves the screen.
-      if (prev.dir === 1) at = Math.max(at, prev.at + prev.dur - (1 - SEP) * dur);
+      at = Math.max(at, prev.at + prev.dur - (1 - SEP) * dur);
+    } else if (prev) {
+      // The other way: only once the field is clear.
+      at = Math.max(at, clearAt + 0.4);
     }
-    runners.push({ kind, dir: 1, at, dur, lane: Math.floor(r() * 3), bob: r() * Math.PI * 2 });
-    if (kind === 'goat') goats += 1;
-    else {
-      over += 1;
-      onField += 1;
-    }
+    runners.push({ kind, dir, at, dur, lane: Math.floor(r() * 3), bob: r() * Math.PI * 2 });
+    if (kind === 'goat') tally.goats += 1;
+    else if (kind === 'wolf') tally.wolves += 1;
+    else if (dir === 1) tally.fromLeft += 1;
+    else tally.fromRight += 1;
     clearAt = Math.max(clearAt, at + dur);
     t = at;
   }
-  const length = clearAt + 1.2;
-  return { runners, answer: over - back, length, over, back, goats };
+  return { runners, answer: tally.fromLeft + tally.fromRight, length: clearAt + 1.2, ...tally };
+}
+
+/** Legs, trotting or tucked up over the fence. */
+function legs(ctx: CanvasRenderingContext2D, xs: number[], phase: number, airborne: boolean, colour: string) {
+  const swing = airborne ? 0.6 : Math.sin(phase) * 0.9;
+  ctx.strokeStyle = colour;
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  xs.forEach((lx, i) => {
+    const k = i % 2 ? -1 : 1;
+    ctx.beginPath();
+    ctx.moveTo(lx, 6);
+    ctx.lineTo(lx + swing * 5 * k, 20);
+    ctx.stroke();
+  });
 }
 
 function drawRunner(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, kind: Kind, dir: number, phase: number, airborne: boolean) {
   ctx.save();
   ctx.translate(x, y);
   ctx.scale(dir * size, size);
-  const wool = kind === 'black' ? '#3b3340' : kind === 'goat' ? '#b9b1a6' : '#f7f2ea';
-  const face = kind === 'black' ? '#f7f2ea' : kind === 'goat' ? '#8d8378' : '#3b3340';
-  const legSwing = airborne ? 0.6 : Math.sin(phase) * 0.9;
-  ctx.strokeStyle = '#2a2230';
-  ctx.lineWidth = 3;
-  ctx.lineCap = 'round';
-  for (const [lx, k] of [
-    [-12, 1],
-    [-4, -1],
-    [6, 1],
-    [14, -1],
-  ]) {
-    ctx.beginPath();
-    ctx.moveTo(lx, 6);
-    ctx.lineTo(lx + legSwing * 5 * k, 20);
-    ctx.stroke();
-  }
-  ctx.fillStyle = wool;
-  if (kind === 'goat') {
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 24, 13, 0, 0, Math.PI * 2);
-    ctx.fill();
-  } else {
+  if (kind === 'sheep') {
+    // A round white woolly cloud with a dark face.
+    legs(ctx, [-12, -4, 6, 14], phase, airborne, '#2a2230');
+    ctx.fillStyle = '#f7f2ea';
     for (const [bx, by, br] of [
       [-16, 0, 11],
       [-6, -6, 12],
@@ -133,35 +124,102 @@ function drawRunner(ctx: CanvasRenderingContext2D, x: number, y: number, size: n
       ctx.arc(bx, by, br, 0, Math.PI * 2);
       ctx.fill();
     }
-  }
-  // Head out the front.
-  ctx.fillStyle = face;
-  ctx.beginPath();
-  ctx.ellipse(24, -6, 9, 8, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = wool;
-  ctx.beginPath();
-  ctx.ellipse(20, -12, 5, 3, -0.4, 0, Math.PI * 2);
-  ctx.fill();
-  if (kind === 'goat') {
-    ctx.strokeStyle = '#5a4a3a';
-    ctx.lineWidth = 2.5;
+    ctx.fillStyle = '#3b3340';
     ctx.beginPath();
-    ctx.moveTo(24, -12);
-    ctx.quadraticCurveTo(20, -24, 14, -22);
-    ctx.moveTo(27, -12);
-    ctx.quadraticCurveTo(26, -24, 20, -26);
+    ctx.ellipse(24, -6, 9, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f7f2ea';
+    ctx.beginPath();
+    ctx.ellipse(20, -12, 5, 3, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(27, -8, 2.2, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (kind === 'goat') {
+    // Tan and lanky, with curly horns, a beard and a little tail up.
+    legs(ctx, [-14, -6, 8, 16], phase, airborne, '#4a3424');
+    ctx.fillStyle = '#c08d55';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 24, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-22, -4);
+    ctx.lineTo(-30, -14);
+    ctx.lineTo(-24, -2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(27, -9, 8, 9, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#5a3f28';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(25, -16);
+    ctx.quadraticCurveTo(18, -32, 8, -26);
+    ctx.moveTo(29, -16);
+    ctx.quadraticCurveTo(26, -34, 16, -32);
     ctx.stroke();
-    ctx.fillStyle = '#5a4a3a';
+    ctx.fillStyle = '#efe6d6';
     ctx.beginPath();
-    ctx.ellipse(26, 3, 3, 5, 0, 0, Math.PI * 2);
+    ctx.moveTo(28, -2);
+    ctx.lineTo(34, 10);
+    ctx.lineTo(25, 1);
+    ctx.fill();
+    ctx.fillStyle = '#2a2230';
+    ctx.beginPath();
+    ctx.arc(30, -11, 2, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    // Grey and low, with pointed ears, a long snout, a bushy tail and yellow eyes.
+    legs(ctx, [-14, -6, 8, 16], phase, airborne, '#3c3f48');
+    ctx.fillStyle = '#7d828f';
+    ctx.beginPath();
+    ctx.moveTo(-24, 0);
+    ctx.quadraticCurveTo(-46, -4, -50, -16);
+    ctx.quadraticCurveTo(-36, -8, -22, -8);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 25, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#5e626d';
+    ctx.beginPath();
+    ctx.ellipse(-2, -6, 20, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#7d828f';
+    ctx.beginPath();
+    ctx.ellipse(26, -8, 10, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(30, -10);
+    ctx.lineTo(46, -4);
+    ctx.lineTo(30, -2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(19, -12);
+    ctx.lineTo(21, -28);
+    ctx.lineTo(27, -14);
+    ctx.moveTo(26, -14);
+    ctx.lineTo(31, -29);
+    ctx.lineTo(34, -12);
+    ctx.fill();
+    ctx.fillStyle = '#2a2230';
+    ctx.beginPath();
+    ctx.arc(46, -4, 2.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#f2c94c';
+    ctx.beginPath();
+    ctx.arc(30, -10, 2.4, 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.fillStyle = kind === 'black' ? '#2a2230' : '#ffffff';
-  ctx.beginPath();
-  ctx.arc(27, -8, 2.2, 0, Math.PI * 2);
-  ctx.fill();
   ctx.restore();
+}
+
+/** "7 from the left and 5 from the right. The 2 goats and 1 wolf didn't count." */
+function working(p: Plan): string {
+  const sides = `${p.fromLeft} from the left and ${p.fromRight} from the right`;
+  const others = [p.goats && `${p.goats} ${p.goats === 1 ? 'goat' : 'goats'}`, p.wolves && `${p.wolves} ${p.wolves === 1 ? 'wolf' : 'wolves'}`].filter(Boolean);
+  const not = others.length ? ` The ${others.join(' and ')} didn’t count.` : '';
+  return `${sides}.${not}`;
 }
 
 export function SheepGame() {
@@ -307,11 +365,12 @@ export function SheepGame() {
       {stage === 'rules' && (
         <div className="sheep-rules">
           <ol>
-            <li>Count every sheep that jumps the fence, white or black.</li>
             <li>
-              <b>Goats don’t count.</b> They’re grey, with horns and a beard.
+              Count every <b>white sheep</b> that jumps the fence, from the left or from the right: each jump is one more.
             </li>
-            <li>If a sheep jumps back over the other way, take it off the count again.</li>
+            <li>
+              <b>Goats and wolves don’t count.</b> Goats are brown with horns and a beard; wolves are grey with pointy ears.
+            </li>
           </ol>
           <p>They come in bunches and speed up. No pausing, no second go.</p>
           <button
@@ -336,7 +395,7 @@ export function SheepGame() {
       {stage === 'guess' && awake && <div className="sheep-paused inline">Paused while the Storyteller talks to you</div>}
       {stage === 'guess' && (
         <div className="sheep-guess">
-          <p>How many sheep jumped the fence?</p>
+          <p>How many white sheep jumped the fence?</p>
           <div className="sheep-number">{guess || '–'}</div>
           <div className="sheep-pad">
             {['1', '2', '3', '4', '5', '6', '7', '8', '9', '⌫', '0', 'OK'].map((k) => (
@@ -359,11 +418,7 @@ export function SheepGame() {
         <div className={`sheep-result ${result.right ? 'is-right' : ''}`}>
           <span className="sheep-big">{result.right ? '⭐' : '💤'}</span>
           <strong>{result.right ? `Spot on: ${result.answer}!` : `You said ${result.guess}; it was ${result.answer}.`}</strong>
-          <span className="sheep-working">
-            {planRef.current.over} sheep jumped over
-            {planRef.current.back > 0 && `, ${planRef.current.back} jumped back`}
-            {planRef.current.goats > 0 && `, and ${planRef.current.goats} ${planRef.current.goats === 1 ? 'goat' : 'goats'} (goats don’t count)`}.
-          </span>
+          <span className="sheep-working">{working(planRef.current)}</span>
           <span>{result.right ? 'A gold star for you in the morning.' : 'Sleep tight. Try again tomorrow night.'}</span>
           <button className="cosy-btn primary" onClick={sleepNow} autoFocus>
             Back to sleep

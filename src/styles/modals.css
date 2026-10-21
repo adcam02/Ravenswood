@@ -1938,7 +1938,44 @@
 
 .reference {
   display: grid;
-  gap: 12px;
+  gap: calc(10px * var(--fit, 1));
+}
+/* The characters sheet: wide, in columns, and sized to fit without scrolling. */
+.side-panel.is-reference {
+  width: min(820px, calc(100vw - 140px));
+}
+.side-panel.is-reference .side-body {
+  padding-bottom: 8px;
+}
+@media (max-width: 1000px) {
+  .side-panel.is-reference {
+    width: min(420px, calc(100vw - 20px));
+  }
+}
+@media (max-width: 700px) {
+  .side-panel.is-reference {
+    width: auto;
+  }
+}
+.ref-columns {
+  column-count: 2;
+  column-gap: 18px;
+}
+.reference[data-cols='3'] .ref-columns {
+  column-count: 3;
+  column-gap: 14px;
+}
+@media (max-width: 1000px) {
+  .reference .ref-columns {
+    column-count: 1;
+  }
+}
+.ref-columns .ref-team h3 {
+  break-after: avoid;
+}
+.ref-columns .ref-role,
+.ref-columns .ref-jinx {
+  break-inside: avoid;
 }
 .ref-head {
   display: flex;
@@ -1946,8 +1983,8 @@
   gap: 10px;
 }
 .ref-head img {
-  width: 56px;
-  height: 56px;
+  width: calc(48px * var(--fit, 1));
+  height: calc(48px * var(--fit, 1));
   object-fit: contain;
 }
 .ref-head div {
@@ -1956,26 +1993,27 @@
 }
 .ref-head strong {
   font-weight: 400;
-  font-size: 20px;
+  font-size: calc(20px * var(--fit, 1));
 }
 .ref-head span {
   font-size: 13px;
   color: var(--text-dim);
 }
 .ref-team h3 {
-  margin: 4px 0 4px;
+  margin: calc(4px * var(--fit, 1)) 0 calc(2px * var(--fit, 1));
   font-family: var(--font-caps);
   font-weight: 400;
-  font-size: 15px;
+  font-size: calc(14px * var(--fit, 1));
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 .ref-role {
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr);
-  gap: 10px;
+  grid-template-columns: calc(40px * var(--fit, 1)) minmax(0, 1fr);
+  align-items: center;
+  gap: calc(9px * var(--fit, 1));
   width: 100%;
-  padding: 6px;
+  padding: calc(4px * var(--fit, 1)) 5px;
   border-radius: 10px;
   text-align: left;
   transition: background 0.15s;
@@ -1987,16 +2025,16 @@
   background: rgba(207, 167, 91, 0.08);
 }
 .ref-role .token {
-  --size: 46px;
+  --size: calc(40px * var(--fit, 1));
 }
 .ref-role strong {
   font-weight: 400;
-  font-size: 16px;
+  font-size: calc(15px * var(--fit, 1));
 }
 .ref-role p {
   margin: 0;
-  font-size: 13.5px;
-  line-height: 1.35;
+  font-size: calc(12.8px * var(--fit, 1));
+  line-height: 1.3;
   color: var(--text-dim);
 }
 .ref-jinx {

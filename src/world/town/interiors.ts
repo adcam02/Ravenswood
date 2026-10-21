@@ -702,8 +702,12 @@ function home(p: Paint, glow: Builder, r: () => number, sign: TextSign): THREE.O
     new THREE.MeshLambertMaterial({ map: sign.texture, emissive: '#ffffff', emissiveMap: sign.texture, emissiveIntensity: 0.25 }),
   );
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.57, 0.04, 10, 32), new THREE.MeshLambertMaterial({ color: '#c49a6c' }));
-  hoop.add(face, ring);
-  hoop.position.set(BED.x, 2.3, -hd + 0.05);
+  // A little brass hook it hangs from.
+  const hook = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.012, 6, 12, Math.PI), new THREE.MeshLambertMaterial({ color: '#c9a24f' }));
+  hook.position.set(0, 0.6, -0.03);
+  hoop.add(face, ring, hook);
+  // Out in front of the picture rail (which stands 6 cm off the wall), so the rail doesn't cut across the name.
+  hoop.position.set(BED.x, 2.3, -hd + 0.11);
   const extra = new THREE.Group();
   extra.add(hoop, nightWindow(0.5, 2.0, -hd + 0.093, 1.1, 1.0));
   return extra;
