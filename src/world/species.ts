@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Vec3 } from './build';
+import { SMOOTH_LOOK, type Vec3 } from './build';
 import { Fold, along, card, curve, pillar, seedOf, seeded, solid, tube, type BaseName, type Color, type Paint } from './paper';
 import type { Markings } from './forms';
 import type { Sculpt } from './sculpt';
@@ -256,10 +256,11 @@ export const luminance = (c: Color) => {
   return 0.2126 * x.r + 0.7152 * x.g + 0.0722 * x.b;
 };
 
-export const INK = '#2a2326';
-export const CREAM = '#efe3cb';
+// (?look=smooth uses the older, brighter ink, white and pink.)
+export const INK = SMOOTH_LOOK ? '#231c1f' : '#2a2326';
+export const CREAM = SMOOTH_LOOK ? '#fbf8f2' : '#efe3cb';
 export const CHARCOAL = '#38332f';
-export const PINK = '#d99a98';
+export const PINK = SMOOTH_LOOK ? '#f4a6b4' : '#d99a98';
 const WARM = '#a48d74';
 
 /**
@@ -280,6 +281,8 @@ export function mute(c: Color): THREE.Color {
 }
 
 export function colorsFor(coat: string, id?: string): Colors {
+  // ?look=smooth keeps the older palette: the coat as chosen, lighter shading and softer darks.
+  if (SMOOTH_LOOK) return { coat: col(coat), light: mix(coat, '#fff8ee', 0.6), dark: mix(coat, '#2a2020', 0.35), inner: mix(coat, PINK, 0.6) };
   const c = mute(SWATCH[`${id}:${coat.toLowerCase()}`] ?? coat);
   return {
     coat: c,
@@ -563,23 +566,26 @@ export function eyes(k: Kit, o: EyeOpts = {}) {
     const n = headNormal(k, side * ux, uy);
     const q = facing(n, side * (o.slant ?? 0.12));
     const m = new THREE.Matrix4().compose(p, q, new THREE.Vector3(1, 1, 1));
+    // (Round and even, for the glossy eyes of ?look=smooth.)
+    const base = SMOOTH_LOOK ? 'ico2' : 'ico1';
+    const jitter = SMOOTH_LOOK ? 0 : 0.02;
     if (o.ring) {
       const rs = o.ringSize ?? 1.45;
-      solid(k.eyes, k.rnd, { base: 'ico1', r: [ew * rs, eh * rs, ed * 0.75], matrix: inside(m, [0, 0, -ed * 0.5]), jitter: 0.03, color: o.ring, tone: 0.05 });
+      solid(k.eyes, k.rnd, { base, r: [ew * rs, eh * rs, ed * 0.75], matrix: inside(m, [0, 0, -ed * 0.5]), jitter: jitter * 1.5, color: o.ring, tone: SMOOTH_LOOK ? 0 : 0.05 });
     }
     solid(k.eyes, k.rnd, {
-      base: 'ico1',
+      base,
       r: [ew, eh, ed],
       matrix: m,
-      jitter: 0.02,
+      jitter,
       bend: (v) => {
         // Pointed at the corners, like an almond.
         v.y *= 1 - 0.35 * Math.abs(v.x);
       },
       color: o.color ?? INK,
-      tone: 0.1,
+      tone: SMOOTH_LOOK ? 0 : 0.1,
     });
-    solid(k.eyes, k.rnd, { base: 'ico0', r: [ew * 0.3, eh * 0.3, ed * 0.3], matrix: inside(m, [ew * 0.3, eh * 0.38, ed * 0.8]), jitter: 0.02, color: '#fbf6ec', tone: 0 });
+    solid(k.eyes, k.rnd, { base: SMOOTH_LOOK ? 'ico1' : 'ico0', r: [ew * 0.3, eh * 0.3, ed * 0.3], matrix: inside(m, [ew * 0.3, eh * 0.38, ed * 0.8]), jitter, color: '#fbf6ec', tone: 0 });
   }
   k.eyeY = p.y;
   k.eyeX = Math.abs(p.x);

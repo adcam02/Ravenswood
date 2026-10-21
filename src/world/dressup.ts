@@ -41,6 +41,11 @@ export interface BackFit {
   bottom: number;
   /** Body space height of the top of the head, for the balloon. */
   headTop: number;
+  /**
+   * A back that's a round shell standing up (the snail's), this tall and deep from its middle: straps go
+   * round its rim instead of over shoulders.
+   */
+  rim?: [number, number];
 }
 
 export interface BuiltPiece {
@@ -430,6 +435,17 @@ function backpack(f: BackFit): BuiltPiece {
   for (const s of [-1, 1]) {
     b.add(new THREE.BoxGeometry(1, 1, 1), '#5a3a1e', { pos: [s * 0.06 * k, y + 0.02 * k, z - 0.075 * k], scale: [0.025 * k, 0.07 * k, 0.008] });
     b.add(new THREE.BoxGeometry(1, 1, 1), '#e8c26a', { pos: [s * 0.06 * k, y - 0.01 * k, z - 0.08 * k], scale: [0.03 * k, 0.018 * k, 0.006] });
+    if (f.rim) {
+      // Round a shell: each strap hugs its rim from the top of the bag, up over the top and down the front.
+      const [ry, rz] = f.rim;
+      const pts: Vec3[] = [];
+      for (let i = 0; i <= 8; i++) {
+        const a = -0.35 + (i / 8) * (Math.PI + 0.25);
+        pts.push([s * 0.055 * k, f.centre[1] + Math.sin(a + Math.PI / 2 - 0.35) * (ry + 0.012), f.centre[2] - Math.cos(a + Math.PI / 2 - 0.35) * (rz + 0.012)]);
+      }
+      tube(b, strap, pts, 0.013 * k, 24, 5);
+      continue;
+    }
     // Straps over each shoulder, round to the front.
     tube(
       b,

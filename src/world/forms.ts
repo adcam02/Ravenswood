@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { Vec3 } from './build';
+import { SMOOTH_LOOK, type Vec3 } from './build';
 import { audit, isLow, seedOf, seeded, type Color } from './paper';
 import { Sculpt, bake, copyMesh, decimate, ellipsoid, folds, labelOf, polygonise, pyramid, rod, settle, snapMarks, type Baked, type Mesh, type Probe, type Shape } from './sculpt';
 import { bone, onHead, part, v3, type Kit } from './species';
@@ -199,6 +199,8 @@ export interface ArmOpts {
    */
   fwd?: number;
   out?: number;
+  /** How far past the end of the arm the paw sits (a hand coming out of a wide sleeve). */
+  pawOut?: number;
 }
 
 /** Front legs as thick rounded pillars growing out of the chest, ending in paws. */
@@ -209,7 +211,7 @@ export function armForms(k: Kit, o: ArmOpts) {
   const out = o.out ?? 0.12;
   k.bind ??= {};
   // In the arm's own (untilted) space: straight down to the wrist, the paw just below and a touch forward.
-  const pawAt: Vec3 = [0, -o.len - o.paw[1] * 0.35, o.paw[2] * 0.3];
+  const pawAt: Vec3 = [0, -o.len - o.paw[1] * 0.35 - (o.pawOut ?? 0), o.paw[2] * 0.3];
   // An elbow half way down, so a paw holding something can be brought up in front of the chest.
   const elbow = o.len * 0.5;
   k.elbow = elbow;
@@ -555,7 +557,7 @@ export function finishSculpt(k: Kit, animal: string, coat: string) {
         // little (where the surface passes through the cells differently).
         let best = Infinity;
         for (let i = 0; i < 4 && best > 0; i++) {
-          const cut = polygonise(sc, step, seedOf(animal) + i, 0.18, i * 0.37);
+          const cut = polygonise(sc, step, seedOf(animal) + i, SMOOTH_LOOK ? 0 : 0.18, i * 0.37);
           settle(sc, cut);
           const n = folds(cut);
           if (n < best) {
@@ -576,7 +578,9 @@ export function finishSculpt(k: Kit, animal: string, coat: string) {
     const mesh = copyMesh(cut);
     snapMarks(sc, mesh, fields);
     settle(sc, mesh, false);
-    baked = bake(sc, mesh, { paint: (q) => colors[labelOf(fields, q)], colors, seed: seedOf(id) });
+    // (?look=smooth: no facet-to-facet tone, and gentler creases, as the older smooth finish had none baked.)
+    const finish = SMOOTH_LOOK ? { tone: 0, depth: 0.12 } : {};
+    baked = bake(sc, mesh, { paint: (q) => colors[labelOf(fields, q)], colors, seed: seedOf(id), ...finish });
     cache.set(id, baked);
   }
   const f = part(k, 'skin', 'body');
@@ -801,4 +805,49 @@ export function surfaceHit(k: Kit, from: THREE.Vector3, dir: THREE.Vector3): { p
     prev = f;
   }
   return null;
+}
+
+// ---------------------------------------------------------------- small sculpted things (pets)
+
+/** Inside a marking where these named shapes of a sculpt are the nearest (a kit-free `region`). */
+export function regionOf(sc: Sculpt, ...names: string[]): Field {
+  const ins: number[] = [];
+  const outs: number[] = [];
+  sc.shapes.forEach((s, i) => {
+    if (s.carve) return;
+    (names.includes(s.name ?? '') ? ins : outs).push(i);
+  });
+  return (q) => {
+    let a = Infinity;
+    for (const i of ins) a = Math.min(a, q.dist(i));
+    let b = Infinity;
+    for (const i of outs) b = Math.min(b, q.dist(i));
+    return a - b;
+  };
+}
+
+/**
+ * A small sculpted thing that isn't an animal (a pet): one surface cut from the sculpt, its markings drawn
+ * with clean edges, faceted and shaded like the animals, as a plain coloured geometry.
+ */
+export function sculptGeometry(sc: Sculpt, m: Markings, step: number, seed: number): THREE.BufferGeometry {
+  const fields = m.marks.map((x) => x.f);
+  const colors = [...m.marks.map((x) => new THREE.Color(x.color)), new THREE.Color(m.base)];
+  sc.grow = step * 0.15;
+  sc.crease = step * 0.5;
+  let best: Mesh | null = null;
+  let fewest = Infinity;
+  for (let i = 0; i < 3 && fewest > 0; i++) {
+    const cut = polygonise(sc, step, seed + i, 0.18, i * 0.37);
+    settle(sc, cut);
+    const n = folds(cut);
+    if (n < fewest) {
+      fewest = n;
+      best = cut;
+    }
+  }
+  const mesh = best!;
+  snapMarks(sc, mesh, fields);
+  settle(sc, mesh, false);
+  return bake(sc, mesh, { paint: (q) => colors[labelOf(fields, q)], colors, seed }).fold.geometry();
 }

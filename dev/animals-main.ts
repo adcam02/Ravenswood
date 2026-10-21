@@ -225,6 +225,23 @@ if (view === 'grid' || view === 'night') {
   const lift = Number(q.get('lift') ?? 0.25);
   camera.position.set(0, 0.5 + dist * lift, dist);
   camera.lookAt(0, 0.5, 0);
+} else if (view === 'fit') {
+  // Every animal wearing the same things (?hat=, ?wear=face:glasses,neck:scarf,back:backpack), in rows, turned
+  // ?ry= (default three-quarter), seen square-on from above and in front, for checking how things fit.
+  const ry = Number(q.get('ry') ?? 0.7);
+  const cols = 9;
+  list.forEach((id, i) => {
+    place(make({ animal: id as AnimalId, color: ANIMALS[i].colors[0] }), ((i % cols) - (cols - 1) / 2) * 1.05, (Math.floor(i / cols) - 1.5) * 1.5, 'idle', 0, ry);
+  });
+  const tilt = 0.5;
+  const halfW = (cols * 1.05) / 2 + 0.1;
+  const aspect = W / H;
+  const halfH = Math.max((4 * 1.5 * Math.sin(tilt) + 1.3 * Math.cos(tilt)) / 2 + 0.2, halfW / aspect);
+  const ortho = new THREE.OrthographicCamera(-halfH * aspect, halfH * aspect, halfH, -halfH, 0.1, 100);
+  ortho.position.set(0, 0.55 + Math.sin(tilt) * 30, Math.cos(tilt) * 30);
+  ortho.lookAt(0, 0.55, 0);
+  ortho.updateMatrixWorld();
+  orthoCam = ortho;
 } else if (view === 'itemgrid') {
   // Every named animal holding every named item: columns are each animal from the front and three-quarter
   // (?ry=0,0.7), rows are the items, seen square-on from above and in front (no perspective, so every row

@@ -130,17 +130,20 @@ export const matte = () => new THREE.MeshLambertMaterial({ vertexColors: true })
 /**
  * How the animals are shaded. 'card' (the default) is flat-lit folded card with a faint grain; 'toon' is the
  * older storybook cel shading, 'matte' plain, 'shiny' the old glossy look and 'paper' the simplified preview.
- * `?look=toon` (or matte, shiny, paper) switches it, for comparing.
+ * 'smooth' (an experiment) is the sculpted shapes with the older finish: smooth shading, the storybook
+ * material, the older palette and glossy eyes. `?look=toon` (or matte, shiny, paper, smooth) switches it, for comparing.
  */
-type CharacterLook = 'card' | 'toon' | 'matte' | 'shiny' | 'paper';
+type CharacterLook = 'card' | 'toon' | 'matte' | 'shiny' | 'paper' | 'smooth';
 const LOOK: CharacterLook = (() => {
   try {
     const v = new URLSearchParams(location.search).get('look');
-    return v === 'toon' || v === 'matte' || v === 'shiny' || v === 'paper' ? v : 'card';
+    return v === 'toon' || v === 'matte' || v === 'shiny' || v === 'paper' || v === 'smooth' ? v : 'card';
   } catch {
     return 'card';
   }
 })();
+/** ?look=smooth: the sculpted animals smooth-shaded, in the older storybook finish (see LOOK). */
+export const SMOOTH_LOOK = LOOK === 'smooth';
 
 /** A soft four-step ramp: deep shadow, shadow, half-lit, lit. Linear filtering softens the band edges. */
 const RAMP = (() => {
@@ -261,7 +264,7 @@ export const soft = (): THREE.Material =>
     ? card()
     : LOOK === 'paper'
     ? paperMaterial()
-    : LOOK === 'toon'
+    : LOOK === 'toon' || LOOK === 'smooth'
     ? storybook(false)
     : LOOK === 'matte'
       ? new THREE.MeshLambertMaterial({ vertexColors: true })
@@ -273,7 +276,7 @@ export const wet = (): THREE.Material =>
     ? card(true)
     : LOOK === 'paper'
     ? paperMaterial()
-    : LOOK === 'toon'
+    : LOOK === 'toon' || LOOK === 'smooth'
     ? storybook(true)
     : LOOK === 'matte'
       ? new THREE.MeshLambertMaterial({ vertexColors: true })

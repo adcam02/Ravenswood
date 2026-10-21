@@ -1972,17 +1972,25 @@ const quokka: Recipe = (k, c) => {
     ],
     melt: 0.2,
   });
-  headForm(k, { r: [0.18, 0.16, 0.16], at: [0, 0.13, 0.05] });
-  const snout = snoutForm(k, { dy: -0.24, len: 0.06, ra: 0.075, rb: 0.058, drop: 0.02, squash: [1.1, 0.85, 1] });
-  earForms(k, { x: 0.62, y: 0.68, w: 0.055, h: 0.07, d: 0.03, round: true, splay: 0.3, rake: 0.1, cup: 0.5 });
+  headForm(k, {
+    r: [0.18, 0.16, 0.16],
+    at: [0, 0.13, 0.05],
+    // Round cheeks either side of the smile.
+    cheeks: [
+      [0.1, -0.07, 0.05],
+      [0.08, 0.075, 0.08],
+    ],
+  });
+  const snout = snoutForm(k, { dy: -0.26, len: 0.025, ra: 0.08, rb: 0.068, drop: 0.01, squash: [1.15, 0.85, 1] });
+  earForms(k, { x: 0.66, y: 0.62, w: 0.048, h: 0.055, d: 0.028, round: true, splay: 0.4, rake: 0.1, cup: 0.5 });
   armForms(k, { len: 0.17, r0: 0.042, r1: 0.035, paw: [0.038, 0.03, 0.045], fwd: 0.9, out: 0.1 });
   legForms(k, { r0: 0.06, r1: 0.05, foot: [0.05, 0.035, 0.12], fwd: 0.07 });
   tailForm(k, tailPath(0.3, [0, -0.7, -1], [0, 0.2, 0], 0.06, [1, 0.85, 0.65, 0.45]));
   useSurface(k);
   eyes(k, { x: 0.38, y: 0.12, size: 0.85, wide: 1, slant: 0.05, color: '#140e0c' });
   nose(k, dark, onSnout(k, snout.nose), 0.026, 0.018);
-  // The famous smile.
-  mouth(k, { w: 0.3, y: -0.5, curve: 0.14, r: 0.0065 });
+  // The famous smile: a broad upturned line under the nose, from cheek to cheek.
+  mouth(k, { w: 0.42, y: -0.42, curve: 0.2, r: 0.011, out: 0.004 });
   const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
   k.marks = {
     base: c.coat,
@@ -2047,46 +2055,48 @@ const chinchilla: Recipe = (k, c) => {
 const wombat: Recipe = (k, c) => {
   const nosePad = '#2a2422';
   const dark = mix(c.coat, CHARCOAL, 0.4);
-  // Low and solid as a barrel: a wide, flat-topped head with small round ears and a broad square nose, a heavy
-  // body on short strong legs, and hardly any tail.
+  const light = mix(c.coat, CREAM, 0.35);
+  // Low and solid as a barrel: a broad flat face with a wide dark nose pad on top of a pale muzzle, small
+  // rounded ears set wide, a heavy body up on short sturdy legs, and hardly any tail.
   k.joints.neck = [0, 0.5, 0.08];
   k.joints.shoulder = [0.17, 0.4, 0.12];
-  k.joints.hip = [0.13, 0.15, -0.05];
-  k.joints.tail = [0, 0.2, -0.24];
+  k.joints.hip = [0.13, 0.17, -0.05];
+  k.joints.tail = [0, 0.22, -0.24];
   torso(k, {
     belly: [
-      [0, 0.28, -0.05],
-      [0.25, 0.23, 0.25],
+      [0, 0.32, -0.05],
+      [0.25, 0.2, 0.25],
     ],
     chest: [
-      [0, 0.4, 0.05],
-      [0.21, 0.13, 0.2],
+      [0, 0.41, 0.05],
+      [0.21, 0.12, 0.2],
     ],
     haunch: [
-      [0.14, 0.16, -0.08],
-      [0.11, 0.11, 0.15],
+      [0.14, 0.2, -0.08],
+      [0.1, 0.09, 0.14],
     ],
     melt: 0.22,
   });
-  const headAt: Vec3 = [0, 0.11, 0.07];
-  headForm(k, { r: [0.21, 0.15, 0.18], at: headAt });
-  const snout = snoutForm(k, { dy: -0.22, len: 0.06, ra: 0.1, rb: 0.09, drop: 0.02, squash: [1.25, 0.8, 1] });
-  earForms(k, { x: 0.58, y: 0.7, w: 0.05, h: 0.06, d: 0.03, round: true, splay: 0.3, rake: 0.1, cup: 0.5 });
-  // The broad leathery nose pad on the end of the muzzle.
+  const headAt: Vec3 = [0, 0.1, 0.08];
+  headForm(k, { r: [0.22, 0.15, 0.17], at: headAt });
+  const snout = snoutForm(k, { dy: -0.18, len: 0.035, ra: 0.12, rb: 0.11, drop: 0.01, squash: [1.4, 0.72, 1] });
+  earForms(k, { x: 0.78, y: 0.58, w: 0.05, h: 0.055, d: 0.03, round: true, splay: 0.55, rake: 0.1, cup: 0.5 });
+  // The broad leathery nose pad across the top of the muzzle, where it shows from above.
   const nz = plus(k.joints.neck, snout.nose);
-  sculptOf(k).add(ellipsoid('neck', [nz[0], nz[1] + 0.01, nz[2] - 0.012], [0.065, 0.045, 0.035], { k: 0.025, name: 'nosePad' }));
-  armForms(k, { len: 0.22, r0: 0.07, r1: 0.06, paw: [0.06, 0.04, 0.065], fwd: 0.35, out: 0.26 });
-  legForms(k, { r0: 0.075, r1: 0.065, foot: [0.064, 0.04, 0.08] });
+  sculptOf(k).add(ellipsoid('neck', [nz[0], nz[1] + 0.022, nz[2] - 0.022], [0.09, 0.045, 0.05], { k: 0.022, name: 'nosePad' }));
+  armForms(k, { len: 0.24, r0: 0.075, r1: 0.068, paw: [0.064, 0.042, 0.07], fwd: 0.3, out: 0.24 });
+  legForms(k, { r0: 0.08, r1: 0.072, foot: [0.068, 0.042, 0.085] });
   useSurface(k);
-  eyes(k, { x: 0.4, y: 0.18, size: 0.7, wide: 1, slant: 0.05, color: '#140e0c' });
+  eyes(k, { x: 0.42, y: 0.22, size: 0.7, wide: 1, slant: 0.05, color: '#140e0c' });
   const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
   k.marks = {
     base: c.coat,
     marks: [
       { color: nosePad, f: region(k, 'nosePad') },
+      { color: light, f: region(k, 'muzzle') },
       { color: mix(c.coat, '#e0b0a0', 0.45), f: any(...ears.map((e) => e.inner)) },
       { color: dark, f: region(k, 'armLPaw', 'armRPaw') },
-      { color: dark, f: all(region(k, /^leg/), (q) => q.p.y - 0.05) },
+      { color: dark, f: all(region(k, /^leg/), (q) => q.p.y - 0.06) },
     ],
   };
   return {};

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { card, glow, soft, wet, type Vec3 } from './build';
+import { SMOOTH_LOOK, card, glow, soft, wet, type Vec3 } from './build';
 import { buildBack, buildFace, buildNeck, type BackFit, type BuiltPiece, type FaceFit, type NeckFit } from './dressup';
 import { all, any, armForms, finishSculpt, region, sculptOf, sock, useSurface } from './forms';
 import { buildHat, type BuiltHat, type HatFit } from './hats';
@@ -224,6 +224,8 @@ const envelope = (p: number) => {
 };
 
 const GHOST_EYES = new THREE.MeshBasicMaterial({ color: '#3a4a7a', transparent: true, opacity: 0.85 });
+/** ?look=smooth: the older wet-looking eyes, smooth and a little reflective so the catchlights read as a shine. */
+const glossy = () => new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.22, metalness: 0.05 });
 
 // ---------------------------------------------------------------- skeleton and skin
 
@@ -318,8 +320,50 @@ function skin(k: Kit, sk: Skel): THREE.BufferGeometry {
   g.addGroup(groups[0][0], groups[0][1], 0);
   g.addGroup(groups[1][0], groups[1][1], 1);
   g.computeVertexNormals();
+  if (SMOOTH_LOOK) smoothNormals(g);
   g.computeBoundingSphere();
   return g;
+}
+
+/**
+ * ?look=smooth: corners in the same place share one normal (each face counting by its area), across folds
+ * gentler than 60 degrees, so the sculpted surface shades round while spikes and locks keep their edges.
+ */
+function smoothNormals(g: THREE.BufferGeometry) {
+  const pos = g.getAttribute('position') as THREE.BufferAttribute;
+  const nrm = g.getAttribute('normal') as THREE.BufferAttribute;
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const faces: THREE.Vector3[] = [];
+  for (let f = 0; f < pos.count / 3; f++) {
+    a.fromBufferAttribute(pos, f * 3);
+    b.fromBufferAttribute(pos, f * 3 + 1);
+    c.fromBufferAttribute(pos, f * 3 + 2);
+    faces.push(c.sub(b).cross(a.sub(b)).clone());
+  }
+  const at = new Map<string, number[]>();
+  for (let v = 0; v < pos.count; v++) {
+    const key = `${Math.round(pos.getX(v) * 1e5)},${Math.round(pos.getY(v) * 1e5)},${Math.round(pos.getZ(v) * 1e5)}`;
+    const list = at.get(key);
+    if (list) list.push(v);
+    else at.set(key, [v]);
+  }
+  const crease = Math.cos(THREE.MathUtils.degToRad(60));
+  const own = new THREE.Vector3();
+  const sum = new THREE.Vector3();
+  for (const list of at.values()) {
+    for (const v of list) {
+      own.copy(faces[Math.floor(v / 3)]).normalize();
+      sum.set(0, 0, 0);
+      for (const w of list) {
+        const n = faces[Math.floor(w / 3)];
+        if (n.dot(own) >= crease * n.length()) sum.add(n);
+      }
+      if (sum.lengthSq() > 1e-20) nrm.setXYZ(v, ...sum.normalize().toArray());
+    }
+  }
+  nrm.needsUpdate = true;
 }
 
 // ---------------------------------------------------------------- the rig
@@ -604,15 +648,17 @@ class AnimalRig implements Rig {
     }
     p.extras?.(this.body, this.handTilt, this.armL);
 
+    // (The sculpted Storyteller's robe is empty underneath: no wisp.)
     if (this.noLegs) {
-      this.wisp.visible = true;
+      this.wisp.visible = !k.sculpt;
       this.wisp.material = this.material;
     }
 
     // Measure the head with the rig at rest.
     this.applyPose(1);
     this.root.updateMatrixWorld(true);
-    this.headHeight = this.measureHead() + (this.floats ? this.hover : 0);
+    // (A bat stands with its wings folded, and only hovers while it's flying.)
+    this.headHeight = this.measureHead() + (this.floats && !this.flaps ? this.hover : 0);
     this.baseHeadHeight = this.headHeight;
   }
 
@@ -1735,7 +1781,7 @@ export function buildAnimal(look: Look): Rig {
     kit: k,
     profile: profileOf(info.id),
     material: aquatic ? wet() : soft(),
-    eyeMaterial: card(),
+    eyeMaterial: SMOOTH_LOOK ? glossy() : card(),
     ghostColor: mix(coat, '#e6f0ff', 0.75),
     floats: Boolean(res.hover),
     hover: res.hover,
@@ -1768,7 +1814,7 @@ function torsoR(s: Shape, y: number) {
 
 /** Some bodies need their neck ring or back placed by hand: the snail's back is its shell. */
 const DRESS_NUDGE: Partial<Record<AnimalId, { neck?: Partial<NeckFit>; back?: Partial<BackFit>; floating?: boolean }>> = {
-  snail: { neck: { centre: [0, 0.17, 0.33], r: 0.098, tilt: 0.55 }, back: { centre: [0, 0.39, -0.1], r: 0.19, depth: 0.27, top: 0.66, bottom: 0.16 }, floating: true },
+  snail: { neck: { centre: [0, 0.23, 0.35], r: 0.095, tilt: 0.4 }, back: { centre: [0, 0.33, -0.06], r: 0.12, depth: 0.2, top: 0.55, bottom: 0.13, rim: [0.22, 0.19] }, floating: true },
 };
 
 function dressFit(id: AnimalId, k: Kit): { face: FaceFit; neck: NeckFit; back: BackFit } {
@@ -1860,8 +1906,10 @@ export function buildStoryteller(): Rig {
   const sc = sculptOf(k);
   const n = k.joints.neck;
   // A tall robe narrowing from a flared hem to the shoulders.
-  sc.add(rod('body', [0, 0.05, 0], [0, 0.6, 0], 0.3, 0.16, { name: 'robe' }));
-  sc.add(ellipsoid('body', [0, 0.07, 0], [0.32, 0.07, 0.3], { k: 0.06, name: 'hem' }));
+  sc.add(rod('body', [0, 0.06, 0], [0, 0.6, 0], 0.29, 0.16, { name: 'robe' }));
+  sc.add(ellipsoid('body', [0, 0.07, 0], [0.31, 0.045, 0.29], { k: 0.05, name: 'hem' }));
+  // Cut off flat underneath (it hovers, and an empty robe has no bottom).
+  sc.add(ellipsoid('body', [0, -0.5, 0], [0.9, 0.54, 0.9], { k: 0.02, carve: true }));
   sc.add(ellipsoid('body', [0, 0.6, 0], [0.22, 0.09, 0.18], { k: 0.08, name: 'shoulders' }));
   // The hood: a deep cowl drooping to a point behind, its front hollowed out into shadow.
   sc.add(ellipsoid('neck', [0, n[1] + 0.27, 0], [0.25, 0.27, 0.25], { k: 0.06, anchor: n, reach: 0.18, name: 'hood' }));
@@ -1869,7 +1917,7 @@ export function buildStoryteller(): Rig {
   const hollow = ellipsoid('neck', [0, n[1] + 0.28, 0.21], [0.17, 0.19, 0.15], { k: 0.03, carve: true, name: 'hollow' });
   sc.add(hollow);
   // Wide sleeves flaring to the cuffs, with pale hands.
-  armForms(k, { len: 0.27, r0: 0.06, r1: 0.095, paw: [0.045, 0.045, 0.05], fwd: 0.2, out: 0.2 });
+  armForms(k, { len: 0.25, r0: 0.06, r1: 0.085, paw: [0.05, 0.05, 0.05], fwd: 0.2, out: 0.2, pawOut: 0.075 });
   useSurface(k);
   // Two glowing eyes at the back of the hollow.
   k.eyeY = 0.28;
@@ -1888,7 +1936,9 @@ export function buildStoryteller(): Rig {
       { color: TRIM, f: (q) => inHollow(q) - 0.045 },
       { color: '#d8d0f0', f: region(k, 'armLPaw', 'armRPaw') },
       { color: TRIM, f: any(sock(k, 'L', 0.8), sock(k, 'R', 0.8)) },
-      { color: TRIM, f: all(region(k, 'robe', 'hem', 'shoulders'), (q) => q.p.y - 0.09) },
+      // Under the hem there's only darkness, as if the robe were empty.
+      { color: HOLLOW, f: all(region(k, 'robe', 'hem', 'shoulders'), (q) => q.p.y - 0.035) },
+      { color: TRIM, f: all(region(k, 'robe', 'hem', 'shoulders'), (q) => q.p.y - 0.11) },
       { color: TRIM, f: all(region(k, 'robe', 'hem', 'shoulders'), (q) => Math.abs(q.p.x) - 0.028, (q) => 0.05 - q.p.z) },
     ],
   };
@@ -1942,6 +1992,9 @@ let thumbScene: THREE.Scene | null = null;
 let thumbCamera: THREE.PerspectiveCamera | null = null;
 const thumbCache = new Map<string, string>();
 
+/** Heads whose tops are well above their faces (a squid's mantle, a snail's eye stalks): the picture comes down. */
+const THUMB_NUDGE: Partial<Record<AnimalId, number>> = { squid: -0.2, snail: 0.1 };
+
 export function animalThumbnail(look: Look, size = 128): string {
   const key = `${look.animal}:${look.color}:${look.hat ?? ''}:${look.face ?? ''}:${look.neck ?? ''}:${look.back ?? ''}:${size}`;
   const hit = thumbCache.get(key);
@@ -1963,9 +2016,10 @@ export function animalThumbnail(look: Look, size = 128): string {
     for (let i = 0; i < 30; i++) rig.update({ anim: 'idle', speed: 0, dt: 0.05, t: 0 });
     rig.root.rotation.y = 0.35;
     thumbScene!.add(rig.root);
-    // Head and shoulders, with room for tall ears and antlers.
-    const top = Math.max(rig.headHeight, 0.92);
-    const bottom = 0.36;
+    // Head and shoulders: the same height of picture down from the top of every head, whether that's a frog's
+    // or a deer's antlers.
+    const top = rig.headHeight + 0.03 + (THUMB_NUDGE[look.animal] ?? 0);
+    const bottom = top - 0.64;
     const cy = (bottom + top) / 2;
     const dist = ((top - bottom) * 1.12) / (2 * Math.tan(THREE.MathUtils.degToRad(15)));
     thumbCamera!.position.set(dist * 0.18, cy + 0.08, dist);
