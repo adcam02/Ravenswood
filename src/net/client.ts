@@ -149,6 +149,7 @@ class ClientLink {
       this.setPeerState('open');
       conn.send({ t: 'hello', playerId: playerId(), v: __BUILD__, delta: true } satisfies ClientMessage);
       this.resendJoin(true);
+      this.flushOutbox();
     });
     conn.on('data', (raw) => {
       if (this.conn !== conn) return;
@@ -183,6 +184,7 @@ class ClientLink {
           this.mesh?.send({ t: 'hello', playerId: playerId(), v: __BUILD__, delta: true } satisfies ClientMessage, peerId);
           this.refresh();
           this.resendJoin(true);
+          this.flushOutbox();
           return;
         }
         if (peerId === this.meshHost) this.receive(msg);
@@ -264,6 +266,15 @@ class ClientLink {
   }
 
   send(msg: ClientMessage) {
+    if (this.deliver(msg)) return true;
+    // Something the player did (a vote, a Slayer claim, an answer) waits for the channel to come back, briefly.
+    if (OUTBOX.has(msg.t)) {
+      this.outbox = [...this.outbox.filter((m) => Date.now() - m.at < OUTBOX_MS).slice(-19), { msg, at: Date.now() }];
+    }
+    return false;
+  }
+
+  private deliver(msg: ClientMessage) {
     try {
       if (this.conn?.open) {
         this.conn.send(msg);
@@ -278,7 +289,20 @@ class ClientLink {
     }
     return false;
   }
+
+  /** What the player did while the channel was down, sent on once it's back (if still fresh). */
+  private outbox: { msg: ClientMessage; at: number }[] = [];
+  private flushOutbox() {
+    const waiting = this.outbox.filter((m) => Date.now() - m.at < OUTBOX_MS);
+    this.outbox = [];
+    for (const m of waiting) if (!this.deliver(m.msg)) this.outbox.push(m);
+  }
 }
+
+/** Actions worth holding for a moment while reconnecting; positions and pings just go stale. */
+const OUTBOX = new Set<ClientMessage['t']>(['vote', 'slay', 'reply', 'ack', 'town', 'give', 'rename', 'sleep', 'hold']);
+/** Long enough for a reconnect, short enough that an old vote can't land on a later nomination. */
+const OUTBOX_MS = 20000;
 
 export const clientLink = new ClientLink();
 
