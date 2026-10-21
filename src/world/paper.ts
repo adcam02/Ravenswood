@@ -25,6 +25,13 @@ export class Fold {
   pos: number[] = [];
   col: number[] = [];
   along: number[] = [];
+  /**
+   * Explicit skinning for a sculpted surface: the bones it uses, and for every corner four indices into
+   * that list with their weights.
+   */
+  bones: string[] | null = null;
+  si: number[] = [];
+  sw: number[] = [];
   get empty(): boolean {
     return this.pos.length === 0;
   }

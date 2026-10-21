@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import type { Vec3 } from './build';
 import { Fold, along, card, curve, pillar, seedOf, seeded, solid, tube, type BaseName, type Color, type Paint } from './paper';
+import type { Markings } from './forms';
+import type { Sculpt } from './sculpt';
 
 /**
  * The papercraft kit for the animals: one body plan (a pear-shaped body wide at the base, a head about a
@@ -84,6 +86,15 @@ export interface Kit {
   /** The head's own reshaping, so features can be placed on its surface. */
   headBend?: (v: THREE.Vector3) => void;
   rnd: () => number;
+  /** A sculpted animal: its shapes, its colours and markings, and how finely it's cut (see forms.ts). */
+  sculpt?: Sculpt;
+  marks?: Markings;
+  step?: number;
+  /** Bones that start turned (Euler angles): a sculpted arm is made hanging the way it's held. */
+  bind?: Record<string, Vec3>;
+  /** Puts a point near the head (neck space) onto the sculpted surface, `out` beyond it, and which way is out there. */
+  surface?: (p: THREE.Vector3, out: number) => THREE.Vector3;
+  normalAt?: (p: THREE.Vector3) => THREE.Vector3;
 }
 
 export interface Colors {
@@ -294,11 +305,13 @@ export function onHead(k: Kit, ux: number, uy: number, out = 0): THREE.Vector3 {
   const [rx, ry, rz] = k.shape.hr;
   const [cx, cy, cz] = k.shape.hc;
   const p = new THREE.Vector3(cx + v.x * rx, cy + v.y * ry, cz + v.z * rz);
+  if (k.surface) return k.surface(p, out);
   if (out) p.addScaledVector(headNormal(k, ux, uy), out);
   return p;
 }
 
 export function headNormal(k: Kit, ux: number, uy: number): THREE.Vector3 {
+  if (k.normalAt) return k.normalAt(onHead(k, ux, uy));
   const [rx, ry, rz] = k.shape.hr;
   const z = Math.sqrt(Math.max(0, 1 - ux * ux - uy * uy));
   return new THREE.Vector3(ux / rx, uy / ry, z / rz).normalize();

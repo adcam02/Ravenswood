@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { card, glow, soft, wet, type Vec3 } from './build';
 import { buildBack, buildFace, buildNeck, type BackFit, type BuiltPiece, type FaceFit, type NeckFit } from './dressup';
+import { finishSculpt } from './forms';
 import { buildHat, type BuiltHat, type HatFit } from './hats';
 import { buildItem, disposeObject } from './items';
 import { Fold, lowDetail, pillar, seedOf, seeded, solid, tube } from './paper';
@@ -132,6 +133,8 @@ interface Hold {
    * it), and how far it's tipped towards the face.
    */
   sip?: [number, number, number];
+  /** How far it reaches below the grip (a bucket hangs from its handle). */
+  hang?: number;
 }
 
 const MUG: Hold = { dy: -0.2, dz: 0.03, out: 0.05, sip: [0.14, 0.0, 0.6] };
@@ -150,11 +153,11 @@ const HOLD: Record<ItemKind, Hold> = {
   flower: { dy: -0.1, dz: 0.05, out: 0.17 },
   // Low at the side and angled out, clear of the head.
   rod: { dy: -0.26, dz: 0.0, out: 0.1 },
-  can: { dy: -0.26, dz: 0.04, out: 0, both: true },
-  washing: { dy: -0.3, dz: 0.06, out: 0.02, both: true },
+  can: { dy: -0.26, dz: 0.04, out: 0, both: true, hang: 0.1 },
+  washing: { dy: -0.3, dz: 0.06, out: 0.02, both: true, hang: 0.12 },
   // A bucket hangs by its handle at the side, and is lifted right up to drink from.
-  water: { dy: -0.06, dz: 0.0, out: 0.12, sip: [-0.1, -0.07, 0.4] },
-  firewood: { dy: -0.24, dz: 0.05, out: 0, both: true },
+  water: { dy: -0.06, dz: 0.0, out: 0.12, sip: [-0.1, -0.07, 0.4], hang: 0.32 },
+  firewood: { dy: -0.24, dz: 0.05, out: 0, both: true, hang: 0.1 },
   grimoire: { dy: -0.12, dz: 0.12, out: 0, both: true },
 };
 
@@ -242,14 +245,25 @@ function skin(k: Kit, sk: Skel): THREE.BufferGeometry {
     for (const p of k.parts.values()) {
       if (Boolean(p.eyes) !== eyesPass || p.fold.empty) continue;
       const o = sk.rest.get(p.space) ?? new THREE.Vector3();
+      // A bone that starts turned (a sculpted arm) turns what's built in its space with it.
+      const turn = k.bind?.[p.space] ? new THREE.Quaternion().setFromEuler(new THREE.Euler(...k.bind[p.space])) : null;
+      const at = new THREE.Vector3();
       const b = index.get(p.bone) ?? 0;
       const chain = p.chain?.map((n) => index.get(n) ?? b);
       const f = p.fold;
+      const own = f.bones?.map((n) => index.get(n) ?? b);
       for (let v = 0; v < f.pos.length / 3; v++) {
-        pos.push(f.pos[v * 3] + o.x, f.pos[v * 3 + 1] + o.y, f.pos[v * 3 + 2] + o.z);
+        at.fromArray(f.pos, v * 3);
+        if (turn) at.applyQuaternion(turn);
+        pos.push(at.x + o.x, at.y + o.y, at.z + o.z);
         colr.push(f.col[v * 3], f.col[v * 3 + 1], f.col[v * 3 + 2]);
         const t = f.along[v];
-        if (chain && t >= 0) {
+        if (own) {
+          for (let q = 0; q < 4; q++) {
+            si.push(own[f.si[v * 4 + q]]);
+            sw.push(f.sw[v * 4 + q]);
+          }
+        } else if (chain && t >= 0) {
           const n = chain.length;
           const x = t * n;
           const i = Math.min(n - 1, Math.floor(x));
@@ -397,6 +411,11 @@ class AnimalRig implements Rig {
   /** How far the paw sticks out round its middle. */
   private pawR: number;
   private seat: number;
+  /** How far a sculpted animal's back legs swing forward to sit (just enough to keep its feet down). */
+  private sitLeg: number | null;
+  /** How the arms hang at rest: forward and out (a sculpted animal's, the way it was made). */
+  private armFwd: number;
+  private armOut: number;
   private front: number;
   private mouth: THREE.Vector3;
   private eyePos: THREE.Vector3;
@@ -434,6 +453,12 @@ class AnimalRig implements Rig {
     this.paw = new THREE.Vector3(...(j.paw ?? [j.hand[0], j.hand[1], j.hand[2] * 0.2]));
     this.pawR = Math.max(0.03, (j.hand[2] - this.paw.z) * 0.9);
     this.seat = k.seat;
+    const foot = k.sculpt?.named('legLFoot');
+    const reach = foot ? k.joints.hip[1] - foot.c.y : 0;
+    this.sitLeg = foot ? -Math.acos(THREE.MathUtils.clamp((reach - k.seat) / reach, -1, 1)) : null;
+    const bind = k.bind?.armL;
+    this.armFwd = bind ? -bind[0] : 0.14;
+    this.armOut = bind ? bind[2] : 0.16;
     this.shape = k.shape;
     const s = k.shape;
     this.front = k.front ?? s.tc[2] + s.tr[2] * 1.12;
@@ -442,7 +467,7 @@ class AnimalRig implements Rig {
     this.neckPos = new THREE.Vector3(...j.neck);
     this.headC = new THREE.Vector3(...s.hc).add(this.neckPos);
     this.headR = new THREE.Vector3(s.hr[0] * 1.15, s.hr[1], s.hr[2]);
-    this.hasLegs = !k.legL.empty;
+    this.hasLegs = !k.legL.empty || Boolean(k.sculpt?.shapes.some((sh) => sh.bone === 'legL'));
 
     // The skeleton, at rest.
     this.sk = skeletonOf(k);
@@ -476,6 +501,8 @@ class AnimalRig implements Rig {
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = false;
     this.float.add(this.mesh);
+    // Bones that start turned are bound turned (their poses still say where they point outright).
+    for (const [name, rot] of Object.entries(k.bind ?? {})) this.bones.get(name)?.rotation.set(...rot);
     this.root.updateMatrixWorld(true);
     this.mesh.bind(new THREE.Skeleton(this.sk.names.map(bone)));
     // Everything an animal does stays within this, so there's no need to work it out each frame.
@@ -510,6 +537,11 @@ class AnimalRig implements Rig {
     });
     this.wisp = new THREE.Mesh(wf.geometry(), this.ghostMaterial);
     this.wisp.visible = false;
+    // A sculpted body sits right down to the ground, so its wisp trails further below it.
+    if (k.sculpt) {
+      this.wisp.scale.set(0.8, 1.6, 0.8);
+      this.wisp.position.y = 0.36 * (1 - 1.6);
+    }
     this.body.add(this.wisp);
 
     if (p.aquatic) {
@@ -694,9 +726,11 @@ class AnimalRig implements Rig {
    */
   private holdSpot(h: Hold): { y: number; z: number } {
     const low = this.shoulder.y - this.grip.length() * 0.8;
+    const y = Math.max(low, this.shoulder.y + h.dy);
     return {
-      y: Math.max(low, this.shoulder.y + h.dy),
-      z: Math.max(this.front + h.dz, this.front + this.pawR + (this.grip.z - this.paw.z) * 0.8),
+      // A snail's tendril starts low, so it lifts things up clear of the ground.
+      y: this.tendril ? Math.max(y + 0.05, (h.hang ?? 0.08) + 0.06) : y,
+      z: Math.max(this.front + h.dz, this.front + this.pawR + (this.grip.z - this.paw.z) * 0.8) + (this.tendril ? 0.04 : 0),
     };
   }
 
@@ -742,11 +776,20 @@ class AnimalRig implements Rig {
   /** The paw that isn't busy: held up in front for animals that carry their paws that way. */
   private freePaw(P: Pose) {
     if (!this.prof.paws) return;
-    const left = restPose();
+    const left = this.rest();
     this.reach(left, 'l', this.shoulder.y - this.prof.paws, this.front + this.pawR + 0.01, -0.035, 'paw');
     P.alx = left.alx;
     P.alz = left.alz;
     P.sl = left.sl;
+  }
+
+  /** The pose everything starts from, with the arms hanging the way this animal's do. */
+  private rest(): Pose {
+    const P = restPose();
+    P.alx = P.arx = -this.armFwd;
+    P.alz = this.armOut;
+    P.arz = -this.armOut;
+    return P;
   }
 
   /** Walking and running, in the species' own gait. */
@@ -785,9 +828,10 @@ class AnimalRig implements Rig {
         // A rolling, hunched amble, front paws swinging like front legs.
         P.llx = sin(w) * amp;
         P.lrx = -sin(w) * amp;
-        // Swinging about a forward point, so the paws never swing back into the belly.
-        P.alx = (run ? -0.58 : -0.34) - sin(w) * amp * (run ? 0.36 : 0.42);
-        P.arx = (run ? -0.58 : -0.34) + sin(w) * amp * (run ? 0.36 : 0.42);
+        // Swinging about a forward point (ahead of where they rest), so the paws never swing back into the belly.
+        const fwd = run ? Math.max(0.58, this.armFwd + 0.25) : Math.max(0.34, this.armFwd + 0.08);
+        P.alx = -fwd - sin(w) * amp * (run ? 0.36 : 0.42);
+        P.arx = -fwd + sin(w) * amp * (run ? 0.36 : 0.42);
         P.alz = 0.1;
         P.arz = -0.1;
         P.brz = sin(w) * 0.08;
@@ -804,8 +848,9 @@ class AnimalRig implements Rig {
         // A light, quick trot.
         P.llx = sin(w) * amp;
         P.lrx = -sin(w) * amp;
-        P.alx = -0.3 - sin(w) * amp * 0.4;
-        P.arx = -0.3 + sin(w) * amp * 0.4;
+        const fwd = Math.max(0.3, this.armFwd);
+        P.alx = -fwd - sin(w) * amp * 0.4;
+        P.arx = -fwd + sin(w) * amp * 0.4;
         P.alz = 0.12;
         P.arz = -0.12;
         P.by = Math.abs(sin(w)) * (run ? 0.05 : 0.03);
@@ -845,7 +890,7 @@ class AnimalRig implements Rig {
     if (style === 'feet') {
       // Sat back with the big feet out in front, paws resting on the tummy.
       P.brx = -0.14;
-      P.llx = P.lrx = -1.5;
+      P.llx = P.lrx = this.sitLeg ?? -1.5;
       P.llz = 0.22;
       P.lrz = -0.22;
       this.reach(P, 'both', sh.y - Math.min(0.2, this.grip.length() * 0.7), this.front + this.pawR + 0.005, -0.05, 'paw');
@@ -853,10 +898,10 @@ class AnimalRig implements Rig {
       P.trx = 0.4;
     } else {
       // Back feet forward, front legs straight down to the ground, like the papercraft raccoon.
-      P.llx = P.lrx = -1.3;
+      P.llx = P.lrx = this.sitLeg ?? -1.3;
       P.llz = 0.16;
       P.lrz = -0.16;
-      this.reach(P, 'both', this.seat + this.pawR * 0.8, this.front + this.pawR + 0.01, -0.02, 'paw');
+      this.reach(P, 'both', this.seat + this.pawR * 0.8, this.front + this.pawR + 0.03, -0.02, 'paw');
       if (style === 'wrap') {
         // The tail swept round on the ground to lie by the front feet, head tilted. (Angles found by fitting
         // the tail to the ground and round the side on the test bench.)
@@ -952,7 +997,7 @@ class AnimalRig implements Rig {
       }
       case 'rubPaws': {
         // Both paws together in front of the chest, rubbing.
-        const T = restPose();
+        const T = this.rest();
         this.reach(T, 'both', sh.y - 0.1, this.front + this.pawR + 0.02, this.pawR * 0.9 - Math.abs(sh.x), 'paw');
         blendTo(T, ['alx', 'arx', 'alz', 'arz', 'sl', 'sr']);
         const r = sin(t * 13) * 0.09 * e;
@@ -1036,7 +1081,7 @@ class AnimalRig implements Rig {
         P.hrz -= sin(p * Math.PI * 2) * 0.05 * e;
         break;
       case 'scratch': {
-        const T = restPose();
+        const T = this.rest();
         this.reach(T, 'r', sh.y - 0.18, this.front - 0.02, 0.03);
         blendTo(T, ['arx', 'arz', 'sr']);
         P.arz += sin(t * 18) * 0.1 * e;
@@ -1044,7 +1089,7 @@ class AnimalRig implements Rig {
         break;
       }
       case 'lickPaw': {
-        const T = restPose();
+        const T = this.rest();
         this.reach(T, 'r', this.mouth.y - 0.06, this.mouth.z + 0.02, 0.04 - Math.abs(sh.x));
         blendTo(T, ['arx', 'arz', 'sr']);
         P.hrx += (0.18 + sin(t * 9) * 0.05) * e;
@@ -1065,7 +1110,7 @@ class AnimalRig implements Rig {
   }
 
   private target(s: RigState): { P: Pose; A: AuxMap } {
-    const P = restPose();
+    const P = this.rest();
     const A: AuxMap = new Map();
     const t = s.t + this.seed;
     const sin = Math.sin;
@@ -1173,7 +1218,8 @@ class AnimalRig implements Rig {
         break;
       case 'work': {
         const k = sin(t * 7) * 0.05;
-        const low = sh.y - this.grip.length() * 0.8;
+        // Short forepaws (the bunny's) scrub up in front of the chest, where they can reach clear of it.
+        const low = sh.y - this.grip.length() * (this.grip.length() < 0.22 ? 0.5 : 0.8);
         this.reach(P, 'both', Math.max(low, sh.y - 0.26) + k, Math.max(this.front + 0.1, this.front + this.pawR + (this.grip.z - this.paw.z)), -0.03);
         P.alx += k * 2;
         P.arx -= k * 2;
@@ -1234,9 +1280,9 @@ class AnimalRig implements Rig {
           // Paws held up in front of the chest, this far below the shoulders.
           this.reach(P, 'both', sh.y - prof.paws + sin(t * 2.2) * 0.005, this.front + this.pawR + 0.01, -0.035, 'paw');
         } else {
-          P.alx = P.arx = -0.14;
-          P.alz = 0.16 + sin(t * 2.2 * slow) * 0.02;
-          P.arz = -0.16 - sin(t * 2.2 * slow) * 0.02;
+          P.alx = P.arx = -this.armFwd;
+          P.alz = this.armOut + sin(t * 2.2 * slow) * 0.02;
+          P.arz = -this.armOut - sin(t * 2.2 * slow) * 0.02;
         }
         if (prof.gait === 'slither') {
           aux(A, 'rear')[5] = sin(t * 0.9) * 0.006;
@@ -1450,6 +1496,7 @@ export function buildAnimal(look: Look): Rig {
   const coat = /^#[0-9a-f]{6}$/i.test(look.color) ? look.color : info.colors[0];
   const k = newKit(info.id);
   const res = RECIPES[info.id](k, colorsFor(coat, info.id), coat);
+  finishSculpt(k, info.id, coat);
   const aquatic = res.aquatic ?? info.aquatic;
   const rig = new AnimalRig({
     kit: k,
@@ -1470,6 +1517,7 @@ export function buildAnimal(look: Look): Rig {
     lowKit: () => {
       const lk = newKit(info.id);
       RECIPES[info.id](lk, colorsFor(coat, info.id), coat);
+      finishSculpt(lk, info.id, coat);
       return lk;
     },
   });

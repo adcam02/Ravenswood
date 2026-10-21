@@ -37,6 +37,8 @@ ground.receiveShadow = true;
 scene.add(ground);
 
 const camera = new THREE.PerspectiveCamera(40, W / H, 0.1, 200);
+/** Some views look straight on without perspective. */
+let orthoCam: THREE.OrthographicCamera | null = null;
 const rigs: { rig: Rig; anim: Anim; speed: number; spinning?: boolean }[] = [];
 
 const hatParam = q.get('hat') as HatId | null;
@@ -221,6 +223,36 @@ if (view === 'grid' || view === 'night') {
   const lift = Number(q.get('lift') ?? 0.25);
   camera.position.set(0, 0.5 + dist * lift, dist);
   camera.lookAt(0, 0.5, 0);
+} else if (view === 'itemgrid') {
+  // Every named animal holding every named item: columns are each animal from the front and three-quarter
+  // (?ry=0,0.7), rows are the items, seen square-on from above and in front (no perspective, so every row
+  // reads the same size). ?animal=raccoon,fox&items=ale,cider&anim=idle
+  const ids = (q.get('animal') ?? 'raccoon,fox,bunny,snail').split(',') as AnimalId[];
+  const kinds = (q.get('items') ?? 'ale,cider,milk,cocoa,wine').split(',') as ItemKind[];
+  const rys = (q.get('ry') ?? '0,0.7').split(',').map(Number);
+  const anim = (q.get('anim') ?? 'idle') as Anim;
+  const dx = 1.0;
+  const dz = Number(q.get('dz') ?? 1.6);
+  const cols = ids.length * rys.length;
+  kinds.forEach((k, row) => {
+    ids.forEach((id, i) => {
+      rys.forEach((ry, j) => {
+        const col = i * rys.length + j;
+        const r = place(make(lookOf(id)), (col - (cols - 1) / 2) * dx, (row - (kinds.length - 1) / 2) * dz, anim, 0, ry);
+        r.setItem({ k, c: k === 'flower' ? '#e07a9a' : k === 'washing' ? '#7aa6d6' : undefined });
+      });
+    });
+  });
+  const halfW = (cols * dx) / 2 + 0.2;
+  // About the game camera's angle, looking down.
+  const tilt = Number(q.get('tilt') ?? 0.66);
+  const halfH = ((kinds.length * dz) * Math.sin(tilt) + 1.1 * Math.cos(tilt)) / 2 + 0.2;
+  const aspect = W / H;
+  const ortho = new THREE.OrthographicCamera(-Math.max(halfW, halfH * aspect), Math.max(halfW, halfH * aspect), Math.max(halfH, halfW / aspect), -Math.max(halfH, halfW / aspect), 0.1, 100);
+  ortho.position.set(0, 0.5 + Math.sin(tilt) * 30, Math.cos(tilt) * 30);
+  ortho.lookAt(0, 0.5, 0);
+  ortho.updateMatrixWorld();
+  orthoCam = ortho;
 } else if (view === 'clip') {
   // Not a picture: every animal named (default all) holding every item, in each pose, checked for clipping.
   const ids = (q.get('animal') ?? list.join(',')).split(',') as AnimalId[];
@@ -429,7 +461,7 @@ function frame(now: number) {
     r.rig.update({ anim: r.anim, speed: r.speed, dt, t });
   }
   for (const p of pets) p.pet.update(dt, t, p.moving);
-  renderer.render(scene, camera);
+  renderer.render(scene, orthoCam ?? camera);
   frames++;
   W8.frame = frames;
   if (frames === 12 && q.has('lite')) {
