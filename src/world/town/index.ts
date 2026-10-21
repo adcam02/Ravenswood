@@ -666,13 +666,17 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     // A bronze compass at the centre: a ring, a darker disc and a four-pointed star.
     course(0.52, 0.68, DAIS.top - 0.03, DAIS.top + 0.006, 0.3, ['#9a7a45', '#a58450'], 0.03);
     b.add(G.cyl(40), '#8c7d68', { pos: [at.x, DAIS.top - 0.012, at.z], scale: [0.53, 0.03, 0.53] });
+    // The star's points overlap near the middle, so each sits at its own height (the long ones above the
+    // short), and a bronze boss covers the middle: no two pieces share a plane, so nothing flickers.
     for (let k = 0; k < 8; k++) {
       const a = (k / 8) * Math.PI * 2;
       const long = k % 2 === 0 ? 0.48 : 0.26;
       const side = 0.07;
-      tris([P(a - 0.0001, 0, DAIS.top + 0.005), P(a, long, DAIS.top + 0.005), P(a - Math.atan2(side, 0.1), 0.12, DAIS.top + 0.005)], '#c9a35c');
-      tris([P(a, 0, DAIS.top + 0.005), P(a + Math.atan2(side, 0.1), 0.12, DAIS.top + 0.005), P(a, long, DAIS.top + 0.005)], '#a8843e');
+      const y = DAIS.top + 0.006 + (k % 2 === 0 ? 0.004 : 0) + k * 0.0004;
+      tris([P(a - 0.0001, 0, y), P(a, long, y), P(a - Math.atan2(side, 0.1), 0.12, y)], '#c9a35c');
+      tris([P(a, 0, y), P(a + Math.atan2(side, 0.1), 0.12, y), P(a, long, y)], '#a8843e');
     }
+    b.add(G.cyl(24), '#9a7a45', { pos: [at.x, DAIS.top + 0.012, at.z], scale: [0.11, 0.012, 0.11] });
     // A little moss where the steps meet, here and there.
     for (let k = 0; k < 16; k++) {
       const a = rnd() * Math.PI * 2;

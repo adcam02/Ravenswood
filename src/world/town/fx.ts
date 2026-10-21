@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Builder, matte, rng } from '../build';
 import { G } from './kit';
+import { DAIS, MEETING_CENTRE, SQUARE_R } from './layout';
 
 /**
  * The town's moving effects, all cheap on the CPU: a sky dome, rain and its splashes, ground mist, night
@@ -119,6 +120,9 @@ export interface Rain {
   set(amount: number, time: number, center: THREE.Vector3): void;
 }
 
+/** The square around the player that splashes land in. */
+const SPLASH_BOX = 30;
+
 /** Falling streaks and splash rings around a point. Everything moves on the GPU; the CPU only sets uniforms. */
 export function makeRain(drops = 2600, splashes = 260): Rain {
   const group = new THREE.Group();
@@ -210,15 +214,25 @@ export function makeRain(drops = 2600, splashes = 260): Rain {
       varying float vLife;
       varying float vOn;
       float hash(float n) { return fract(sin(n) * 43758.5453); }
+      // The ground's height: the meeting dais and its steps, the square's cobbles, or the grass and paths.
+      float groundY(vec2 p) {
+        float d = length(p - vec2(${MEETING_CENTRE.x.toFixed(2)}, ${MEETING_CENTRE.z.toFixed(2)}));
+        if (d < ${DAIS.r.toFixed(3)}) return ${DAIS.top.toFixed(3)};
+        if (d < ${DAIS.r2.toFixed(3)}) return ${DAIS.h2.toFixed(3)};
+        if (d < ${DAIS.r1.toFixed(3)}) return ${DAIS.h1.toFixed(3)};
+        if (length(p) < ${(SQUARE_R + 0.45).toFixed(2)}) return 0.071;
+        return 0.026;
+      }
       void main() {
         float cyc = uTime * (1.5 + aSeed.y) + aSeed.x * 10.0;
         float k = floor(cyc);
         float life = fract(cyc);
-        float a = hash(k * 1.2898 + aSeed.x * 78.233) * 6.2831;
-        float rr = sqrt(hash(k * 3.9346 + aSeed.x * 11.135)) * 15.0;
-        vec2 xz = uCenter.xz + vec2(cos(a), sin(a)) * rr;
+        // Each splash lands at a fixed spot in the world (picked afresh each time round), wrapped into the
+        // square around the player like the drops, so it stays put while you walk rather than sliding along.
+        vec2 seedPos = vec2(hash(k * 1.2898 + aSeed.x * 78.233), hash(k * 3.9346 + aSeed.x * 11.135)) * ${SPLASH_BOX.toFixed(1)};
+        vec2 xz = uCenter.xz + mod(seedPos - uCenter.xz, ${SPLASH_BOX.toFixed(1)}) - ${(SPLASH_BOX / 2).toFixed(1)};
         float s = 0.03 + life * 0.2;
-        vec3 wp = vec3(xz.x + position.x * s, 0.078, xz.y + position.z * s);
+        vec3 wp = vec3(xz.x + position.x * s, groundY(xz) + 0.012, xz.y + position.z * s);
         vUv = uv;
         vLife = life;
         vOn = step(fract(aSeed.x * 7.13), uAmount);
