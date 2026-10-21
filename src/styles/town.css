@@ -1665,3 +1665,7 @@
   color: #c0532a;
   font-weight: 700;
 }
+.sheep-working {
+  font-size: 14px;
+  max-width: 460px;
+}

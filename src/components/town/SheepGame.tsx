@@ -26,35 +26,73 @@ const W = 640;
 const H = 300;
 const FENCE_X = W / 2;
 
-function plan(seed: number): { runners: Runner[]; answer: number; length: number } {
+/** The least room between two runners, as a share of the field's width. */
+const SEP = 0.34;
+
+interface Plan {
+  runners: Runner[];
+  answer: number;
+  length: number;
+  /** For showing the working afterwards. */
+  over: number;
+  back: number;
+  goats: number;
+}
+
+/**
+ * One night's sheep. Everyone on the field at once moves at the same speed and keeps well apart, so every
+ * runner is always fully in view: nothing overtakes, nothing hides another, and a sheep jumping back only
+ * goes when the field is clear. The speed creeps up through the run, and some come in quick bunches.
+ */
+function plan(seed: number): Plan {
   let s = seed >>> 0 || 1;
   const r = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
   const runners: Runner[] = [];
-  const n = 18 + Math.floor(r() * 10);
+  const n = 18 + Math.floor(r() * 8);
+  let over = 0;
+  let back = 0;
+  let goats = 0;
+  let onField = 0; // how many forward sheep have crossed and not come back
   let t = 1.2;
-  let answer = 0;
-  const crossed: Runner[] = [];
+  // When the field is clear of everyone so far.
+  let clearAt = 0;
   for (let i = 0; i < n; i++) {
+    // The crossing time shortens through the run: from 2.6 s down to 1.6 s.
+    const dur = 2.6 - Math.min(1, i / n) * 1.0;
     const roll = r();
-    let kind: Kind = 'sheep';
-    if (roll < 0.14) kind = 'goat';
-    else if (roll < 0.26) kind = 'black';
-    // Now and then a sheep that already crossed comes back over.
-    const back = kind !== 'goat' && crossed.length > 0 && r() < 0.16;
-    const speedUp = Math.min(1, i / n);
-    const dur = (2.4 - speedUp * 1.0) * (0.8 + r() * 0.4);
-    const runner: Runner = { kind, dir: back ? -1 : 1, at: t, dur, lane: Math.floor(r() * 3), bob: r() * Math.PI * 2 };
-    runners.push(runner);
-    if (kind !== 'goat') {
-      answer += back ? -1 : 1;
-      if (!back) crossed.push(runner);
-      else crossed.pop();
+    const kind: Kind = roll < 0.15 ? 'goat' : roll < 0.28 ? 'black' : 'sheep';
+    const jumpsBack = kind !== 'goat' && onField > 0 && i > 3 && r() < 0.14;
+    if (jumpsBack) {
+      // Wait for the field to empty, cross back alone, and let the field empty again after.
+      const at = Math.max(t, clearAt + 0.4);
+      runners.push({ kind, dir: -1, at, dur, lane: 1, bob: r() * Math.PI * 2 });
+      back += 1;
+      onField -= 1;
+      clearAt = at + dur;
+      t = clearAt + 0.5;
+      continue;
     }
-    // Sometimes two run close together, which is where people lose count.
-    t += r() < 0.3 ? 0.35 + r() * 0.3 : 0.75 + r() * 0.9;
+    // Keep a third of the screen between runners at the least (a bunch); usually more.
+    const gap = r() < 0.3 ? 0.36 + r() * 0.1 : 0.6 + r() * 0.7;
+    const prev = runners[runners.length - 1];
+    let at = t;
+    if (prev) {
+      // A third of the screen behind the one ahead as it comes on (at least) ...
+      at = Math.max(at, prev.at + gap * prev.dur);
+      // ... and, being a little faster, still a third behind when the one ahead leaves the screen.
+      if (prev.dir === 1) at = Math.max(at, prev.at + prev.dur - (1 - SEP) * dur);
+    }
+    runners.push({ kind, dir: 1, at, dur, lane: Math.floor(r() * 3), bob: r() * Math.PI * 2 });
+    if (kind === 'goat') goats += 1;
+    else {
+      over += 1;
+      onField += 1;
+    }
+    clearAt = Math.max(clearAt, at + dur);
+    t = at;
   }
-  const length = t + 2.8;
-  return { runners, answer: Math.max(0, answer), length };
+  const length = clearAt + 1.2;
+  return { runners, answer: over - back, length, over, back, goats };
 }
 
 function drawRunner(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, kind: Kind, dir: number, phase: number, airborne: boolean) {
@@ -130,7 +168,7 @@ export function SheepGame() {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [stage, setStage] = useState<'rules' | 'run' | 'guess' | 'done'>('rules');
   const [guess, setGuess] = useState('');
-  const [result, setResult] = useState<{ right: boolean; answer: number } | null>(null);
+  const [result, setResult] = useState<{ right: boolean; answer: number; guess: number } | null>(null);
   const planRef = useRef(plan(Date.now()));
   // The Storyteller is talking to them (a wake is open): the sheep wait, and keys are left alone.
   const awake = useClient((s) => Boolean(s.priv?.wake));
@@ -244,7 +282,7 @@ export function SheepGame() {
   const answer = () => {
     if (guess === '') return;
     const right = Number(guess) === planRef.current.answer;
-    setResult({ right, answer: planRef.current.answer });
+    setResult({ right, answer: planRef.current.answer, guess: Number(guess) });
     setStage('done');
     game.sheepDone(right);
   };
@@ -320,7 +358,12 @@ export function SheepGame() {
       {stage === 'done' && result && (
         <div className={`sheep-result ${result.right ? 'is-right' : ''}`}>
           <span className="sheep-big">{result.right ? '⭐' : '💤'}</span>
-          <strong>{result.right ? 'Spot on!' : `It was ${result.answer}.`}</strong>
+          <strong>{result.right ? `Spot on: ${result.answer}!` : `You said ${result.guess}; it was ${result.answer}.`}</strong>
+          <span className="sheep-working">
+            {planRef.current.over} sheep jumped over
+            {planRef.current.back > 0 && `, ${planRef.current.back} jumped back`}
+            {planRef.current.goats > 0 && `, and ${planRef.current.goats} ${planRef.current.goats === 1 ? 'goat' : 'goats'} (goats don’t count)`}.
+          </span>
           <span>{result.right ? 'A gold star for you in the morning.' : 'Sleep tight. Try again tomorrow night.'}</span>
           <button className="cosy-btn primary" onClick={sleepNow} autoFocus>
             Back to sleep
