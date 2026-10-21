@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Vec3 } from './build';
-import { all, any, armForms, beakForm, earForms, earMarks, finForm, headForm, legForms, membraneWings, piece, region, sculptOf, snoutForm, sock as sockOf, surfaceHit, tailForm, tentacleForms, torso, unitOf, useSurface, whiskers, wingForms } from './forms';
+import { all, any, armForms, type Details, beakForm, earForms, earMarks, finForm, headForm, legForms, membraneWings, piece, region, sculptOf, snoutForm, sock as sockOf, suckerForms, surfaceHit, tailForm, tentacleForms, torso, unitOf, useSurface, whiskers, wingForms } from './forms';
 import { curve, pillar, solid } from './paper';
 import { ellipsoid, pyramid, rod, spiral, type Probe } from './sculpt';
 import {
@@ -542,16 +542,19 @@ const octopus: Recipe = (k, c) => {
     ],
   });
   headForm(k, { r: [0.29, 0.31, 0.27], at: [0, 0.22, -0.03], melt: 0.12 });
-  armForms(k, { len: 0.24, r0: 0.055, r1: 0.032, paw: [0.035, 0.03, 0.04], fwd: 0.45, out: 0.35 });
-  tentacleForms(k, { count: 3, len: 0.44, r0: 0.062, r1: 0.026, root: [0.12, 0.15, -0.02], spread: 2.4, hang: 0.4, coil: 2.7 });
+  const arms = { len: 0.24, r0: 0.055, r1: 0.032, paw: [0.035, 0.03, 0.04] as Vec3, fwd: 0.45, out: 0.35 };
+  const legs = { count: 3, len: 0.46, r0: 0.064, r1: 0.034, root: [0.12, 0.15, -0.02] as Vec3, spread: 2.4, hang: 0.4, coil: 2.7 };
+  armForms(k, arms);
+  tentacleForms(k, legs);
   // A little skirt of webbing where they join.
   sculptOf(k).add(ellipsoid('body', [0, 0.12, -0.02], [0.25, 0.045, 0.23], { k: 0.06, name: 'skirt' }));
   useSurface(k);
+  suckerForms(k, legs, arms, mix(c.coat, '#fff3ec', 0.55));
   eyes(k, { x: 0.34, y: -0.12, size: 1.35, wide: 1.05, slant: 0.05, color: '#1c1420' });
   mouth(k, { w: 0.16, y: -0.42, curve: 0.08, r: 0.006 });
   k.marks = {
     base: c.coat,
-    // Plain all over (spots or suckers this small only come out as stray flecks).
+    // Plain all over (spots this small only come out as stray flecks; the suckers are pieces of their own).
     marks: [],
   };
   return { aquatic: true, legs: 'tentacles' };
@@ -2171,7 +2174,7 @@ const PROFILES: Partial<Record<AnimalId, Partial<Profile>>> = {
   // Drifts, sways and pulses.
   jellyfish: { gait: 'float', cadence: 0.6, sit: 'settle', idles: ['sway', 'chill', 'sway'], tailSway: 0 },
   // Ripples along on its tentacles, stretches, sways.
-  octopus: { gait: 'scuttle', cadence: 1.1, sit: 'settle', idles: ['sway', 'stretch', 'chill'], tailSway: 0 },
+  octopus: { gait: 'scuttle', cadence: 1.1, sit: 'settle', bed: 'upright', idles: ['sway', 'stretch', 'chill'], tailSway: 0 },
   // Upright and stiff, waddles with its flippers out, flaps them now and then.
   penguin: { lean: -0.02, head: -0.04, gait: 'waddle', cadence: 1.2, stride: 0.55, sit: 'settle', idles: ['flap', 'headTilt', 'chill'], tailSway: 0.1 },
   // Waddles, flaps, wags its tail.
@@ -2228,6 +2231,24 @@ const PROFILES: Partial<Record<AnimalId, Partial<Profile>>> = {
   wombat: { lean: 0.06, head: 0.02, gait: 'amble', cadence: 0.9, stride: 0.7, sit: 'tuck', idles: ['sniff', 'scratch', 'chill'], tailSway: 0 },
   // Squat and still, its throat pulsing; hops everywhere.
   frog: { lean: 0.05, head: -0.06, gait: 'hop', cadence: 1, sit: 'settle', idles: ['throat', 'slowBlink', 'hop'], tailSway: 0 },
+};
+
+/** Finishing touches: toes on the feet, claws, buck teeth. */
+export const DETAILS: Partial<Record<AnimalId, Details>> = {
+  fox: { toes: 2, paws: 2 },
+  wolf: { toes: 2, paws: 2 },
+  dog: { toes: 2, paws: 2 },
+  cat: { toes: 2, paws: 2 },
+  fennec: { toes: 2, paws: 2 },
+  redpanda: { toes: 2, paws: 2 },
+  quokka: { toes: 2 },
+  koala: { toes: 2 },
+  panda: { toes: 2 },
+  raccoon: { toes: 3 },
+  bear: { claws: 3 },
+  wombat: { claws: 3 },
+  bunny: { toes: 2, teeth: true },
+  chinchilla: { toes: 2, teeth: true },
 };
 
 export function profileOf(id: AnimalId): Profile {

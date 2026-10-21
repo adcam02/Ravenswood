@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { SMOOTH_LOOK, type Vec3 } from './build';
-import { audit, isLow, seedOf, seeded, type Color } from './paper';
-import { Sculpt, bake, copyMesh, decimate, ellipsoid, folds, labelOf, polygonise, pyramid, rod, settle, snapMarks, type Baked, type Mesh, type Probe, type Shape } from './sculpt';
-import { BLUSH, bone, luminance, onHead, part, smooth, v3, type Kit } from './species';
+import { audit, isLow, seedOf, seeded, solid, type Color } from './paper';
+import { Probe, Sculpt, bake, copyMesh, decimate, ellipsoid, folds, labelOf, polygonise, pyramid, rod, settle, snapMarks, type Baked, type Mesh, type Shape } from './sculpt';
+import { BLUSH, CHARCOAL, bone, luminance, mix, onHead, part, smooth, v3, type Kit } from './species';
 
 /**
  * The sculpted body plan: the shapes each part of an animal is made of, placed on the kit's bones, ready to
@@ -231,6 +231,7 @@ export function armForms(k: Kit, o: ArmOpts) {
     sc.add(rod(name, add(s, [0, 0.03, -0.015]), e, o.r0, mid, { k: 0.12, anchor: s, reach: 0.28, name }));
     sc.add(rod(fore, e, wrist, mid, o.r1, { k: 0.05, anchor: e, reach: 0.07, name: fore }));
     sc.add(ellipsoid(fore, local(pawAt), o.paw, { rot, k: 0.035, anchor: wrist, reach: 0.08, name: `${name}Paw` }));
+    (k.paws ??= []).push({ bone: fore, at: local(pawAt), r: o.paw, rot });
     // The whole arm's length, for drawing socks along it.
     sc.guides.push(rod(name, s, wrist, o.r0, o.r1, { name: `${name}Axis` }));
   }
@@ -396,14 +397,14 @@ export interface TentacleOpts {
   melt?: number;
 }
 
-/** Tentacles in place of legs: tapering curling rods, a bunch on each leg bone so they sway together. */
-export function tentacleForms(k: Kit, o: TentacleOpts): Shape[] {
-  const sc = sculptOf(k);
-  const all: Shape[] = [];
+/** Each tentacle's path (model space), its bone, and which way is across it. */
+function tentaclePaths(o: TentacleOpts): { bone: string; j: number; pts: Vec3[]; across: THREE.Vector3 }[] {
+  const out: { bone: string; j: number; pts: Vec3[]; across: THREE.Vector3 }[] = [];
   const spread = o.spread ?? 1.6;
   const hang = o.hang ?? 0.3;
+  const r = (t: number) => o.r0 + (o.r1 - o.r0) * t;
   for (const side of [-1, 1]) {
-    const name = side > 0 ? 'legL' : 'legR';
+    const bone = side > 0 ? 'legL' : 'legR';
     for (let j = 0; j < o.count; j++) {
       const a = (o.count === 1 ? 0 : j / (o.count - 1) - 0.5) * spread;
       const dir = new THREE.Vector3(side * Math.cos(a), 0, Math.sin(a));
@@ -412,7 +413,6 @@ export function tentacleForms(k: Kit, o: TentacleOpts): Shape[] {
       // Each starts round the rim in its own direction, and (hanging) waves a little as it goes down.
       const start = new THREE.Vector3(side * Math.abs(o.root[0]), o.root[1], o.root[2]).add(dir.clone().multiplyScalar(o.rim ?? 0));
       const across = new THREE.Vector3(-dir.z, 0, dir.x);
-      const r = (t: number) => o.r0 + (o.r1 - o.r0) * t;
       if (o.coil !== undefined) {
         // Marched out from the root: down and out, along the ground, then curling up and over at the tip.
         const p = start.clone();
@@ -432,14 +432,90 @@ export function tentacleForms(k: Kit, o: TentacleOpts): Shape[] {
         const wave = Math.sin(t * 6 + j * 1.7) * (o.wave ?? 0) * t;
         pts.push([start.x + dir.x * out + across.x * wave, Math.max(o.r1 * 0.8 + (o.curl ?? 0.15) * Math.max(0, t - 0.7), y), start.z + dir.z * out + across.z * wave]);
       }
-      for (let i = 0; i < n; i++) {
-        const sh = rod(name, pts[i], pts[i + 1], r(i / n), r((i + 1) / n), { k: i === 0 ? o.melt ?? 0.06 : 0.025, anchor: pts[i], reach: i === 0 ? 0.14 : 0.06, name: `${name}T${j}_${i}`, thin: true });
-        sc.add(sh);
-        all.push(sh);
-      }
+      out.push({ bone, j, pts, across });
+    }
+  }
+  return out;
+}
+
+/** Tentacles in place of legs: tapering curling rods, a bunch on each leg bone so they sway together. */
+export function tentacleForms(k: Kit, o: TentacleOpts): Shape[] {
+  const sc = sculptOf(k);
+  const all: Shape[] = [];
+  const r = (t: number) => o.r0 + (o.r1 - o.r0) * t;
+  for (const { bone: name, j, pts } of tentaclePaths(o)) {
+    const n = pts.length - 1;
+    for (let i = 0; i < n; i++) {
+      const sh = rod(name, pts[i], pts[i + 1], r(i / n), r((i + 1) / n), { k: i === 0 ? o.melt ?? 0.06 : 0.025, anchor: pts[i], reach: i === 0 ? 0.14 : 0.06, name: `${name}T${j}_${i}`, thin: true });
+      sc.add(sh);
+      all.push(sh);
     }
   }
   return all;
+}
+
+/**
+ * Suckers down the undersides of the tentacles (laid out as for `tentacleForms`) and of the arms: little pale
+ * discs in a zigzag, leaning out to either side so they show along a tentacle lying on the ground and turn up
+ * into view where it curls over at the tip. Call once the surface is in use.
+ */
+export function suckerForms(k: Kit, o: TentacleOpts, arms: ArmOpts, color: Color) {
+  if (isLow()) return;
+  // Found on the surface as it will be cut, thin parts fattened a touch (see finishSculpt).
+  sculptOf(k).grow = (k.step ?? STEP) * 0.15;
+  const lean = 0.85;
+  // Where each one went, so none overlaps another (they'd flicker where they cross).
+  const placed: { p: THREE.Vector3; r: number }[] = [];
+  // Along a path from `from` to `to` (fractions of its length), each one half the path's radius there: a short
+  // peg sunk well in, standing a little proud (steep sided, so its edge never lies along the skin and flickers).
+  const row = (bone: string | ((t: number) => string), path: THREE.Vector3[], radius: (t: number) => number, under: (d: THREE.Vector3) => THREE.Vector3, from: number, to: number) => {
+    const lens = [0];
+    for (let i = 1; i < path.length; i++) lens.push(lens[i - 1] + path[i].distanceTo(path[i - 1]));
+    const L = lens[lens.length - 1];
+    let s = from * L;
+    let flip = 1;
+    while (s < to * L) {
+      const t = s / L;
+      let i = 1;
+      while (i < path.length - 1 && lens[i] < s) i++;
+      const d = path[i].clone().sub(path[i - 1]).normalize();
+      const at = path[i - 1].clone().lerp(path[i], (s - lens[i - 1]) / Math.max(1e-6, lens[i] - lens[i - 1]));
+      const down = under(d);
+      const side = new THREE.Vector3().crossVectors(d, down).normalize();
+      const n = down.multiplyScalar(Math.cos(lean)).addScaledVector(side, flip * Math.sin(lean)).normalize();
+      const rs = radius(t) * 0.5;
+      const hit = surfaceHit(k, at, n);
+      if (hit && !placed.some((o) => o.p.distanceTo(hit.p) < (o.r + rs) * 1.1)) {
+        placed.push({ p: hit.p.clone(), r: rs });
+        const name = typeof bone === 'string' ? bone : bone(t);
+        const up = hit.n.clone().normalize();
+        const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
+        // In the bone's own space (turned back, for a bone that starts turned, like an arm).
+        const m = new THREE.Matrix4().makeTranslation(boneAt(k, name).negate()).multiply(new THREE.Matrix4().compose(hit.p.clone().addScaledVector(up, -rs * 0.08), q, new THREE.Vector3(1, 1, 1)));
+        const turn = k.bind?.[name];
+        if (turn) m.premultiply(new THREE.Matrix4().makeRotationFromQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(...turn)).invert()));
+        solid(part(k, `suckers:${name}`, name), k.rnd, { base: 'disc', r: [rs, rs * 0.86, rs], matrix: m, color, tone: 0 });
+      }
+      flip = -flip;
+      s += rs * 1.8;
+    }
+  };
+  // Tentacles: the underside is below the path where it runs along the ground, facing out and then up as it curls.
+  const tr = (t: number) => o.r0 + (o.r1 - o.r0) * t;
+  for (const { bone, pts, across } of tentaclePaths(o)) {
+    row(bone, pts.map((p) => new THREE.Vector3(...p)), tr, (d) => new THREE.Vector3().crossVectors(d, across).normalize(), 0.32, 0.97);
+  }
+  // Arms: down the front, from the elbow-ish to the wrist.
+  const sh = k.joints.shoulder;
+  for (const side of [-1, 1]) {
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-(arms.fwd ?? 0.3), 0, side * (arms.out ?? 0.12)));
+    const s0 = new THREE.Vector3(side * sh[0], sh[1], sh[2]);
+    const wrist = s0.clone().add(new THREE.Vector3(0, -arms.len, 0).applyQuaternion(q));
+    const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
+    const elbowAt = 0.5;
+    const name = (t: number) => (t < elbowAt ? (side > 0 ? 'armL' : 'armR') : side > 0 ? 'foreL' : 'foreR');
+    row(name, [s0, wrist], (t) => arms.r0 + (arms.r1 - arms.r0) * t, (d) => fwd.clone().addScaledVector(d, -fwd.dot(d)).normalize(), 0.42, 0.82);
+  }
 }
 
 export interface LegOpts {
@@ -459,7 +535,9 @@ export function legForms(k: Kit, o: LegOpts) {
     const h: Vec3 = [side * hip[0], hip[1], hip[2]];
     const ankle: Vec3 = [side * hip[0], o.foot[1] * 1.3, hip[2] + 0.01];
     sc.add(rod(name, add(h, [0, 0.04, 0]), ankle, o.r0, o.r1, { k: 0.06, anchor: h, reach: 0.11, name, thin: true }));
-    sc.add(ellipsoid(name, [side * hip[0], o.foot[1] * 0.8, hip[2] + (o.fwd ?? o.foot[2] * 0.45)], o.foot, { k: 0.035, anchor: ankle, reach: 0.08, name: `${name}Foot`, thin: true }));
+    const at: Vec3 = [side * hip[0], o.foot[1] * 0.8, hip[2] + (o.fwd ?? o.foot[2] * 0.45)];
+    sc.add(ellipsoid(name, at, o.foot, { k: 0.035, anchor: ankle, reach: 0.08, name: `${name}Foot`, thin: true }));
+    (k.feet ??= []).push({ bone: name, at, r: o.foot });
   }
 }
 
@@ -864,6 +942,80 @@ export function surfaceHit(k: Kit, from: THREE.Vector3, dir: THREE.Vector3): { p
     prev = f;
   }
   return null;
+}
+
+/** The colour of the marking a point on the surface falls in (once the markings are drawn up). */
+export function colorAt(k: Kit, p: THREE.Vector3): Color {
+  const q = new Probe(sculptOf(k)).set(p.x, p.y, p.z);
+  for (const m of k.marks?.marks ?? []) if (m.f(q) < 0) return m.color;
+  return k.marks?.base ?? CHARCOAL;
+}
+
+export interface Details {
+  /** Creases over the front of each hind foot (this many, for one more toe than that). */
+  toes?: number;
+  /** The same on the front paws, for an animal that stands on them. */
+  paws?: number;
+  /** Claws at the front of each hind foot. */
+  claws?: number;
+  /** Two front teeth showing under the nose. */
+  teeth?: boolean;
+}
+
+const CLAW = '#efe6d2';
+const TOOTH = '#fbf8f1';
+
+/**
+ * The little finishing touches, once the surface and its markings are settled: toes on the feet (a crease
+ * a shade darker than the fur there), claws, buck teeth. Close up only.
+ */
+export function details(k: Kit, d: Details) {
+  if (isLow() || !k.sculpt) return;
+  // Found on the surface as it will be cut, thin parts fattened a touch (see finishSculpt).
+  k.sculpt.grow = (k.step ?? STEP) * 0.15;
+  const across = new THREE.Vector3(1, 0, 0);
+  const feet = [...(k.feet ?? []).map((f) => ({ ...f, rot: [0, 0, 0] as Vec3, toes: d.toes ?? 0 })), ...(k.paws ?? []).map((f) => ({ ...f, toes: d.paws ?? 0 }))];
+  for (const f of feet) {
+    const c = new THREE.Vector3(...f.at);
+    const r = f.r;
+    const turn = new THREE.Quaternion().setFromEuler(new THREE.Euler(...f.rot));
+    // A point on the foot: `x` across it (-1 to 1) and `e` up from its front (radians).
+    const on = (x: number, e: number) => {
+      const hit = surfaceHit(k, c, new THREE.Vector3(x * r[0], Math.sin(e) * r[1], Math.cos(e) * r[2]).applyQuaternion(turn));
+      return hit ? { p: hit.p, n: hit.n.normalize() } : null;
+    };
+    const n = f.toes;
+    for (let i = 0; i < n; i++) {
+      const x = ((i + 1) / (n + 1) - 0.5) * 1.3;
+      const hits = [-0.1, 0.2, 0.5, 0.8].map((e) => on(x, e));
+      if (hits.some((h) => !h)) continue;
+      const col = mix(colorAt(k, hits[1]!.p), CHARCOAL, 0.42);
+      // (The ends dip into the fur, so they don't lie along it.)
+      const pts = hits.map((h, j) => h!.p.clone().addScaledVector(h!.n, j === 0 || j === hits.length - 1 ? -0.002 : 0.0014));
+      piece(k, { bone: f.bone, pts, w: [0, 0.0032, 0.0032, 0], t: [0, 0.0022, 0.0022, 0], across, colors: [col, col, col], name: `toe${f.bone}${i}` });
+    }
+    const m = k.feet?.some((x) => x.bone === f.bone) ? (d.claws ?? 0) : 0;
+    for (let i = 0; i < m; i++) {
+      const h = on((m === 1 ? 0 : i / (m - 1) - 0.5) * 1.1, 0.1);
+      if (!h) continue;
+      const out = new THREE.Vector3(0, -0.4, 1).normalize();
+      const len = Math.min(r[0], r[2]) * 0.4;
+      const pts = [h.p.clone().addScaledVector(h.n, -0.004), h.p.clone().addScaledVector(out, len * 0.45), h.p.clone().addScaledVector(out, len)];
+      piece(k, { bone: f.bone, pts, w: [len * 0.3, len * 0.2, 0], t: [len * 0.22, len * 0.15, 0], across, colors: [CLAW, CLAW], name: `claw${f.bone}${i}` });
+    }
+  }
+  if (d.teeth && k.nose) {
+    const nose = new THREE.Vector3(...k.nose).add(new THREE.Vector3(...k.joints.neck));
+    const down = new THREE.Vector3(0, -1, 0);
+    for (const side of [-1, 1]) {
+      const hit = surfaceHit(k, nose.clone().add(new THREE.Vector3(side * 0.0105, -0.03, -0.06)), new THREE.Vector3(0, -0.15, 1));
+      if (!hit) continue;
+      const n = hit.n.normalize();
+      const top = hit.p.clone().addScaledVector(n, 0.003);
+      const pts = [hit.p.clone().addScaledVector(n, -0.003).add(new THREE.Vector3(0, 0.004, 0)), top, top.clone().addScaledVector(down, 0.017), top.clone().addScaledVector(down, 0.0185)];
+      piece(k, { bone: 'neck', pts, w: [0.0048, 0.0048, 0.0046, 0], t: [0.0026, 0.0026, 0.0024, 0], across, colors: [TOOTH, TOOTH, TOOTH], name: `tooth${side > 0 ? 'L' : 'R'}` });
+    }
+  }
 }
 
 // ---------------------------------------------------------------- small sculpted things (pets)

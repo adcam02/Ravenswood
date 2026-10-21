@@ -1,12 +1,12 @@
 import * as THREE from 'three';
 import { SMOOTH_LOOK, eyeMaterial, glow, soft, wet, type Vec3 } from './build';
 import { buildBack, buildFace, buildNeck, type BackFit, type BuiltPiece, type FaceFit, type NeckFit } from './dressup';
-import { all, any, armForms, finishSculpt, region, sculptOf, sock, useSurface } from './forms';
+import { all, any, armForms, details, finishSculpt, region, sculptOf, sock, useSurface } from './forms';
 import { buildHat, type BuiltHat, type HatFit } from './hats';
 import { buildItem, disposeObject } from './items';
 import { Fold, lowDetail, seedOf, seeded, solid, tube } from './paper';
 import { ellipsoid, rod, type Probe } from './sculpt';
-import { RECIPES, profileOf } from './recipes';
+import { DETAILS, RECIPES, profileOf } from './recipes';
 import { col, colorsFor, mix, newKit, onHead, type Kit, type Mannerism, type Profile, type Shape } from './species';
 import { animalInfo, type Anim, type AnimalId, type BackId, type FaceId, type HatId, type Item, type ItemKind, type Look, type NeckId } from './types';
 
@@ -1374,6 +1374,20 @@ class AnimalRig implements Rig {
           if (this.hold) this.carryPose(P, 0);
           break;
         }
+        if (prof.bed === 'upright') {
+          // Settled down at the pillow end, leaning back against it, with its tentacles spread flat over the
+          // covers (on its back, with webbing between them, they'd crumple).
+          P.brx = -0.45;
+          P.bz = -0.28;
+          P.by = -0.02;
+          P.llx = P.lrx = 0.45;
+          P.llz = 0.1;
+          P.lrz = -0.1;
+          P.alz = 0.35;
+          P.arz = -0.35;
+          P.hrx = 0.12;
+          break;
+        }
         // On its back, head towards the back of the root, centred on the origin.
         P.brx = -Math.PI / 2;
         P.by = 0.18;
@@ -1582,7 +1596,17 @@ class AnimalRig implements Rig {
       P.hrx += sin(t * 13) * 0.04;
       P.hrz += sin(t * 7) * 0.025;
     }
-    if (this.tentacles) {
+    if (this.tentacles && s.anim === 'sleep') {
+      if (prof.bed !== 'upright') {
+        // On its back the tentacles would stand straight up out of the covers: turned back down to lie flat.
+        P.llx = P.lrx = Math.PI / 2 - 0.12;
+        P.llz = 0.12;
+        P.lrz = -0.12;
+      }
+      // Drifting a little as it breathes.
+      P.llz += sin(t * 0.9) * 0.04;
+      P.lrz -= sin(t * 0.9 + 1) * 0.04;
+    } else if (this.tentacles) {
       if (s.anim === 'idle') {
         // A slow sway from side to side over the tentacles, the head keeping a little steadier.
         P.brz += sin(t * 1.3) * 0.05;
@@ -1890,6 +1914,7 @@ export function buildAnimal(look: Look): Rig {
   const coat = /^#[0-9a-f]{6}$/i.test(look.color) ? look.color : info.colors[0];
   const k = newKit(info.id);
   const res = RECIPES[info.id](k, colorsFor(coat, info.id), coat);
+  details(k, DETAILS[info.id] ?? {});
   finishSculpt(k, info.id, coat);
   const aquatic = res.aquatic ?? info.aquatic;
   const rig = new AnimalRig({

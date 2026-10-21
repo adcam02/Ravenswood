@@ -65,6 +65,7 @@ const insideOf = (r: Rig) => (r as unknown as { inspect(): Inside }).inspect();
  * Faces lying in the same place as another face that faces the same way (they'd flicker), counted over the
  * whole model at rest: nearly parallel, nearly in the same plane, and one's centre inside the other.
  */
+const coplanarAt: Record<string, number[][]> = {};
 function coplanar(r: Rig): number {
   const pos = insideOf(r).mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
   const n = pos.count / 3;
@@ -101,7 +102,11 @@ function coplanar(r: Rig): number {
             const u = tris[j];
             if (u.area < 1e-8 || t.nrm.dot(u.nrm) < 0.985) continue;
             if (Math.abs(t.nrm.dot(new THREE.Vector3().subVectors(u.m, t.a))) > 0.0015) continue;
-            if (inTri(u.m, t) || inTri(t.m, u)) count++;
+            if (inTri(u.m, t) || inTri(t.m, u)) {
+              count++;
+              // ?where lists where (model space, the first few).
+              if (q.has('where') && count <= 12) (coplanarAt[r.root.uuid] ??= []).push([...t.m.toArray(), ...u.m.toArray(), ...t.nrm.toArray(), t.area, u.area].map((x) => +x.toFixed(4)));
+            }
           }
         }
   });
@@ -223,8 +228,9 @@ if (view === 'grid' || view === 'night') {
   camera.updateProjectionMatrix();
   const dist = Number(q.get('dist') ?? 3.6);
   const lift = Number(q.get('lift') ?? 0.25);
-  camera.position.set(0, 0.5 + dist * lift, dist);
-  camera.lookAt(0, 0.5, 0);
+  const ly = Number(q.get('ly') ?? 0.5);
+  camera.position.set(0, ly + dist * lift, dist);
+  camera.lookAt(0, ly, 0);
 } else if (view === 'fit') {
   // Every animal wearing the same things (?hat=, ?wear=face:glasses,neck:scarf,back:backpack), in rows, turned
   // ?ry= (default three-quarter), seen square-on from above and in front, for checking how things fit.
@@ -507,7 +513,7 @@ function frame(now: number) {
     const faces: Record<string, unknown> = {};
     rigs.forEach((r, i) => {
       tris[`${i}`] = triangles(r.rig);
-      faces[`${i}`] = { ...audits.get(r.rig), coplanar: coplanar(r.rig) };
+      faces[`${i}`] = { ...audits.get(r.rig), coplanar: coplanar(r.rig), where: coplanarAt[r.rig.root.uuid] };
     });
     (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, rigs: tris, faces, traces };
     (window as unknown as { done: boolean }).done = true;

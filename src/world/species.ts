@@ -92,6 +92,10 @@ export interface Kit {
   step?: number;
   /** Bones that start turned (Euler angles): a sculpted arm is made hanging the way it's held. */
   bind?: Record<string, Vec3>;
+  /** The sculpted hind feet (model space), for toes and claws. */
+  feet?: { bone: string; at: Vec3; r: Vec3 }[];
+  /** The sculpted front paws (model space), and how each is turned. */
+  paws?: { bone: string; at: Vec3; r: Vec3; rot: Vec3 }[];
   /** How far down a sculpted arm its elbow is (it bends there, on its own bone). */
   elbow?: number;
   /** Its paws can't come up to its mouth (a jellyfish's arms hang under its bell): it sips from low down. */
@@ -177,6 +181,8 @@ export interface Profile {
   cadence: number;
   stride: number;
   sit: SitStyle;
+  /** How it sleeps: on its back (the usual), or settled upright against the pillow. */
+  bed?: 'back' | 'upright';
   idles: Mannerism[];
   /** How much the tail sways at rest, and whether the ears lie back when moving. */
   tailSway: number;

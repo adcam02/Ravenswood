@@ -84,6 +84,8 @@ export const BASE = {
   /** A five-sided cone, apex up, in two bands. */
   cone5: weld(new THREE.ConeGeometry(1, 1, 5, 2)),
   box: weld(new THREE.BoxGeometry(1, 1, 1)),
+  /** A seven-sided disc, unit high, flat faces up and down: suckers. */
+  disc: weld(new THREE.CylinderGeometry(1, 1, 1, 7, 1)),
 };
 export type BaseName = keyof typeof BASE;
 
