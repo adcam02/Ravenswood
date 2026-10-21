@@ -285,7 +285,7 @@ export function wingForms(k: Kit, o: WingOpts) {
  * A bat's wings: thin finger-bone arms held out wide, with a membrane spread below each from the shoulder to
  * the tip. Made (and bound) spread out, which is how they're held while flapping.
  */
-export function membraneWings(k: Kit, o: { len: number; span: number; d: number; fwd?: number; out?: number; bites?: number }) {
+export function membraneWings(k: Kit, o: { len: number; span: number; d: number; fwd?: number; out?: number; fingers?: number[] }) {
   const sc = sculptOf(k);
   const sh = k.joints.shoulder;
   const fwd = o.fwd ?? 0.15;
@@ -303,28 +303,31 @@ export function membraneWings(k: Kit, o: { len: number; span: number; d: number;
     const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot));
     const s: Vec3 = [side * sh[0], sh[1], sh[2]];
     const local = (p: Vec3): Vec3 => add(s, v3(new THREE.Vector3(...p).applyQuaternion(q)));
-    const e = local([0, -elbow, 0]);
-    // Below the arm once it's spread is the arm's own -x on the left and +x on the right.
+    // Below the arm once it's spread is the arm's own -x on the left and +x on the right: a point on the wing
+    // is how far along the arm (u) and how far below it (v).
     const down = -side;
+    const at = (u: number, v: number, z = 0) => local([down * v, -u, z]);
+    const e = at(elbow, 0);
     sc.add(rod(name, s, e, 0.032, 0.026, { k: 0.05, anchor: s, reach: 0.12, name }));
-    sc.add(rod(fore, e, local([0, -o.len, 0]), 0.026, 0.016, { k: 0.03, anchor: e, reach: 0.06, name: fore, thin: true }));
-    sc.add(ellipsoid(name, local([down * o.span * 0.45, -elbow * 0.55, -0.005]), [o.span * 0.5, elbow * 0.62, o.d], { rot, k: 0.04, anchor: s, reach: 0.12, name: `${name}Web`, thin: true }));
+    sc.add(rod(fore, e, at(o.len, 0), 0.026, 0.016, { k: 0.03, anchor: e, reach: 0.06, name: fore, thin: true }));
     const webs = [
       { c: [o.span * 0.45, elbow * 0.55], r: [o.span * 0.5, elbow * 0.62] },
       { c: [o.span * 0.4, elbow + (o.len - elbow) * 0.42], r: [o.span * 0.42, (o.len - elbow) * 0.58] },
     ];
-    sc.add(ellipsoid(name, local([down * webs[0].c[0], -webs[0].c[1], -0.005]), [webs[0].r[0], webs[0].r[1], o.d], { rot, k: 0.04, anchor: s, reach: 0.12, name: `${name}Web`, thin: true }));
-    sc.add(ellipsoid(fore, local([down * webs[1].c[0], -webs[1].c[1], -0.005]), [webs[1].r[0], webs[1].r[1], o.d], { rot, k: 0.03, anchor: e, reach: 0.08, name: `${name}Paw`, thin: true }));
-    // Scalloped along the trailing edge: round bites out of it between the fingers, leaving a point at each.
-    const bites = o.bites ?? 0;
+    sc.add(ellipsoid(name, at(webs[0].c[1], webs[0].c[0], -0.005), [webs[0].r[0], webs[0].r[1], o.d], { rot, k: 0.04, anchor: s, reach: 0.12, name: `${name}Web`, thin: true }));
+    sc.add(ellipsoid(fore, at(webs[1].c[1], webs[1].c[0], -0.005), [webs[1].r[0], webs[1].r[1], o.d], { rot, k: 0.03, anchor: e, reach: 0.08, name: `${name}Paw`, thin: true }));
+    // Fingers: struts fanning from the wrist out to the trailing edge, standing a little proud of the
+    // membrane, which is scalloped between them (round bites out of the edge, leaving a point at each).
+    const fingers = (o.fingers ?? []).map((f) => f * o.len).sort((a, b) => a - b);
     const edge = (u: number) => Math.max(...webs.map((w) => w.c[0] + w.r[0] * Math.sqrt(Math.max(0, 1 - ((u - w.c[1]) / w.r[1]) ** 2))));
-    for (let i = 0; i < bites; i++) {
-      // (Clear of the body: the inner part of the membrane, along the flank, is left whole.)
-      const u = o.len * (0.3 + (0.7 * (i + 0.5)) / bites);
-      const r = (o.len * 0.7) / bites / 2;
-      sc.add(ellipsoid(fore, local([down * (edge(u) + r * 0.2), -u, 0]), [r * 1.05, r, 0.08], { rot, k: 0.015, carve: true }));
+    const wrist = o.len * 0.62;
+    fingers.forEach((u, i) => sc.add(rod(fore, at(wrist, 0.01), at(u, edge(u) - 0.012), 0.033, 0.03, { k: 0.02, anchor: e, reach: 0.06, name: `${name}Finger${i}`, thin: true })));
+    for (let i = 0; i + 1 < fingers.length; i++) {
+      const u = (fingers[i] + fingers[i + 1]) / 2;
+      const r = (fingers[i + 1] - fingers[i]) / 2;
+      sc.add(ellipsoid(fore, at(u, edge(u) + r * 0.25), [r * 1.05, r, 0.08], { rot, k: 0.015, carve: true }));
     }
-    sc.guides.push(rod(name, s, local([0, -o.len, 0]), 0.03, 0.03, { name: `${name}Axis` }));
+    sc.guides.push(rod(name, s, at(o.len, 0), 0.03, 0.03, { name: `${name}Axis` }));
   }
   k.joints.paw = tipAt;
   k.joints.hand = [0, tipAt[1], tipAt[2] + 0.03];
@@ -378,6 +381,8 @@ export interface TentacleOpts {
   spread?: number;
   /** How much they curl up at the tips. */
   curl?: number;
+  /** Instead, laid along the ground and curled up and over at the tips, by this much (radians). */
+  coil?: number;
   /** How far down they reach before spreading (0 lie flat, 1 hang). */
   hang?: number;
   /** How far out round the rim they start, how much they wave from side to side, and how they melt in. */
@@ -398,11 +403,24 @@ export function tentacleForms(k: Kit, o: TentacleOpts): Shape[] {
       const a = (o.count === 1 ? 0 : j / (o.count - 1) - 0.5) * spread;
       const dir = new THREE.Vector3(side * Math.cos(a), 0, Math.sin(a));
       const pts: Vec3[] = [];
-      const n = 5;
+      const n = o.coil === undefined ? 5 : 8;
       // Each starts round the rim in its own direction, and (hanging) waves a little as it goes down.
       const start = new THREE.Vector3(side * Math.abs(o.root[0]), o.root[1], o.root[2]).add(dir.clone().multiplyScalar(o.rim ?? 0));
       const across = new THREE.Vector3(-dir.z, 0, dir.x);
-      for (let i = 0; i <= n; i++) {
+      const r = (t: number) => o.r0 + (o.r1 - o.r0) * t;
+      if (o.coil !== undefined) {
+        // Marched out from the root: down and out, along the ground, then curling up and over at the tip.
+        const p = start.clone();
+        pts.push(v3(p));
+        for (let i = 1; i <= n; i++) {
+          const t = i / n;
+          const pitch = -hang * 1.2 + (t > 0.5 ? ((t - 0.5) / 0.5) ** 1.5 * o.coil : 0);
+          p.addScaledVector(dir, Math.cos(pitch) * (o.len / n)).add(new THREE.Vector3(0, Math.sin(pitch) * (o.len / n), 0));
+          p.y = Math.max(p.y, r(t) * 0.9);
+          pts.push(v3(p));
+        }
+      }
+      for (let i = 0; i <= n && o.coil === undefined; i++) {
         const t = i / n;
         const out = t * o.len * (1 - hang * 0.6);
         const y = o.root[1] - t * o.len * hang + Math.max(0, t - 0.6) ** 2 * (o.curl ?? 0.15);
@@ -410,7 +428,6 @@ export function tentacleForms(k: Kit, o: TentacleOpts): Shape[] {
         pts.push([start.x + dir.x * out + across.x * wave, Math.max(o.r1 * 0.8 + (o.curl ?? 0.15) * Math.max(0, t - 0.7), y), start.z + dir.z * out + across.z * wave]);
       }
       for (let i = 0; i < n; i++) {
-        const r = (t: number) => o.r0 + (o.r1 - o.r0) * t;
         const sh = rod(name, pts[i], pts[i + 1], r(i / n), r((i + 1) / n), { k: i === 0 ? o.melt ?? 0.06 : 0.025, anchor: pts[i], reach: i === 0 ? 0.14 : 0.06, name: `${name}T${j}_${i}`, thin: true });
         sc.add(sh);
         all.push(sh);

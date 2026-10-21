@@ -361,6 +361,22 @@ const snail: Recipe = (k, c, coat) => {
 };
 
 /** A patch on the front of the body: an oval (as seen from the front) on the named shapes' front faces. */
+/**
+ * Round spots on a named shape: each where it is round the shape's middle (in degrees down from the top and
+ * round from the front) and how big (on its unit form).
+ */
+const spots = (k: Kit, name: string, at: [number, number, number][]) => {
+  const u = unitOf(k, name);
+  const D = Math.PI / 180;
+  const dirs = at.map(([t, p, r]) => [Math.sin(t * D) * Math.sin(p * D), Math.cos(t * D), Math.sin(t * D) * Math.cos(p * D), r]);
+  return all(region(k, name), (q) => {
+    const v = u(q).normalize();
+    let d = Infinity;
+    for (const [x, y, z, r] of dirs) d = Math.min(d, Math.hypot(v.x - x, v.y - y, v.z - z) - r);
+    return d;
+  });
+};
+
 const frontOval = (k: Kit, names: (string | RegExp)[], cx: number, cy: number, rx: number, ry: number) =>
   all(region(k, ...names), (q) => -q.p.z, (q) => Math.hypot((q.p.x - cx) / rx, (q.p.y - cy) / ry) - 1);
 
@@ -444,15 +460,16 @@ const shark: Recipe = (k, c) => {
   });
   headForm(k, { r: [0.24, 0.21, 0.25], at: [0, 0.15, 0.05], melt: 0.18 });
   const snout = snoutForm(k, { dy: -0.02, len: 0.08, ra: 0.15, rb: 0.1, drop: 0.01, squash: [1.1, 0.72, 1], melt: 0.08 });
-  finForm(k, 'body', [0, 0.58, -0.1], { len: 0.24, w: 0.1, d: 0.045, rot: [-0.55, 0, 0], name: 'dorsal', melt: 0.05 });
+  // Fins are thin side to side (w) and long front to back (d).
+  finForm(k, 'body', [0, 0.47, -0.14], { len: 0.21, w: 0.04, d: 0.1, rot: [-0.95, 0, 0], name: 'dorsal', melt: 0.05 });
   wingForms(k, { len: 0.3, w: 0.09, d: 0.04, taper: 0.7, fwd: 0.3, out: 0.58 });
   legForms(k, { r0: 0.06, r1: 0.05, foot: [0.06, 0.035, 0.08] });
   const tp = tailPath(0.3, [0, -0.05, -1], [0.35, 0, 0], 0.1, [1, 0.8, 0.55, 0.4]);
   const tailAt = tailForm(k, tp);
   const tip = tp.pts[tp.pts.length - 1];
   const end: Vec3 = [k.joints.tail[0] + tip[0], k.joints.tail[1] + tip[1], k.joints.tail[2] + tip[2]];
-  finForm(k, 'tail2', end, { len: 0.2, w: 0.065, d: 0.042, rot: [-0.75, 0, 0], name: 'tailFinUp' });
-  finForm(k, 'tail2', end, { len: 0.12, w: 0.055, d: 0.042, rot: [-2.3, 0, 0], name: 'tailFinDown' });
+  finForm(k, 'tail2', end, { len: 0.2, w: 0.04, d: 0.065, rot: [-0.75, 0, 0], name: 'tailFinUp' });
+  finForm(k, 'tail2', end, { len: 0.12, w: 0.04, d: 0.055, rot: [-2.3, 0, 0], name: 'tailFinDown' });
   useSurface(k);
   eyes(k, { x: 0.45, y: 0.15, size: 0.9, wide: 1.1, slant: 0.1, color: '#141018' });
   mouth(k, { w: 0.4, y: -0.42, curve: 0.12, r: 0.008, out: 0.004 });
@@ -461,15 +478,15 @@ const shark: Recipe = (k, c) => {
   k.marks = {
     base: c.coat,
     marks: [
-      // A white underside from the chin down the tummy, and under the snout.
-      { color: white, f: all(region(k, 'muzzle'), (q) => q.p.y - (snout.mid(q.p) - snout.r * 0.15)) },
-      { color: white, f: all(region(k, 'head'), (q) => head(q).y + 0.25 - Math.abs(head(q).x) * 0.25, (q) => -head(q).z + 0.1) },
-      { color: white, f: frontOval(k, ['belly', 'chest'], 0, 0.3, 0.17, 0.27) },
-      // Three gill slits each side.
+      // Three gill slits each side, behind the jaw.
       {
         color: dark,
-        f: all(region(k, 'head', 'chest', 'belly'), (q) => 0.13 - Math.abs(q.p.x), (q) => Math.abs(q.p.y - 0.53) - 0.05, (q) => Math.abs(q.p.z - 0.06) - 0.07, (q) => 0.6 - Math.sin(q.p.z * 70)),
+        f: all(region(k, 'head', 'chest', 'belly'), (q) => 0.15 - Math.abs(q.p.x), (q) => Math.abs(q.p.y - 0.5) - 0.06, (q) => Math.min(...[-0.045, 0.03, 0.105].map((z) => Math.abs(q.p.z - z))) - 0.021),
       },
+      // A white underside from the snout back along the jaw and down the tummy, under a sweeping line.
+      { color: white, f: all(region(k, 'muzzle'), (q) => q.p.y - (snout.mid(q.p) - snout.r * 0.15)) },
+      { color: white, f: all(region(k, 'head'), (q) => head(q).y + 0.12 - head(q).z * 0.38, (q) => -head(q).z - 0.25) },
+      { color: white, f: frontOval(k, ['belly', 'chest'], 0, 0.3, 0.17, 0.27) },
       { color: dark, f: region(k, 'dorsal', 'tailFinUp', 'tailFinDown') },
       { color: white, f: all(region(k, /^leg/), (q) => q.p.y - 0.03) },
       { color: white, f: all(region(k, /^tail\d/), (q) => -0.02 - (q.p.y - 0.22) + (tailAt(q.p) > 2 ? 1 : 0)) },
@@ -505,20 +522,19 @@ const jellyfish: Recipe = (k, c) => {
     sc.add(ellipsoid('neck', [Math.cos(a) * 0.31, bell[1] - 0.06, Math.sin(a) * 0.31], [0.055, 0.04, 0.055], { k: 0.03, name: 'rim' }));
   }
   armForms(k, { len: 0.22, r0: 0.05, r1: 0.035, paw: [0.04, 0.035, 0.04], fwd: 0.25, out: 0.08 });
-  tentacleForms(k, { count: 4, len: 0.42, r0: 0.034, r1: 0.03, root: [0, 0.38, 0], rim: 0.24, spread: 2.9, hang: 0.97, curl: 0, wave: 0.05, melt: 0.03 });
+  tentacleForms(k, { count: 3, len: 0.4, r0: 0.05, r1: 0.04, root: [0, 0.38, 0], rim: 0.23, spread: 2.6, hang: 0.85, curl: 0.12, wave: 0.03, melt: 0.03 });
   useSurface(k);
   // Things are held out under the front of the bell, and sipped from down there.
   k.front = 0.28;
   k.sipLow = true;
   eyes(k, { x: 0.3, y: -0.12, size: 1.1, wide: 1, slant: 0, color: '#1c1428' });
   mouth(k, { w: 0.14, y: -0.32, curve: 0.08, r: 0.006, color: deep });
-  const head = unitOf(k, 'head');
   k.marks = {
     base: c.coat,
     marks: [
       { color: light, f: region(k, 'rim') },
-      // Glowing spots over the dome.
-      { color: '#fff6d0', f: all(region(k, 'head'), (q) => head(q).z - 0.3, (q) => 0.82 - Math.sin(head(q).x * 9) * Math.sin(head(q).y * 9 + 1)) },
+      // Pale round spots over the dome (clear of the face).
+      { color: mix(c.coat, '#ffffff', 0.55), f: spots(k, 'head', [[18, 150, 0.2], [45, 45, 0.15], [45, -45, 0.15], [52, 115, 0.17], [52, -115, 0.17], [58, 180, 0.18], [82, 80, 0.13], [82, -80, 0.13], [86, 145, 0.14], [86, -145, 0.14]]) },
       { color: light, f: region(k, /^arm/, /^fore/) },
       { color: mix(c.coat, light, 0.5), f: all(region(k, /^leg/), (q) => q.p.y - 0.12) },
     ],
@@ -527,7 +543,6 @@ const jellyfish: Recipe = (k, c) => {
 };
 
 const octopus: Recipe = (k, c) => {
-  const light = mix(c.coat, '#ffffff', 0.4);
   // A big round mantle sitting on a skirt of curling tentacles, two of them for arms.
   k.joints.neck = [0, 0.3, 0];
   k.joints.shoulder = [0.13, 0.26, 0.12];
@@ -545,18 +560,16 @@ const octopus: Recipe = (k, c) => {
   });
   headForm(k, { r: [0.29, 0.31, 0.27], at: [0, 0.22, -0.03], melt: 0.12 });
   armForms(k, { len: 0.24, r0: 0.055, r1: 0.032, paw: [0.035, 0.03, 0.04], fwd: 0.45, out: 0.35 });
-  tentacleForms(k, { count: 3, len: 0.32, r0: 0.06, r1: 0.024, root: [0.12, 0.15, -0.02], spread: 2, hang: 0.4, curl: 0.12 });
+  tentacleForms(k, { count: 3, len: 0.44, r0: 0.062, r1: 0.026, root: [0.12, 0.15, -0.02], spread: 2.4, hang: 0.4, coil: 2.7 });
+  // A little skirt of webbing where they join.
+  sculptOf(k).add(ellipsoid('body', [0, 0.12, -0.02], [0.25, 0.045, 0.23], { k: 0.06, name: 'skirt' }));
   useSurface(k);
   eyes(k, { x: 0.34, y: -0.12, size: 1.35, wide: 1.05, slant: 0.05, color: '#1c1420' });
   mouth(k, { w: 0.16, y: -0.42, curve: 0.08, r: 0.006 });
-  const head = unitOf(k, 'head');
   k.marks = {
     base: c.coat,
-    marks: [
-      // Pale spots over the mantle, and pale suckers under the tentacle tips.
-      { color: light, f: all(region(k, 'head'), (q) => head(q).y + 0.25, (q) => 0.4 - Math.sin(head(q).x * 11 + 1) * Math.sin(head(q).y * 11) * Math.sin(head(q).z * 7 + 2)) },
-      { color: light, f: all(region(k, /^leg/, /^fore/, 'armLPaw', 'armRPaw'), (q) => q.p.y - 0.045) },
-    ],
+    // Plain all over (spots or suckers this small only come out as stray flecks).
+    marks: [],
   };
   return { aquatic: true, legs: 'tentacles' };
 };
@@ -625,7 +638,7 @@ const duck: Recipe = (k, c) => {
   headForm(k, { r: [0.2, 0.19, 0.19], at: [0, 0.16, 0.03], melt: 0.14 });
   const billTip = beakForm(k, { dy: -0.12, len: 0.13, w: 0.075, h: 0.028, drop: 0.12, flat: true });
   finForm(k, 'neck', v3(onHead(k, 0, 0.92, -0.02).add(new THREE.Vector3(...k.joints.neck))), { len: 0.08, w: 0.025, d: 0.015, rot: [-0.5, 0, 0], name: 'tuft', melt: 0.02 });
-  wingForms(k, { len: 0.36, w: 0.12, d: 0.035, fwd: -0.05, out: 0.14 });
+  wingForms(k, { len: 0.4, w: 0.14, d: 0.04, fwd: -0.05, out: 0.18 });
   legForms(k, { r0: 0.045, r1: 0.04, foot: [0.065, 0.025, 0.09], fwd: 0.06 });
   finForm(k, 'tail', k.joints.tail, { len: 0.13, w: 0.08, d: 0.024, rot: [-0.65, 0, 0], name: 'tailFan' });
   useSurface(k);
@@ -643,7 +656,7 @@ const duck: Recipe = (k, c) => {
 };
 
 const bat: Recipe = (k, c) => {
-  const membrane = mix(c.coat, '#e2a2b2', 0.4);
+  const membrane = mix(c.coat, '#c98593', 0.42);
   const belly = mix(c.coat, '#c8a890', 0.45);
   const pink = mix(c.coat, PINK, 0.6);
   // A small furry body, a big head with huge pointed ears, and wide leathery wings held out.
@@ -663,8 +676,8 @@ const bat: Recipe = (k, c) => {
   });
   headForm(k, { r: [0.22, 0.2, 0.2], at: [0, 0.15, 0.03], cheeks: [[0.1, -0.08, 0.03], [0.08, 0.07, 0.08]] });
   const snout = snoutForm(k, { dy: -0.3, len: 0.04, ra: 0.075, rb: 0.06, drop: 0.0, squash: [1.1, 0.85, 1] });
-  earForms(k, { x: 0.5, y: 0.62, w: 0.095, h: 0.22, d: 0.035, splay: 0.42, rake: 0.05, cup: 0.5 });
-  membraneWings(k, { len: 0.34, span: 0.22, d: 0.022, bites: 3 });
+  earForms(k, { x: 0.5, y: 0.62, w: 0.095, h: 0.22, d: 0.035, splay: 0.42, rake: 0.05, cup: 0.5, notch: true });
+  membraneWings(k, { len: 0.34, span: 0.22, d: 0.022, fingers: [0.4, 0.66, 0.9] });
   legForms(k, { r0: 0.032, r1: 0.026, foot: [0.035, 0.02, 0.05] });
   useSurface(k);
   eyes(k, { x: 0.36, y: 0.08, size: 1.1, wide: 1, slant: 0.05, color: '#140c10' });

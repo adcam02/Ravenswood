@@ -67,6 +67,9 @@ interface Pose {
   alz: number;
   arx: number;
   arz: number;
+  /** Arms turned about the upright (folding a bat's wings round its back). */
+  aly: number;
+  ary: number;
   llx: number;
   llz: number;
   lrx: number;
@@ -85,7 +88,10 @@ interface Pose {
   carry: number;
 }
 
-const POSE_KEYS = ['by', 'bz', 'brx', 'bry', 'brz', 'hrx', 'hry', 'hrz', 'alx', 'alz', 'arx', 'arz', 'llx', 'llz', 'lrx', 'lrz', 'trx', 'try', 'tilt', 'sl', 'sr', 'el', 'er', 'carry'] as const;
+const POSE_KEYS = ['by', 'bz', 'brx', 'bry', 'brz', 'hrx', 'hry', 'hrz', 'alx', 'alz', 'arx', 'arz', 'aly', 'ary', 'llx', 'llz', 'lrx', 'lrz', 'trx', 'try', 'tilt', 'sl', 'sr', 'el', 'er', 'carry'] as const;
+
+/** How a bat holds its wings folded: lowered, swept back, turned to lie round its back, the tips tucked. */
+const FOLD = { x: 0.56, y: 0.77, z: 0.6, el: 0 };
 
 const restPose = (): Pose => ({
   by: 0,
@@ -100,6 +106,8 @@ const restPose = (): Pose => ({
   alz: 0.16,
   arx: -0.14,
   arz: -0.16,
+  aly: 0,
+  ary: 0,
   llx: 0,
   llz: 0,
   lrx: 0,
@@ -782,7 +790,7 @@ class AnimalRig implements Rig {
     const y = Math.min(Math.max(low, this.shoulder.y + h.dy), this.sipLow ? this.shoulder.y - 0.1 : Infinity);
     return {
       // A snail's tendril starts low, so it lifts things up to about the height of its head.
-      y: this.tendril ? Math.max(y + 0.05, (h.hang ?? 0.08) + 0.12, 0.42) : y,
+      y: this.tendril ? Math.max(y + 0.1, (h.hang ?? 0.08) + 0.18, 0.54) : y,
       z: Math.max(this.front + h.dz, this.front + this.pawR + (this.grip.z - this.paw.z) * 0.8) + (this.tendril ? -0.02 : 0),
     };
   }
@@ -846,6 +854,11 @@ class AnimalRig implements Rig {
     P.alz = left.alz;
     P.sl = left.sl;
     P.el = left.el;
+  }
+
+  /** Whether a winged flier has its wings folded: whenever it isn't flying or gesturing with them. */
+  private folded(s: RigState): boolean {
+    return s.anim === 'idle' || s.anim === 'sit' || s.anim === 'sleep' || s.anim === 'drink' || s.anim === 'fish';
   }
 
   /** The pose everything starts from, with the arms hanging the way this animal's do. */
@@ -1480,16 +1493,38 @@ class AnimalRig implements Rig {
       P.hrz += sin(t * 7) * 0.025;
     }
     if (this.tentacles) {
+      if (s.anim === 'idle') {
+        // A slow sway from side to side over the tentacles, the head keeping a little steadier.
+        P.brz += sin(t * 1.3) * 0.05;
+        P.hrz -= sin(t * 1.3) * 0.03;
+      }
       P.llz += sin(t * 3) * 0.14;
       P.lrz -= sin(t * 3 + 1) * 0.14;
       P.llx *= 0.4;
       P.lrx *= 0.4;
     }
-    if (this.flaps && (s.anim === 'idle' || s.anim === 'walk' || s.anim === 'run' || s.anim === 'sit' || s.anim === 'fish')) {
-      // Wings beat on their own: quicker on the move, lazier when sitting, and the right wing keeps
-      // still enough to hold whatever is in it.
-      const rate = s.anim === 'run' ? 16 : s.anim === 'walk' ? 12 : s.anim === 'sit' ? 4 : 9;
-      const amp = s.anim === 'sit' ? 0.2 : 0.45;
+    if (this.flaps && this.folded(s)) {
+      // Wings folded down and round the back like a cloak (the right one still holding whatever is in it),
+      // breathing a little.
+      const b = sin(t * 1.6) * 0.03;
+      P.alz = FOLD.z + b;
+      P.alx = FOLD.x;
+      P.aly = -FOLD.y;
+      P.el = FOLD.el;
+      P.sl = 1;
+      if (!this.hold) {
+        P.arz = -FOLD.z - b;
+        P.arx = FOLD.x;
+        P.ary = FOLD.y;
+        P.er = FOLD.el;
+        P.sr = 1;
+      }
+    }
+    if (this.flaps && (s.anim === 'walk' || s.anim === 'run')) {
+      // Flying: the wings beat, quicker the faster it goes, and the right wing keeps still enough to hold
+      // whatever is in it.
+      const rate = s.anim === 'run' ? 16 : 12;
+      const amp = 0.45;
       const beat = sin(t * rate);
       P.alz = 1.5 + beat * amp;
       P.alx = -0.1;
@@ -1518,8 +1553,8 @@ class AnimalRig implements Rig {
     this.body.position.set(0, P.by, P.bz);
     this.body.rotation.set(P.brx, P.bry, P.brz);
     this.neck.rotation.set(P.hrx, P.hry, P.hrz);
-    this.armL.rotation.set(P.alx, 0, P.alz);
-    this.armR.rotation.set(P.arx, 0, P.arz);
+    this.armL.rotation.set(P.alx, P.aly, P.alz);
+    this.armR.rotation.set(P.arx, P.ary, P.arz);
     this.armL.scale.set(1, P.sl, 1);
     this.armR.scale.set(1, P.sr, 1);
     this.foreL?.rotation.set(-P.el, 0, 0);
@@ -1580,7 +1615,8 @@ class AnimalRig implements Rig {
     this.applyPose(1 - Math.exp(-dt * 14), target);
 
     // Floating: ghosts and the Storyteller hover with a gentle bob.
-    const floating = this.floats || this.ghost;
+    // (A bat only stays up while it's flying: with its wings folded it stands.)
+    const floating = (this.floats && !(this.flaps && this.folded(s))) || this.ghost;
     const h = s.anim === 'sleep' ? 0.03 : this.floats ? this.hover : 0.35;
     const fy = floating ? h + Math.sin(s.t * 2 + this.seed) * 0.06 : 0;
     this.float.position.y += (fy - this.float.position.y) * (1 - Math.exp(-dt * 6));

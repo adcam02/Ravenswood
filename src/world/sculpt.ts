@@ -1293,7 +1293,7 @@ export function bake(sc: Sculpt, mesh: Mesh, o: BakeOpts): Baked {
     cen.copy(a).add(b).add(c).multiplyScalar(1 / 3);
     n.subVectors(b, a).cross(c.clone().sub(a));
     // Leave out specks (a face squeezed to a line where corners were settled together): they can't be seen.
-    if (n.lengthSq() < 4e-12) continue;
+    if (n.lengthSq() < 1.5e-10) continue;
     n.normalize();
     const near = mesh.near?.[ia];
     audit.faces++;
