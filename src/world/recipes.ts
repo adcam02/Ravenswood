@@ -478,10 +478,10 @@ const shark: Recipe = (k, c) => {
   k.marks = {
     base: c.coat,
     marks: [
-      // Three gill slits each side, behind the jaw.
+      // Three short gill slits low on each side of the neck, just under the head.
       {
         color: dark,
-        f: all(region(k, 'head', 'chest', 'belly'), (q) => 0.15 - Math.abs(q.p.x), (q) => Math.abs(q.p.y - 0.5) - 0.06, (q) => Math.min(...[-0.045, 0.03, 0.105].map((z) => Math.abs(q.p.z - z))) - 0.021),
+        f: all(region(k, 'head', 'chest', 'belly'), (q) => 0.175 - Math.abs(q.p.x), (q) => Math.abs(q.p.y - 0.465) - 0.042, (q) => Math.min(...[0.0, 0.05, 0.1].map((z) => Math.abs(q.p.z - z))) - 0.017),
       },
       // A white underside from the snout back along the jaw and down the tummy, under a sweeping line.
       { color: white, f: all(region(k, 'muzzle'), (q) => q.p.y - (snout.mid(q.p) - snout.r * 0.15)) },
@@ -677,7 +677,7 @@ const bat: Recipe = (k, c) => {
   headForm(k, { r: [0.22, 0.2, 0.2], at: [0, 0.15, 0.03], cheeks: [[0.1, -0.08, 0.03], [0.08, 0.07, 0.08]] });
   const snout = snoutForm(k, { dy: -0.3, len: 0.04, ra: 0.075, rb: 0.06, drop: 0.0, squash: [1.1, 0.85, 1] });
   earForms(k, { x: 0.5, y: 0.62, w: 0.095, h: 0.22, d: 0.035, splay: 0.42, rake: 0.05, cup: 0.5, notch: true });
-  membraneWings(k, { len: 0.34, span: 0.22, d: 0.022, fingers: [0.4, 0.66, 0.9] });
+  membraneWings(k, { len: 0.46, span: 0.3, d: 0.022, fingers: [0.4, 0.66, 0.9] });
   legForms(k, { r0: 0.032, r1: 0.026, foot: [0.035, 0.02, 0.05] });
   useSurface(k);
   eyes(k, { x: 0.36, y: 0.08, size: 1.1, wide: 1, slant: 0.05, color: '#140c10' });

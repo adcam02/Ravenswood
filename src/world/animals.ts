@@ -70,6 +70,9 @@ interface Pose {
   /** Arms turned about the upright (folding a bat's wings round its back). */
   aly: number;
   ary: number;
+  /** How far a wing's membrane is spread across (1 open, less closed up like an umbrella). */
+  wl: number;
+  wr: number;
   llx: number;
   llz: number;
   lrx: number;
@@ -88,10 +91,14 @@ interface Pose {
   carry: number;
 }
 
-const POSE_KEYS = ['by', 'bz', 'brx', 'bry', 'brz', 'hrx', 'hry', 'hrz', 'alx', 'alz', 'arx', 'arz', 'aly', 'ary', 'llx', 'llz', 'lrx', 'lrz', 'trx', 'try', 'tilt', 'sl', 'sr', 'el', 'er', 'carry'] as const;
+const POSE_KEYS = ['by', 'bz', 'brx', 'bry', 'brz', 'hrx', 'hry', 'hrz', 'alx', 'alz', 'arx', 'arz', 'aly', 'ary', 'wl', 'wr', 'llx', 'llz', 'lrx', 'lrz', 'trx', 'try', 'tilt', 'sl', 'sr', 'el', 'er', 'carry'] as const;
 
-/** How a bat holds its wings folded: lowered, swept back, turned to lie round its back, the tips tucked. */
-const FOLD = { x: 0.56, y: 0.77, z: 0.6, el: 0 };
+/**
+ * How a bat holds its wings folded, like a closed umbrella down each side: hanging, turned so what's left of
+ * the membrane lies outward (seen from the front), drawn in narrow, and the forearm folded back up behind so
+ * the tip sits by the shoulder.
+ */
+const FOLD = { x: 0.31, y: -2.575, z: -0.455, el: 2.4, w: 0.3 };
 
 const restPose = (): Pose => ({
   by: 0,
@@ -108,6 +115,8 @@ const restPose = (): Pose => ({
   arz: -0.16,
   aly: 0,
   ary: 0,
+  wl: 1,
+  wr: 1,
   llx: 0,
   llz: 0,
   lrx: 0,
@@ -394,6 +403,8 @@ class AnimalRig implements Rig {
   private wisp: THREE.Mesh;
   private drips: THREE.InstancedMesh | null = null;
   private dripState: { x: number; y: number; z: number; v: number; wait: number }[] = [];
+  /** Where drips can start: on the body's outside, on faces looking out and a little down. */
+  private dripSpots: THREE.Vector3[] = [];
   private item: THREE.Object3D | null = null;
   private itemKey = '';
   private hold: Hold | null = null;
@@ -577,12 +588,13 @@ class AnimalRig implements Rig {
     }
     this.body.add(this.wisp);
 
-    if (p.aquatic) {
+    if (p.aquatic && !p.hover) {
       const dripMat = new THREE.MeshStandardMaterial({ color: '#a8d8ff', transparent: true, opacity: 0.75, roughness: 0.1, flatShading: true });
       this.owned.push(dripMat);
       const dg = new THREE.IcosahedronGeometry(1, 0);
       dg.scale(0.018, 0.028, 0.018);
       this.drips = new THREE.InstancedMesh(dg, dripMat, 4);
+      this.dripSpots = dripSpots(this.mesh.geometry);
       this.drips.frustumCulled = false;
       for (let i = 0; i < 4; i++) this.dripState.push({ x: 0, y: -1, z: 0, v: 0, wait: Math.random() * 2.5 });
       this.root.add(this.drips);
@@ -1511,12 +1523,14 @@ class AnimalRig implements Rig {
       P.alx = FOLD.x;
       P.aly = -FOLD.y;
       P.el = FOLD.el;
+      P.wl = FOLD.w;
       P.sl = 1;
       if (!this.hold) {
         P.arz = -FOLD.z - b;
         P.arx = FOLD.x;
         P.ary = FOLD.y;
         P.er = FOLD.el;
+        P.wr = FOLD.w;
         P.sr = 1;
       }
     }
@@ -1555,8 +1569,8 @@ class AnimalRig implements Rig {
     this.neck.rotation.set(P.hrx, P.hry, P.hrz);
     this.armL.rotation.set(P.alx, P.aly, P.alz);
     this.armR.rotation.set(P.arx, P.ary, P.arz);
-    this.armL.scale.set(1, P.sl, 1);
-    this.armR.scale.set(1, P.sr, 1);
+    this.armL.scale.set(P.wl, P.sl, 1);
+    this.armR.scale.set(P.wr, P.sr, 1);
     this.foreL?.rotation.set(-P.el, 0, 0);
     this.foreR?.rotation.set(-P.er, 0, 0);
     this.legL.rotation.set(P.llx, 0, P.llz);
@@ -1655,11 +1669,13 @@ class AnimalRig implements Rig {
       if (d.wait > 0) {
         d.wait -= dt;
         if (d.wait <= 0) {
-          // Start a new drip somewhere on the body.
-          const a = Math.random() * Math.PI * 2;
-          d.x = Math.cos(a) * 0.17;
-          d.z = Math.sin(a) * 0.14;
-          d.y = 0.25 + Math.random() * 0.4 + this.body.position.y;
+          // Start a new drip somewhere on the outside of the body (falling clear of it).
+          const s = this.dripSpots[Math.floor(Math.random() * this.dripSpots.length)];
+          if (s) {
+            d.x = s.x;
+            d.z = s.z;
+            d.y = s.y + this.body.position.y;
+          } else d.y = -1;
           d.v = 0;
         }
         m.makeScale(0, 0, 0);
@@ -1704,7 +1720,7 @@ export function buildAnimal(look: Look): Rig {
   const rig = new AnimalRig({
     kit: k,
     profile: profileOf(info.id),
-    material: res.jelly ? jelly() : aquatic ? wet() : soft(),
+    material: aquatic ? wet() : soft(),
     eyeMaterial: card(),
     ghostColor: mix(coat, '#e6f0ff', 0.75),
     floats: Boolean(res.hover),
@@ -1785,18 +1801,33 @@ function hatFit(id: AnimalId, k: Kit): HatFit {
 }
 
 /**
- * Glossy, for the jellyfish. (Not see-through: one surface drawn see-through shows its own far side and the
- * eyes through the back of the bell.)
+ * Places on a body's outside a drip can fall cleanly from: faces looking out sideways and a little down, out at
+ * the widest part of the body at their height (so nothing below is in the way).
  */
-const jelly = () =>
-  new THREE.MeshPhysicalMaterial({
-    vertexColors: true,
-    roughness: 0.3,
-    metalness: 0,
-    clearcoat: 1,
-    clearcoatRoughness: 0.2,
-    flatShading: true,
-  });
+function dripSpots(g: THREE.BufferGeometry): THREE.Vector3[] {
+  const p = g.getAttribute('position');
+  const ix = g.getIndex();
+  const n = g.groups[0]?.count ?? (ix ? ix.count : p.count);
+  const at = (i: number) => new THREE.Vector3().fromBufferAttribute(p, ix ? ix.getX(i) : i);
+  const spots: THREE.Vector3[] = [];
+  const e1 = new THREE.Vector3();
+  const e2 = new THREE.Vector3();
+  for (let t = 0; t + 2 < n; t += 3) {
+    const a = at(t);
+    const b = at(t + 1);
+    const c = at(t + 2);
+    const nrm = e1.subVectors(b, a).cross(e2.subVectors(c, a)).normalize();
+    const side = Math.hypot(nrm.x, nrm.z);
+    const m = a.add(b).add(c).multiplyScalar(1 / 3);
+    if (nrm.y > -0.15 || nrm.y < -0.6 || side < 0.6 || m.y < 0.15 || m.y > 0.7) continue;
+    spots.push(m.addScaledVector(nrm, 0.012));
+  }
+  // Only the outermost of them: drips start from the body's widest reach, not tucked under an arm.
+  const r = (v: THREE.Vector3) => Math.hypot(v.x, v.z);
+  const far = spots.map(r).sort((x, y) => y - x)[Math.floor(spots.length * 0.25)] ?? 0;
+  return spots.filter((v) => r(v) >= far);
+}
+
 
 // ---------------------------------------------------------------- the Storyteller
 
