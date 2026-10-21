@@ -784,6 +784,12 @@ export const st = {
       g.nightDone = g.nightDone.includes(key) ? g.nightDone.filter((k) => k !== key) : [...g.nightDone, key];
     });
   },
+  setNightDone(key: string, done: boolean) {
+    update((g) => {
+      if (done === g.nightDone.includes(key)) return;
+      g.nightDone = done ? [...g.nightDone, key] : g.nightDone.filter((k) => k !== key);
+    });
+  },
 
   // nominations
   nominate(nominatorId: string | null, nomineeId: string) {

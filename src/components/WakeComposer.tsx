@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ALL_ROLES, getRole } from '../data';
 import { demonInfo, minionInfo, wholeEvilTeam } from '../lib/presets';
+import { guide, guideSteps, stepName, stepsLeft } from '../lib/nightGuide';
 import { joinNames } from '../lib/util';
 import { seatName, st, useHost, grimoireSnapshot } from '../state/host';
 import type { Ask, InfoCard as CardId, WakePanel } from '../state/types';
@@ -52,6 +53,10 @@ export function WakeComposer() {
   const dirty =
     !sent || JSON.stringify([sent.to, sent.panels, sent.ask, sent.extra ?? {}]) !== JSON.stringify([draft.to, content, draft.ask, extra]);
   const names = draft.to.map((id) => seatName(g, id));
+
+  // Opened from the guided night: on to the next character from here, without closing.
+  const step = draft.step && g.phase === 'night' && !g.nightDone.includes(draft.step) ? guideSteps(g).find((s) => s.key === draft.step) : undefined;
+  const after = step ? stepsLeft(g, step.key)[0] : undefined;
 
   const send = () => {
     if (!draft.to.length || !content.length) return;
@@ -156,9 +161,14 @@ export function WakeComposer() {
           >
             <Icon name="sleep" /> Put to sleep
           </button>
-          <button className="btn primary" disabled={!draft.to.length || !content.length || !dirty} onClick={send}>
+          <button className={`btn ${step && sent && !dirty ? '' : 'primary'}`} disabled={!draft.to.length || !content.length || !dirty} onClick={send}>
             <Icon name="wake" /> {sent && !dirty ? 'Shown' : `Show ${names.length === 1 ? names[0] : names.length ? `${names.length} players` : ''}`}
           </button>
+          {step && (
+            <button className={`btn wake-next ${sent && !dirty ? 'primary' : ''}`} onClick={() => guide.next(step.key)} title="Put them back to sleep, tick this off and wake the next character">
+              {after ? `Next: ${stepName(after)}` : 'Done'} <Icon name="chevronRight" />
+            </button>
+          )}
         </>
       }
     >

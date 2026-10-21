@@ -39,6 +39,8 @@ export interface WakeDraft {
   /** Cards only some of the people woken will see, by seat. */
   extra: Record<string, WakePanel[]>;
   sentId: string | null;
+  /** The guided night's step this wake is for (its night-sheet key), if it came from there. */
+  step?: string | null;
 }
 
 export const emptyPanel = (): WakePanel => ({ card: null, signs: [], roleIds: [], seatIds: [], text: '' });
@@ -51,6 +53,8 @@ interface UI {
   hideGrimoire: boolean;
   /** Storyteller: the grimoire (the circle of tokens) is open over the town. */
   grimoireOpen: boolean;
+  /** Storyteller: the night guide is open (rather than tucked away to a small tab). */
+  nightGuide: boolean;
   muted: boolean;
   /** Soft background sound around the town. */
   ambience: boolean;
@@ -59,7 +63,7 @@ interface UI {
   banner: { text: string; sub: string; key: number } | null;
 }
 
-const prefs = loadJSON<{ muted?: boolean; ambience?: boolean; panel?: Panel }>('ravenswood:prefs', {});
+const prefs = loadJSON<{ muted?: boolean; ambience?: boolean; panel?: Panel; nightGuide?: boolean }>('ravenswood:prefs', {});
 
 export const useUI = create<UI>(() => ({
   modal: null,
@@ -68,6 +72,7 @@ export const useUI = create<UI>(() => ({
   pick: null,
   hideGrimoire: false,
   grimoireOpen: false,
+  nightGuide: prefs.nightGuide ?? true,
   muted: prefs.muted ?? false,
   ambience: prefs.ambience ?? true,
   draft: { to: [], panels: [emptyPanel()], active: 0, ask: null, extra: {}, sentId: null },
@@ -76,7 +81,8 @@ export const useUI = create<UI>(() => ({
 }));
 
 useUI.subscribe((s, p) => {
-  if (s.muted !== p.muted || s.panel !== p.panel || s.ambience !== p.ambience) saveJSON('ravenswood:prefs', { muted: s.muted, ambience: s.ambience, panel: s.panel });
+  if (s.muted !== p.muted || s.panel !== p.panel || s.ambience !== p.ambience || s.nightGuide !== p.nightGuide)
+    saveJSON('ravenswood:prefs', { muted: s.muted, ambience: s.ambience, panel: s.panel, nightGuide: s.nightGuide });
 });
 
 export const ui = {
@@ -86,13 +92,13 @@ export const ui = {
   menu: (seatId: string | null) => useUI.setState({ menuSeat: seatId }),
   pick: (pick: Pick) => useUI.setState({ pick, menuSeat: null }),
   setDraft: (fn: (d: WakeDraft) => WakeDraft) => useUI.setState((s) => ({ draft: fn(s.draft) })),
-  /** Opens the wake screen for these seats, optionally with cards already laid out. */
-  wake: (to: string[], panels?: WakePanel[], ask: Ask = null, extra: Record<string, WakePanel[]> = {}) =>
+  /** Opens the wake screen for these seats, optionally with cards already laid out (and the night step it's for). */
+  wake: (to: string[], panels?: WakePanel[], ask: Ask = null, extra: Record<string, WakePanel[]> = {}, step: string | null = null) =>
     useUI.setState((s) => ({
       modal: { kind: 'wake' },
       menuSeat: null,
       draft: panels
-        ? { to, panels, active: panels.length - 1, ask, extra, sentId: null }
+        ? { to, panels, active: panels.length - 1, ask, extra, sentId: null, step }
         : { ...s.draft, to, sentId: s.draft.to.join() === to.join() ? s.draft.sentId : null },
     })),
   banner: (text: string, sub = '') => {

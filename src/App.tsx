@@ -27,6 +27,7 @@ import { Toasts } from './components/Toasts';
 import { BluffBar } from './components/BluffBar';
 import { PickBanner } from './components/PickBanner';
 import { SlayerPrompt } from './components/Slayer';
+import { NightGuide } from './components/NightGuide';
 import { GameOverLayer, WinPrompt } from './components/GameOver';
 import { MyCharacter, PlayerRail, VoteBar } from './components/PlayerBits';
 import { WakeOverlay } from './components/WakeOverlay';
@@ -174,6 +175,7 @@ function Storyteller() {
           )}
           <SidePanel />
           <PickBanner />
+          <NightGuide />
           <SlayerPrompt />
           <WinPrompt />
           <GameOverLayer />

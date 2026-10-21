@@ -2332,6 +2332,108 @@
   margin-top: 6px;
 }
 
+/* The Storyteller's guided night: the next character to wake, at the top of the screen through the night (under any
+   dialog, such as the wake screen it opens). */
+.night-guide {
+  position: fixed;
+  left: 50%;
+  top: 84px;
+  z-index: 55;
+  transform: translateX(-50%);
+  width: min(540px, calc(100vw - 32px));
+  display: grid;
+  gap: 8px;
+  padding: 10px 14px 12px;
+  animation: drop 0.3s var(--ease-out);
+}
+.night-guide-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.night-guide .eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.night-guide .eyebrow svg {
+  width: 15px;
+  height: 15px;
+}
+.night-guide-hide {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  margin: -4px -6px -4px 0;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.night-guide-hide:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+}
+.night-guide-hide svg {
+  width: 18px;
+  height: 18px;
+}
+.night-guide-step {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.night-guide-text p {
+  margin: 3px 0 0;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+.night-guide-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.night-guide-actions .grow {
+  flex: 1;
+}
+.night-guide-actions .btn svg {
+  width: 16px;
+  height: 16px;
+}
+/* Tucked away: a small tab saying where the night is up to. */
+.night-guide-tab {
+  position: fixed;
+  left: 50%;
+  top: 84px;
+  z-index: 55;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100vw - 32px);
+  padding: 6px 14px;
+  border-radius: 999px;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.night-guide-tab svg {
+  width: 15px;
+  height: 15px;
+  color: var(--brass-hi);
+}
+/* In the wake screen, Next carries on through the night. */
+.wake-next svg {
+  width: 16px;
+  height: 16px;
+}
+
 /* Problems players' games reported. */
 .setting.problems > div {
   min-width: 0;

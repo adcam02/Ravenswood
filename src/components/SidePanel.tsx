@@ -1,8 +1,8 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import { editionLogo, getRole, jinxesFor, nightOrderList, nightReminder, NIGHT_SPECIALS, rolesByTeam, TEAM_LABEL, TEAMS, genericIcon } from '../data';
-import { demonInfo, minionInfo, presetFor, wholeEvilTeam } from '../lib/presets';
 import { evilInfoStatus } from '../lib/evilInfo';
-import { seatName, seatsWithRole, st, useHost } from '../state/host';
+import { nightKind, nightRows, wakeFor, type NightKind } from '../lib/nightGuide';
+import { seatName, st, useHost } from '../state/host';
 import { ui, useUI, type Panel } from '../state/ui';
 import { useView } from '../state/view';
 import { Icon } from './Icon';
@@ -61,31 +61,14 @@ function NightOrder() {
 
 function NightOrderList() {
   const g = useHost((s) => s.g);
-  const [kind, setKind] = useState<'first' | 'other' | null>(null);
+  const [kind, setKind] = useState<NightKind | null>(null);
   const [showAll, setShowAll] = useState(false);
-  const k = kind ?? (g.day <= 1 ? 'first' : 'other');
-  const list = nightOrderList(k, g.script);
-  // The Storyteller's sheet offers waking the whole evil team in one go, just before the separate steps.
-  if (k === 'first' && list.includes('minioninfo')) list.splice(list.indexOf('minioninfo'), 0, 'eviltogether');
+  const tonight = nightKind(g);
+  const k = kind ?? tonight;
   const players = g.seats.length;
   const awake = Object.keys(g.awake).length;
   const evil = evilInfoStatus(g);
-
-  const rows = list
-    .map((id) => {
-      const special = NIGHT_SPECIALS[id];
-      const holders = special ? [] : seatsWithRole(g, id);
-      const fabled = g.fabled.includes(id);
-      const onScript = g.script.roles.includes(id);
-      if (special) {
-        if (k === 'other' && (id === 'minioninfo' || id === 'demoninfo' || id === 'eviltogether')) return null;
-        return { id, special: true, holders, inPlay: true };
-      }
-      if (!holders.length && !fabled && !(showAll && onScript)) return null;
-      if (!nightReminder(id, k)) return null;
-      return { id, special: false, holders, inPlay: holders.length > 0 || fabled };
-    })
-    .filter(Boolean) as { id: string; special: boolean; holders: ReturnType<typeof seatsWithRole>; inPlay: boolean }[];
+  const rows = nightRows(g, k, showAll);
 
   return (
     <div className="night-order">
@@ -118,23 +101,9 @@ function NightOrderList() {
           const few = evilStep && players < 7;
           const text = nightReminder(row.id, k);
           const wake = () => {
-            if (row.id === 'eviltogether') {
-              const p = wholeEvilTeam();
-              ui.wake(p.to, p.panels, null, p.extra);
-            } else if (row.id === 'minioninfo') {
-              const p = minionInfo();
-              ui.wake(p.to, p.panels);
-            } else if (row.id === 'demoninfo') {
-              const p = demonInfo();
-              ui.wake(p.to, p.panels);
-            } else {
-              const p = presetFor(row.id, k);
-              ui.wake(
-                row.holders.map((h) => h.seat.id),
-                p.panels,
-                p.ask,
-              );
-            }
+            const w = wakeFor(row, k);
+            // Tonight's sheet: the wake screen can carry on to the next character from there.
+            ui.wake(w.to, w.panels, 'ask' in w ? w.ask : null, w.extra, k === tonight && g.phase === 'night' ? key : null);
           };
           return (
             <li key={row.id} className={`night-row ${done ? 'done' : ''} ${!row.inPlay ? 'absent' : ''} ${dead || few ? 'dim' : ''} ${special ? 'special' : ''}`}>
@@ -142,15 +111,7 @@ function NightOrderList() {
                 {done && <Icon name="check" />}
               </button>
               <div className="night-icon">
-                {special ? (
-                  special.icon === 'minion' || special.icon === 'demon' || special.icon === 'evil' ? (
-                    <img src={genericIcon(special.icon)} alt="" />
-                  ) : (
-                    <Icon name={special.icon === 'dusk' ? 'moon' : 'sun'} />
-                  )
-                ) : (
-                  <Token roleId={row.id} label={false} />
-                )}
+                <NightIcon id={row.id} />
               </div>
               <div className="night-text">
                 <div className="night-name">
@@ -191,6 +152,14 @@ function NightOrderList() {
       </ol>
     </div>
   );
+}
+
+/** A night-sheet line's picture: the character's token, or a plain sign for dusk, dawn and the evil team's steps. */
+export function NightIcon({ id }: { id: string }) {
+  const special = NIGHT_SPECIALS[id];
+  if (!special) return <Token roleId={id} label={false} />;
+  if (special.icon === 'minion' || special.icon === 'demon' || special.icon === 'evil') return <img src={genericIcon(special.icon)} alt="" />;
+  return <Icon name={special.icon === 'dusk' ? 'moon' : 'sun'} />;
 }
 
 // ---------------------------------------------------------------- reference sheet
