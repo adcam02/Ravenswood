@@ -223,6 +223,8 @@ export class Engine {
   private emote: { anim: Anim; until: number } | null = null;
   /** Sitting or lying on something: the y to sit at. */
   private seated: { y: number; anim: Anim } | null = null;
+  /** The meeting stool we're sat on, as "seat/of", so we can move along if the seats are reordered. */
+  private stool: string | null = null;
   private job: { job: GameJob; station: Station; prevItem: Item | null } | null = null;
   private sips = 0;
   /** Doors stay shut for a moment after arriving somewhere, so you don't bounce straight back through. */
@@ -431,6 +433,8 @@ export class Engine {
       const needs = Math.ceil(alive / 2);
       label = `${who(nom.nominatorId)} nominates ${who(nom.nomineeId)} · ${nom.votes.length} ${nom.votes.length === 1 ? 'vote' : 'votes'} · needs ${needs}`;
       if (nom.status === 'done') label = `${who(nom.nomineeId)}: ${nom.votes.length} ${nom.votes.length === 1 ? 'vote' : 'votes'}, needs ${needs}`;
+    } else if (v.townHall?.gathered) {
+      label = 'Town meeting';
     } else if (v.townHall) {
       const here = v.seats.filter((s) => v.townHall!.back.includes(s.id)).length;
       label = `Everyone to the square · ${here} of ${v.seats.length} here`;
@@ -457,6 +461,12 @@ export class Engine {
 
     this.syncMe(v);
     this.applyPhase(v, prev);
+    // On a meeting stool: move along if the Storyteller reorders the seats, and get up when the meeting ends.
+    if (this.seated?.y === STOOL_Y && local.zone === 'town' && v.mode === 'player') {
+      const i = this.meetingIndex();
+      if (!meeting || i < 0) this.standUp();
+      else if (this.stool !== `${i}/${v.seats.length}`) this.takeMeetingSeat();
+    }
     // An execution: everyone turns to watch.
     const ex = v.execution;
     if (ex && ex.id !== this.show?.id && Date.now() - ex.at < 15000 && !this.lastShowId.has(ex.id)) {
@@ -1045,6 +1055,7 @@ export class Engine {
     const inTown = local.zone === 'town';
     const sit = () => {
       this.seated = { y: STOOL_Y, anim: 'sit' };
+      this.stool = `${i}/${v.seats.length}`;
       this.me?.setTarget(spot.x, spot.z, spot.ry, STOOL_Y);
       this.me?.snap();
     };

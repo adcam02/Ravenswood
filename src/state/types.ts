@@ -125,6 +125,11 @@ export interface TownHall {
   ring: number;
   /** Seats whose player has reached the square. */
   back: string[];
+  /**
+   * Everyone has arrived (or the Storyteller stopped the bell): the bell stops, but the meeting goes on,
+   * stools and all, until the Storyteller ends it or night falls.
+   */
+  gathered?: boolean;
 }
 
 /** A player put to death in front of the town: the gallows show plays for everyone who sees it. */

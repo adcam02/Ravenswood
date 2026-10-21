@@ -853,22 +853,35 @@ export const st = {
       else for (const id of seatIds) delete g.awake[id];
     });
   },
-  /** Rings the bell on every player's screen until they say they're back. */
+  /**
+   * Rings the bell on every player's screen until they're on their stools. Ringing again during a meeting
+   * calls everyone back to their stools (anyone already sitting counts straight away).
+   */
   callTownHall() {
     update((g) => {
-      if (g.townHall) {
+      if (g.townHall?.gathered) g.townHall = { ...g.townHall, ring: g.townHall.ring + 1, at: Date.now(), back: [], gathered: false };
+      else if (g.townHall) {
         g.townHall.ring += 1;
         g.townHall.at = Date.now();
       } else g.townHall = { id: uid(), at: Date.now(), ring: 0, back: [] };
     });
   },
+  /** Stops the bell but keeps the meeting going with whoever is there. */
+  stopBell() {
+    update((g) => void (g.townHall && (g.townHall.gathered = true)));
+  },
+  /** Ends the meeting: the stools go and everyone is free to wander. */
   endTownHall() {
     update((g) => void (g.townHall = null));
   },
-  /** A player has reached the square while the bell is ringing. */
+  /** A player has reached the square while the bell is ringing; once everyone has, the bell stops. */
   arrived(seatId: string) {
     update((g) => {
-      if (g.townHall && !g.townHall.back.includes(seatId)) g.townHall.back.push(seatId);
+      const call = g.townHall;
+      if (!call || call.back.includes(seatId)) return;
+      call.back.push(seatId);
+      const players = g.seats.filter((s) => s.playerId);
+      if (players.length && players.every((s) => call.back.includes(s.id))) call.gathered = true;
     });
   },
   revealGrimoire(on: boolean) {

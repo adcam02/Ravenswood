@@ -45,9 +45,15 @@ export function SceneBar() {
         <button className="cosy-btn scene-btn" onClick={() => st.setPhase('day')} disabled={view.phase === 'day' || !started} title="Dawn: everyone wakes in the square">
           🌅 <span>Dawn</span>
         </button>
-        <button className="cosy-btn scene-btn" onClick={() => st.callTownHall()} disabled={view.phase !== 'day'} title="Ring the bell: everyone to their stool">
-          🔔 <span>Meeting</span>
-        </button>
+        {view.townHall ? (
+          <button className="cosy-btn scene-btn on" onClick={() => st.endTownHall()} title="End the meeting: everyone gets up off their stools">
+            🪵 <span>End meeting</span>
+          </button>
+        ) : (
+          <button className="cosy-btn scene-btn" onClick={() => st.callTownHall()} disabled={view.phase !== 'day'} title="Ring the bell: everyone to their stool">
+            🔔 <span>Meeting</span>
+          </button>
+        )}
         <button className={`cosy-btn scene-btn more ${open ? 'on' : ''}`} onClick={() => setOpen((o) => !o)} title="Weather and the day timer">
           {timer ? `⏳ ${mmss(timer.end - now)}` : '⛅'}
         </button>

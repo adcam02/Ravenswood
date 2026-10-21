@@ -531,6 +531,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   const markGeo = new THREE.TorusGeometry(0.62, 0.05, 10, 40);
   const markMat = new THREE.MeshBasicMaterial({ color: '#f2c14e' });
   const meeting = new THREE.Group();
+  meeting.name = 'meeting';
   meeting.visible = false;
   const handRing = new THREE.Mesh(new THREE.TorusGeometry(0.7, 0.06, 10, 40), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
   handRing.rotation.x = Math.PI / 2;

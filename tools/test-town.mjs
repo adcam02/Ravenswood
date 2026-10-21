@@ -538,7 +538,9 @@ await check('game: ringing the bell gathers everyone at the square', async () =>
   await shot(players.abbey, '16-bell');
   // Everyone is taken to their stool on their own; the host sees them arrive.
   for (const p of all()) await until(p, () => window.__hud.getState().meetingSeated, null, 30000, 'to be seated at the meeting');
-  await sleep(1500);
+  // Once everyone is there the bell stops, but the meeting (and the stools) carry on.
+  await until(st, () => Boolean(window.__host.getState().g.townHall?.gathered), null, 60000, 'everyone to arrive at the square');
+  await sleep(2000);
   // From the Storyteller's view: everyone on their own stool (the grimoire's order), at stool height, sitting.
   const seats = await st.evaluate(() => {
     const e = window.__engine;
@@ -557,7 +559,8 @@ await check('game: ringing the bell gathers everyone at the square', async () =>
   const wrong = seats.filter((s) => s.off > 0.4 || s.y < 0.3 || s.anim !== 'sit');
   expect(seats.length >= 4 && !wrong.length, `not sat on their own stools: ${JSON.stringify(wrong.length ? wrong : seats)}`);
   await shot(st, '16c-bell-seated-st');
-  await until(st, () => !window.__host.getState().g.townHall, null, 60000, 'everyone to arrive at the square');
+  const stools = await st.evaluate(() => window.__engine.scene.getObjectByName('meeting')?.visible ?? null);
+  expect(stools !== false, 'the stools vanished once everyone had arrived');
   for (const p of all()) expect(!(await p.$('.bell-call')), `${p.label} still sees the bell call after sitting`);
   const me = await players.abbey.evaluate(() => ({ ...window.__local }));
   expect(Math.hypot(me.x, me.z) < 13, `Abbey ended up ${Math.hypot(me.x, me.z).toFixed(1)}m from the tower`);
@@ -635,7 +638,6 @@ await check('game: an execution plays out at the gallows for everyone', async ()
   await shot(players.abbey, '22-execution');
   await shot(players.steele, '22-execution-condemned');
   // Through the drop, frame by frame, as Abbey sees it; Steele stays solid (not a ghost) until the puff.
-  const id = await seatOf('Steele');
   const before = await players.abbey.evaluate((id) => window.__engine.others.get(id)?.ghost, id);
   expect(before === false, 'Steele was already a ghost before the drop');
   for (const [k, ms] of [['a', 700], ['b', 350], ['c', 500], ['d', 900]]) {

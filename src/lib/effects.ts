@@ -78,7 +78,7 @@ export function useEffects(view: View | null) {
   // A player being called to the square. The bells ring again a couple of times if they don't answer.
   const me = view?.seats.find((s) => s.isMe);
   const call = view?.mode === 'player' ? view.townHall : null;
-  const called = Boolean(call && me && !call.back.includes(me.id));
+  const called = Boolean(call && !call.gathered && me && !call.back.includes(me.id));
   const callKey = called && call ? `${call.id}:${call.ring}` : null;
   useEffect(() => {
     if (!callKey) return;

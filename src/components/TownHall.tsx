@@ -43,14 +43,15 @@ export function HallButton() {
   const players = view.seats.filter((s) => s.claimed);
   const back = call ? players.filter((s) => call.back.includes(s.id)) : [];
   const waiting = call ? players.filter((s) => !call.back.includes(s.id)) : [];
+  const gathered = Boolean(call?.gathered);
   const allBack = Boolean(call && players.length && !waiting.length);
 
+  // Everyone on their stool: the bell stops, the meeting carries on until it's ended.
   useEffect(() => {
-    if (!allBack) return;
-    ui.toast('Everyone has gathered at the square.', 'good');
-    st.endTownHall();
+    if (!gathered || !allBack) return;
+    ui.toast('Everyone is sat at the square. The meeting is on.', 'good');
     setOpen(false);
-  }, [allBack]);
+  }, [gathered, allBack]);
 
   useEffect(() => {
     if (!open) return;
@@ -63,7 +64,7 @@ export function HallButton() {
     <div className="hall-wrap" ref={wrap}>
       <button
         className={`tool ${call ? 'on calling' : ''}`}
-        title={call ? 'The bell is ringing' : 'Ring the bell: everyone to the town square'}
+        title={call ? (gathered ? 'The town meeting is on' : 'The bell is ringing') : 'Ring the bell: everyone to the town square'}
         onClick={() => {
           if (!call) {
             st.callTownHall();
@@ -72,8 +73,8 @@ export function HallButton() {
         }}
       >
         <Icon name="bell" />
-        <span>{call ? 'Ringing…' : 'Ring bell'}</span>
-        {call && (
+        <span>{call ? (gathered ? 'Meeting' : 'Ringing…') : 'Ring bell'}</span>
+        {call && !gathered && (
           <i className="tool-badge">
             {back.length}/{players.length}
           </i>
@@ -81,27 +82,33 @@ export function HallButton() {
       </button>
       {open && call && (
         <div className="hall-pop surface">
-          <strong>Everyone to the square</strong>
+          <strong>{gathered ? 'The town meeting is on' : 'Everyone to the square'}</strong>
           <span>
-            {back.length} of {players.length} have arrived
+            {back.length} of {players.length} {gathered ? 'came to the square' : 'have arrived'}
           </span>
-          {waiting.length > 0 && (
+          {!gathered && waiting.length > 0 && (
             <p>
               Waiting on <b>{waiting.map((s) => s.label).join(', ')}</b>
             </p>
           )}
           <div className="hall-actions">
-            <button className="btn small" onClick={st.callTownHall}>
+            <button className="btn small" onClick={st.callTownHall} title={gathered ? 'Everyone back to their stools' : 'Ring for anyone not here yet'}>
               <Icon name="bell" /> Ring again
             </button>
+            {!gathered && (
+              <button className="btn small quiet" onClick={st.stopBell} title="Stop the bell and start with whoever is here">
+                Stop the bell
+              </button>
+            )}
             <button
               className="btn small quiet"
               onClick={() => {
                 st.endTownHall();
                 setOpen(false);
               }}
+              title="Everyone gets up off their stools"
             >
-              Stop calling
+              End meeting
             </button>
           </div>
         </div>

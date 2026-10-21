@@ -190,7 +190,7 @@ export function BellCall() {
   const seated = useHud((s) => s.meetingSeated);
   const sheep = useHud((s) => s.sheep);
   const me = view.seats.find((s) => s.isMe);
-  if (!call || !me || seated || sheep) return null;
+  if (!call || call.gathered || !me || seated || sheep) return null;
   const here = view.seats.filter((s) => call.back.includes(s.id)).length;
   return (
     <div className="bell-call cosy-panel" key={`${call.id}${call.ring}`}>
@@ -216,7 +216,7 @@ export function MeetingSeat() {
   const seated = useHud((s) => s.meetingSeated);
   const sheep = useHud((s) => s.sheep);
   if (!me || job || seated || sheep || !(view.nomination || view.townHall)) return null;
-  if (view.townHall) return null;
+  if (view.townHall && !view.townHall.gathered) return null;
   return (
     <button className="meeting-seat cosy-btn" onClick={game.takeMeetingSeat}>
       🪵 Take your seat

@@ -259,7 +259,7 @@ function SeatSpot({ seat, geo, i }: { seat: SeatView; geo: Geometry; i: number }
           <Icon name="axe" />
         </span>
       )}
-      {st_ && view.townHall && seat.claimed && !view.townHall.back.includes(seat.id) && (
+      {st_ && view.townHall && !view.townHall.gathered && seat.claimed && !view.townHall.back.includes(seat.id) && (
         <span className="seat-hall" title="Not at the square yet">
           <Icon name="bell" />
         </span>
