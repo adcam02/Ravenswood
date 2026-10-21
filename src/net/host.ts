@@ -63,6 +63,17 @@ class HostLink {
   private broadcastTimer: ReturnType<typeof setTimeout> | null = null;
   private sweepTimer: ReturnType<typeof setInterval> | null = null;
   private stopWorld: (() => void) | null = null;
+  private stopBeat: (() => void) | null = null;
+
+  /** One "still here" to the lobby server, straight down PeerJS's own socket. */
+  private heartbeat() {
+    try {
+      const socket = (this.peer as unknown as { socket?: { _socket?: WebSocket } } | null)?.socket?._socket;
+      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'HEARTBEAT' }));
+    } catch {
+      /* PeerJS's own heartbeat still runs */
+    }
+  }
   private ticks = 0;
   /** Bytes of world updates sent, for the debug stats. */
   private worldBytes = 0;
@@ -80,6 +91,9 @@ class HostLink {
     else this.openPeer();
     this.openMesh();
     this.sweepTimer = setInterval(() => this.sweep(), 5000);
+    // PeerJS keeps the room registered with the lobby by pinging it on an ordinary timer, which a hidden tab slows
+    // to once a minute: long enough for the lobby to drop us. These extra pings keep time in the background.
+    this.stopBeat = steadyInterval(() => this.heartbeat(), 5000);
     // Kept steady while this tab is hidden (the Storyteller in another window), so players don't see everyone jump.
     this.stopWorld = steadyInterval(() => {
       try {
@@ -97,6 +111,8 @@ class HostLink {
     if (this.sweepTimer) clearInterval(this.sweepTimer);
     this.stopWorld?.();
     this.stopWorld = null;
+    this.stopBeat?.();
+    this.stopBeat = null;
     for (const l of this.links.keys()) l.close();
     this.links.clear();
     this.meshLinks.clear();
@@ -109,9 +125,33 @@ class HostLink {
 
   // ---------------------------------------------------------------- PeerJS, the main route
 
+  /**
+   * The room's secret with the lobby server, kept for this tab (it survives a reload; a second tab gets its own, so
+   * two tabs can't keep taking the room off each other). The lobby only lets a new connection take over the room's
+   * id if it brings the same secret: with it, a reload or a reconnect after the lobby dropped us takes the room
+   * straight back, rather than being refused until the old registration times out (a minute or more, with every
+   * player cut off meanwhile).
+   */
+  private roomToken(): string {
+    const key = `ravenswood:host-token:${this.room}`;
+    try {
+      const kept = sessionStorage.getItem(key);
+      if (kept) return kept;
+    } catch {
+      /* no session storage: a fresh one each time */
+    }
+    const token = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => b.toString(36).padStart(2, '0')).join('');
+    try {
+      sessionStorage.setItem(key, token);
+    } catch {
+      /* fine */
+    }
+    return token;
+  }
+
   private openPeer() {
     useHostNet.setState({ status: 'starting', detail: 'Opening the room…' });
-    const peer = new Peer(hostPeerId(this.room), peerOptions());
+    const peer = new Peer(hostPeerId(this.room), { ...peerOptions(), token: this.roomToken() });
     this.peer = peer;
     let opened = false;
     peer.on('open', () => {
