@@ -19,13 +19,33 @@ export const presence = {
   },
 
   /** A player's whole view of the world from the Storyteller, minus themselves. */
-  replace(all: Record<string, Pose>, skip: string | null) {
+  replace(all: Record<string, Pose | [number, number, number]>, skip: string | null) {
     const now = Date.now();
     for (const key of [...this.others.keys()]) if (!(key in all) || key === skip) this.others.delete(key);
     for (const [key, pose] of Object.entries(all)) {
-      if (key === skip || !Array.isArray(pose)) continue;
-      this.others.set(key, { ...fromPose(pose), at: now });
+      if (key === skip || !Array.isArray(pose) || pose.length !== 8) continue;
+      this.others.set(key, { ...fromPose(pose as Pose), at: now });
     }
+  },
+
+  /**
+   * Just the people who changed since the last message (a whole pose, or only x, z and facing for someone
+   * who merely moved), and anyone who left.
+   */
+  merge(changed: Record<string, Pose | [number, number, number]>, gone: string[] | undefined, skip: string | null) {
+    const now = Date.now();
+    for (const [key, pose] of Object.entries(changed)) {
+      if (key === skip || !Array.isArray(pose)) continue;
+      if (pose.length === 3) {
+        const p = this.others.get(key);
+        if (!p) continue;
+        p.x = Number(pose[0]) || 0;
+        p.z = Number(pose[1]) || 0;
+        p.ry = Number(pose[2]) || 0;
+        p.at = now;
+      } else this.others.set(key, { ...fromPose(pose as Pose), at: now });
+    }
+    for (const key of gone ?? []) this.others.delete(key);
   },
 
   remove(key: string) {

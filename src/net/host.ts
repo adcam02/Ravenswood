@@ -8,6 +8,7 @@ import { presence } from '../game/presence';
 import { MEETING_RADIUS } from '../game/rules';
 import { fromPose, toPose, type Item, type Pose } from '../world/types';
 import { joinMesh, type Mesh } from './mesh';
+import { newWorldLink, worldUpdate, type WorldLink } from './world';
 import { useUpdate } from '../lib/version';
 import { hostPeerId, peerDisabled, peerOptions, type LinkStatus } from './peer';
 
@@ -32,6 +33,10 @@ interface LinkMeta {
   lastSeen: number;
   sentPublic?: string;
   sentPrivate?: string;
+  /** What this player has been told about where everyone is. */
+  world: WorldLink;
+  /** Whether they were last told the Storyteller is speaking to the whole town. */
+  annSent?: boolean;
 }
 
 const RETRYABLE = new Set(['network', 'server-error', 'socket-error', 'socket-closed', 'disconnected']);
@@ -47,8 +52,8 @@ class HostLink {
   private sweepTimer: ReturnType<typeof setInterval> | null = null;
   private worldTimer: ReturnType<typeof setInterval> | null = null;
   private ticks = 0;
-  private lastWorld = '';
-  private lastWorldAt = 0;
+  /** Bytes of world updates sent, for the debug stats. */
+  private worldBytes = 0;
 
   /** The lobby connection, which also carries voice. */
   get peerRef(): Peer | null {
@@ -126,7 +131,7 @@ class HostLink {
       close: () => conn.close(),
       isOpen: () => conn.open,
     };
-    this.links.set(link, { playerId: null, lastSeen: Date.now() });
+    this.links.set(link, { playerId: null, lastSeen: Date.now(), world: newWorldLink() });
     conn.on('data', (raw) => this.receive(link, raw as ClientMessage));
     conn.on('close', () => this.drop(link));
     conn.on('error', () => this.drop(link));
@@ -145,7 +150,7 @@ class HostLink {
           isOpen: () => open,
         };
         this.meshLinks.set(peerId, link);
-        this.links.set(link, { playerId: null, lastSeen: Date.now() });
+        this.links.set(link, { playerId: null, lastSeen: Date.now(), world: newWorldLink() });
         // Other players are in this room too; tell this one which browser is the Storyteller.
         link.send({ t: 'host' });
       },
@@ -204,6 +209,7 @@ class HostLink {
       // A player on a newer version means this page is out of date.
       if (msg.v && msg.v > __BUILD__) useUpdate.setState({ available: true });
       meta.sentPublic = meta.sentPrivate = undefined;
+      meta.world = newWorldLink();
       // A refreshed tab replaces its old connection on the same route.
       for (const [other, m] of this.links) {
         if (other !== link && other.kind === link.kind && m.playerId === meta.playerId) {
@@ -301,25 +307,38 @@ class HostLink {
     for (const [link, meta] of this.links) if (meta.playerId === target.playerId) link.send({ t: 'summon', zone, x, z });
   }
 
-  /** Where everyone is, ten times a second, to everyone. */
+  /** Where everyone is, ten times a second: each player gets just what changed for them (see world.ts). */
   private sendWorld() {
     const now = Date.now();
-    const a: Record<string, Pose> = {};
-    for (const [key, p] of presence.others) if (now - p.at < 20000) a[key] = toPose(p);
-    a.st = toPose(local);
-    const msg: HostMessage = { t: 'world', a, ann: presence.announce || undefined };
-    const json = JSON.stringify(msg);
-    if (json === this.lastWorld && now - this.lastWorldAt < 1000) return;
-    this.lastWorld = json;
-    this.lastWorldAt = now;
+    const poses = new Map<string, Pose>();
+    const jsons = new Map<string, string>();
+    for (const [key, p] of presence.others) if (now - p.at < 20000) poses.set(key, toPose(p));
+    poses.set('st', toPose(local));
+    for (const [key, pose] of poses) jsons.set(key, JSON.stringify(pose));
+    const seatOf = new Map<string, string>();
+    for (const s of useHost.getState().g.seats) if (s.playerId) seatOf.set(s.playerId, s.id);
+    const ann = presence.announce || undefined;
+    const debug = debugHooks();
     for (const [link, meta] of this.links) {
       if (!meta.playerId || !link.isOpen()) continue;
+      const at = presence.others.get(seatOf.get(meta.playerId) ?? '');
+      const update = worldUpdate(now, meta.world, poses, jsons, at ? { zone: at.zone, x: at.x, z: at.z } : { zone: 'town', x: 0, z: 0 });
+      // Nothing moved and the announce flag is as they last heard: nothing to send.
+      if (!update && Boolean(ann) === Boolean(meta.annSent)) continue;
+      meta.annSent = Boolean(ann);
+      const msg: HostMessage = { t: 'world', a: update?.a ?? {}, gone: update?.gone, full: update?.full, ann };
       try {
         link.send(msg);
+        if (debug) this.worldBytes += JSON.stringify(msg).length;
       } catch {
         /* a closing channel; the sweep tidies it up */
       }
     }
+  }
+
+  /** For the debug console: how much the world updates have cost so far, in bytes. */
+  stats() {
+    return { worldBytes: this.worldBytes, links: this.links.size };
   }
 
   private refreshOnline() {
@@ -365,4 +384,4 @@ export const hostLink = new HostLink();
 useHost.subscribe(() => hostLink.scheduleBroadcast());
 useHostNet.subscribe((s, prev) => s.online !== prev.online && hostLink.scheduleBroadcast());
 
-if (debugHooks()) Object.assign(window, { __host: useHost, __hostNet: useHostNet });
+if (debugHooks()) Object.assign(window, { __host: useHost, __hostNet: useHostNet, __netStats: () => hostLink.stats() });

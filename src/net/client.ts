@@ -188,7 +188,9 @@ class ClientLink {
     } else if (msg.t === 'private') {
       useClient.setState({ priv: msg.p });
     } else if (msg.t === 'world') {
-      presence.replace(msg.a ?? {}, useClient.getState().priv?.seatId ?? null);
+      const me = useClient.getState().priv?.seatId ?? null;
+      if (msg.full) presence.replace(msg.a ?? {}, me);
+      else presence.merge(msg.a ?? {}, Array.isArray(msg.gone) ? msg.gone : undefined, me);
       presence.announce = Boolean(msg.ann);
     } else if (msg.t === 'gift') {
       if (msg.item && typeof msg.item.k === 'string') receiveItem(msg.item, msg.from ?? null);

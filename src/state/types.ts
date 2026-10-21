@@ -251,8 +251,11 @@ export type TownAction =
 export type HostMessage =
   | { t: 'state'; s: PublicState; now?: number; v?: string }
   | { t: 'private'; p: PrivateState }
-  /** Where everyone is, by seat id ('st' for the Storyteller). `ann` is set while the Storyteller speaks to the whole town. */
-  | { t: 'world'; a: Record<string, Pose>; ann?: boolean }
+  /**
+   * Where everyone is, by seat id ('st' for the Storyteller): everything when `full`, otherwise only who moved
+   * since the last message, with `gone` for anyone who left. `ann` is set while the Storyteller speaks to the whole town.
+   */
+  | { t: 'world'; a: Record<string, Pose | [number, number, number]>; gone?: string[]; full?: true; ann?: boolean }
   /** Something put in this player's paw: handed over by `from`, or taken from the bar or the shelf. */
   | { t: 'gift'; item: Item; from: string | null }
   /** The Storyteller calls this player over: they're brought to stand beside the Storyteller. */

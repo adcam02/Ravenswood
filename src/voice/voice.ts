@@ -42,6 +42,41 @@ useVoice.subscribe((s, p) => {
 /** How long a line stays open after someone wanders out of range, so walking along the edge doesn't redial. */
 const LINGER_MS = 12000;
 
+/** Opus bitrates, in bits per second: plenty for speech, and lower once a crowd is on the line. */
+const BITRATE = 24000;
+const CROWD_BITRATE = 16000;
+const CROWD = 6;
+
+/**
+ * Tunes the Opus audio in a call's SDP: mono speech at a modest bitrate, and DTX (discontinuous
+ * transmission), so a quiet mic sends almost nothing. With everyone connected to everyone, that is
+ * most of the voice bandwidth saved: only the people actually talking cost anything.
+ */
+export function tuneOpus(sdp: string): string {
+  const pts = [...sdp.matchAll(/^a=rtpmap:(\d+) opus\/48000/gim)].map((m) => m[1]);
+  if (!pts.length) return sdp;
+  const want: Record<string, string> = { usedtx: '1', maxaveragebitrate: String(BITRATE), stereo: '0', 'sprop-stereo': '0', useinbandfec: '1' };
+  const lines = sdp.split(/\r?\n/);
+  for (const pt of pts) {
+    const i = lines.findIndex((l) => l.startsWith(`a=fmtp:${pt} `));
+    if (i >= 0) {
+      const params = Object.fromEntries(
+        lines[i]
+          .slice(`a=fmtp:${pt} `.length)
+          .split(';')
+          .map((kv) => kv.trim().split('=') as [string, string])
+          .filter(([k]) => k),
+      );
+      Object.assign(params, want);
+      lines[i] = `a=fmtp:${pt} ${Object.entries(params).map(([k, v]) => `${k}=${v}`).join(';')}`;
+    } else {
+      const at = lines.findIndex((l) => l.startsWith(`a=rtpmap:${pt} `));
+      lines.splice(at + 1, 0, `a=fmtp:${pt} ${Object.entries(want).map(([k, v]) => `${k}=${v}`).join(';')}`);
+    }
+  }
+  return lines.join('\r\n');
+}
+
 export interface Listener {
   voiceId: string;
   /** 0 to 1, from distance and walls. */
@@ -52,6 +87,8 @@ interface Link {
   call: MediaConnection;
   audio: HTMLAudioElement;
   open: boolean;
+  /** Whether we're sending our voice down this line (not while it only lingers out of earshot). */
+  sending: boolean;
 }
 
 /**
@@ -87,7 +124,7 @@ class Voice {
     peer.on('call', (call) => {
       if (this.peer !== peer) return;
       this.links.get(call.peer)?.call.close();
-      call.answer(this.stream());
+      call.answer(this.stream(), { sdpTransform: tuneOpus });
       this.track(call);
     });
   }
@@ -113,7 +150,7 @@ class Voice {
       });
       this.mic = stream;
       const track = stream.getAudioTracks()[0];
-      for (const l of this.links.values()) this.replaceTrack(l.call, track);
+      for (const l of this.links.values()) if (l.sending) this.replaceTrack(l.call, track);
       if (this.sendStream) {
         for (const t of this.sendStream.getAudioTracks()) this.sendStream.removeTrack(t);
         this.sendStream.addTrack(track);
@@ -188,6 +225,7 @@ class Voice {
       const link = this.links.get(voiceId);
       if (link) {
         link.audio.volume = Math.max(0, Math.min(1, gain * master));
+        this.setSending(link, true);
         continue;
       }
       // One side calls, so two browsers never call each other at once.
@@ -195,13 +233,14 @@ class Voice {
       if (now - (this.lastTry.get(voiceId) ?? 0) < 6000) continue;
       this.lastTry.set(voiceId, now);
       try {
-        const call = peer.call(voiceId, this.stream());
+        const call = peer.call(voiceId, this.stream(), { sdpTransform: tuneOpus });
         if (call) this.track(call);
       } catch (e) {
         console.warn('Voice call failed', e);
       }
     }
-    // People who've wandered out of range go quiet at once, and the line is hung up a little later.
+    // People who've wandered out of range go quiet at once (and stop getting our voice), and the line is
+    // hung up a little later.
     for (const [id, link] of this.links) {
       if (this.wanted.has(id)) {
         this.unwantedSince.delete(id);
@@ -210,13 +249,52 @@ class Voice {
       const since = this.unwantedSince.get(id) ?? now;
       this.unwantedSince.set(id, since);
       link.audio.volume = 0;
+      this.setSending(link, false);
       if (now - since > LINGER_MS) {
         this.unwantedSince.delete(id);
         link.call.close();
         this.drop(id, link);
       }
     }
+    this.capBitrate();
     useVoice.setState({ links: [...this.links.values()].filter((l) => l.open).length });
+  }
+
+  /** Sends our voice down a line, or stops (the line stays open, carrying nothing). */
+  private setSending(link: Link, on: boolean) {
+    if (link.sending === on) return;
+    link.sending = on;
+    const pc = link.call.peerConnection;
+    if (!pc) return;
+    const track = on ? (this.stream().getAudioTracks()[0] ?? null) : null;
+    for (const sender of pc.getSenders()) {
+      if (!sender.track || sender.track.kind === 'audio') void sender.replaceTrack(track).catch(() => {});
+    }
+  }
+
+  private bitrateCap = 0;
+  /** With a crowd on the line (a town meeting), each voice is sent a little smaller. */
+  private capBitrate() {
+    const cap = this.links.size > CROWD ? CROWD_BITRATE : BITRATE;
+    if (cap === this.bitrateCap) return;
+    this.bitrateCap = cap;
+    for (const link of this.links.values()) this.applyBitrate(link, cap);
+  }
+
+  private applyBitrate(link: Link, cap: number) {
+    const pc = link.call.peerConnection;
+    if (!pc) return;
+    for (const sender of pc.getSenders()) {
+      if (sender.track && sender.track.kind !== 'audio') continue;
+      try {
+        const params = sender.getParameters();
+        if (!params.encodings?.length) continue;
+        params.encodings[0].maxBitrate = cap;
+        void sender.setParameters(params).catch(() => {});
+      } catch {
+        /* not supported here */
+      }
+    }
   }
 
   private stream(): MediaStream {
@@ -251,13 +329,14 @@ class Voice {
     const id = call.peer;
     const audio = new Audio();
     audio.autoplay = true;
-    const link: Link = { call, audio, open: false };
+    const link: Link = { call, audio, open: false, sending: true };
     this.links.set(id, link);
     call.on('stream', (remote) => {
       if (this.links.get(id) !== link) return;
       audio.srcObject = remote;
       audio.volume = Math.max(0, Math.min(1, (this.wanted.get(id) ?? 0) * useVoice.getState().volume));
       link.open = true;
+      if (this.bitrateCap) this.applyBitrate(link, this.bitrateCap);
       void audio.play().catch(() => {});
     });
     const lost = () => this.drop(id, link);

@@ -104,11 +104,16 @@ says so). Add `?fx=low` to the address to start that way.
 ## How the connection works
 
 Browsers find the Storyteller through the free [PeerJS](https://peerjs.com/) lobby server, then talk
-directly. Voice uses the same lobby: each browser opens a voice line only to people in or near earshot
-(and to the Storyteller), hangs up a little after they wander off, and sets each voice's volume from how
-far apart the two animals are, so a big group doesn't swamp anyone's connection. If the lobby is down, the game falls back to a pool of
-public Nostr relays (via [Trystero](https://github.com/dmotz/trystero)), but voice needs the lobby.
-Each player only ever receives their own character and information.
+directly. The Storyteller's browser tells each player where everyone is ten times a second, but only
+who moved since the last message (people somewhere else, who only show on the map, a couple of times a
+second at most), so standing still costs nothing and a night in bed costs almost nothing. Voice uses
+the same lobby: each browser opens a voice line only to people in or near earshot (and to the
+Storyteller), hangs up a little after they wander off, and sets each voice's volume from how far apart
+the two animals are, so a big group doesn't swamp anyone's connection. Voices are sent as mono speech
+at a modest bitrate, a little lower again in a crowd, and a quiet microphone sends almost nothing. If
+the lobby is down, the game falls back to a pool of public Nostr relays (via
+[Trystero](https://github.com/dmotz/trystero)), but voice needs the lobby. Each player only ever
+receives their own character and information.
 
 If the lobby doesn't work for you, run your own PeerServer and put its address in `docs/config.js`.
 
