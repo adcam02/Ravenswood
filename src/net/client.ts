@@ -50,6 +50,11 @@ class ClientLink {
   /** What the main route is doing, when it isn't connected. */
   private peerState: LinkStatus = 'starting';
   private connectTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * Taking a seat ("Into town!") is kept until the Storyteller confirms it: sent again whenever the channel
+   * opens, and every few seconds, so a click during a reconnect doesn't leave the player stuck on the join screen.
+   */
+  private pendingJoin: { msg: Extract<ClientMessage, { t: 'join' }>; at: number; tries: number } | null = null;
 
   /** The lobby connection, which also carries voice. */
   get peerRef(): Peer | null {
@@ -143,6 +148,7 @@ class ClientLink {
       this.lastPong = Date.now();
       this.setPeerState('open');
       conn.send({ t: 'hello', playerId: playerId(), v: __BUILD__, delta: true } satisfies ClientMessage);
+      this.resendJoin(true);
     });
     conn.on('data', (raw) => {
       if (this.conn !== conn) return;
@@ -176,6 +182,7 @@ class ClientLink {
           this.meshHost = peerId;
           this.mesh?.send({ t: 'hello', playerId: playerId(), v: __BUILD__, delta: true } satisfies ClientMessage, peerId);
           this.refresh();
+          this.resendJoin(true);
           return;
         }
         if (peerId === this.meshHost) this.receive(msg);
@@ -196,6 +203,35 @@ class ClientLink {
       } else conn.send({ t: 'ping' } satisfies ClientMessage);
     }
     if (this.downSince && Date.now() - this.downSince > BACKUP_AFTER_MS) this.ensureMesh();
+    this.resendJoin(false);
+  }
+
+  /** Takes a seat with this name and animal, until the Storyteller confirms it. */
+  join(msg: Extract<ClientMessage, { t: 'join' }>) {
+    this.pendingJoin = { msg, at: Date.now(), tries: 0 };
+    this.send(msg);
+  }
+
+  private resendJoin(now: boolean) {
+    const p = this.pendingJoin;
+    if (!p || (!now && Date.now() - p.at < 4000)) return;
+    if (p.tries >= 10) {
+      this.pendingJoin = null;
+      return;
+    }
+    if (this.send(p.msg)) {
+      p.at = Date.now();
+      p.tries += 1;
+    }
+  }
+
+  /** The seat is ours, with the animal we asked for: nothing more to send. */
+  private checkJoined() {
+    const p = this.pendingJoin;
+    if (!p) return;
+    const { pub, priv } = useClient.getState();
+    const seat = priv?.seatId ? pub?.seats.find((s) => s.id === priv.seatId) : undefined;
+    if (seat?.look && seat.name === p.msg.name && seat.look.animal === p.msg.look.animal) this.pendingJoin = null;
   }
 
   private receive(msg: HostMessage) {
@@ -206,8 +242,10 @@ class ClientLink {
         clockOffset: msg.now ? msg.now - Date.now() : useClient.getState().clockOffset,
         hostOutdated: !msg.v || msg.v < __BUILD__,
       });
+      this.checkJoined();
     } else if (msg.t === 'private') {
       useClient.setState({ priv: msg.p });
+      this.checkJoined();
     } else if (msg.t === 'world') {
       const me = useClient.getState().priv?.seatId ?? null;
       // An older Storyteller page sends everyone every time, without `d`.
@@ -217,6 +255,8 @@ class ClientLink {
     } else if (msg.t === 'gift') {
       if (msg.item && typeof msg.item.k === 'string') receiveItem(msg.item, msg.from ?? null);
     } else if (msg.t === 'taken') {
+      // That animal's someone else's: the player picks again, so stop asking for this one.
+      this.pendingJoin = null;
       if (typeof msg.animal === 'string') useTaken.setState({ animal: msg.animal, by: String(msg.by ?? 'Someone'), at: Date.now() });
     } else if (msg.t === 'summon') {
       if (typeof msg.zone === 'string' && Number.isFinite(msg.x) && Number.isFinite(msg.z)) game.summoned(msg.zone, msg.x, msg.z);
@@ -248,7 +288,7 @@ reportTo((message, where) => clientLink.send({ t: 'oops', message, where, v: __B
 if (debugHooks()) (window as unknown as { __client: typeof useClient }).__client = useClient;
 
 export const player = {
-  join: (name: string, look: Look) => clientLink.send({ t: 'join', name, look }),
+  join: (name: string, look: Look) => clientLink.join({ t: 'join', name, look }),
   /** Holds an animal while looking at it in the picker, so nobody else takes it (null lets go). */
   hold: (name: string, animal: string | null) => clientLink.send({ t: 'hold', name, animal }),
   pose: (p: Pose) => clientLink.send({ t: 'pose', p }),
