@@ -30,6 +30,8 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    - **Darts** in the tavern, **breaking bread** into even halves and thirds and **pouring wine** into
      a moving chalice at the church lectern, **chopping firewood** at the woodpile, **stone skimming**
      at the pond bank and **tossing a coin** into the well.
+   You only need to be near a game's spot to start it: the prompt shows up from a few steps away. At
+   the washhouse the roof fades when you walk underneath, but the washing stays solid.
    Every game has a score. Beat the town's best and it goes on the noticeboard as a record, with a
    toast for everyone; your own personal bests are kept on your machine. Hold something and you can
    sip it, give it to someone (G) or put it away (Q).
@@ -46,11 +48,15 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    - **Day**: everyone comes back outside. Deaths in the night are announced at dawn, and dead players
      become ghosts of their animal: they can still walk around and talk.
    - **Ring the bell** and a bell call pops up on every player's screen, wherever they are, and after a
-     moment they're taken to their stool around the clock tower, in the same order as the grimoire.
-     During a meeting everyone at the square hears everyone else. Nominations and
-     votes play out in 3D: a sign over the tower says who is nominated and the count, the needle on
-     the cobbles swings from stool to stool, and players raise a paw. Executing the player on the block
-     (mark them, then Kill) plays out at the gallows for the whole town.
+     moment they're sat on their own stool around the clock tower, in the same order as the grimoire.
+     Once everyone is there the bell stops but the meeting carries on, everyone staying sat, until you
+     press **End meeting** (in the scene bar or under the bell) or night falls. If you reorder the
+     seats, players move along to their new stools. During a meeting everyone at the square hears
+     everyone else. Nominations and votes play out in 3D: a sign over the tower says who is nominated
+     and the count, the red and blue hands on the cobbles sweep from stool to stool, and a big paw goes
+     up over anyone voting. Executing the player on the block (mark them, then Kill) plays out at the
+     gallows for the whole town: a drumroll, the gavel, the trapdoor drops, a short swing and a puff of
+     smoke, then they walk on as a ghost.
    - **The Spy** sees a snapshot of the grimoire when woken from the night order; add one to any wake
      with the book button in the wake screen.
    - **Waking someone at night** drifts you to their bedside; the player sees a dream bubble beside

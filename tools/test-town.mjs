@@ -553,7 +553,8 @@ await check('game: ringing the bell gathers everyone at the square', async () =>
         const spot = e.town.meetingSpot(i, n);
         const av = e.others.get(s.id);
         const p = window.__presence.others.get(s.id);
-        return { name: s.name, i, off: av ? Math.hypot(av.x - spot.x, av.z - spot.z) : 99, y: av?.y ?? 0, anim: p?.anim };
+        // Where each animal is headed (a slow test page may not have drawn the last step of the ease yet).
+        return { name: s.name, i, off: av ? Math.hypot(av.tx - spot.x, av.tz - spot.z) : 99, y: av?.ty ?? 0, anim: p?.anim };
       });
   });
   const wrong = seats.filter((s) => s.off > 0.4 || s.y < 0.3 || s.anim !== 'sit');
