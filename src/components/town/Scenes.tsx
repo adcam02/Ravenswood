@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
+import { create } from 'zustand';
 import { useProgressTracker, whenHatUnlocked } from '../../game/progress';
+import { saveJSON } from '../../lib/util';
+import { player } from '../../net/client';
+import { AnimalPreview } from '../../world/AnimalPreview';
 import { st } from '../../state/host';
-import { ui } from '../../state/ui';
 import { useView } from '../../state/view';
-import { HATS, type Weather } from '../../world/types';
+import { HATS, type HatId, type Weather } from '../../world/types';
 
 const WEATHER: { id: Weather; icon: string; label: string }[] = [
   { id: 'clear', icon: '☀️', label: 'Clear' },
@@ -126,16 +129,55 @@ export function DayClock() {
   );
 }
 
-/** Players: remembers stars, records, nights and ghostly walks, and says when a new hat is earned. */
+const useNewHat = create<{ hat: HatId | null }>(() => ({ hat: null }));
+
+/** Players: remembers stars, records, nights and ghostly walks, and makes a moment of each new hat. */
 export function ProgressWatcher() {
   const view = useView();
   useProgressTracker(view);
   useEffect(() => {
-    whenHatUnlocked((id) => {
-      const hat = HATS.find((h) => h.id === id);
-      if (hat) ui.toast(`${hat.icon} New hat unlocked: ${hat.name}! Wear it from Me → Change name or animal.`, 'good');
-    });
+    whenHatUnlocked((hat) => useNewHat.setState({ hat }));
     return () => whenHatUnlocked(() => {});
   }, []);
-  return null;
+  return <NewHat />;
+}
+
+/** "New hat!": their own animal turning round in it, what it was for, and a button to put it on there and then. */
+function NewHat() {
+  const id = useNewHat((s) => s.hat);
+  const view = useView();
+  const me = view.seats.find((s) => s.isMe);
+  const hat = HATS.find((h) => h.id === id);
+  if (!hat || !me?.look) return null;
+  const close = () => useNewHat.setState({ hat: null });
+  const wear = () => {
+    const look = { ...me.look!, hat: hat.id };
+    // (Remembered for next time too, like choosing it on the way in.)
+    saveJSON('ravenswood:look', look);
+    player.join(me.name, look);
+    close();
+  };
+  return (
+    <div className="new-hat cosy-panel" role="dialog" aria-label="New hat unlocked">
+      <div className="new-hat-sparkles" aria-hidden="true">
+        {Array.from({ length: 12 }, (_, i) => (
+          <i key={i} style={{ '--a': `${i * 30}deg`, '--d': `${(i % 4) * 0.15}s` } as React.CSSProperties} />
+        ))}
+      </div>
+      <span className="new-hat-eyebrow">New hat unlocked!</span>
+      <AnimalPreview look={{ ...me.look, hat: hat.id }} size={190} spin anim="wave" />
+      <strong>
+        {hat.icon} {hat.name}
+      </strong>
+      <span className="new-hat-how">{hat.how}</span>
+      <div className="new-hat-actions">
+        <button className="cosy-btn" onClick={close}>
+          Later
+        </button>
+        <button className="cosy-btn primary" onClick={wear} autoFocus>
+          Wear it now
+        </button>
+      </div>
+    </div>
+  );
 }

@@ -214,7 +214,7 @@ if (view === 'grid' || view === 'night') {
   const info = ANIMALS.find((a) => a.id === id);
   const anim = (q.get('anim') ?? 'idle') as Anim;
   // (?animal=storyteller for the Storyteller.)
-  const built = (id as string) === 'storyteller' ? buildStoryteller() : make({ animal: id, color: q.get('color') ?? info!.colors[Number(q.get('c') ?? 0)] ?? info!.colors[0] });
+  const built = (id as string) === 'storyteller' ? buildStoryteller() : make({ animal: id, color: q.get('color') ?? info!.colors[Number(q.get('c') ?? 0)] ?? info!.colors[0], ...(hatParam ? { hat: hatParam } : {}) });
   const r = place(built, 0, 0, anim, anim === 'run' ? 4 : anim === 'walk' ? 1.6 : 0, Number(q.get('ry') ?? 0));
   if (q.get('item')) r.setItem({ k: q.get('item') as ItemKind });
   if (q.has('ghost')) r.setGhost(true);
@@ -357,6 +357,25 @@ if (view === 'grid' || view === 'night') {
   });
   camera.position.set(0, 2.2, 3.2);
   camera.lookAt(0, 0.1, 0);
+} else if (view === 'hats' && q.get('set') === 'jobs') {
+  // The job hats, one each on ten different heads; then the awkward heads all in one of them (?hat=).
+  const jobs: [AnimalId, HatId][] = [
+    ['fox', 'lumberjack'],
+    ['cat', 'souwester'],
+    ['bear', 'mitre'],
+    ['wolf', 'chef'],
+    ['penguin', 'bowler'],
+    ['bunny', 'sunhat'],
+    ['owl', 'headscarf'],
+    ['deer', 'feathercap'],
+    ['frog', 'sailor'],
+    ['raccoon', 'leprechaun'],
+  ];
+  jobs.forEach(([id, hat], i) => place(make({ animal: id, color: ANIMALS.find((x) => x.id === id)!.colors[0], hat }), ((i % 5) - 2) * 1.5, 1.7 - Math.floor(i / 5) * 1.9, 'idle', 0, 0.25));
+  const same = (hatParam ?? 'mitre') as HatId;
+  (['snail', 'highland', 'octopus', 'shark', 'bat', 'jellyfish'] as AnimalId[]).forEach((id, i) => place(make({ animal: id, color: ANIMALS.find((x) => x.id === id)!.colors[0], hat: same }), (i - 2.5) * 1.4, -2.3, 'idle', 0, 0.3));
+  camera.position.set(0, 3.4, 8.6);
+  camera.lookAt(0, 0.6, -0.4);
 } else if (view === 'hats') {
   // Front row: one hat each. Back rows: the awkward heads all wearing the same hat (?hat=, default crown).
   const each: [AnimalId, HatId][] = [

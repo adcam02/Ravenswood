@@ -18,6 +18,10 @@ import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWor
 import { COTTAGE_NAMES, DAIS, DOCK, MEETING_CENTRE, SQUARE_R, groundAt } from './town/layout';
 import { Fireworks } from './fireworks';
 import { reportProblem } from '../lib/report';
+import { notePerfect } from '../game/progress';
+
+/** Hats are a player's own: the Storyteller doesn't collect them. */
+const isPlayerView = (v: WorldView | null) => v?.mode === 'player';
 import { botMode } from '../lib/util';
 import { steadyInterval } from '../lib/ticker';
 
@@ -1106,6 +1110,9 @@ export class Engine {
           break;
         }
       }
+      // Doing a job perfectly earns its hat (all five logs split, three stars, a wish come true).
+      const perfect = j.job === 'firewood' ? (r as JobResults['firewood']).logs >= 5 : ((r as { stars?: number }).stars ?? 0) >= 3;
+      if (perfect && isPlayerView(this.view)) notePerfect(j.job);
       // Anything that beats the town's best is kept on the noticeboard for everyone.
       const score = SCORE_OF?.[j.job]?.(r as never) ?? 0;
       if (score > 0) {

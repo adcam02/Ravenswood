@@ -175,7 +175,26 @@ export function fixDressUp(look: Partial<Look> | null | undefined): Pick<Look, '
 
 // ---------------------------------------------------------------- hats, earned and kept between games
 
-export type HatId = 'beanie' | 'flower' | 'party' | 'wizard' | 'tophat' | 'crown' | 'halo' | 'witch';
+export type HatId =
+  | 'beanie'
+  | 'flower'
+  | 'party'
+  | 'wizard'
+  | 'tophat'
+  | 'crown'
+  | 'halo'
+  | 'witch'
+  // One for each of the jobs around town, for doing it perfectly.
+  | 'lumberjack'
+  | 'souwester'
+  | 'mitre'
+  | 'chef'
+  | 'bowler'
+  | 'sunhat'
+  | 'headscarf'
+  | 'feathercap'
+  | 'sailor'
+  | 'leprechaun';
 
 /** What a player has done across all their games, kept in their own browser. */
 export interface Progress {
@@ -183,7 +202,11 @@ export interface Progress {
   records: number;
   ghosts: number;
   nights: number;
+  /** The jobs they've done perfectly at least once (by job id). */
+  perfect: string[];
 }
+
+const did = (p: Progress, ...jobs: string[]) => jobs.some((j) => p.perfect.includes(j));
 
 export const HATS: { id: HatId; name: string; icon: string; how: string; unlocked: (p: Progress) => boolean }[] = [
   { id: 'beanie', name: 'Beanie', icon: '🧶', how: 'Free for everyone', unlocked: () => true },
@@ -194,6 +217,16 @@ export const HATS: { id: HatId; name: string; icon: string; how: string; unlocke
   { id: 'tophat', name: 'Top hat', icon: '🎩', how: 'Set a town record at any job', unlocked: (p) => p.records >= 1 },
   { id: 'halo', name: 'Halo', icon: '😇', how: 'Walk the town as a ghost', unlocked: (p) => p.ghosts >= 1 },
   { id: 'crown', name: 'Crown', icon: '👑', how: 'Earn 10 gold stars', unlocked: (p) => p.stars >= 10 },
+  { id: 'lumberjack', name: 'Lumberjack beanie', icon: '🪓', how: 'Split all five logs cleanly chopping wood', unlocked: (p) => did(p, 'firewood') },
+  { id: 'souwester', name: 'Fisherman’s sou’wester', icon: '🎣', how: 'Land a three-star catch fishing', unlocked: (p) => did(p, 'fishing') },
+  { id: 'mitre', name: 'Pope’s mitre', icon: '⛪', how: 'Get three stars breaking bread or pouring the wine at church', unlocked: (p) => did(p, 'bread', 'wine') },
+  { id: 'chef', name: 'Chef’s hat', icon: '🥖', how: 'Bake something worth three stars', unlocked: (p) => did(p, 'baking') },
+  { id: 'bowler', name: 'Bowler hat', icon: '🍺', how: 'Pour a three-star drink behind the bar', unlocked: (p) => did(p, 'bartender') },
+  { id: 'sunhat', name: 'Straw sun hat', icon: '🌻', how: 'Plant a three-star flower', unlocked: (p) => did(p, 'gardening') },
+  { id: 'headscarf', name: 'Polka-dot headscarf', icon: '🧺', how: 'Do a three-star wash at the laundry', unlocked: (p) => did(p, 'laundry') },
+  { id: 'feathercap', name: 'Feathered cap', icon: '🎯', how: 'Score three stars at darts', unlocked: (p) => did(p, 'darts') },
+  { id: 'sailor', name: 'Sailor’s cap', icon: '⚓', how: 'Get three stars skimming stones', unlocked: (p) => did(p, 'skimming') },
+  { id: 'leprechaun', name: 'Leprechaun hat', icon: '🍀', how: 'Make a wish at the wishing well', unlocked: (p) => did(p, 'coin') },
 ];
 
 /** The weather the Storyteller can call for. */

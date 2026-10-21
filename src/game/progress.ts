@@ -18,21 +18,32 @@ function load(): Stored {
       records: Number(raw?.records) || 0,
       ghosts: Number(raw?.ghosts) || 0,
       nights: Number(raw?.nights) || 0,
+      perfect: Array.isArray(raw?.perfect) ? raw!.perfect!.filter((x): x is string => typeof x === 'string').slice(0, 40) : [],
       seen: Array.isArray(raw?.seen) ? raw!.seen!.slice(-400) : [],
     };
   } catch {
-    return { stars: 0, records: 0, ghosts: 0, nights: 0, seen: [] };
+    return { stars: 0, records: 0, ghosts: 0, nights: 0, perfect: [], seen: [] };
   }
 }
 
 /** What this player has done across all their games, kept in their own browser. */
 export const useProgress = create<Stored>(() => load());
 
-function count(kind: keyof Progress, key: string) {
+function count(kind: 'stars' | 'records' | 'ghosts' | 'nights', key: string) {
   const s = useProgress.getState();
   if (s.seen.includes(key)) return;
+  save(s, { ...s, [kind]: s[kind] + 1, seen: [...s.seen, key].slice(-400) });
+}
+
+/** A job done perfectly (all five logs, a three-star catch…): its hat, the first time. */
+export function notePerfect(job: string) {
+  const s = useProgress.getState();
+  if (s.perfect.includes(job)) return;
+  save(s, { ...s, perfect: [...s.perfect, job] });
+}
+
+function save(s: Stored, next: Stored) {
   const before = HATS.filter((h) => h.unlocked(s)).map((h) => h.id);
-  const next: Stored = { ...s, [kind]: s[kind] + 1, seen: [...s.seen, key].slice(-400) };
   useProgress.setState(next);
   try {
     localStorage.setItem(KEY, JSON.stringify(next));
