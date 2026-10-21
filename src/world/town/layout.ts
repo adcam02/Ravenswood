@@ -9,8 +9,13 @@ import { local } from './kit';
 export const TOWN_R = 36;
 export const SQUARE_R = 11;
 /** The meeting circle sits in front of the tower (towards the camera), so nobody is hidden behind it. */
-export const MEETING_CENTRE = { x: 0, z: 7.6 };
-export const STOOL_R = 4.2;
+export const MEETING_CENTRE = { x: 0, z: 7.8 };
+export const STOOL_R = 3.8;
+/**
+ * The meeting dais: a round stone platform south of the tower with two steps all the way round. `r` is the
+ * top's radius, `r2` and `r1` the outer edges of the inner and outer steps; heights are of their tops.
+ */
+export const DAIS = { r: 4.35, r2: 4.63, r1: 4.91, top: 0.45, h2: 0.31, h1: 0.17 };
 /** Anyone this close to the tower counts as being at the meeting. */
 export const MEETING_R = 12.5;
 export const HOUSE_R = 29;
@@ -80,9 +85,14 @@ export const DOCK = { x: 6.5, z0: 12.8, z1: 18.1, w: 2.6 };
  */
 export function groundAt(x: number, z: number): number {
   if (Math.abs(x - DOCK.x) < DOCK.w / 2 && z > DOCK.z0 && z < DOCK.z1) return 0.105;
+  const d = Math.hypot(x - MEETING_CENTRE.x, z - MEETING_CENTRE.z);
+  if (d < DAIS.r) return DAIS.top;
+  if (d < DAIS.r2) return DAIS.h2;
+  if (d < DAIS.r1) return DAIS.h1;
   const r = Math.hypot(x, z);
-  if (r < SQUARE_R - 0.05) return 0.062;
-  if (r < SQUARE_R + 0.45) return 0.07;
+  // The tops of the tallest cobbles (they vary between 5 and 6.5 cm) and of the kerb.
+  if (r < SQUARE_R - 0.05) return 0.066;
+  if (r < SQUARE_R + 0.45) return 0.071;
   return 0;
 }
 export const FISHING = [

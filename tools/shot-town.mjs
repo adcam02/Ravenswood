@@ -23,8 +23,11 @@ const ALL = {
   'square-day': 'x=0&z=6&t=0&meeting',
   'square-night': 'x=0&z=6&t=1&bell',
   // Where the meeting ring runs off the square, over the kerb and the path.
-  'ring-south': 'x=0&z=11&t=0&dist=7&pitch=0.45',
-  'ring-south-low': 'x=1.5&z=11.2&t=0&dist=5&pitch=0.25&yaw=0.5',
+  // The meeting dais, with its steps all round.
+  'dais': 'x=0&z=8&t=0&dist=16&pitch=0.6',
+  'dais-low': 'x=2&z=10&t=0&dist=9&pitch=0.3&yaw=0.6',
+  'dais-meeting': 'x=0&z=8&t=0&dist=14&pitch=0.7&meeting',
+  'dais-steps': 'x=2.2&z=12&t=0&dist=4.5&pitch=0.35&yaw=0.4',
   'tavern-front': 'x=-16&z=2&t=0&yaw=-0.6',
   'pond-dock': 'x=6&z=15&t=0&dist=20',
   'washhouse': 'x=-14&z=17&t=0',

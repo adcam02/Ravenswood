@@ -15,7 +15,7 @@ import { useVoice, voice, type Listener } from '../voice/voice';
 import { AvatarView, type AvatarInfo } from './avatar';
 import { resolve, turnToward } from './collide';
 import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWorld } from './town';
-import { COTTAGE_NAMES, DOCK, SQUARE_R, groundAt } from './town/layout';
+import { COTTAGE_NAMES, DAIS, DOCK, SQUARE_R, groundAt } from './town/layout';
 
 /** Town features that arrive with the effects pass: called only if the town has them. */
 interface TownFx {
@@ -118,7 +118,8 @@ const VOICE_CONNECT_R = 22;
 const WALK = 4.3;
 const RUN = 7.2;
 const FLOAT = 6;
-const STOOL_Y = 0.42;
+/** The top of a meeting stool: a stool's height on the dais. */
+const STOOL_Y = DAIS.top + 0.42;
 
 const JOB_GAMES: Partial<Record<Station['job'], GameJob>> = {
   bartender: 'bartender',
@@ -258,6 +259,8 @@ export class Engine {
   private show: { id: string; seatId: string; name: string; start: number; mine: boolean; released: boolean; alive: boolean } | null = null;
   /** The Storyteller hovering higher than usual, over someone's bed. */
   private hoverY = 0;
+  /** The ground under us, eased, for walking up and down steps. */
+  private groundS = 0;
   private nearDoor: { door: Door; locked: string | null } | null = null;
 
   constructor(
@@ -1255,8 +1258,11 @@ export class Engine {
       return h.emote === emote && h.canSip === canSip ? h : { emote, canSip };
     });
 
-    // Standing (or sitting on the ground) on whatever is underfoot; on a seat, at the seat's height.
-    const myGround = groundY(local.zone, local.x, local.z);
+    // Standing (or sitting on the ground) on whatever is underfoot; on a seat, at the seat's height. Up and
+    // down the dais steps it eases rather than pops (a jump in place, like arriving somewhere, snaps).
+    const groundNow = groundY(local.zone, local.x, local.z);
+    this.groundS = Math.abs(groundNow - this.groundS) > 0.6 ? groundNow : this.groundS + (groundNow - this.groundS) * (1 - Math.exp(-dt * 18));
+    const myGround = this.groundS;
     me.ground = myGround;
     let myY = this.seated ? this.seated.y || myGround : this.hoverY + myGround;
     let dangle: { swing: number; scale: number; hidden: boolean } | null = null;

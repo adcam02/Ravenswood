@@ -20,7 +20,7 @@ import {
   MEETING_CENTRE,
   STOOL_R,
   TOWN_R,
-  groundAt,
+  DAIS,
   meetingSpot,
   bedSpot,
   counterSpot,
@@ -610,34 +610,79 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   sign.visible = false;
   meeting.add(sign);
   {
-    // A ring of red stones marking the circle, there whether or not a meeting is on: a flat band laid on
-    // whatever it crosses (the circle runs off the square's south edge, over the kerb and the path), a few
-    // millimetres up, so it never stands up as a slab and nobody standing on it sinks in.
+    // The meeting dais: a round platform of cut stone with two steps all the way round, built block by block
+    // (the steps' treads paved, their faces coursed like brickwork, with recessed mortar joints), a coping round
+    // the top, a ring of red stones where the stools go, and a bronze compass at the centre. Always there.
     const b = new Builder();
-    const N = 160;
-    const across = [-0.25, 0, 0.25];
-    const at = (j: number, k: number) => {
-      const a = (j / N) * Math.PI * 2;
-      const r = STOOL_R + across[k];
-      const x = MEETING_CENTRE.x + r * Math.sin(a);
-      const z = MEETING_CENTRE.z - r * Math.cos(a);
-      // Off the square, at least as high as the paths (2.4 cm), so it lies on them rather than under.
-      return [x, Math.max(groundAt(x, z), 0.024) + 0.008, z];
+    const at = { x: MEETING_CENTRE.x, z: MEETING_CENTRE.z };
+    let seed = 11;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const P = (a: number, r: number, y: number) => [at.x + r * Math.sin(a), y, at.z - r * Math.cos(a)];
+    const tris = (pts: number[][], color: THREE.ColorRepresentation) => {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pts.flat(), 3));
+      b.add(g, color);
     };
-    const pts: number[] = [];
-    for (let j = 0; j < N; j++) {
-      for (let k = 0; k < across.length - 1; k++) {
-        const a = at(j, k);
-        const bb = at(j, k + 1);
-        const c = at(j + 1, k + 1);
-        const d = at(j + 1, k);
-        pts.push(...a, ...c, ...bb, ...a, ...d, ...c);
+    // One cut stone: the part of a ring between two angles and two radii, from y0 up to y1.
+    const stone = (r0: number, r1: number, a0: number, a1: number, y0: number, y1: number, color: THREE.ColorRepresentation) => {
+      const A0 = P(a0, r0, y0), A1 = P(a0, r0, y1), B0 = P(a0, r1, y0), B1 = P(a0, r1, y1);
+      const D0 = P(a1, r0, y0), D1 = P(a1, r0, y1), C0 = P(a1, r1, y0), C1 = P(a1, r1, y1);
+      tris([A1, C1, B1, A1, D1, C1, B0, B1, C1, B0, C1, C0, A0, D1, A1, A0, D0, D1, A0, A1, B1, A0, B1, B0, D0, C1, D1, D0, C0, C1], color);
+    };
+    // A ring of stones, `size` long each, with mortar joints between them.
+    const course = (r0: number, r1: number, y0: number, y1: number, size: number, colors: string[], vary = 0.05) => {
+      const n = Math.max(8, Math.round((Math.PI * 2 * r1) / size));
+      const off = rnd() * Math.PI;
+      for (let j = 0; j < n; j++) {
+        const gap = 0.022 / r1;
+        const a0 = off + (j / n) * Math.PI * 2 + gap;
+        const a1 = off + ((j + 1) / n) * Math.PI * 2 - gap;
+        stone(r0, r1, a0, a1, y0, y1, shade(colors[Math.floor(rnd() * colors.length)], (rnd() - 0.5) * vary));
       }
+    };
+    // The mortar core of each tier, a little lower and inset, so the joints read as recessed.
+    const core = (r: number, top: number) => {
+      const h = top + 0.05;
+      b.add(G.cyl(64), '#8a7e6c', { pos: [at.x, top - h / 2, at.z], scale: [r, h, r] });
+    };
+    const stepStones = ['#a99c89', '#b2a591', '#a2947f', '#b8ab96'];
+    const topStones = ['#d0c3ae', '#c8baa5', '#d6cab6', '#c2b49e'];
+    core(DAIS.r1 - 0.03, DAIS.h1 - 0.012);
+    core(DAIS.r2 - 0.03, DAIS.h2 - 0.012);
+    core(DAIS.r - 0.03, DAIS.top - 0.012);
+    // The outer step and the inner step: one course of blocks each, reaching in under the tier above.
+    course(DAIS.r2 - 0.12, DAIS.r1, -0.05, DAIS.h1, 0.62, stepStones, 0.07);
+    course(DAIS.r - 0.12, DAIS.r2, DAIS.h1 - 0.02, DAIS.h2, 0.58, stepStones, 0.07);
+    // The coping round the top: bigger stones standing a little proud.
+    course(DAIS.r - 0.34, DAIS.r, DAIS.h2 - 0.02, DAIS.top + 0.014, 0.74, ['#b3a58f', '#aa9c86', '#bbae98'], 0.05);
+    // The top paved in rings of slabs, clear of the red ring, the coping and the compass.
+    const pave = (r0: number, r1: number) => {
+      for (let r = r0; r < r1 - 0.05; r += 0.66) course(r, Math.min(r + 0.66, r1), DAIS.top - 0.03, DAIS.top, 0.8, topStones, 0.05);
+    };
+    pave(0.72, STOOL_R - 0.25);
+    pave(STOOL_R + 0.25, DAIS.r - 0.36);
+    // The red ring of stones the stools stand on.
+    course(STOOL_R - 0.24, STOOL_R + 0.24, DAIS.top - 0.03, DAIS.top + 0.004, 0.46, ['#b98e74', '#b08367', '#c0977c'], 0.05);
+    // A bronze compass at the centre: a ring, a darker disc and a four-pointed star.
+    course(0.52, 0.68, DAIS.top - 0.03, DAIS.top + 0.006, 0.3, ['#9a7a45', '#a58450'], 0.03);
+    b.add(G.cyl(40), '#8c7d68', { pos: [at.x, DAIS.top - 0.012, at.z], scale: [0.53, 0.03, 0.53] });
+    for (let k = 0; k < 8; k++) {
+      const a = (k / 8) * Math.PI * 2;
+      const long = k % 2 === 0 ? 0.48 : 0.26;
+      const side = 0.07;
+      tris([P(a - 0.0001, 0, DAIS.top + 0.005), P(a, long, DAIS.top + 0.005), P(a - Math.atan2(side, 0.1), 0.12, DAIS.top + 0.005)], '#c9a35c');
+      tris([P(a, 0, DAIS.top + 0.005), P(a + Math.atan2(side, 0.1), 0.12, DAIS.top + 0.005), P(a, long, DAIS.top + 0.005)], '#a8843e');
     }
-    const band = new THREE.BufferGeometry();
-    band.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-    b.add(band, '#b98e74');
-    const ring = b.mesh(matte(), { cast: false });
+    // A little moss where the steps meet, here and there.
+    for (let k = 0; k < 16; k++) {
+      const a = rnd() * Math.PI * 2;
+      const outer = k % 2 === 0;
+      const r = outer ? DAIS.r2 + 0.05 + rnd() * 0.04 : DAIS.r + 0.05 + rnd() * 0.04;
+      const y = outer ? DAIS.h1 : DAIS.h2;
+      const [x, , z] = P(a, r, y);
+      b.add(G.sphere(10, 6), k % 3 ? '#6c8548' : '#5d7640', { pos: [x, y + 0.004, z], rot: [0, a, 0], scale: [0.16 + rnd() * 0.12, 0.022, 0.07 + rnd() * 0.05] });
+    }
+    const ring = b.mesh(matte(), { cast: true });
     outdoor.group.add(ring);
   }
   // The clock hands from the grimoire's vote clock, laid on the cobbles: an antique spade hand each for the
@@ -709,6 +754,8 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     }
     sweep.instanceMatrix.needsUpdate = true;
   };
+  // Everything for a meeting stands on the dais.
+  meeting.position.y = DAIS.top;
   outdoor.group.add(meeting);
 
   // The state the world keeps between calls.
@@ -889,7 +936,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     doors: makeDoors(),
     stations: makeStations(),
     houseSlots,
-    spawn: { x: 0, z: 13.2, ry: Math.PI },
+    spawn: { x: 0, z: 13.7, ry: Math.PI },
     homeSpawn: { x: BED.x - 1.7, z: BED.z + 1.1, ry: Math.PI / 2 },
     meetingSpot,
     meetingRadius: MEETING_R,

@@ -472,6 +472,11 @@ class AnimalRig implements Rig {
   private blinkAt = 2 + Math.random() * 3;
   private blinkT = -1;
   private seed = Math.random() * 100;
+  /**
+   * How far the body reaches below its feet at rest (a sculpted foot is rounded underneath): the whole
+   * animal is raised by this, so it stands on the ground rather than in it.
+   */
+  private footLift = 0;
   private prof: Profile;
   private clip: { name: Mannerism; t0: number; dur: number; side: number; data: number[] } | null = null;
   private nextClip = 1.5 + Math.random() * 3;
@@ -608,6 +613,15 @@ class AnimalRig implements Rig {
     for (const [name, rot] of Object.entries(k.bind ?? {})) this.bones.get(name)?.rotation.set(...rot);
     this.root.updateMatrixWorld(true);
     this.mesh.bind(new THREE.Skeleton(this.sk.names.map(bone)));
+    {
+      // The lowest point of the body at rest, leaving out the tail (kept clear of the ground on its own).
+      const pos = this.highGeo.getAttribute('position') as THREE.BufferAttribute;
+      const idx = this.highGeo.getAttribute('skinIndex') as THREE.BufferAttribute;
+      const tails = new Set(this.chainOf('tail').map((n) => this.sk.names.indexOf(n)));
+      let low = 0;
+      for (let i = 0; i < pos.count; i++) if (!tails.has(idx.getX(i))) low = Math.min(low, pos.getY(i));
+      this.footLift = Math.min(0.05, -low);
+    }
     // Everything an animal does stays within this, so there's no need to work it out each frame.
     this.mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.5, 0), 1.4);
 
@@ -1704,7 +1718,7 @@ class AnimalRig implements Rig {
     // (A bat only stays up while it's flying: with its wings folded it stands.)
     const floating = (this.floats && !(this.flaps && this.folded(s))) || this.ghost;
     const h = s.anim === 'sleep' ? 0.03 : this.floats ? this.hover : 0.35;
-    const fy = floating ? h + Math.sin(s.t * 2 + this.seed) * 0.06 : 0;
+    const fy = (floating ? h + Math.sin(s.t * 2 + this.seed) * 0.06 : 0) + this.footLift;
     this.float.position.y += (fy - this.float.position.y) * (1 - Math.exp(-dt * 6));
     if (floating) this.wisp.rotation.z = Math.sin(s.t * 3 + this.seed) * 0.15;
     this.keepClearOfGround();
