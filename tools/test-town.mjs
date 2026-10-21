@@ -533,9 +533,18 @@ await check('game: ringing the bell gathers everyone at the square', async () =>
   await place(players.abbey, 'town', 1, 9, 0);
   for (const p of all().filter((q) => q !== players.abbey)) await place(p, 'town', -20, 20, 0);
   await sleep(1500);
+  // Each page notes the moment the bell call appears (a slow page may already be seated by the time we look).
+  for (const p of all()) {
+    await p.evaluate(() => {
+      window.__sawBell = Boolean(document.querySelector('.bell-call'));
+      new MutationObserver(() => {
+        if (document.querySelector('.bell-call')) window.__sawBell = true;
+      }).observe(document.body, { childList: true, subtree: true });
+    });
+  }
   await st.evaluate(() => window.__st.st.callTownHall());
-  for (const p of all()) await p.waitForSelector('.bell-call', { timeout: 8000 }).catch(() => expect(false, `${p.label} never saw the bell`));
   await shot(players.abbey, '16-bell');
+  for (const p of all()) await until(p, () => window.__sawBell, null, 20000, 'to see the bell call');
   // Everyone is taken to their stool on their own; the host sees them arrive.
   for (const p of all()) await until(p, () => window.__hud.getState().meetingSeated, null, 30000, 'to be seated at the meeting');
   // Once everyone is there the bell stops, but the meeting (and the stools) carry on.
