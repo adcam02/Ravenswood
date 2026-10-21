@@ -211,9 +211,11 @@ if (view === 'grid' || view === 'night') {
 } else if (view === 'one') {
   // One animal, big: ?animal=fox&ry=0&anim=idle&item=ale&dist=2.2 (framed so it's most of the picture's height).
   const id = (q.get('animal') ?? 'raccoon') as AnimalId;
-  const info = ANIMALS.find((a) => a.id === id)!;
+  const info = ANIMALS.find((a) => a.id === id);
   const anim = (q.get('anim') ?? 'idle') as Anim;
-  const r = place(make({ animal: id, color: q.get('color') ?? info.colors[Number(q.get('c') ?? 0)] ?? info.colors[0] }), 0, 0, anim, anim === 'run' ? 4 : anim === 'walk' ? 1.6 : 0, Number(q.get('ry') ?? 0));
+  // (?animal=storyteller for the Storyteller.)
+  const built = (id as string) === 'storyteller' ? buildStoryteller() : make({ animal: id, color: q.get('color') ?? info!.colors[Number(q.get('c') ?? 0)] ?? info!.colors[0] });
+  const r = place(built, 0, 0, anim, anim === 'run' ? 4 : anim === 'walk' ? 1.6 : 0, Number(q.get('ry') ?? 0));
   if (q.get('item')) r.setItem({ k: q.get('item') as ItemKind });
   if (q.has('ghost')) r.setGhost(true);
   camera.fov = 22;
