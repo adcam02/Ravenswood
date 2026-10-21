@@ -72,6 +72,19 @@ export const LINE_Y = 1.95;
 /** On the open grass south-east of the square, inside the ring road and away from the gallows. */
 export const POND = { x: 6.5, z: 17.8, rx: 4.6, rz: 4.0 };
 export const DOCK = { x: 6.5, z0: 12.8, z1: 18.1, w: 2.6 };
+
+/**
+ * How high the walking surface is at a spot in the town: the square's cobbles and kerb stand a few
+ * centimetres proud of the grass, and the pier's deck higher again, so animals stand on them rather than
+ * sinking in. (The grass is flat everywhere in town; indoors the floors are at 0.)
+ */
+export function groundAt(x: number, z: number): number {
+  if (Math.abs(x - DOCK.x) < DOCK.w / 2 && z > DOCK.z0 && z < DOCK.z1) return 0.105;
+  const r = Math.hypot(x, z);
+  if (r < SQUARE_R - 0.05) return 0.062;
+  if (r < SQUARE_R + 0.45) return 0.07;
+  return 0;
+}
 export const FISHING = [
   { x: 5.8, z: 17.3 },
   { x: 7.2, z: 17.3 },

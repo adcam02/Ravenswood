@@ -418,8 +418,22 @@ function aim(shoulder: THREE.Vector3, grip: THREE.Vector3, target: THREE.Vector3
   return { ax, az, s };
 }
 
+/** How far below the ground a tail (or a tentacle) may reach before it's lifted: a hair, so it still rests. */
+const CLEAR_FLOOR = -0.012;
+const kcV = new THREE.Vector3();
+const kcLow = new THREE.Vector3();
+const kcPivot = new THREE.Vector3();
+const kcAxis = new THREE.Vector3();
+const kcUp = new THREE.Vector3(0, 1, 0);
+const kcToRoot = new THREE.Matrix4();
+const kcQ = new THREE.Quaternion();
+const kcQr = new THREE.Quaternion();
+const kcQp = new THREE.Quaternion();
+
 class AnimalRig implements Rig {
   root = new THREE.Group();
+  /** A few points near the ends of the tail (and tentacles), in their bones' own space, grouped by chain. */
+  private lowPoints: { pivot: THREE.Bone; points: { bone: THREE.Bone; local: THREE.Vector3 }[] }[] | null = null;
   headHeight = 1;
   private float = new THREE.Group();
   private bones = new Map<string, THREE.Bone>();
@@ -1693,6 +1707,7 @@ class AnimalRig implements Rig {
     const fy = floating ? h + Math.sin(s.t * 2 + this.seed) * 0.06 : 0;
     this.float.position.y += (fy - this.float.position.y) * (1 - Math.exp(-dt * 6));
     if (floating) this.wisp.rotation.z = Math.sin(s.t * 3 + this.seed) * 0.15;
+    this.keepClearOfGround();
 
     // Blinking (and eyes half shut for some mannerisms).
     this.blinkAt -= dt;
@@ -1719,6 +1734,94 @@ class AnimalRig implements Rig {
     this.lastSpeed = moving;
     this.lastT = s.t + this.seed;
     for (const w of Object.values(this.worn)) w?.piece.update?.(s.t + this.seed, dt, moving);
+  }
+
+  /** The bones in a chain: this one and everything hanging off it. */
+  private chainOf(name: string): string[] {
+    const out = [name];
+    for (const n of this.sk.names) {
+      for (let p = this.sk.parent.get(n); p; p = this.sk.parent.get(p)) {
+        if (p === name) {
+          out.push(n);
+          break;
+        }
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Sample points on the tail (and, for animals that walk on tentacles, the legs): an even spread of up to
+   * 120 of each bone's vertices (a pose can turn any part of it downward), kept in that bone's own space.
+   */
+  private findLowPoints() {
+    const pos = this.highGeo.getAttribute('position') as THREE.BufferAttribute;
+    const idx = this.highGeo.getAttribute('skinIndex') as THREE.BufferAttribute;
+    const wgt = this.highGeo.getAttribute('skinWeight') as THREE.BufferAttribute;
+    const bones = this.mesh.skeleton.bones;
+    const inverses = this.mesh.skeleton.boneInverses;
+    const roots = ['tail', ...(this.prof.gait === 'scuttle' ? ['legL', 'legR'] : [])];
+    const groups: NonNullable<AnimalRig['lowPoints']> = [];
+    for (const rootName of roots) {
+      const pivot = this.bones.get(rootName);
+      if (!pivot) continue;
+      const points: { bone: THREE.Bone; local: THREE.Vector3 }[] = [];
+      for (const name of this.chainOf(rootName)) {
+        const bi = this.sk.names.indexOf(name);
+        const mine: number[] = [];
+        for (let i = 0; i < pos.count; i++) {
+          // Mostly carried by this bone.
+          let top = 0;
+          for (let k = 1; k < 4; k++) if (wgt.getComponent(i, k) > wgt.getComponent(i, top)) top = k;
+          if (idx.getComponent(i, top) === bi && wgt.getComponent(i, top) >= 0.5) mine.push(i);
+        }
+        if (!mine.length) continue;
+        const step = Math.max(1, Math.ceil(mine.length / 120));
+        for (let k = 0; k < mine.length; k += step) {
+          points.push({ bone: bones[bi], local: new THREE.Vector3().fromBufferAttribute(pos, mine[k]).applyMatrix4(inverses[bi]) });
+        }
+      }
+      if (points.length) groups.push({ pivot, points });
+    }
+    return groups;
+  }
+
+  /**
+   * Tails (and tentacles) never go through the ground: whatever the pose, if a point near the end would dip
+   * below it, the chain's root bone turns just enough to lift it clear. Worked out fresh each frame from the
+   * pose, so nothing builds up.
+   */
+  private keepClearOfGround() {
+    const groups = (this.lowPoints ??= this.findLowPoints());
+    if (!groups.length) return;
+    this.root.updateMatrixWorld(true);
+    kcToRoot.copy(this.root.matrixWorld).invert();
+    for (const g of groups) {
+      for (let iter = 0; iter < 4; iter++) {
+        let lowY = Infinity;
+        for (const p of g.points) {
+          kcV.copy(p.local).applyMatrix4(p.bone.matrixWorld).applyMatrix4(kcToRoot);
+          if (kcV.y < lowY) {
+            lowY = kcV.y;
+            kcLow.copy(kcV);
+          }
+        }
+        if (lowY >= CLEAR_FLOOR) break;
+        kcPivot.setFromMatrixPosition(g.pivot.matrixWorld).applyMatrix4(kcToRoot);
+        const dir = kcLow.sub(kcPivot);
+        const reach = Math.max(0.06, dir.length());
+        kcAxis.crossVectors(dir, kcUp);
+        if (kcAxis.lengthSq() < 1e-8) break;
+        kcAxis.normalize();
+        // The axis, from the animal's space into the pivot's parent's, then turn the pivot about it.
+        this.root.getWorldQuaternion(kcQr);
+        g.pivot.parent!.getWorldQuaternion(kcQp);
+        kcQr.invert().multiply(kcQp).invert();
+        kcAxis.applyQuaternion(kcQr);
+        g.pivot.quaternion.premultiply(kcQ.setFromAxisAngle(kcAxis, (CLEAR_FLOOR - lowY + 0.004) / reach));
+        g.pivot.updateMatrixWorld(true);
+      }
+    }
   }
 
   private updateDrips(dt: number) {

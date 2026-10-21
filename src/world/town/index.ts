@@ -611,7 +611,8 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   {
     // A ring of red stones marking the circle, there whether or not a meeting is on.
     const b = new Builder();
-    b.add(G.torus(0.09, 4, 48), '#b98e74', { pos: [MEETING_CENTRE.x, 0.075, MEETING_CENTRE.z], rot: [Math.PI / 2, 0, 0], scale: [STOOL_R, STOOL_R, 1] });
+    // Flattened to a band about 2 cm proud of the cobbles, so nobody standing on it sinks in.
+    b.add(G.torus(0.09, 4, 48), '#b98e74', { pos: [MEETING_CENTRE.x, 0.066, MEETING_CENTRE.z], rot: [Math.PI / 2, 0, 0], scale: [STOOL_R, STOOL_R, 0.15] });
     const ring = b.mesh(matte(), { cast: false });
     outdoor.group.add(ring);
   }

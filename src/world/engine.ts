@@ -15,7 +15,7 @@ import { useVoice, voice, type Listener } from '../voice/voice';
 import { AvatarView, type AvatarInfo } from './avatar';
 import { resolve, turnToward } from './collide';
 import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWorld } from './town';
-import { COTTAGE_NAMES, DOCK, SQUARE_R } from './town/layout';
+import { COTTAGE_NAMES, DOCK, SQUARE_R, groundAt } from './town/layout';
 
 /** Town features that arrive with the effects pass: called only if the town has them. */
 interface TownFx {
@@ -34,6 +34,8 @@ function surfaceAt(zone: ZoneId, x: number, z: number): 'stone' | 'wood' | 'gras
   if (Math.hypot(x, z) < SQUARE_R) return 'stone';
   return 'grass';
 }
+/** The height of the floor or ground at a spot: the cobbles and the pier are raised a little in town. */
+const groundY = (zone: ZoneId, x: number, z: number) => (zoneKind(zone) === 'town' ? groundAt(x, z) : 0);
 const onDock = (zone: ZoneId, x: number, z: number) => zone === 'town' && Math.abs(x - DOCK.x) < DOCK.w / 2 && z > DOCK.z0 && z < DOCK.z1;
 
 /** Beyond this far from the camera's focus, animals switch to their lighter model; name tags hide beyond the next. */
@@ -1253,7 +1255,10 @@ export class Engine {
       return h.emote === emote && h.canSip === canSip ? h : { emote, canSip };
     });
 
-    let myY = this.seated?.y ?? this.hoverY;
+    // Standing (or sitting on the ground) on whatever is underfoot; on a seat, at the seat's height.
+    const myGround = groundY(local.zone, local.x, local.z);
+    me.ground = myGround;
+    let myY = this.seated ? this.seated.y || myGround : this.hoverY + myGround;
     let dangle: { swing: number; scale: number; hidden: boolean } | null = null;
     if (this.show?.mine) {
       const sp = this.showPose(this.showAge(t), this.bodyOf(me));
@@ -1535,7 +1540,8 @@ export class Engine {
         av.snap();
         anim = sp.anim;
         dangle = sp;
-      } else av.setTarget(p.x, p.z, p.ry, sitting ? this.seatHeight(p.zone, p.anim, p.x, p.z) : 0);
+      } else av.setTarget(p.x, p.z, p.ry, sitting ? this.seatHeight(p.zone, p.anim, p.x, p.z) : groundY(p.zone, p.x, p.z));
+      av.ground = groundY(p.zone, p.x, p.z);
       // Only the Storyteller carries the book.
       av.setItem(key !== 'st' && p.item?.k === 'grimoire' ? null : p.item);
       // Far away: a lighter model, and no name tag (the Storyteller sees every name).
@@ -1569,7 +1575,7 @@ export class Engine {
         if (Math.hypot(spot.x - x, spot.z - z) < 0.6) return STOOL_Y;
       }
     }
-    return 0;
+    return groundY(zone, x, z);
   }
 
   /** Anything standing between the camera and our animal turns see-through, so we're never hidden behind the church. */

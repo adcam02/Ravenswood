@@ -131,6 +131,8 @@ export class AvatarView {
   private petKey = '';
   private pet: Pet | null = null;
   private petPos = new THREE.Vector3();
+  /** The height of the ground under this animal (the cobbles, the pier), for its shadow and pet. */
+  ground = 0;
   private petRy = 0;
   private detail: 'high' | 'low' = 'high';
   private hand: THREE.Group | null = null;
@@ -382,9 +384,9 @@ export class AvatarView {
     this.speed += (moved - this.speed) * Math.min(1, dt * 10);
     const root = this.rig.root;
     // The blob shadow stays on the floor, fainter and smaller the higher they float or sit.
-    const lift = Math.max(0, this.y);
+    const lift = Math.max(0, this.y - this.ground);
     this.blob.visible = !this.away && !this.info.storyteller;
-    this.blob.position.set(this.x, 0.025, this.z);
+    this.blob.position.set(this.x, this.ground + 0.025, this.z);
     this.blob.scale.setScalar(Math.max(0.5, 0.95 - lift * 0.25));
     this.blobMat.opacity = (this.ghost ? 0.35 : 1) * Math.max(0.25, 1 - lift * 0.6);
     if (this.pet) {
@@ -410,7 +412,7 @@ export class AvatarView {
       }
       const root = this.pet.root;
       root.visible = !this.away;
-      root.position.set(this.petPos.x, 0, this.petPos.z);
+      root.position.set(this.petPos.x, this.ground, this.petPos.z);
       let d = this.petRy - root.rotation.y;
       while (d > Math.PI) d -= Math.PI * 2;
       while (d < -Math.PI) d += Math.PI * 2;

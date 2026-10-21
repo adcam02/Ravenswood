@@ -23,7 +23,7 @@ const LEVEL = {
   clink: 0.012,
   hum: 0.028,
   rain: 0.09,
-  steps: 0.11,
+  steps: 0.07,
 };
 
 const hz = (midi: number) => 440 * 2 ** ((midi - 69) / 12);
@@ -230,48 +230,56 @@ class Ambience {
     this.lastUpdate = 0;
   }
 
-  /** One footstep: a stone tap, a wooden knock or a soft swish of grass. `volume` is 0 to 1. */
+  /**
+   * One footstep: a soft padded thud on stone, a low hollow knock on wood, a faint brush of grass. Kept low
+   * and rounded on purpose: no bright clicks or hiss, which turn into a piercing tick when repeated every
+   * step. `volume` is 0 to 1.
+   */
   footstep(surface: 'stone' | 'wood' | 'grass', volume = 1) {
     const ctx = this.ctx;
     if (!ctx || !this.stepNoise || !this.enabled || volume <= 0) return;
     const at = ctx.currentTime + 0.005;
+    const v = volume * (0.8 + Math.random() * 0.3);
+    // The body of the step: a little low noise, rounded off.
     const src = ctx.createBufferSource();
     src.buffer = this.stepNoise;
     const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.Q.value = 0.5;
     const g = ctx.createGain();
-    const v = volume * (0.75 + Math.random() * 0.4);
-    let len = 0.06;
+    let level = 0.5;
+    let attack = 0.018;
+    let len = 0.11;
     if (surface === 'stone') {
-      filter.type = 'bandpass';
-      filter.frequency.value = 1500 + Math.random() * 600;
-      filter.Q.value = 1.4;
-      len = 0.05;
+      filter.frequency.value = 380 + Math.random() * 80;
+      level = 0.55;
     } else if (surface === 'wood') {
-      filter.type = 'lowpass';
-      filter.frequency.value = 900 + Math.random() * 200;
-      len = 0.07;
-      // The board answers with a little hollow knock.
+      filter.frequency.value = 320 + Math.random() * 60;
+      level = 0.4;
+      len = 0.12;
+      // The board answers with a soft, low knock.
       const o = ctx.createOscillator();
       o.type = 'sine';
-      o.frequency.setValueAtTime(170 + Math.random() * 40, at);
-      o.frequency.exponentialRampToValueAtTime(90, at + 0.08);
+      o.frequency.setValueAtTime(115 + Math.random() * 20, at);
+      o.frequency.exponentialRampToValueAtTime(70, at + 0.1);
       const og = ctx.createGain();
       og.gain.setValueAtTime(0.0001, at);
-      og.gain.exponentialRampToValueAtTime(0.5 * v, at + 0.005);
-      og.gain.exponentialRampToValueAtTime(0.0001, at + 0.1);
+      og.gain.exponentialRampToValueAtTime(0.35 * v, at + 0.015);
+      og.gain.exponentialRampToValueAtTime(0.0001, at + 0.14);
       o.connect(og).connect(this.layers.steps);
       o.start(at);
-      o.stop(at + 0.12);
+      o.stop(at + 0.16);
     } else {
-      filter.type = 'highpass';
-      filter.frequency.value = 2200 + Math.random() * 800;
-      len = 0.11;
+      filter.frequency.value = 700 + Math.random() * 150;
+      level = 0.25;
+      attack = 0.03;
+      len = 0.15;
     }
     g.gain.setValueAtTime(0.0001, at);
-    g.gain.exponentialRampToValueAtTime(v * (surface === 'grass' ? 0.5 : 0.8), at + 0.006);
+    g.gain.exponentialRampToValueAtTime(v * level, at + attack);
     g.gain.exponentialRampToValueAtTime(0.0001, at + len);
     src.connect(filter).connect(g).connect(this.layers.steps);
-    src.start(at, Math.random() * 0.8, len + 0.02);
+    src.start(at, Math.random() * 0.8, len + 0.03);
   }
 
   /** Rain: two bands of noise, a soft hiss and a lower patter. */
