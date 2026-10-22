@@ -12,8 +12,8 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
 1. **The Storyteller opens the site** and chooses **Host a game**. The invite link is under the room
    code at the top left.
 2. **Players open the link**, type their name and pick an animal and colour (36 to choose from, from
-   wolf and fox to axolotl, snail, squid, a bat that flaps its wings, raven, wombat, jellyfish and
-   gecko). Aquatic animals are a little bit wet, and up close there are little touches: toes on the
+   wolf and fox to axolotl, snail, squid, a bat that flaps its wings, raven, wombat, jellyfish, gecko,
+   ferret, dugong, sea cucumber, ibis, crab and turtle). Aquatic animals are a little bit wet, and up close there are little touches: toes on the
    paws, the bear's claws, the bunny's buck teeth, suckers down the octopus's tentacles. Each animal belongs to one player: animals someone
    else has, or is looking at right now, are greyed out with their name, and if two people click the
    same one at the same moment the first gets it and the other is asked to pick again. Anyone named Jarrod is the bunny, skips the picker, and nobody else can be the bunny.
