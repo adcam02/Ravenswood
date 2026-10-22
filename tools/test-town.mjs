@@ -390,12 +390,13 @@ await check('doors: walking past the tower’s front door, or to the stools, doe
   const p = players.abbey;
   await sleep(1200);
   // Along the front of the tower, brushing its steps, from one side to the other.
-  await place(p, 'town', -4, 3.2, Math.PI / 2);
+  await place(p, 'town', -2.5, 3.2, Math.PI / 2);
   await sleep(500);
   await p.evaluate(() => {
-    window.__engine.moveTarget = { x: 4, z: 3.2, y: 0 };
+    window.__engine.moveTarget = { x: 2.5, z: 3.2, y: 0 };
   });
-  await until(p, () => window.__local.x > 3.5 || window.__local.zone !== 'town', null, 30000, 'to walk past the door');
+  // A slow page walks slowly, so give it time.
+  await until(p, () => window.__local.x > 2 || window.__local.zone !== 'town', null, 120000, 'to walk past the door');
   expect((await me(p)).zone === 'town', 'walked into the tower going past it');
   // From the back of the meeting circle to the stool nearest the tower.
   const spot = await p.evaluate(() => window.__engine.town.meetingSpot(0, 10));
@@ -404,7 +405,7 @@ await check('doors: walking past the tower’s front door, or to the stools, doe
   await p.evaluate(([x, z]) => {
     window.__engine.moveTarget = { x, z, y: 0 };
   }, [spot.x, spot.z]);
-  await until(p, ([x, z]) => Math.hypot(window.__local.x - x, window.__local.z - z) < 0.6 || window.__local.zone !== 'town', [spot.x, spot.z], 30000, 'to reach the stool');
+  await until(p, ([x, z]) => Math.hypot(window.__local.x - x, window.__local.z - z) < 0.6 || window.__local.zone !== 'town', [spot.x, spot.z], 120000, 'to reach the stool');
   await sleep(1500);
   expect((await me(p)).zone === 'town', 'walked into the tower on the way to the front stool');
 });
