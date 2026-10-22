@@ -10,11 +10,12 @@ import { Wine, ChaliceArt } from './Wine';
 import { Firewood, LogArt } from './Firewood';
 import { Skimming, StoneArt } from './Skimming';
 import { Coin, CoinArt } from './Coin';
+import { Clock, ClockArt } from './Clock';
 import { Stars, useKeys, type GameProps, type Summary } from './shared';
 import { sfx } from './sfx';
 
 export { setJobsMuted } from './sfx';
-export { DrinkIcon, ClothArt, FishArt, BakeArt, FlowerArt, DartsArt, BreadArt, ChaliceArt, LogArt, StoneArt, CoinArt };
+export { DrinkIcon, ClothArt, FishArt, BakeArt, FlowerArt, DartsArt, BreadArt, ChaliceArt, LogArt, StoneArt, CoinArt, ClockArt };
 export type { FishTier };
 
 export { SCORE_OF, SCORE_LABEL, JOB_TITLES, type GameJob, type JobResults, type Bests } from './meta';
@@ -32,6 +33,7 @@ const FIRST_HINT: Record<GameJob, string> = {
   firewood: 'Press when the mark is on the centre line.',
   skimming: 'Press to lock the angle. Low and flat is best.',
   coin: 'Press to toss when the ring is over the well.',
+  clock: 'Tap on every tick, as the pendulum passes the red mark.',
 };
 
 const GAMES: { [J in GameJob]: ComponentType<GameProps<JobResults[J]>> } = {
@@ -46,6 +48,7 @@ const GAMES: { [J in GameJob]: ComponentType<GameProps<JobResults[J]>> } = {
   firewood: Firewood,
   skimming: Skimming,
   coin: Coin,
+  clock: Clock,
 };
 
 function JobIcon({ job }: { job: GameJob }): ReactNode {
@@ -72,6 +75,8 @@ function JobIcon({ job }: { job: GameJob }): ReactNode {
       return <StoneArt size={36} />;
     case 'coin':
       return <CoinArt size={34} />;
+    case 'clock':
+      return <ClockArt size={36} />;
   }
 }
 

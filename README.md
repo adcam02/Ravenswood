@@ -33,6 +33,11 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    - **Darts** in the tavern, **breaking bread** into even halves and thirds and **pouring wine** into
      a moving chalice at the church lectern, **chopping firewood** at the woodpile, **stone skimming**
      at the pond bank and **tossing a coin** into the well.
+   - **Keeping time** at the clock in the tower: tap along with the pendulum's tick-tock (a new tempo
+     every go, 70 to 100 beats a minute), then the case shuts, the ticking stops and you keep tapping in
+     time for eight more ticks on your own. Every tap moves the clock on, and says if it was early, late
+     or spot on. The score is how close you kept to the real beat; a steady lag of up to 30ms, measured
+     while you tap along, is let off, since screens, speakers and keyboards all run a little behind.
    You only need to be near a game's spot to start it: the prompt shows up from a few steps away. At
    the washhouse the roof fades when you walk underneath, but the washing stays solid.
    Three stars take real skill: drinks and watering run on a moment after you let go, the timing games
@@ -111,8 +116,9 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    job has its own hat too, for doing it perfectly (all five logs split, three stars, a wish come
    true): a lumberjack beanie for chopping wood, a sou'wester for fishing, a mitre for the bread or
    wine at church, a chef's hat for baking, a bowler for the bar, a straw sun hat for gardening, a
-   headscarf for the laundry, a feathered cap for darts, a sailor's cap for skimming stones and a
-   leprechaun hat for the wishing well. A new hat pops up on screen with your animal wearing it and a
+   headscarf for the laundry, a feathered cap for darts, a sailor's cap for skimming stones, a
+   leprechaun hat for the wishing well and a clockmaker's cap (with a little clock, a cog and a loupe)
+   for keeping time. A new hat pops up on screen with your animal wearing it and a
    **Wear it now** button. Hats are remembered in each player's own browser and chosen under the
    colours in the animal picker; locked ones say how to earn them.
 

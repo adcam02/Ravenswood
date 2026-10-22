@@ -672,6 +672,19 @@
   animation: job-twinkle 0.6s ease-in-out infinite alternate;
 }
 
+/* ---------------------------------------------------------------- the clock tower */
+
+/* Words and the tip keep clear of the pendulum and its red mark. */
+.job-tower .job-pop {
+  left: 23%;
+  top: 30%;
+}
+
+.job-tower .job-tip {
+  top: 8px;
+  bottom: auto;
+}
+
 @media (max-width: 480px) {
   .job-panel {
     padding: 10px;

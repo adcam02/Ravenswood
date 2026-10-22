@@ -32,6 +32,7 @@ const BESTS: Record<GameJob, Bests> = {
   firewood: { personal: 3, town: { by: 'Mika', score: 4 } },
   skimming: { personal: 4, town: { by: 'Theo', score: 6 } },
   coin: { personal: 0 },
+  clock: { personal: 72, town: { by: 'Mika', score: 84 } },
 };
 
 const results: unknown[] = [];

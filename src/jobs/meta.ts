@@ -4,7 +4,7 @@ import type { FishTier } from './Fishing';
 
 export type { FishTier };
 
-export type GameJob = 'bartender' | 'laundry' | 'fishing' | 'baking' | 'gardening' | 'darts' | 'bread' | 'wine' | 'firewood' | 'skimming' | 'coin';
+export type GameJob = 'bartender' | 'laundry' | 'fishing' | 'baking' | 'gardening' | 'darts' | 'bread' | 'wine' | 'firewood' | 'skimming' | 'coin' | 'clock';
 
 export interface JobResults {
   bartender: { kind: DrinkKind; stars: number };
@@ -23,6 +23,8 @@ export interface JobResults {
   skimming: { bounces: number; stars: number };
   /** landed in the well → a one-line fortune */
   coin: { wish: boolean; stars: number; fortune: string };
+  /** accuracy 0..100 from `ms`, the average miss in milliseconds, at `bpm` beats a minute */
+  clock: { accuracy: number; ms: number; bpm: number; stars: number };
 }
 
 /** The number that counts for records, per game. */
@@ -40,6 +42,7 @@ export const SCORE_OF: {
   firewood: (r) => r.logs,
   skimming: (r) => r.bounces,
   coin: (r) => (r.wish ? 1 : 0),
+  clock: (r) => r.accuracy,
 };
 
 const starsLabel = (s: number) => `${s} star${s === 1 ? '' : 's'}`;
@@ -57,6 +60,7 @@ export const SCORE_LABEL: Record<GameJob, (score: number) => string> = {
   firewood: (s) => `${s} of 5 logs`,
   skimming: (s) => `${s} skip${s === 1 ? '' : 's'}`,
   coin: (s) => (s ? 'a wish' : 'no wish'),
+  clock: (s) => `${s}% in time`,
 };
 
 export const JOB_TITLES: Record<GameJob, string> = {
@@ -71,6 +75,7 @@ export const JOB_TITLES: Record<GameJob, string> = {
   firewood: 'Chopping wood',
   skimming: 'Stone skimming',
   coin: 'Wishing well',
+  clock: 'Keeping time',
 };
 
 /** What to beat: your own best and the town's, in the game's score. */

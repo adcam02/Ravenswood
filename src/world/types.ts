@@ -194,7 +194,8 @@ export type HatId =
   | 'headscarf'
   | 'feathercap'
   | 'sailor'
-  | 'leprechaun';
+  | 'leprechaun'
+  | 'clockmaker';
 
 /** What a player has done across all their games, kept in their own browser. */
 export interface Progress {
@@ -227,6 +228,7 @@ export const HATS: { id: HatId; name: string; icon: string; how: string; unlocke
   { id: 'feathercap', name: 'Feathered cap', icon: '🎯', how: 'Score three stars at darts', unlocked: (p) => did(p, 'darts') },
   { id: 'sailor', name: 'Sailor’s cap', icon: '⚓', how: 'Get three stars skimming stones', unlocked: (p) => did(p, 'skimming') },
   { id: 'leprechaun', name: 'Leprechaun hat', icon: '🍀', how: 'Make a wish at the wishing well', unlocked: (p) => did(p, 'coin') },
+  { id: 'clockmaker', name: 'Clockmaker’s cap', icon: '🕰️', how: 'Get three stars keeping time in the clock tower', unlocked: (p) => did(p, 'clock') },
 ];
 
 /** The weather the Storyteller can call for. */
@@ -360,6 +362,7 @@ export type JobId =
   | 'firewood'
   | 'skimming'
   | 'coin'
+  | 'clock'
   | 'takeDrink'
   | 'takeBread'
   | 'sleep'

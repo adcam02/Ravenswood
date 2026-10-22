@@ -16,6 +16,7 @@ import { AvatarView, type AvatarInfo } from './avatar';
 import { resolve, turnToward } from './collide';
 import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWorld } from './town';
 import { COTTAGE_NAMES, DAIS, DOCK, MEETING_CENTRE, SQUARE_R, groundAt } from './town/layout';
+import { nearPath } from './town/outdoor';
 import { Fireworks } from './fireworks';
 import { reportProblem } from '../lib/report';
 import { notePerfect } from '../game/progress';
@@ -45,6 +46,8 @@ function surfaceAt(zone: ZoneId, x: number, z: number): 'stone' | 'wood' | 'gras
 /** The height of the floor or ground at a spot: the cobbles and the pier are raised a little in town. */
 const groundY = (zone: ZoneId, x: number, z: number) => (zoneKind(zone) === 'town' ? groundAt(x, z) : 0);
 const onDock = (zone: ZoneId, x: number, z: number) => zone === 'town' && Math.abs(x - DOCK.x) < DOCK.w / 2 && z > DOCK.z0 && z < DOCK.z1;
+/** On one of the town's dirt paths (not the square's stones), where running kicks up dust. */
+const onDirt = (zone: ZoneId, x: number, z: number) => zone === 'town' && Math.hypot(x, z) > SQUARE_R + 0.5 && nearPath(x, z, 0);
 
 /** Beyond this far from the camera's focus, animals switch to their lighter model; name tags hide beyond the next. */
 const LOD_FAR = 20;
@@ -147,6 +150,7 @@ const JOB_GAMES: Partial<Record<Station['job'], GameJob>> = {
   firewood: 'firewood',
   skimming: 'skimming',
   coin: 'coin',
+  clock: 'clock',
 };
 
 const JOB_LOOK: Record<GameJob, { anim: Anim; item: Item | null }> = {
@@ -161,6 +165,7 @@ const JOB_LOOK: Record<GameJob, { anim: Anim; item: Item | null }> = {
   firewood: { anim: 'work', item: null },
   skimming: { anim: 'hand', item: null },
   coin: { anim: 'wave', item: null },
+  clock: { anim: 'work', item: null },
 };
 
 const EMOTE_TIME: Partial<Record<Anim, number>> = { wave: 2.4, cheer: 2.6, laugh: 2.6, cry: 3.2, dance: 8, drink: 1.6 };
@@ -183,6 +188,7 @@ const SIGN_TEXT: Partial<Record<Station['job'], string>> = {
   wine: '🍷 Pour the wine',
   firewood: '🪓 Chop firewood',
   skimming: '🪨 Skim stones',
+  clock: '🕰️ Keep time',
 };
 
 const PLACE_NAMES: Record<Exclude<ZoneKind, 'house'>, string> = {
@@ -851,6 +857,7 @@ export class Engine {
     if (walking && t - this.stepAt > stride) {
       this.stepAt = t;
       ambience.footstep(surfaceAt(local.zone, local.x, local.z), 1);
+      if (local.anim === 'run' && onDirt(local.zone, local.x, local.z)) this.town.puff(local.x, 0, local.z);
     }
     let onPier = walking && onDock(local.zone, local.x, local.z) ? [local.x, local.z] : null;
     for (const [key, p] of presence.others) {
@@ -861,6 +868,8 @@ export class Engine {
       if (!prev || t - prev.at > 0.4) {
         this.othersStepAt.set(key, { at: t, x: p.x, z: p.z });
         if (prev && moved > 0.25 && d < 9) ambience.footstep(surfaceAt(p.zone, p.x, p.z), Math.max(0.15, 1 - d / 9) * 0.6);
+        // Faster than a walk: running, so a puff of dust on the paths.
+        if (prev && moved / Math.max(0.05, t - prev.at) > (WALK + RUN) / 2 && d < 30 && onDirt(p.zone, p.x, p.z)) this.town.puff(p.x, 0, p.z);
         if (prev && moved > 0.25 && onDock(p.zone, p.x, p.z)) onPier = [p.x, p.z];
       }
     }
@@ -1117,6 +1126,11 @@ export class Engine {
         case 'coin': {
           const x = r as JobResults['coin'];
           this.me?.bubble(x.wish ? `✨ ${x.fortune}` : 'Clink. Not this time.', 6000);
+          break;
+        }
+        case 'clock': {
+          const x = r as JobResults['clock'];
+          this.me?.bubble(`Kept the clock ${x.accuracy}% in time`, 3000);
           break;
         }
       }

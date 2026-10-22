@@ -488,6 +488,53 @@ function leprechaun(): BuiltHat {
   return finish(b, { top: 0.2 });
 }
 
+function clockmaker(): BuiltHat {
+  const b = new Builder();
+  const felt = '#3e4a45';
+  const brass = '#c9a24f';
+  const dark = '#24282a';
+  // A low topper in the tower's iron green with a brass band, a little clock on the front, a brass cog on the side,
+  // a jeweller's loupe resting on the brim and a pocket watch's winding crown and bow on top.
+  b.add(cyl(36), felt, { pos: [0, -0.035, 0], scale: [0.21, 0.016, 0.21] });
+  b.add(torus(0.3, 6, 36), felt, { pos: [0, -0.03, 0], rot: [Math.PI / 2, 0, 0], scale: [0.21, 0.21, 0.04] });
+  b.add(cyl(32, 1.06, 1), felt, { pos: [0, 0.045, 0], scale: [0.14, 0.16, 0.14] });
+  b.add(cyl(32), '#48554f', { pos: [0, 0.126, 0], scale: [0.149, 0.006, 0.149] });
+  b.add(cyl(32), brass, { pos: [0, -0.008, 0], scale: [0.143, 0.04, 0.143] });
+  // The clock: a cream face in a brass bezel, with twelve marks and its hands at ten past ten.
+  const face: Vec3 = [0, 0.068, 0.149];
+  const front = (x: number, y: number, z = 0) => [face[0] + x, face[1] + y, face[2] + z] as Vec3;
+  b.add(cyl(26), '#f6efe0', { pos: face, rot: [Math.PI / 2, 0, 0], scale: [0.046, 0.01, 0.046] });
+  b.add(torus(0.18, 5, 26), brass, { pos: front(0, 0, 0.004), scale: [0.048, 0.048, 0.035] });
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    b.add(new THREE.BoxGeometry(1, 1, 1), dark, { pos: front(Math.sin(a) * 0.036, Math.cos(a) * 0.036, 0.006), rot: [0, 0, -a], scale: [0.004, i % 3 ? 0.006 : 0.011, 0.004] });
+  }
+  for (const [a, len] of [
+    [Math.PI / 3, 0.034],
+    [-Math.PI / 3, 0.024],
+  ]) {
+    b.add(new THREE.BoxGeometry(1, 1, 1), dark, { pos: front((Math.sin(a) * len) / 2, (Math.cos(a) * len) / 2, 0.008), rot: [0, 0, -a], scale: [0.005, len, 0.004] });
+  }
+  b.add(sph(8, 6), brass, { pos: front(0, 0, 0.009), scale: 0.006 });
+  // A brass cog standing on the left side of the crown.
+  const cog: Vec3 = [-0.148, 0.06, -0.01];
+  b.add(cyl(24), brass, { pos: cog, rot: [0, 0, Math.PI / 2], scale: [0.045, 0.012, 0.045] });
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    b.add(new THREE.BoxGeometry(1, 1, 1), brass, { pos: [cog[0], cog[1] + Math.cos(a) * 0.05, cog[2] + Math.sin(a) * 0.05], rot: [a, 0, 0], scale: [0.012, 0.016, 0.014] });
+  }
+  b.add(cyl(14), '#8a6a2a', { pos: [cog[0] - 0.004, cog[1], cog[2]], rot: [0, 0, Math.PI / 2], scale: [0.016, 0.012, 0.016] });
+  // The loupe: a little black tube with a glass end, resting on the brim and looking out to the right.
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(0.55, 0.35, 0.75).normalize());
+  b.add(cyl(14, 1, 1.25), dark, new THREE.Matrix4().compose(new THREE.Vector3(0.15, -0.005, 0.12), q, new THREE.Vector3(0.022, 0.04, 0.022)));
+  b.add(cyl(14), '#bfe3f0', new THREE.Matrix4().compose(new THREE.Vector3(0.15, -0.005, 0.12).addScaledVector(new THREE.Vector3(0.55, 0.35, 0.75).normalize(), 0.021), q, new THREE.Vector3(0.023, 0.004, 0.023)));
+  // The winding crown and bow on top.
+  b.add(cyl(12), brass, { pos: [0, 0.14, 0], scale: [0.022, 0.026, 0.022] });
+  b.add(cyl(12), '#e2c06a', { pos: [0, 0.155, 0], scale: [0.026, 0.008, 0.026] });
+  b.add(torus(0.18, 6, 22), brass, { pos: [0, 0.185, 0], scale: [0.027, 0.027, 0.035] });
+  return finish(b, { top: 0.21 });
+}
+
 const MAKERS: Record<HatId, () => BuiltHat> = {
   beanie,
   flower: flowerCrown,
@@ -507,6 +554,7 @@ const MAKERS: Record<HatId, () => BuiltHat> = {
   feathercap,
   sailor,
   leprechaun,
+  clockmaker,
 };
 
 export function buildHat(hat: HatId): BuiltHat | null {

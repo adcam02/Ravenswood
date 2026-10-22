@@ -314,6 +314,11 @@ export function makeStations(): Station[] {
   [0.45, 1.35].forEach((z, i) =>
     st.push({ id: `tower-bench-${i}`, zone: 'tower', x: TOWER_BENCH.x, z, r: 0.8, job: 'sit', stand: { x: TOWER_BENCH.x, z, ry: -Math.PI / 2 }, y: 0.45, label: 'Sit' }),
   );
+  // In front of the movement, facing it: keep the clock in time.
+  {
+    const z = MOVEMENT.z + MOVEMENT.hd + 0.75;
+    st.push({ id: 'clock', zone: 'tower', x: MOVEMENT.x, z, r: 1.5, job: 'clock', stand: { x: MOVEMENT.x, z, ry: Math.PI }, label: 'Keep the clock in time' });
+  }
   // Home.
   st.push({ id: 'bed', zone: 'house', x: BED.x, z: BED.z + 0.3, r: 1.9, job: 'sleep', stand: { x: BED.x, z: BED.z + 0.25, ry: 0 }, y: BED.top, label: 'Sleep' });
   HOME_CHAIRS.forEach((c, i) => st.push({ id: `home-chair-${i}`, zone: 'house', x: c.x, z: c.z, r: 0.9, job: 'sit', stand: c, y: 0.47, label: 'Sit' }));

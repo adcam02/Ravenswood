@@ -46,18 +46,25 @@ export function useKeys(handler: (e: KeyboardEvent, down: boolean) => boolean | 
   }, []);
 }
 
+/** When an input event happened, on the performance.now() clock (falling back to now if the browser says otherwise). */
+function eventTime(e: { timeStamp: number }): number {
+  const now = performance.now();
+  return e.timeStamp > 0 && e.timeStamp <= now && now - e.timeStamp < 1000 ? e.timeStamp : now;
+}
+
 /**
  * The main action: Space or E on the keyboard, or pressing on the game with a mouse or finger.
- * Spread the returned props onto the element that should take presses.
+ * Spread the returned props onto the element that should take presses. `onPress` is given when the
+ * press happened (performance.now() time), for games where a few milliseconds count.
  */
-export function useMain(opts: { onPress?: () => void; onRelease?: () => void; enabled?: boolean }) {
+export function useMain(opts: { onPress?: (at: number) => void; onRelease?: () => void; enabled?: boolean }) {
   const held = useRef(false);
   const ref = useRef(opts);
   ref.current = opts;
-  const press = () => {
+  const press = (at: number) => {
     if (held.current || ref.current.enabled === false) return;
     held.current = true;
-    ref.current.onPress?.();
+    ref.current.onPress?.(at);
   };
   const release = () => {
     if (!held.current) return;
@@ -67,7 +74,7 @@ export function useMain(opts: { onPress?: () => void; onRelease?: () => void; en
   useKeys((e, down) => {
     if (!isMain(e)) return false;
     if (down) {
-      if (!e.repeat) press();
+      if (!e.repeat) press(eventTime(e));
     } else release();
     return true;
   });
@@ -85,7 +92,7 @@ export function useMain(opts: { onPress?: () => void; onRelease?: () => void; en
     onPointerDown: (e: React.PointerEvent) => {
       if (e.button !== 0) return;
       e.preventDefault();
-      press();
+      press(eventTime(e));
     },
   };
 }

@@ -85,6 +85,61 @@ function burst(dur: number, o: BurstOpts = {}) {
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
 
+/**
+ * How far ahead of the audio clock to schedule a sound so it's heard at `when` (a performance.now() time):
+ * the speakers' own delay is taken off where the browser reports it.
+ */
+function heardIn(c: AudioContext, when: number): number {
+  const plain = (when - performance.now()) / 1000;
+  try {
+    const ts = c.getOutputTimestamp?.();
+    if (ts?.contextTime && ts.performanceTime) {
+      const d = ts.contextTime + (when - ts.performanceTime) / 1000 - c.currentTime;
+      // (Some browsers have given odd stamps; only trust one that means a believable delay.)
+      if (plain - d >= 0 && plain - d < 0.5) return d;
+    }
+  } catch {
+    /* fall through */
+  }
+  return plain - Math.min(0.5, c.outputLatency || c.baseLatency || 0);
+}
+
+/** A clock's tick, heard at `when`. Returns a way to silence it, or null if there's no sound to be had. */
+function tickAt(when: number, tock: boolean): (() => void) | null {
+  const c = ac();
+  // A sleeping context would save the ticks up and play them all at once when it wakes.
+  if (!c || c.state !== 'running') return null;
+  const t = c.currentTime + Math.max(0, heardIn(c, when));
+  const out = c.createGain();
+  out.connect(c.destination);
+  // A dry click off the escapement, and a little wooden knock from the case.
+  const src = c.createBufferSource();
+  src.buffer = noise(c);
+  const f = c.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = tock ? 2500 : 3300;
+  f.Q.value = 3;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.16, t + 0.002);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + 0.035);
+  src.connect(f).connect(g).connect(out);
+  src.start(t, Math.random() * 0.5);
+  src.stop(t + 0.06);
+  const osc = c.createOscillator();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(tock ? 720 : 960, t);
+  osc.frequency.exponentialRampToValueAtTime(tock ? 420 : 560, t + 0.04);
+  const k = c.createGain();
+  k.gain.setValueAtTime(0.0001, t);
+  k.gain.exponentialRampToValueAtTime(0.07, t + 0.003);
+  k.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+  osc.connect(k).connect(out);
+  osc.start(t);
+  osc.stop(t + 0.07);
+  return () => out.disconnect();
+}
+
 export const sfx = {
   /** One glug of a pour; played over and over while pouring. */
   gurgle: () => tone(rand(240, 480), 0.08, { vol: 0.07, slideTo: rand(500, 700) }),
@@ -199,6 +254,15 @@ export const sfx = {
     tone(500, 0.16, { vol: 0.03, slideTo: 180, delay: 0.18 });
   },
   shimmer: () => [1568, 1975.5, 2349.3, 3136].forEach((f, i) => tone(f, 0.4, { vol: 0.035, delay: i * 0.06 })),
+
+  // ---- the clock tower
+  /** The clock ticking (or tocking), booked to be heard right on `when`, a performance.now() time. */
+  clockTick: (tock: boolean, when: number) => tickAt(when, tock),
+  /** The player nudging the escapement on by one. */
+  clockTap: (soft = false) => {
+    burst(0.03, { freq: 1800, q: 2.5, vol: soft ? 0.03 : 0.08 });
+    tone(soft ? 520 : 620, 0.05, { type: 'triangle', vol: soft ? 0.02 : 0.05, slideTo: 380 });
+  },
 
   // ---- records and legends
   fanfare: () => {
