@@ -2216,63 +2216,67 @@ const dugong: Recipe = (k, c) => {
 };
 
 const seacucumber: Recipe = (k, c) => {
-  const sole = mix(c.coat, '#f2e6d0', 0.55);
-  const crown = mix(c.coat, '#f4d27a', 0.6);
-  // A plump knobbly pickle standing on end: soft bumps all over, a frilly crown of little feeding tentacles on
-  // top, two stubby tube-feet for hands, and a broad sole underneath that it inches along on. Cut a little finer,
-  // for the bumps and the crown.
-  k.step = 0.036;
-  k.joints.neck = [0, 0.6, 0.01];
-  k.joints.shoulder = [0.15, 0.4, 0.07];
-  k.joints.hip = [0.08, 0.1, 0];
-  k.joints.tail = [0, 0.12, -0.15];
-  bone(k, 'rear', 'body', [0, 0.06, -0.04]);
-  torso(k, {
-    belly: [
-      [0, 0.27, 0],
-      [0.175, 0.26, 0.165],
-    ],
-    chest: [
-      [0, 0.49, 0.01],
-      [0.155, 0.17, 0.15],
-    ],
-    melt: 0.22,
-  });
+  const sole = mix(c.coat, '#f2dcc0', 0.5);
+  const spike = mix(c.coat, '#ffb040', 0.6);
+  const dark = mix(c.coat, '#2a1410', 0.25);
+  // A long knobbly sausage lying along the sea floor like the real thing, covered in soft pointed spikes with
+  // orange tips, its front end lifted a little to look about. It inches along on its belly, and a little tube
+  // foot comes out to hold things, as the snail's tendril does.
+  k.joints.neck = [0, 0.25, 0.3];
+  k.joints.shoulder = [0.08, 0.17, 0.33];
+  k.joints.tail = [0, 0.1, -0.38];
+  bone(k, 'rear', 'body', [0, 0.1, -0.12]);
   const sc = sculptOf(k);
-  // The sole: low and broad, on its own bone so it can stretch as it creeps.
-  sc.add(ellipsoid('rear', [0, 0.06, 0], [0.19, 0.06, 0.18], { k: 0.08, anchor: [0, 0.06, 0], reach: 0.2, name: 'sole' }));
+  // The body: a fat middle, a tapering back end on its own bone so it can stretch and draw up, and the front
+  // rising into the head.
+  sc.add(rod('body', [0, 0.14, -0.12], [0, 0.16, 0.14], 0.15, 0.14, { squash: [1, 0.9, 1], name: 'trunk' }));
+  sc.add(rod('rear', [0, 0.1, -0.42], [0, 0.14, -0.12], 0.09, 0.15, { squash: [1, 0.9, 1], k: 0.07, anchor: [0, 0.13, -0.15], reach: 0.22, name: 'tailEnd' }));
+  sc.add(rod('body', [0, 0.17, 0.12], [0, 0.24, 0.28], 0.14, 0.125, { k: 0.08, anchor: [0, 0.16, 0.12], reach: 0.18, name: 'neck' }));
   k.seat = 0;
-  headForm(k, { r: [0.14, 0.12, 0.14], at: [0, 0.08, 0.02], melt: 0.2 });
-  // Soft bumps all over the body, pointing out.
-  const up = new THREE.Vector3(0, 1, 0);
-  fibonacci(26).forEach((d, i) => {
-    if (d.y > 0.55 || d.y < -0.6) return;
-    const centre = new THREE.Vector3(0, 0.36, 0);
-    const base = centre.clone().add(new THREE.Vector3(d.x * 0.165, d.y * 0.27, d.z * 0.155));
-    const dir = new THREE.Vector3(d.x, d.y * 0.4, d.z).normalize();
-    const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().setFromUnitVectors(up, dir));
-    sc.add(pyramid('body', v3(base), 0.05, 0.06, 0.05, { rot: [e.x, e.y, e.z], k: 0.03, round: 0.02, name: `papilla${i}`, thin: true }));
-  });
-  // The crown of feeding tentacles round the top, each a short stalk with a frilly tip.
-  const top = plus(k.joints.neck, [0, 0.08 + 0.1, 0.02]);
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2 + 0.25;
-    const base: Vec3 = [top[0] + Math.sin(a) * 0.06, top[1] - 0.01, top[2] + Math.cos(a) * 0.06];
-    const tipAt: Vec3 = [top[0] + Math.sin(a) * 0.12, top[1] + 0.07, top[2] + Math.cos(a) * 0.12];
-    sc.add(rod('neck', base, tipAt, 0.026, 0.034, { k: 0.035, anchor: base, reach: 0.06, name: `crown${i}`, thin: true }));
-  }
-  armForms(k, { len: 0.1, r0: 0.04, r1: 0.032, paw: [0.032, 0.028, 0.034], fwd: 0.5, out: 0.3 });
+  headForm(k, { r: [0.13, 0.12, 0.12], at: [0, 0.04, 0.05], melt: 0.1 });
   useSurface(k);
-  eyes(k, { x: 0.36, y: 0.02, size: 1.0, wide: 1, slant: 0, color: '#1a1214' });
-  mouth(k, { w: 0.16, y: -0.38, curve: 0.08, r: 0.006 });
+  eyes(k, { x: 0.36, y: 0.2, size: 0.95, wide: 1, slant: 0, color: '#1a1214' });
+  mouth(k, { w: 0.18, y: -0.25, curve: 0.08, r: 0.006 });
+  arms(k, { color: c.coat, len: 0.12, r: 0.03, rightOnly: true });
+  k.front = 0.47;
+  // Rows of soft spikes along the back and down the sides, crisp pieces so they stay pointed, each on the bone
+  // of the part of the body it grows from.
+  const axis = (z: number) => {
+    if (z < -0.12) {
+      const t = (z + 0.42) / 0.3;
+      return { y: 0.1 + 0.04 * t, r: 0.09 + 0.06 * t, bone: 'rear' };
+    }
+    if (z < 0.14) return { y: 0.14 + (0.02 * (z + 0.12)) / 0.26, r: 0.15 - (0.01 * (z + 0.12)) / 0.26, bone: 'body' };
+    return { y: 0.17 + (0.07 * (z - 0.14)) / 0.14, r: 0.14, bone: 'body' };
+  };
+  let n = 0;
+  for (let z = -0.36; z <= 0.18; z += 0.075) {
+    const row = Math.round((z + 0.36) / 0.075);
+    const { y, r, bone: bn } = axis(z);
+    const count = r > 0.12 ? 7 : 5;
+    for (let i = 0; i < count; i++) {
+      // From down one side, over the top, to down the other, every other row shifted half a step.
+      const a = -1.75 + (3.5 * (i + (row % 2 ? 0.5 : 0) + 0.25)) / count;
+      if (Math.abs(a) > 1.75) continue;
+      const dir = new THREE.Vector3(Math.sin(a), Math.cos(a), 0).normalize();
+      const hit = surfaceHit(k, new THREE.Vector3(0, y, z), dir);
+      if (!hit) continue;
+      const len = (0.06 + ((n * 37) % 10) * 0.004) * (r / 0.15) + 0.015;
+      const root = hit.p.clone().addScaledVector(hit.n, -0.02);
+      const mid = hit.p.clone().addScaledVector(hit.n, len * 0.45);
+      const tip = hit.p.clone().addScaledVector(hit.n, len);
+      piece(k, { bone: bn, pts: [root, mid, tip], w: [0.026, 0.017, 0], t: [0.026, 0.017, 0], across: new THREE.Vector3(0, 0, 1), colors: [c.coat, spike], name: `spike${n++}` });
+    }
+  }
   k.marks = {
     base: c.coat,
     marks: [
-      { color: crown, f: region(k, /^crown/) },
-      { color: sole, f: all(region(k, 'sole', 'belly'), (q) => q.p.y - 0.06) },
+      // A paler belly it creeps along on, and the top a shade darker.
+      { color: sole, f: all(region(k, 'trunk', 'tailEnd', 'neck', 'head'), (q) => q.p.y - 0.055) },
+      { color: dark, f: all(region(k, 'trunk', 'tailEnd'), (q) => 0.24 - q.p.y) },
     ],
   };
-  return { aquatic: true, legs: 'none' };
+  return { aquatic: true, legs: 'none', tendril: true };
 };
 
 const ibis: Recipe = (k, c) => {
@@ -2425,19 +2429,18 @@ const crab: Recipe = (k, c) => {
   return { aquatic: true };
 };
 
-/** Where a turtle's shell plates are centred (directions from the shell's middle, as unit vectors). */
-const SCUTES = [
-  [0, 0.15, -1],
-  [0, 0.8, -0.6],
-  [0, -0.55, -0.85],
-  [0.75, 0.45, -0.5],
-  [-0.75, 0.45, -0.5],
-  [0.8, -0.35, -0.5],
-  [-0.8, -0.35, -0.5],
-  [0.98, 0.1, 0.1],
-  [-0.98, 0.1, 0.1],
-  [0, 1, 0.1],
-].map(([x, y, z]) => new THREE.Vector3(x, y, z).normalize());
+/** Where a turtle's shell plates sit on its dome (directions from the dome's middle): three down the middle, three a side. */
+const SCUTES: [number, number, number][] = [
+  [0, 0.62, -0.78],
+  [0, 0.02, -1],
+  [0, -0.6, -0.8],
+  [0.66, 0.52, -0.54],
+  [-0.66, 0.52, -0.54],
+  [0.74, -0.04, -0.67],
+  [-0.74, -0.04, -0.67],
+  [0.64, -0.58, -0.5],
+  [-0.64, -0.58, -0.5],
+];
 
 const turtle: Recipe = (k, c) => {
   const skin = mix(c.coat, '#b8c488', 0.4);
@@ -2462,9 +2465,33 @@ const turtle: Recipe = (k, c) => {
     melt: 0.18,
   });
   const sc = sculptOf(k);
-  // The shell: a dome over the back, melted only a little so it reads as its own hard plate, with a lip all round.
-  sc.add(ellipsoid('body', [0, 0.35, -0.07], [0.27, 0.31, 0.19], { k: 0.03, name: 'shell' }));
+  // The shell: a dome over the back, melted only a little so it reads as its own hard plate, with a lip all round,
+  // and its plates standing a little proud of it with grooves between.
+  const domeC = new THREE.Vector3(0, 0.35, -0.07);
+  const domeR = new THREE.Vector3(0.27, 0.31, 0.19);
+  sc.add(ellipsoid('body', v3(domeC), v3(domeR), { k: 0.03, name: 'shell' }));
   sc.add(ellipsoid('body', [0, 0.35, 0.01], [0.275, 0.315, 0.07], { k: 0.02, name: 'shellRim' }));
+  SCUTES.forEach(([x, y, z], i) => {
+    const d = new THREE.Vector3(x, y, z).normalize();
+    const at = domeC.clone().add(new THREE.Vector3(d.x * domeR.x, d.y * domeR.y, d.z * domeR.z));
+    const nrm = new THREE.Vector3(d.x / domeR.x, d.y / domeR.y, d.z / domeR.z).normalize();
+    const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), nrm));
+    sc.add(ellipsoid('body', v3(at.addScaledVector(nrm, -0.006)), [0.112, 0.112, 0.032], { rot: [e.x, e.y, e.z], k: 0.012, name: `scute${i}` }));
+  });
+  // Where two plates meet: about as near the one as the other.
+  const scuteIds = sc.shapes.flatMap((s, i) => (/^scute/.test(s.name ?? '') ? [i] : []));
+  const seamLine = (q: Probe) => {
+    let a = Infinity;
+    let b = Infinity;
+    for (const i of scuteIds) {
+      const d = q.dist(i);
+      if (d < a) {
+        b = a;
+        a = d;
+      } else if (d < b) b = d;
+    }
+    return b - a - 0.012;
+  };
   headForm(k, { r: [0.15, 0.135, 0.155], at: [0, 0.12, 0.08], melt: 0.1 });
   wingForms(k, { len: 0.3, w: 0.1, d: 0.03, taper: 0.7, fwd: 0.3, out: 0.38 });
   legForms(k, { r0: 0.055, r1: 0.05, foot: [0.07, 0.022, 0.09] });
@@ -2472,34 +2499,16 @@ const turtle: Recipe = (k, c) => {
   useSurface(k);
   eyes(k, { x: 0.42, y: 0.14, size: 1.1, wide: 1, slant: 0.05, color: '#120e10', out: 0.006 });
   mouth(k, { w: 0.26, y: -0.36, curve: 0.07, r: 0.006 });
-  const shell = unitOf(k, 'shell');
-  // Which plate a point on the shell is on, and how near it is to the seam with the next one.
-  const nearest = (q: Probe) => {
-    const v = shell(q).normalize();
-    let a = Infinity;
-    let b = Infinity;
-    let i = 0;
-    SCUTES.forEach((s, j) => {
-      const d = v.distanceTo(s);
-      if (d < a) {
-        b = a;
-        a = d;
-        i = j;
-      } else if (d < b) b = d;
-    });
-    return { i, gap: b - a };
-  };
-  const onShell = region(k, 'shell');
   k.marks = {
     base: skin,
     marks: [
       // A few big scales on the top of the head.
       { color: mix(skin, '#3a3020', 0.22), f: spots(k, 'head', [[12, 0, 0.17], [38, 38, 0.15], [38, -38, 0.15], [55, 95, 0.14], [55, -95, 0.14], [42, 180, 0.2]]) },
+      { color: seam, f: all(region(k, /^scute/), seamLine) },
+      { color: plate, f: region(k, /^scute/) },
+      // The edge of the shell round the plates, a shade darker, and the lip darker again.
+      { color: mix(plate, seam, 0.45), f: region(k, 'shell') },
       { color: seam, f: region(k, 'shellRim') },
-      { color: seam, f: all(onShell, (q) => nearest(q).gap - 0.09) },
-      // The plates in two shades, so the pattern reads from across the square.
-      { color: mix(plate, '#fff0c0', 0.18), f: all(onShell, (q) => (nearest(q).i % 2 ? -1 : 1)) },
-      { color: plate, f: onShell },
       { color: plastron, f: frontOval(k, ['belly', 'chest'], 0, 0.32, 0.15, 0.24) },
     ],
   };
@@ -2629,8 +2638,8 @@ const PROFILES: Partial<Record<AnimalId, Partial<Profile>>> = {
   ferret: { lean: -0.02, head: -0.05, paws: 0.1, gait: 'trot', cadence: 1.45, stride: 0.85, sit: 'tuck', idles: ['sniff', 'hop', 'lookAround'], tailSway: 0.3 },
   // Slow and gentle: shuffles along on its fluke, flaps a flipper, blinks.
   dugong: { lean: 0.03, head: -0.02, gait: 'waddle', cadence: 0.75, stride: 0.5, sit: 'settle', idles: ['chill', 'slowBlink', 'flap'], tailSway: 0 },
-  // Inches along on its sole, swaying, its crown of tentacles stirring.
-  seacucumber: { gait: 'slither', cadence: 0.55, sit: 'settle', idles: ['sway', 'stretch', 'chill'], tailSway: 0 },
+  // Inches along on its belly, stretching and drawing up its back end; sways and stretches about.
+  seacucumber: { gait: 'slither', cadence: 0.5, sit: 'settle', idles: ['stretch', 'sway', 'chill'], tailSway: 0 },
   // Strides about on its long legs, probing about with its beak, stretching a wing.
   ibis: { lean: 0.1, head: -0.02, gait: 'trot', cadence: 0.95, stride: 0.8, sit: 'settle', idles: ['sniff', 'headTilt', 'wingStretch'], tailSway: 0.08 },
   // Scuttles about on its little legs, claws up, eyes swivelling on their stalks.
