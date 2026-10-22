@@ -21,6 +21,7 @@ import {
   POND,
   RING_ROAD_R,
   GRAVEYARD,
+  SKIMMING,
   SQUARE_R,
   STEEPLE,
   TAVERN,
@@ -1180,7 +1181,12 @@ function pond(group: THREE.Group, p: Paint, r: () => number): Outdoor['water'] {
   mesh.name = 'pond';
   mesh.onBeforeRender = () => geo.computeVertexNormals();
   group.add(mesh);
-  // Lily pads, reeds and stones around the edge. Pads keep clear of each other and of the pier.
+  // Lily pads, reeds and stones around the edge. Pads keep clear of each other, the pier and the boat; reeds and
+  // stones keep clear of each other, the boat, the lamp on the bank and where you stand to skim stones, so nothing
+  // grows through anything else.
+  const bx = POND.x + POND.rx * 0.62;
+  const bz = POND.z + POND.rz * 0.45;
+  const byBoat = (x: number, z: number, margin: number) => Math.abs(x - bx) < 0.6 + margin && Math.abs(z - bz) < 1.3 + margin;
   const pads: { x: number; z: number; rad: number }[] = [];
   for (let tries = 0; tries < 60 && pads.length < 9; tries++) {
     const a = r() * Math.PI * 2;
@@ -1189,6 +1195,7 @@ function pond(group: THREE.Group, p: Paint, r: () => number): Outdoor['water'] {
     const z = POND.z + Math.sin(a) * POND.rz * s;
     const rad = 0.35 + r() * 0.2;
     if (Math.abs(x - DOCK.x) < 2.2 && z < DOCK.z1 + 1) continue;
+    if (byBoat(x, z, rad)) continue;
     if (pads.some((q) => Math.hypot(q.x - x, q.z - z) < q.rad + rad + 0.12)) continue;
     pads.push({ x, z, rad });
   }
@@ -1199,22 +1206,32 @@ function pond(group: THREE.Group, p: Paint, r: () => number): Outdoor['water'] {
     p.box(shade('#5fb6cf', -0.05), rad * 0.5, 0.034, 0.08, x + rad * 0.6, y, z, 0, r() * Math.PI * 2);
     if (r() < 0.4) p.ico(pick(r, ['#f2a7b8', '#ffffff']), 0.1, x, y + 0.06, z, 0, 0.6);
   });
-  for (let i = 0; i < 26; i++) {
+  const edge: { x: number; z: number; reed: boolean }[] = [];
+  for (let tries = 0; tries < 60 && edge.length < 22; tries++) {
     const a = r() * Math.PI * 2;
     const s = 0.92 + r() * 0.12;
     const x = POND.x + Math.cos(a) * POND.rx * s;
     const z = POND.z + Math.sin(a) * POND.rz * s;
+    // Three clumps of reeds to every two stones.
+    const reed = edge.length % 5 < 3;
     if (Math.abs(x - DOCK.x) < 2.5 && z < POND.z) continue;
-    if (r() < 0.6) {
-      // Reeds and bulrushes, which sway with the grass.
+    if (byBoat(x, z, 0.6) || pathLamps.some((l) => Math.hypot(l.x - x, l.z - z) < 0.9)) continue;
+    if (Math.hypot(x - SKIMMING.x, z - SKIMMING.z) < 1.1) continue;
+    if (reed && pads.some((q) => Math.hypot(q.x - x, q.z - z) < q.rad + 0.35)) continue;
+    // Reeds can bunch up, stones less so, but a clump of reeds never stands in a stone.
+    if (edge.some((q) => Math.hypot(q.x - x, q.z - z) < (q.reed !== reed ? 1.0 : reed ? 0.45 : 0.8))) continue;
+    edge.push({ x, z, reed });
+    if (reed) {
+      // Reeds and bulrushes, which sway with the grass. A bulrush head stands on a stem of its own.
       for (let k = 0; k < 4; k++) p.leaves.cone(shade('#6f9e4a', (r() - 0.5) * 0.1), 0.05, 0.9 + r() * 0.6, x + (r() - 0.5) * 0.4, 0, z + (r() - 0.5) * 0.4, 3);
-      if (r() < 0.5) p.leaves.cyl('#7a4a2a', 0.06, 0.25, x, 1.1, z, 5);
+      if (r() < 0.5) {
+        p.leaves.post('#5f8e3e', 0.014, 1.02, x, 0, z, 4);
+        p.leaves.cyl('#7a4a2a', 0.06, 0.25, x, 1.1, z, 5);
+      }
     } else rock(p.at(x, 0, z), r, 0.7);
   }
   // A little rowing boat moored on the far bank, oars shipped.
   {
-    const bx = POND.x + POND.rx * 0.62;
-    const bz = POND.z + POND.rz * 0.45;
     const boat = p.at(bx, 0.0, bz, 0.9);
     const ell = (color: THREE.ColorRepresentation, geo: THREE.BufferGeometry, sx: number, sy: number, sz: number, y: number, rx = 0) =>
       boat.geo(geo, color, new THREE.Matrix4().compose(new THREE.Vector3(0, y, 0), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, 0, 0)), new THREE.Vector3(sx, sy, sz)));

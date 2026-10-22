@@ -28,9 +28,10 @@ export interface Footprint {
 
 /**
  * Soft darkening on the ground round everything standing on it, the way light can't quite reach where a wall meets
- * the ground. One draw for a whole place. It sits a few centimetres up, so paths and rugs don't cover it.
+ * the ground. One draw for a whole place. It sits a few centimetres up, so paths and rugs don't cover it: in town
+ * clear of the highest path (2.4 to 3.6 cm) and the pond's sandy bank (3 cm), as anything level with them flickers.
  */
-export function makeContactShadows(list: Footprint[], lift = 0.03): THREE.Mesh {
+export function makeContactShadows(list: Footprint[], lift = 0.038): THREE.Mesh {
   const quad = new THREE.PlaneGeometry(1, 1);
   const geo = new THREE.InstancedBufferGeometry();
   geo.index = quad.index;

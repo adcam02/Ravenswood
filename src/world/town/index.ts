@@ -445,8 +445,9 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   // Soft shadows where things meet the ground, in town and in every room.
   const townFootprints = townColliders(outdoor.colliders);
   const footprint = (c: Collider, y: number, inside: boolean): Footprint | null => {
+    // Nothing stands in the pond: its colliders (and the dock's side rails) are invisible walls.
+    if (!inside && pondContains(c.x, c.z)) return null;
     if (c.kind === 'circle') {
-      if (!inside && pondContains(c.x, c.z)) return null;
       const big = c.r > 1.5;
       return { x: c.x, z: c.z, y, hw: c.r, hd: c.r, rot: 0, round: true, soft: big ? 1.0 : Math.max(0.35, c.r * 1.6), strength: big ? 0.3 : 0.26 };
     }
