@@ -19,8 +19,8 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    same one at the same moment the first gets it and the other is asked to pick again. Anyone named Jarrod is the bunny, skips the picker, and nobody else can be the bunny.
    Then they turn on their microphone (or just listen).
 3. **Wander around town.** Talk to whoever is near you. Step into the tavern, the bakery, the church,
-   the clock tower or anyone's house to talk privately. The clock tower opens on its east side, into the
-   clock room: the dials glow from behind (showing the real time, backwards), the movement ticks once a
+   the clock tower or anyone's house to talk privately. The clock tower has a door on every side (you
+   come back out of the one you went in by), into the clock room: the dials glow from behind (showing the real time, backwards), the movement ticks once a
    second with its pendulum swinging, and the bell rope jumps whenever the bell rings.
 4. **Daytime jobs**, each a little minigame:
    - **Bartender** at the Raven's Rest: pour drinks onto the bar for anyone to pick up.

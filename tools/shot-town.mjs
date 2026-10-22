@@ -42,6 +42,7 @@ const ALL = {
   'tower-inside-close': 'zone=tower&t=0&x=0&z=-1.5&dist=8',
   'tower-inside-night': 'zone=tower&t=1&dist=13',
   'tower-door': 'x=3.5&z=0&t=0&dist=12&yaw=1.2&pitch=0.45',
+  'tower-front': 'x=0&z=4.5&t=0&dist=13&pitch=0.55&meeting',
   // Contact shadows, cloud shadows, puddles, sunbeams and halos indoors.
   'church-beams': 'zone=church&t=0&dist=14',
   'tavern-night': 'zone=tavern&t=1',

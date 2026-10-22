@@ -294,6 +294,8 @@ export class Engine {
   /** The ground under us, eased, for walking up and down steps. */
   private groundS = 0;
   private nearDoor: { door: Door; locked: string | null } | null = null;
+  /** The clock tower door we last went in by, to come back out of it. */
+  private towerDoor: Door | null = null;
 
   constructor(
     private host: HTMLElement,
@@ -1466,6 +1468,9 @@ export class Engine {
       return { zone: 'town', ...this.town.spawn };
     }
     if (nightLocked) return { locked: 'It’s night. Stay home' };
+    // Out of the clock tower by the door you came in through.
+    const back = door.id === 'tower-out' ? this.towerDoor?.back : undefined;
+    if (back) return { zone: door.to, x: back.x, z: back.z, ry: back.ry };
     return { zone: door.to, x: door.spawn.x, z: door.spawn.z, ry: door.spawn.ry };
   }
 
@@ -1481,10 +1486,16 @@ export class Engine {
         this.nearDoor = { door, locked: target.locked };
         return;
       }
-      // Only walking into a door opens it, not standing next to one.
-      const toward = moving && (door.x - local.x) * dx + (door.z - local.z) * dz > -0.2;
+      // Only walking into a door opens it, not standing next to one. The tower's doors want you heading for the
+      // tower itself, so walking round it (or past the front on the way to the stools) doesn't take you in.
+      let toward = moving && (door.x - local.x) * dx + (door.z - local.z) * dz > -0.2;
+      if (toward && door.id.startsWith('tower-in')) {
+        const len = Math.hypot(dx, dz) * Math.hypot(local.x, local.z) || 1;
+        toward = (-local.x * dx - local.z * dz) / len > 0.6;
+      }
       if (toward && performance.now() >= this.doorsShutUntil && !this.job) {
         this.doorsShutUntil = performance.now() + 1000;
+        if (door.id.startsWith('tower-in')) this.towerDoor = door;
         this.place(target.zone, target.x, target.z, target.ry, true);
       }
       return;

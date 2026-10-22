@@ -347,6 +347,8 @@ export interface Door {
   slot?: number;
   /** Where you appear on the other side. */
   spawn: Spot;
+  /** For a way in: where you come back out again, when the way out depends on which door you used. */
+  back?: Spot;
   label: string;
 }
 

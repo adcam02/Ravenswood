@@ -8,16 +8,19 @@ import { local } from './kit';
 
 export const TOWN_R = 36;
 export const SQUARE_R = 11;
-/** The meeting circle sits in front of the tower (towards the camera), so nobody is hidden behind it. */
-export const MEETING_CENTRE = { x: 0, z: 7.8 };
+/**
+ * The meeting circle sits in front of the tower (towards the camera), so nobody is hidden behind it, with room
+ * between its steps and the tower's front door so walking to the stools doesn't take you inside.
+ */
+export const MEETING_CENTRE = { x: 0, z: 9.3 };
 export const STOOL_R = 3.8;
 /**
  * The meeting dais: a round stone platform south of the tower with two steps all the way round. `r` is the
  * top's radius, `r2` and `r1` the outer edges of the inner and outer steps; heights are of their tops.
  */
 export const DAIS = { r: 4.35, r2: 4.63, r1: 4.91, top: 0.45, h2: 0.31, h1: 0.17 };
-/** Anyone this close to the tower counts as being at the meeting. */
-export const MEETING_R = 12.5;
+/** Anyone this close to the tower counts as being at the meeting (the furthest stool is about 13.1 m away). */
+export const MEETING_R = 14;
 export const HOUSE_R = 29;
 export const RING_ROAD_R = 25.5;
 /** A few cottages for scenery, in the gaps between the public buildings. Bedrooms are elsewhere. */
@@ -62,8 +65,8 @@ export const CHURCH: Building = { x: 0, z: -23, ry: 0, w: 9, d: 14.4 };
 /** The steeple stands in front of the nave; its front face is the church's door. */
 export const STEEPLE = { z: 7.2, size: 3.8 };
 export const TAVERN: Building = { x: -20, z: 0, ry: Math.PI / 2, w: 11, d: 8 };
-/** The clock tower in the middle of the square. It has a door on every side; the east one opens. */
-export const TOWER: Building = { x: 0, z: 0, ry: Math.PI / 2, w: 3.4, d: 3.4 };
+/** The clock tower in the middle of the square, with a door on every side. */
+export const TOWER: Building = { x: 0, z: 0, ry: 0, w: 3.4, d: 3.4 };
 export const BAKERY: Building = { x: 20, z: 0, ry: -Math.PI / 2, w: 9, d: 7 };
 export const WASHHOUSE = { x: -14, z: 14, w: 7, d: 4 };
 export const TUBS = [
@@ -147,8 +150,9 @@ export const benches = [70, 100, 250, 290].map((deg) => {
   return { x, z, ry: face(x, z, 0, 0) };
 });
 
-export const squareLamps = Array.from({ length: 8 }, (_, i) => {
-  const a = ((22.5 + i * 45) * Math.PI) / 180;
+// Evenly round the square, except the two either side of the meeting circle, which stand a little wider of it.
+export const squareLamps = [22.5, 67.5, 112.5, 150, 210, 247.5, 292.5, 337.5].map((deg) => {
+  const a = (deg * Math.PI) / 180;
   return { x: 11.8 * Math.sin(a), z: -11.8 * Math.cos(a) };
 });
 
@@ -258,19 +262,36 @@ export const HOME_CHAIRS = [
 
 export function makeDoors(): Door[] {
   const doors: Door[] = [];
-  // The last number moves the doorway out: the tower's steps keep everyone further from its door.
-  const pub: [Exclude<ZoneKind, 'town' | 'house'>, Building, number, string, number][] = [
-    ['tavern', TAVERN, TAVERN.d / 2, 'The Raven’s Rest', 0],
-    ['bakery', BAKERY, BAKERY.d / 2, 'Bakery', 0],
-    ['church', CHURCH, churchFront, 'Church', 0],
-    ['tower', TOWER, TOWER.d / 2, 'Clock tower', 0.65],
+  const pub: [Exclude<ZoneKind, 'town' | 'house' | 'tower'>, Building, number, string][] = [
+    ['tavern', TAVERN, TAVERN.d / 2, 'The Raven’s Rest'],
+    ['bakery', BAKERY, BAKERY.d / 2, 'Bakery'],
+    ['church', CHURCH, churchFront, 'Church'],
   ];
-  for (const [kind, b, front, label, out] of pub) {
-    const trigger = doorPoint(b, 0.55 + out, front);
-    const outside = doorPoint(b, 2.0 + out, front);
+  for (const [kind, b, front, label] of pub) {
+    const trigger = doorPoint(b, 0.55, front);
+    const outside = doorPoint(b, 2.0, front);
     doors.push({ id: `${kind}-in`, zone: 'town', x: trigger.x, z: trigger.z, r: 1.0, to: kind, spawn: ROOM_DOOR[kind].arrive, label });
     const ex = ROOM_DOOR[kind].exit;
     doors.push({ id: `${kind}-out`, zone: kind, x: ex.x, z: ex.z, r: ex.r, to: 'town', spawn: { ...outside, ry: b.ry }, label: 'Outside' });
+  }
+  // The clock tower opens on all four sides, and you come back out of the door you went in by. Its steps keep
+  // everyone a little way off, so each doorway sits just past them.
+  const sides: [string, number][] = [
+    ['s', 0],
+    ['e', Math.PI / 2],
+    ['n', Math.PI],
+    ['w', -Math.PI / 2],
+  ];
+  for (const [side, ry] of sides) {
+    const b = { ...TOWER, ry };
+    const trigger = doorPoint(b, 1.15);
+    const outside = doorPoint(b, 2.65);
+    doors.push({ id: `tower-in-${side}`, zone: 'town', x: trigger.x, z: trigger.z, r: 0.8, to: 'tower', spawn: ROOM_DOOR.tower.arrive, back: { ...outside, ry }, label: 'Clock tower' });
+  }
+  {
+    const ex = ROOM_DOOR.tower.exit;
+    const outside = doorPoint(TOWER, 2.65);
+    doors.push({ id: 'tower-out', zone: 'tower', x: ex.x, z: ex.z, r: ex.r, to: 'town', spawn: { ...outside, ry: 0 }, label: 'Outside' });
   }
   houseSlots.forEach((h, slot) => {
     const trigger = local(h.x, h.z, h.ry, 0, HOUSE_D / 2 + 0.55);

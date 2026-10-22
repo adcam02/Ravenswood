@@ -1031,7 +1031,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     doors: makeDoors(),
     stations: makeStations(),
     houseSlots,
-    spawn: { x: 0, z: 13.7, ry: Math.PI },
+    spawn: { x: 0, z: 15.6, ry: Math.PI },
     homeSpawn: { x: BED.x - 1.7, z: BED.z + 1.1, ry: Math.PI / 2 },
     meetingSpot,
     meetingRadius: MEETING_R,
