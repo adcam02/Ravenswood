@@ -42,6 +42,12 @@ export type AnimalId =
   | 'wombat'
   | 'jellyfish'
   | 'gecko'
+  | 'ferret'
+  | 'dugong'
+  | 'seacucumber'
+  | 'ibis'
+  | 'crab'
+  | 'turtle'
   | 'bunny';
 
 export interface AnimalInfo {
@@ -108,6 +114,12 @@ export const ANIMALS: AnimalInfo[] = [
   { id: 'wombat', name: 'Wombat', aquatic: false, colors: ['#8a7a68', '#5a4a3c', '#c9b8a0', '#a08a70'] },
   { id: 'jellyfish', name: 'Jellyfish', aquatic: true, colors: ['#f4a9c0', '#8ad0f0', '#b494dd', '#f6d55c'] },
   { id: 'gecko', name: 'Gecko', aquatic: false, colors: ['#f2c14e', '#6fbf5a', '#f08a3a', '#b494dd'] },
+  { id: 'ferret', name: 'Ferret', aquatic: false, colors: ['#dcc49a', '#b88a5a', '#f4efe6', '#8a6a4a'] },
+  { id: 'dugong', name: 'Dugong', aquatic: true, colors: ['#9a8f86', '#7d7a78', '#b8aea2'] },
+  { id: 'seacucumber', name: 'Sea Cucumber', aquatic: true, colors: ['#8a4a3a', '#e8a04a', '#6a4a7a', '#4a5a3a'] },
+  { id: 'ibis', name: 'Ibis', aquatic: false, colors: ['#f2efe8', '#e6dccb', '#d8c8ae'] },
+  { id: 'crab', name: 'Crab', aquatic: true, colors: ['#e0563a', '#e8843a', '#4a6a8a', '#8a5a3a'] },
+  { id: 'turtle', name: 'Turtle', aquatic: true, colors: ['#7a7a3a', '#8a6238', '#4f7a6a'] },
   { id: 'bunny', name: 'Bunny', aquatic: false, colors: ['#f4efe6', '#c89b62', '#9aa0a8', '#f2a7b8'], reservedFor: 'jarrod' },
 ];
 
