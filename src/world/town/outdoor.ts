@@ -410,6 +410,18 @@ function pathMesh(): THREE.Mesh {
   return mesh;
 }
 
+/** Darkens a building's walls a little towards the ground, where less light reaches, so it sits solidly in the grass. */
+function shadeFoot(geo: THREE.BufferGeometry, height = 0.8, dark = 0.2) {
+  const pos = geo.getAttribute('position');
+  const col = geo.getAttribute('color');
+  if (!pos || !col) return;
+  for (let i = 0; i < pos.count; i++) {
+    const k = 1 - dark * (1 - smooth(0, height, pos.getY(i)));
+    col.setXYZ(i, col.getX(i) * k, col.getY(i) * k, col.getZ(i) * k);
+  }
+  col.needsUpdate = true;
+}
+
 // ---------------------------------------------------------------- windows and doors
 
 /** A window on a wall whose face is the local z = 0 plane, looking out along +z. */
@@ -1763,6 +1775,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     const mat = matte();
     mat.transparent = true;
     const m = smoothMesh(b, mat);
+    shadeFoot(m.geometry);
     m.name = 'building';
     group.add(m);
     occluders.push(m);

@@ -42,6 +42,15 @@ const ALL = {
   'tower-inside-close': 'zone=tower&t=0&x=0&z=-1.5&dist=8',
   'tower-inside-night': 'zone=tower&t=1&dist=13',
   'tower-door': 'x=3.5&z=0&t=0&dist=12&yaw=1.2&pitch=0.45',
+  // Contact shadows, cloud shadows, puddles, sunbeams and halos indoors.
+  'church-beams': 'zone=church&t=0&dist=14',
+  'tavern-night': 'zone=tavern&t=1',
+  'tower-night-halos': 'zone=tower&t=1&dist=13',
+  'puddles': 'x=-6&z=8&t=0&weather=rain&dist=16&frames=12',
+  'puddles-path': 'x=12&z=-4&t=0&weather=rain&dist=12&frames=12',
+  'cottage-ground': 'x=25.6&z=13.6&t=0&dist=14&yaw=0.6&pitch=0.7',
+  'puddles-overview': 'wide&t=0&z=4&dist=60&weather=rain&frames=12',
+  dust: 'x=14&z=0&t=0&dist=9&dust&frames=10',
   'bedroom-night': 'zone=house&t=1&night&x=2&z=-1&dist=12&yaw=0.35',
   'bedroom-window': 'zone=house&t=1&night&x=0.5&z=-2&dist=7&yaw=0&pitch=0.3',
   well: 'x=-6.5&z=-13&t=0&dist=10',
@@ -91,6 +100,12 @@ const errors = [];
 page.on('pageerror', (e) => {
   errors.push(e.message);
   console.log('page error:', e.message.slice(0, 300));
+});
+// A shader that fails to compile doesn't throw: three.js logs it and the mesh just isn't drawn.
+page.on('console', (m) => {
+  if (m.type() !== 'error' && !/THREE\.WebGLProgram/.test(m.text())) return;
+  errors.push(m.text());
+  console.log('console:', m.text().slice(0, 300));
 });
 for (const [name, qs] of Object.entries(views)) {
   await page.goto(`http://localhost:${PORT}/dev/town.html?${qs}`, { timeout: 180000 });

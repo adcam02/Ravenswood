@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Builder, matte, rng } from '../build';
 import { buildItem, disposeObject } from '../items';
 import { BED_SPOTS, wrapAngle, type Collider, type Door, type Spot, type Station, type TownState, type Weather, type ZoneKind } from '../types';
-import { makeBirds, makeGlows, makeMist, makeRain, makeRipples, makeSky, swayUniforms } from './fx';
+import { glowUniforms, makeBirds, makeGlows, makeMist, makeRain, makeRipples, makeSky, swayUniforms } from './fx';
 import { G, shade } from './kit';
 import { buildInteriors, turnClockwork, type Room } from './interiors';
 import {
@@ -30,8 +30,12 @@ import {
   roomColliders,
   shelfSpot,
   townColliders,
+  groundAt,
+  pondContains,
+  SQUARE_R,
 } from './layout';
-import { buildOutdoor } from './outdoor';
+import { PATHS, buildOutdoor } from './outdoor';
+import { addCloudShadow, beamUniforms, makeClouds, makeContactShadows, makeDust, makePuddles, type Footprint, type PuddleSpot } from './looks';
 import { signBoard, TextSign } from './sign';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 
@@ -90,6 +94,8 @@ export interface TownWorld {
   bellRing(): void;
   /** Low graphics: the forest beyond the fence, the night glows, the birds and the mist sheets are left out. */
   setLowDetail(on: boolean): void;
+  /** A little puff of dust kicked up at someone's feet (in town). */
+  puff(x: number, y: number, z: number): void;
   /** Rain, mist or clear skies, fading in over a couple of seconds. */
   setWeather(w: Weather): void;
   /** How far through the day it is, 0 (morning) to 1 (evening). The sun moves with it, and from about 0.75 the light turns golden. */
@@ -310,6 +316,40 @@ class Keeper<T extends { id: string }> {
 
 // ---------------------------------------------------------------- assembly
 
+/** Where puddles gather in the rain: along the paths and on the square, clear of the dais, the tower and the pond. */
+function puddleSpots(): PuddleSpot[] {
+  const r = rng(131);
+  const out: PuddleSpot[] = [];
+  const clear = (x: number, z: number, rad: number) =>
+    Math.hypot(x, z) < TOWN_R - 3 &&
+    Math.hypot(x, z) > 3.4 + rad &&
+    Math.hypot(x - MEETING_CENTRE.x, z - MEETING_CENTRE.z) > DAIS.r1 + rad + 0.3 &&
+    !pondContains(x, z, -1.5) &&
+    out.every((p) => Math.hypot(p.x - x, p.z - z) > (p.r + rad * 2) / 2 + 0.3);
+  for (let tries = 0; out.length < 34 && tries < 800; tries++) {
+    let x: number;
+    let z: number;
+    if (r() < 0.3) {
+      const a = r() * Math.PI * 2;
+      const d = 3.5 + r() * (SQUARE_R - 4.5);
+      x = d * Math.sin(a);
+      z = -d * Math.cos(a);
+    } else {
+      const { seg, w } = PATHS[Math.floor(r() * PATHS.length)];
+      const [x0, z0, x1, z1] = seg;
+      const t = r();
+      const len = Math.hypot(x1 - x0, z1 - z0) || 1;
+      const side = (r() - 0.5) * w * 0.6;
+      x = x0 + (x1 - x0) * t - ((z1 - z0) / len) * side;
+      z = z0 + (z1 - z0) * t + ((x1 - x0) / len) * side;
+    }
+    const rad = 0.5 + r() * 0.8;
+    if (!clear(x, z, rad)) continue;
+    out.push({ x, y: groundAt(x, z) + 0.04, z, r: rad * 2 });
+  }
+  return out;
+}
+
 export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): TownWorld {
   void renderer;
   // Window glass outside: sky-tinted by day, glowing warm at night.
@@ -397,11 +437,52 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   // The cobbles shine a little when wet; the paths and grass darken.
   const cobbles = outdoor.group.getObjectByName('cobbles') as THREE.Mesh | undefined;
   const cobbleMat = new THREE.MeshPhongMaterial({ vertexColors: true, specular: '#000000', shininess: 46 });
-  if (cobbles) cobbles.material = cobbleMat;
   const dampen = ['paths', 'ground']
     .map((n) => outdoor.group.getObjectByName(n) as THREE.Mesh | undefined)
     .map((m) => m?.material as THREE.MeshLambertMaterial | undefined)
     .filter((m): m is THREE.MeshLambertMaterial => Boolean(m));
+
+  // Soft shadows where things meet the ground, in town and in every room.
+  const townFootprints = townColliders(outdoor.colliders);
+  const footprint = (c: Collider, y: number, inside: boolean): Footprint | null => {
+    if (c.kind === 'circle') {
+      if (!inside && pondContains(c.x, c.z)) return null;
+      const big = c.r > 1.5;
+      return { x: c.x, z: c.z, y, hw: c.r, hd: c.r, rot: 0, round: true, soft: big ? 1.0 : Math.max(0.35, c.r * 1.6), strength: big ? 0.3 : 0.26 };
+    }
+    if (!inside && Math.hypot(c.x - GRAVEYARD.x, c.z - GRAVEYARD.z) < 0.5) return null;
+    const big = Math.min(c.hw, c.hd) > 1.5;
+    return { x: c.x, z: c.z, y, hw: c.hw, hd: c.hd, rot: c.rot, round: false, soft: big ? 1.1 : 0.5, strength: big ? 0.32 : 0.26 };
+  };
+  outdoor.group.add(
+    makeContactShadows(townFootprints.map((c) => footprint(c, groundAt(c.x, c.z), false)).filter((f): f is Footprint => Boolean(f))),
+  );
+  for (const room of Object.keys(interiors.rooms) as Room[]) {
+    const { hw, hd } = ROOMS[room];
+    const list = roomColliders(room).map((c) => footprint(c, 0, true)).filter((f): f is Footprint => Boolean(f));
+    // Where the walls meet the floor.
+    list.push({ x: 0, z: -hd, y: 0, hw, hd: 0.01, rot: 0, round: false, soft: 0.8, strength: 0.22 });
+    for (const sx of [-1, 1]) list.push({ x: sx * hw, z: 0, y: 0, hw: 0.01, hd, rot: 0, round: false, soft: 0.8, strength: 0.22 });
+    interiors.rooms[room].group.add(makeContactShadows(list, 0.05));
+  }
+
+  // Clouds drifting over, their shadows sliding across the ground and the buildings.
+  const clouds = makeClouds();
+  outdoor.group.add(clouds.group);
+  if (cobbles) cobbles.material = cobbleMat;
+  outdoor.group.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh || !['ground', 'paths', 'cobbles', 'chunk', 'building', 'foliage', 'dais'].includes(m.name)) return;
+    for (const mat of Array.isArray(m.material) ? m.material : [m.material]) addCloudShadow(mat);
+  });
+
+  // Puddles along the paths and on the square, for rainy days.
+  const puddles = makePuddles(puddleSpots());
+  // Dust kicked up on the paths.
+  const dust = makeDust();
+  outdoor.group.add(puddles.mesh, dust.points);
+  let wetK = 0;
+  let lowDetail = false;
 
   // Fireflies by the pond, only at night.
   const flyGeo = new THREE.BufferGeometry();
@@ -690,6 +771,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       b.add(G.sphere(10, 6), k % 3 ? '#6c8548' : '#5d7640', { pos: [x, y + 0.004, z], rot: [0, a, 0], scale: [0.16 + rnd() * 0.12, 0.022, 0.07 + rnd() * 0.05] });
     }
     const ring = b.mesh(matte(), { cast: true });
+    ring.name = 'dais';
     outdoor.group.add(ring);
   }
   // The clock hands from the grimoire's vote clock, laid on the cobbles: an antique spade hand each for the
@@ -890,7 +972,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       moonMat.opacity = step(0.45, 0.85, t) * clear;
       sunMat.opacity = (1 - step(0.3, 0.55, t)) * clear;
       flyMat.opacity = Math.max(0, t - 0.5) * 2 * (1 - rainK);
-      glows.set(step(0.35, 0.95, t), fogTown.near, fogTown.far * 1.2);
+      glows.set(lowDetail ? 0 : step(0.35, 0.95, t), fogTown.near, fogTown.far * 1.2);
       sky.visible = true;
     } else {
       scene.fog = null;
@@ -918,8 +1000,11 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         l.distance = spec.distance;
         lampSpecs[i] = { base: spec.intensity, flicker: Boolean(spec.flicker) };
       });
-      // Outside the windows it's day or night, and greyer in the rain.
+      // Outside the windows it's day or night, and greyer in the rain; sunbeams only on a bright day.
       interiors.glassMaterial.color.setScalar(dark ? 0.08 : (1 - 0.85 * t) * (1 - 0.35 * rainK) * (1 - 0.2 * mistK));
+      beamUniforms.uBeam.value = dark ? 0 : (1 - smooth(Math.min(1, t * 1.6))) * (1 - 0.7 * rainK) * (1 - 0.4 * mistK);
+      // Halos round the flames and lamps, stronger after dark (on the higher graphics only).
+      room.glows?.set(dark || lowDetail ? 0 : 0.35 + 0.35 * t, 200, 400);
       sky.visible = false;
     }
     lamps.forEach((l, i) => (l.intensity = lampSpecs[i].base));
@@ -1122,6 +1207,9 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         mistK = wantMist > mistK ? Math.min(wantMist, mistK + k) : Math.max(wantMist, mistK - k);
         applyLight();
       }
+      // Puddles fill while it rains and dry slowly after; arriving in the rain, they're already there.
+      wetK = rainK > 0.5 ? (t < 8 ? 1 : Math.min(1, wetK + dt / 25)) : Math.max(0, wetK - dt / 90);
+      glowUniforms.uGlowTime.value = t;
       if (bellPending) {
         bellPending = false;
         bellStart = t;
@@ -1131,6 +1219,10 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       const ring = Math.sin((t - bellStart) * 9) * ringK;
       if (zone === 'tower') turnClockwork(interiors.clockwork, ring);
       if (zone !== 'town') return;
+      const dusk = smooth(time);
+      clouds.update(dt, (1 - dusk) * (1 - rainK) * (1 - 0.7 * mistK), !lowDetail);
+      puddles.set(wetK, rainK, t, fogTown.color);
+      dust.update(dt, 1 - 0.75 * dusk);
       // Rain, mist, swaying leaves, birds and the pond.
       rain.set(rainK, t, followAt);
       mist.set(mistK, dt, followAt, fogTown.color);
@@ -1232,10 +1324,17 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     },
 
     setLowDetail(on) {
+      lowDetail = on;
       const extras = new Set(['forest', 'night-glow', 'birds', 'mist']);
       scene.traverse((o) => {
         if (extras.has(o.name)) o.visible = !on;
       });
+      // The glows are shown and hidden with the light, so that has to know too.
+      applyLight();
+    },
+
+    puff(x, y, z) {
+      if (zone === 'town') dust.puff(x, y, z);
     },
 
     bellRing() {

@@ -345,7 +345,12 @@ export interface GlowSpot {
   z: number;
   size: number;
   color: string;
+  /** A flame: its halo flickers a little. */
+  flicker?: boolean;
 }
+
+/** The time, shared by every set of glows, for the flicker of flames. */
+export const glowUniforms = { uGlowTime: { value: 0 } };
 
 export interface Glows {
   mesh: THREE.Mesh;
@@ -362,36 +367,42 @@ export function makeGlows(spots: GlowSpot[]): Glows {
   const pos = new Float32Array(spots.length * 3);
   const size = new Float32Array(spots.length);
   const col = new Float32Array(spots.length * 3);
+  const flick = new Float32Array(spots.length);
   const c = new THREE.Color();
   spots.forEach((s, i) => {
     pos.set([s.x, s.y, s.z], i * 3);
     size[i] = s.size;
     c.set(s.color);
     col.set([c.r, c.g, c.b], i * 3);
+    flick[i] = s.flicker ? 1 : 0;
   });
   geo.setAttribute('aPos', new THREE.InstancedBufferAttribute(pos, 3));
   geo.setAttribute('aSize', new THREE.InstancedBufferAttribute(size, 1));
   geo.setAttribute('aColor', new THREE.InstancedBufferAttribute(col, 3));
+  geo.setAttribute('aFlicker', new THREE.InstancedBufferAttribute(flick, 1));
   geo.instanceCount = spots.length;
-  const uniforms = { uGlow: { value: 0 }, uFogNear: { value: 40 }, uFogFar: { value: 120 } };
+  const uniforms = { uGlow: { value: 0 }, uFogNear: { value: 40 }, uFogFar: { value: 120 }, uGlowTime: glowUniforms.uGlowTime };
   const material = new THREE.ShaderMaterial({
     uniforms,
     vertexShader: /* glsl */ `
       attribute vec3 aPos;
       attribute float aSize;
       attribute vec3 aColor;
+      attribute float aFlicker;
       uniform float uFogNear;
       uniform float uFogFar;
+      uniform float uGlowTime;
       varying vec2 vUv;
       varying vec3 vColor;
       varying float vFade;
       void main() {
+        float flame = 1.0 - aFlicker * 0.2 * (0.5 + 0.5 * sin(uGlowTime * 9.0 + aPos.x * 3.1) * sin(uGlowTime * 5.3 + aPos.z * 2.3));
         vec4 mv = modelViewMatrix * vec4(aPos, 1.0);
         // Pulled a little toward the camera, so a halo on a wall doesn't get cut by the wall.
         mv.xyz += normalize(-mv.xyz) * 0.6;
         mv.xy += position.xy * aSize;
         vUv = uv;
-        vColor = aColor;
+        vColor = aColor * flame;
         vFade = 1.0 - smoothstep(uFogNear, uFogFar, -mv.z);
         gl_Position = projectionMatrix * mv;
       }`,

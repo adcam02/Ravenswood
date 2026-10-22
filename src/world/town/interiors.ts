@@ -25,6 +25,8 @@ import {
   tableChairs,
 } from './layout';
 import { IRON, WOOD, WOOD_DARK, WOOD_LIGHT, barrel, crate } from './props';
+import { makeGlows, type GlowSpot, type Glows } from './fx';
+import { beamGeometry, beamMaterial } from './looks';
 import { TextSign } from './sign';
 
 export type Room = Exclude<ZoneKind, 'town'>;
@@ -46,6 +48,8 @@ export interface RoomLight {
 
 export interface Interior extends RoomLight {
   group: THREE.Group;
+  /** Soft halos round the room's flames and lamps. */
+  glows?: Glows;
   /** The same room with the fire out and moonlight through the window, for bedrooms at night. */
   night?: RoomLight;
 }
@@ -60,6 +64,13 @@ export interface Interiors {
 }
 
 const WALL_H = 3.3;
+
+/** The halos for the room being built: every flame and lamp adds one where it stands. */
+let haloSpots: GlowSpot[] = [];
+const haloAt = (p: Paint, x: number, y: number, z: number, size: number, color: string, flicker = false) => {
+  const v = new THREE.Vector3(x, y, z).applyMatrix4(p.m);
+  haloSpots.push({ x: v.x, y: v.y, z: v.z, size, color, flicker });
+};
 
 interface Shell {
   floor: string[];
@@ -175,6 +186,7 @@ function fireplace(p: Paint, glow: Builder, stone: string) {
   glow.add(new THREE.ConeGeometry(0.22, 0.5, 5), '#ffb347', { pos: [-0.1, 0.48, 0.45] }, p.m);
   glow.add(new THREE.ConeGeometry(0.16, 0.38, 5), '#ffd76b', { pos: [0.15, 0.42, 0.5] }, p.m);
   glow.add(new THREE.ConeGeometry(0.1, 0.28, 4), '#fff1b0', { pos: [0, 0.38, 0.55] }, p.m);
+  haloAt(p, 0, 0.5, 0.55, 2.6, '#ff9a4a', true);
   p.box('#b85f4a', 1.5, 0.03, 0.8, 0, 0.015, 1.0);
 }
 
@@ -187,6 +199,7 @@ function candle(p: Paint, glow: Builder, x: number, y: number, z: number, h = 0.
   p.sphere('#f6efe0', 0.015, 0.035, 0.015, x + 0.03, y + h - 0.02, z);
   p.post('#2a1f1a', 0.005, 0.03, x, y + h + 0.02, z, 4);
   glow.add(new THREE.ConeGeometry(0.035, 0.1, 6), '#ffd76b', { pos: [x, y + h + 0.08, z] }, p.m);
+  haloAt(p, x, y + h + 0.08, z, 0.7, '#ffc96a', true);
 }
 
 function hangingLamp(p: Paint, glow: Builder, x: number, y: number, z: number) {
@@ -197,6 +210,7 @@ function hangingLamp(p: Paint, glow: Builder, x: number, y: number, z: number) {
   p.torus(IRON, 0.29, 0.012, x, y + 0.13, z, Math.PI / 2);
   p.glass.cyl('#fff1c8', 0.14, 0.06, x, y + 0.1, z, 10);
   glow.add(new THREE.IcosahedronGeometry(0.14, 1), '#ffe2a0', { pos: [x, y + 0.05, z] }, p.m);
+  haloAt(p, x, y + 0.05, z, 1.3, '#ffc27a');
 }
 
 function chair(p: Paint, color: string, cushion: string | null = null) {
@@ -380,6 +394,7 @@ function bakery(p: Paint, glow: Builder, r: () => number) {
   glow.add(new THREE.ConeGeometry(0.2, 0.4, 5), '#ffb347', { pos: [OVEN.x - 0.15, 0.62, OVEN.z + 1.0] });
   glow.add(new THREE.ConeGeometry(0.16, 0.32, 5), '#ffd76b', { pos: [OVEN.x + 0.2, 0.58, OVEN.z + 1.02] });
   glow.add(new THREE.BoxGeometry(0.9, 0.1, 0.1), '#ff8a3d', { pos: [OVEN.x, 0.46, OVEN.z + 1.05] });
+  haloAt(p, OVEN.x, 0.6, OVEN.z + 1.1, 2.4, '#ff8a3d', true);
   o.box('#e3a77f', 3.0, 0.12, 0.3, 0, 1.05, 1.2);
   // A baker's peel leaning on the oven.
   p.box(WOOD_LIGHT, 0.06, 1.6, 0.06, OVEN.x + 1.75, 0.8, OVEN.z + 0.9, 0.15, 0, -0.2);
@@ -476,7 +491,7 @@ function bakery(p: Paint, glow: Builder, r: () => number) {
 
 // ---------------------------------------------------------------- the church
 
-function church(p: Paint, glow: Builder, r: () => number) {
+function church(p: Paint, glow: Builder, r: () => number): THREE.Object3D {
   const { hw, hd } = ROOMS.church;
   shell(p, 'church', { floor: ['#cfc6b8', '#bdb3a4'], wall: '#e3dccf', wainscot: '#b8ae9e', trim: '#8f8070', tiles: true }, r);
   // The aisle carpet.
@@ -569,6 +584,19 @@ function church(p: Paint, glow: Builder, r: () => number) {
       q.box(shade('#7a5236', -0.08), PEW_LEN - 0.3, 0.03, 0.12, 0, 0.85, 0.38);
     }
   }
+  // Sunbeams slanting in through the windows on the sunny side, tinted by the glass, with bright patches on the floor.
+  const beams = [-4.5, -0.5, 3.5].map((z, i) => {
+    const x = -hw + 0.06;
+    return {
+      corners: [new THREE.Vector3(x, 1.05, z - 0.42), new THREE.Vector3(x, 1.05, z + 0.42), new THREE.Vector3(x, 2.95, z + 0.42), new THREE.Vector3(x, 2.95, z - 0.42)],
+      dir: new THREE.Vector3(0.62, -0.74, -0.22),
+      color: new THREE.Color('#fff1cf').lerp(new THREE.Color(stained[(i * 2) % stained.length]), 0.3).multiplyScalar(0.16),
+      floorGlow: 1.7,
+    };
+  });
+  const sunbeams = new THREE.Mesh(beamGeometry(beams), beamMaterial());
+  sunbeams.renderOrder = 6;
+  sunbeams.name = 'sunbeams';
   // Hanging candle wheels.
   for (const z of [-3.5, 2.5]) {
     p.torus(IRON, 0.6, 0.03, 0, 2.7, z, Math.PI / 2);
@@ -578,6 +606,7 @@ function church(p: Paint, glow: Builder, r: () => number) {
       candle(p, glow, Math.cos(a) * 0.6, 2.72, z + Math.sin(a) * 0.6, 0.12);
     }
   }
+  return sunbeams;
 }
 
 // ---------------------------------------------------------------- the clock tower
@@ -678,6 +707,7 @@ function dial(p: Paint, lit: Paint, y: number, R: number, works: Clockwork, plac
   p.cyl('#a8a196', R + 0.2, 0.06, 0, y, 0.14, 40, Math.PI / 2);
   p.torus('#8f887c', R + 0.2, 0.035, 0, y, 0.17);
   lit.cyl('#fff3d6', R, 0.02, 0, y, 0.185, 40, Math.PI / 2);
+  haloAt(p, 0, y, 0.3, R * 2.2, '#c9b68a');
   // Iron rings and spokes holding the glass, then the minute and hour marks.
   p.torus(NUMERAL, R, 0.035, 0, y, 0.2);
   p.torus(NUMERAL, R * 0.66, 0.016, 0, y, 0.2);
@@ -1012,6 +1042,7 @@ function home(p: Paint, glow: Builder, r: () => number, sign: TextSign): THREE.O
   p.torus('#e8b878', 0.18, 0.012, 4.45, 0.89, -3.5, Math.PI / 2);
   p.box('#3f6f9a', 0.2, 0.04, 0.26, 4.3, 0.66, -3.3, 0, 0.3, 0);
   glow.add(new THREE.IcosahedronGeometry(0.08, 1), '#ffe2a0', { pos: [4.45, 0.92, -3.5] });
+  haloAt(p, 4.45, 0.92, -3.5, 1.0, '#ffd890', true);
   // Fireplace with a rug before it.
   fireplace(p.at(-2.4, 0, -hd + 0.4), glow, '#b5a99a');
   candle(p, glow, -2.9, 1.66, -hd + 0.4, 0.2);
@@ -1125,14 +1156,18 @@ export function buildInteriors(): Interiors {
   const glowMaterial = new THREE.MeshBasicMaterial({ vertexColors: true });
   const clockwork: Clockwork = { hands: [], gears: [], pendulum: new THREE.Group(), rope: new THREE.Group() };
   const ownerSign = new TextSign({ w: 512, h: 512, bg: '#fbf4e6', fg: '#b8506a', round: true, italic: false, size: 120 }, ['Home', 'sweet home']);
+  const halos: Partial<Record<Room, Glows>> = {};
   const make = (room: Room, fill: (p: Paint, glow: Builder, r: () => number) => THREE.Object3D | void): THREE.Group => {
     const main = new Builder();
     const glass = new Builder();
     const glow = new Builder();
     const p = new Paint({ main, glass });
+    haloSpots = [];
     const extra = fill(p, glow, rng(room.length * 97 + 3));
+    halos[room] = haloSpots.length ? makeGlows(haloSpots) : undefined;
     const g = new THREE.Group();
     g.name = room;
+    if (halos[room]) g.add(halos[room].mesh);
     g.add(smoothMesh(main, matte()));
     if (!glass.empty) g.add(glass.mesh(glassMaterial, { cast: false, receive: false }));
     if (!glow.empty) {
@@ -1211,5 +1246,6 @@ export function buildInteriors(): Interiors {
       },
     },
   };
+  for (const room of Object.keys(rooms) as Room[]) rooms[room].glows = halos[room];
   return { rooms, glassMaterial, ownerSign, clockwork };
 }

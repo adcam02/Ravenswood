@@ -139,6 +139,15 @@ the church, the clock ticking in the tower). It sits well under the voices and c
 The cog by the mic button has push-to-talk (hold V), everyone's volume, and a slider for **each
 person**, for the one who's too loud or too quiet. It's kept in that browser.
 
+### The look of the town
+
+Everything here is drawn on each player's own screen and sends nothing over the network. Soft shadows
+gather where walls, trees, benches and furniture meet the ground or the floor; clouds drift over with
+their shadows sliding across the town; puddles spread in the rain (with rings from the drops) and dry
+up afterwards; running along the dirt paths kicks up little puffs of dust; sunbeams slant in through
+the church windows on a fine day; and flames, lamps and the clock tower's dials have a soft glow,
+stronger after dark. The glows and clouds are left out on low graphics.
+
 ### When something goes wrong
 
 If anything in a player's game breaks, they get a note with **Reload** (they keep their seat) rather

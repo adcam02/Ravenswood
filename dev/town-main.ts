@@ -88,6 +88,8 @@ function loop() {
   town.update(dt, clock.elapsedTime + num('skip', 0));
   if (q.has('sway')) swayUniforms.uSway.value = num('sway', 4);
   if (q.has('ripple') && frames === 2) for (let i = 0; i < 4; i++) town.ripple(6.5 + (i - 1.5) * 1.6, 17.8 + (i % 2) * 1.2, 1);
+  // ?dust: someone running along x from the focus, kicking up a puff each frame.
+  if (q.has('dust') && frames < settle - 1) town.puff(tx + frames * 0.35, 0, tz);
   if (town.consumeShadowDirty()) {
     renderer.shadowMap.needsUpdate = true;
     shadowRenders++;
