@@ -366,6 +366,9 @@ class HostLink {
       case 'slay':
         p.slay(pid, String(msg.seatId));
         break;
+      case 'method':
+        p.method(pid, msg.m);
+        break;
       case 'pigeon': {
         const why = p.pigeon(pid, String(msg.to ?? ''), String(msg.where ?? ''));
         link.send({ t: 'pigeoned', ok: !why, why: why ?? undefined });

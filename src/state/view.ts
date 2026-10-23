@@ -78,6 +78,14 @@ export interface View {
 
 const label = (name: string, i: number) => name || `Seat ${i + 1}`;
 
+/** An execution's times (the vote closing, the wheel's draw) in this browser's own clock. */
+const localExecution = (ex: Execution, offset: number): Execution => ({
+  ...ex,
+  at: ex.at - offset,
+  vote: ex.vote && { ...ex.vote, until: ex.vote.until - offset },
+  drawn: ex.drawn && { ...ex.drawn, at: ex.drawn.at - offset },
+});
+
 export function useStorytellerView(): View {
   const g = useHost((s) => s.g);
   const online = useHostNet((s) => s.online);
@@ -182,7 +190,7 @@ export function usePlayerView(): View | null {
       marked: pub.marked,
       history: pub.history,
       townHall: pub.townHall ?? null,
-      execution: pub.execution ?? null,
+      execution: pub.execution ? localExecution(pub.execution, clockOffset ?? 0) : null,
       weather: pub.weather ?? 'clear',
       dayTimer: pub.dayTimer ? { ...pub.dayTimer, start: pub.dayTimer.start - (clockOffset ?? 0), end: pub.dayTimer.end - (clockOffset ?? 0) } : null,
       town: pub.town,

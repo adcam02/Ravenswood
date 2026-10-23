@@ -9,6 +9,7 @@ import {
   type Script,
 } from '../data';
 import { loadJSON, roomCode, saveJSON, shuffle, uid } from '../lib/util';
+import { drawMethod, isExecMethod, VOTE_MS } from '../game/execution';
 import { ui } from './ui';
 import {
   ANIMALS,
@@ -26,6 +27,8 @@ import {
 import type {
   Ask,
   DeathRecord,
+  ExecMethod,
+  Execution,
   GameEnd,
   GameState,
   GrimoireSnapshot,
@@ -118,6 +121,8 @@ function loadGame(): GameState | null {
   g.town ??= emptyTown();
   g.town.records ??= {};
   g.execution ??= null;
+  // Reloaded while the town was voting on how: the wheel decides now.
+  if (g.execution && !g.execution.method && g.execution.vote) settleMethod(g.execution);
   g.weather ??= 'clear';
   g.dayTimer ??= null;
   for (const s of g.seats) s.look ??= null;
@@ -538,6 +543,31 @@ function runClock() {
   }
 }
 
+// ---------------------------------------------------------------- executions
+
+/** A new execution of a seat: the town votes on how for a few seconds (or it comes with its method). */
+function newExecution(seatId: string, method?: ExecMethod): Execution {
+  const at = Date.now();
+  if (method && isExecMethod(method)) return { id: uid(), seatId, at, method };
+  const ex: Execution = { id: uid(), seatId, at, vote: { until: at + VOTE_MS, picks: {} } };
+  setTimeout(() => closeMethodVote(ex.id), VOTE_MS + 60);
+  return ex;
+}
+
+/** The vote is over: the wheel's result, drawn here from the votes, for everyone's wheel to land on. */
+function settleMethod(ex: Execution) {
+  ex.method = drawMethod(ex.vote?.picks);
+  ex.drawn = { at: Date.now(), spin: true };
+}
+
+function closeMethodVote(id: string) {
+  const ex = hostGame().execution;
+  if (!ex || ex.id !== id || ex.method) return;
+  update((g) => {
+    if (g.execution?.id === id && !g.execution.method) settleMethod(g.execution);
+  });
+}
+
 // ---------------------------------------------------------------- around town
 
 const MAX_FISH_LOG = 20;
@@ -778,37 +808,50 @@ export const st = {
       if (!s.dead) s.ghostVote = true;
       g.nightDeaths = g.nightDeaths.filter((x) => x !== id);
       if (s.dead && g.phase === 'night') g.nightDeaths.push(id);
-      // Killing the player on the block by day is an execution: the whole town watches.
+      // Killing the player on the block by day is an execution: the whole town watches (and votes on how).
       const executed = s.dead && g.phase === 'day' && g.marked?.seatId === id;
       if (executed) {
-        g.execution = { id: uid(), seatId: id, at: Date.now() };
+        g.execution = newExecution(id);
         g.marked = null;
       }
       if (s.dead) died(g, id, g.phase === 'night' ? 'night' : executed ? 'executed' : 'other');
       else revived(g, id);
     });
   },
-  /** Hangs a player at the gallows in front of the town, whoever is on the block. */
-  execute(id: string) {
+  /**
+   * Executes a player in front of the town, whoever is on the block. The town votes on how, unless `method` is
+   * given (the Storyteller's own choice, or a test).
+   */
+  execute(id: string, method?: ExecMethod) {
     update((g) => {
       const s = seatOf(g, id);
       if (!s || s.dead) return;
       s.dead = true;
       died(g, id, 'executed');
-      g.execution = { id: uid(), seatId: id, at: Date.now() };
+      g.execution = newExecution(id, method);
       if (g.marked?.seatId === id) g.marked = null;
     });
   },
   /**
    * An execution that doesn't kill, for the Devil's Advocate's choice, the Fool, a Tea Lady's neighbour and the
-   * like: the whole town watches the hanging, and the rope snaps. They stay alive.
+   * like: the whole town watches, and something goes wrong (the rope snaps, the blade jams...). They stay alive.
    */
-  spare(id: string) {
+  spare(id: string, method?: ExecMethod) {
     update((g) => {
       const s = seatOf(g, id);
       if (!s || s.dead) return;
-      g.execution = { id: uid(), seatId: id, at: Date.now(), survives: true };
+      g.execution = { ...newExecution(id, method), survives: true };
       if (g.marked?.seatId === id) g.marked = null;
+    });
+  },
+  /** The Storyteller settles how today's execution goes, without waiting for the town's vote (or the wheel). */
+  pickMethod(method: ExecMethod) {
+    if (!isExecMethod(method)) return;
+    update((g) => {
+      const ex = g.execution;
+      if (!ex || ex.method) return;
+      ex.method = method;
+      ex.drawn = { at: Date.now(), spin: false };
     });
   },
   toggleGhostVote(id: string) {
@@ -1250,6 +1293,16 @@ export const st = {
     vote(playerId: string, up: boolean) {
       const s = hostGame().seats.find((x) => x.playerId === playerId);
       if (s) st.setVote(s.id, up);
+    },
+    /** A vote on how today's execution goes: anyone with a seat, living or dead (the condemned too), while it's open. */
+    method(playerId: string, m: unknown) {
+      const g = hostGame();
+      const s = g.seats.find((x) => x.playerId === playerId);
+      const ex = g.execution;
+      if (!s || !ex?.vote || ex.method || !isExecMethod(m) || Date.now() > ex.vote.until + 400) return;
+      update((g) => {
+        if (g.execution?.vote && g.execution.id === ex.id) g.execution.vote.picks[s.id] = m;
+      });
     },
     /**
      * A player claims to be the Slayer and chooses someone (once a game each). The Storyteller answers every claim,

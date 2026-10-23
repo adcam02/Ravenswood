@@ -32,6 +32,7 @@ import { GameOverLayer, WinPrompt } from './components/GameOver';
 import { MyCharacter, PlayerRail, VoteBar } from './components/PlayerBits';
 import { WakeOverlay } from './components/WakeOverlay';
 import { DayClock, ProgressWatcher, SceneBar } from './components/town/Scenes';
+import { ExecVote } from './components/town/ExecVote';
 import { WorldSeatMenu } from './components/town/WorldSeatMenu';
 import { UpdateNotice } from './components/UpdateNotice';
 import { Landing } from './components/Landing';
@@ -180,6 +181,7 @@ function Storyteller() {
           <PickBanner />
           <NightGuide />
           <SlayerPrompt />
+          <ExecVote />
           <WinPrompt />
           <GameOverLayer />
           <Modals />
@@ -260,6 +262,7 @@ function Player({ room }: { room: string }) {
               <BedLetters />
               <VisitCard />
               <PigeonNote />
+              <ExecVote />
               <DayClock />
               <ProgressWatcher />
               <NoticeBoard />

@@ -137,13 +137,25 @@ export interface TownHall {
   gathered?: boolean;
 }
 
-/** A player put to death in front of the town: the gallows show plays for everyone who sees it. */
+/** The ways to be executed: the gallows, and the town's other entertainments (see src/game/execution.ts). */
+export type ExecMethod = 'hang' | 'squad' | 'guillotine' | 'chair' | 'missile' | 'roast' | 'kaiju';
+
+/** A player put to death in front of the town: the show plays for everyone who sees it. */
 export interface Execution {
   id: string;
   seatId: string;
   at: number;
-  /** They don't die (the Devil's Advocate's choice, the Fool, a Tea Lady's neighbour): the rope snaps. */
+  /** They don't die (the Devil's Advocate's choice, the Fool, a Tea Lady's neighbour): a lucky escape. */
   survives?: boolean;
+  /**
+   * How it's done, once settled. Unset while the town votes on it. (An execution with neither this nor `vote`,
+   * from before there was a choice, is a hanging.)
+   */
+  method?: ExecMethod;
+  /** The town's vote on the method: open until `until` (host clock), with each seat's pick. */
+  vote?: { until: number; picks: Record<string, ExecMethod> };
+  /** When the method was settled (host clock): drawn on the wheel from the votes, or chosen by the Storyteller. */
+  drawn?: { at: number; spin: boolean };
 }
 
 /** Someone claiming to be the Slayer and choosing a player, in front of the whole town. Anyone can, once a game. */
@@ -405,6 +417,8 @@ export type ClientMessage =
   | { t: 'give'; to: string; item: Item }
   /** Claim to be the Slayer and choose this seat. */
   | { t: 'slay'; seatId: string }
+  /** A vote on how the one being executed goes. */
+  | { t: 'method'; m: ExecMethod }
   /** Post a letter in someone's letterbox (by day), signed or not. */
   | { t: 'letter'; to: string; text: string; signed: boolean }
   /** Send a messenger pigeon to someone: "<name> wants to speak to you", and where the sender is. */
