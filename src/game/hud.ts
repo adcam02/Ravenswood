@@ -38,6 +38,8 @@ interface Hud {
   meetingSeated: boolean;
   /** Night in bed: the counting-sheep game is on offer, being played, or done for tonight. */
   sheep: 'offer' | 'playing' | 'done' | null;
+  /** Something everyone should be watching is on screen (a hanging, a visit in the night): popups wait. */
+  drama: boolean;
 }
 
 export const useHud = create<Hud>(() => ({
@@ -55,6 +57,7 @@ export const useHud = create<Hud>(() => ({
   notice: false,
   meetingSeated: false,
   sheep: null,
+  drama: false,
 }));
 
 /** Commands from the on-screen buttons to the 3D world. The world fills these in when it starts. */

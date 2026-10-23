@@ -111,6 +111,13 @@ export const WOODPILE = { x: -13.4, z: -3.6, ry: Math.PI / 2 };
 /** Where you stand to skim stones, on the pond's near bank. */
 export const SKIMMING = { x: 3.2, z: 20.6 };
 export const NOTICEBOARD = { x: 3.2, z: -13.6 };
+/**
+ * The post office: a wall of letterboxes, one for each player, beside the road south of the meeting circle (its
+ * front faces the road), with a red pillar box beside it.
+ */
+export const POST = { x: -3.1, z: 16.6, ry: Math.PI / 2 };
+export const POST_COLS = 6;
+export const POST_ROWS = 4;
 export const GATE_Z = TOWN_R + 0.6;
 
 /** Front-door point of a building, `out` metres in front of its front wall. */
@@ -363,6 +370,11 @@ export function makeStations(): Station[] {
     st.push({ id: 'firewood', zone: 'town', x: p.x, z: p.z, r: 1.5, job: 'firewood', stand: { x: p.x, z: p.z, ry: WOODPILE.ry + Math.PI }, label: 'Chop firewood' });
   }
   st.push({ id: 'skimming', zone: 'town', x: SKIMMING.x, z: SKIMMING.z, r: 1.5, job: 'skimming', stand: { x: SKIMMING.x, z: SKIMMING.z, ry: face(SKIMMING.x, SKIMMING.z, POND.x, POND.z) }, label: 'Skim stones' });
+  {
+    const at = local(POST.x, POST.z, POST.ry, 0, 1.05);
+    const stand = local(POST.x, POST.z, POST.ry, 0, 0.85);
+    st.push({ id: 'post', zone: 'town', x: at.x, z: at.z, r: 1.5, job: 'post', stand: { ...stand, ry: POST.ry + Math.PI }, label: 'Write a letter' });
+  }
   st.push({ id: 'notice', zone: 'town', x: NOTICEBOARD.x, z: NOTICEBOARD.z + 1.1, r: 1.6, job: 'notice', stand: { x: NOTICEBOARD.x, z: NOTICEBOARD.z + 1.0, ry: Math.PI }, label: 'Read the noticeboard' });
   benches.forEach((b, i) =>
     [-0.5, 0.5].forEach((lx, k) => {
@@ -417,6 +429,9 @@ export function townColliders(extra: Collider[]): Collider[] {
   c.push({ kind: 'box', x: WOODPILE.x, z: WOODPILE.z, hw: 1.1, hd: 0.6, rot: WOODPILE.ry });
   c.push({ kind: 'box', x: GALLOWS.x, z: GALLOWS.z, hw: 1.5, hd: 1.5, rot: GALLOWS.ry });
   c.push({ kind: 'box', x: NOTICEBOARD.x, z: NOTICEBOARD.z, hw: 1.0, hd: 0.25, rot: 0 });
+  c.push(box(POST, 1.3, 0.32));
+  const pillar = local(POST.x, POST.z, POST.ry, 1.75, 0.05);
+  c.push({ kind: 'circle', x: pillar.x, z: pillar.z, r: 0.3 });
   for (const sx of [-1, 1]) c.push({ kind: 'circle', x: sx * 2.6, z: GATE_Z, r: 0.35 });
   return [...c, ...extra];
 }

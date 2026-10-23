@@ -93,6 +93,8 @@ export interface WorldSeat {
   evil: boolean;
   /** Wearing the gold star for counting the sheep. */
   star: boolean;
+  /** Letters are waiting in their letterbox. */
+  mail: boolean;
 }
 
 /** Everything the 3D world needs from the game, refreshed whenever it changes. */
@@ -192,6 +194,7 @@ const SIGN_TEXT: Partial<Record<Station['job'], string>> = {
   skimming: '🪨 Skim stones',
   clock: '🕰️ Keep time',
   confess: '🕯️ Confession booth',
+  post: '✉️ Post office',
 };
 
 const PLACE_NAMES: Record<Exclude<ZoneKind, 'house'>, string> = {
@@ -531,6 +534,7 @@ export class Engine {
       label = `Everyone to the square · ${here} of ${v.seats.length} here`;
     }
     this.town.setGraves(v.seats.filter((s) => s.dead).map((s) => s.name));
+    this.town.setPost(v.seats.map((s) => s.name), v.seats.map((s) => s.mail));
     this.town.setMeeting({
       n: v.seats.length,
       active: meeting,
@@ -1095,6 +1099,9 @@ export class Engine {
       }, 1600);
     } else if (s.job === 'notice') {
       useHud.setState({ notice: true });
+    } else if (s.job === 'post') {
+      if (v?.mode !== 'player') this.me.bubble('Only players post letters', 2000);
+      else ui.open({ kind: 'letter' });
     } else if (s.job === 'confess') {
       if (this.booth) return this.leaveBooth();
       const who = this.boothTaken(s);
@@ -1350,6 +1357,9 @@ export class Engine {
     }
 
     this.runShow(t);
+    // Unlock popups wait while something everyone should watch is on screen.
+    const drama = Boolean(this.show);
+    if (drama !== useHud.getState().drama) useHud.setState({ drama });
     if (this.me && v) this.moveMe(dt, t, v);
     this.updateOthers(dt, t, v);
     this.updateCamera(dt, t);

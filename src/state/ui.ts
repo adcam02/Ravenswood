@@ -20,6 +20,12 @@ export type Modal =
   | { kind: 'slayer' }
   /** Who was who and how it went, once the game is over. */
   | { kind: 'recap' }
+  /** Writing a letter at the post office. */
+  | { kind: 'letter' }
+  /** Opening the letters that have come, in bed at night. */
+  | { kind: 'letters' }
+  /** Hats and achievements: what's been earned, and what's still to find. */
+  | { kind: 'awards' }
   | null;
 
 export type Pick =

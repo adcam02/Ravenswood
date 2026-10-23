@@ -2513,3 +2513,209 @@
   color: var(--text-faint);
   overflow-wrap: anywhere;
 }
+
+/* ---------------------------------------------------------------- letters */
+
+.letter-blurb {
+  margin: 0 0 14px;
+  color: var(--text-dim);
+}
+.letter-ask {
+  margin: 0 0 10px;
+  text-align: center;
+  font-family: var(--font-caps);
+  letter-spacing: 0.04em;
+}
+.letter-paper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0 10px;
+  padding: 18px 20px 16px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #f6ecd2, var(--parchment) 60%, #e6d6b1);
+  color: var(--parchment-ink);
+  box-shadow:
+    inset 0 0 30px rgba(120, 90, 40, 0.18),
+    0 8px 18px -8px rgba(0, 0, 0, 0.6);
+  font-family: var(--font-fell);
+}
+.letter-paper textarea {
+  width: 100%;
+  min-height: 130px;
+  resize: vertical;
+  border: none;
+  outline: none;
+  background: repeating-linear-gradient(180deg, transparent 0 27px, rgba(120, 90, 40, 0.18) 27px 28px);
+  color: inherit;
+  font: 18px/28px var(--font-fell);
+}
+.letter-paper p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 19px;
+  line-height: 1.5;
+}
+.letter-to {
+  font-size: 18px;
+}
+.letter-sign {
+  align-self: flex-end;
+  font-style: italic;
+  font-size: 17px;
+}
+.letter-count {
+  position: absolute;
+  left: 20px;
+  bottom: 14px;
+  font-size: 12px;
+  color: rgba(42, 29, 18, 0.55);
+  font-family: var(--font-body);
+}
+.letter-signed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+}
+.letter-actions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+.letter-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+}
+.letter-done-icon {
+  font-size: 54px;
+}
+.letter-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 10px;
+}
+.letter-envelope {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: rgba(239, 227, 198, 0.08);
+  transition:
+    transform 0.15s var(--ease-out),
+    background 0.15s;
+}
+.letter-envelope:hover {
+  transform: translateY(-2px);
+  background: rgba(239, 227, 198, 0.16);
+}
+.letter-envelope.new {
+  border-color: var(--brass-hi);
+}
+.letter-envelope em {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.letter-env-icon {
+  font-size: 34px;
+}
+.bed-letters {
+  position: absolute;
+  left: 50%;
+  bottom: 160px;
+  z-index: 16;
+  transform: translateX(-50%);
+}
+
+/* ---------------------------------------------------------------- awards */
+
+.awards-tabs {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  margin-right: 8px;
+}
+.awards-tabs button {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--text-dim);
+}
+.awards-tabs button.on {
+  border-color: var(--brass-hi);
+  color: var(--text);
+  background: rgba(207, 167, 91, 0.2);
+}
+.awards-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.award {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+}
+.award.got {
+  border-color: var(--line-strong);
+  background: rgba(207, 167, 91, 0.12);
+}
+.award.locked {
+  opacity: 0.75;
+}
+.award.locked .award-icon {
+  filter: grayscale(0.9);
+}
+.award.secret.locked {
+  border-style: dashed;
+}
+.award > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.award strong {
+  font-family: var(--font-caps);
+  letter-spacing: 0.03em;
+}
+.award span {
+  color: var(--text-dim);
+  font-size: 14px;
+}
+.award em {
+  color: var(--brass-hi);
+  font-size: 12px;
+}
+.award-icon {
+  font-size: 28px;
+  width: 36px;
+  text-align: center;
+}
+.award-state {
+  color: var(--brass-hi);
+  font-size: 18px;
+}
+.awards-note {
+  margin: 16px 0 0;
+  color: var(--text-faint);
+  font-size: 13px;
+  text-align: center;
+}

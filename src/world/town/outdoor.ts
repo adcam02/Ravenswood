@@ -19,6 +19,9 @@ import {
   MEETING_CENTRE,
   NOTICEBOARD,
   POND,
+  POST,
+  POST_COLS,
+  POST_ROWS,
   RING_ROAD_R,
   GRAVEYARD,
   SKIMMING,
@@ -1366,6 +1369,42 @@ function noticeboard(p: Paint, r: () => number) {
   lantern(p.at(0.85, 1.9, 0.06));
 }
 
+/** Where the post office's letterboxes are on its front, in its own frame: the grid the name plates are drawn on. */
+export const POST_GRID = { x0: -1.08, x1: 1.08, y0: 0.28, y1: 1.4, z: 0.21 };
+
+/**
+ * The post office: a wooden cabinet of little letterbox doors on a stone plinth, under a tiled roof, with a red
+ * pillar box beside it. The doors' name plates are a picture drawn over the front (see post.ts); the bars between
+ * them stand proud of it.
+ */
+function postOffice(p: Paint) {
+  const wood = '#7a4f30';
+  const trim = '#4f321f';
+  const g = POST_GRID;
+  p.block('#a8a196', 2.56, 0.14, 0.6, 0, 0, 0);
+  p.block(wood, 2.4, 1.5, 0.42, 0, 0.14, 0);
+  p.box(trim, 2.48, 0.07, 0.48, 0, 1.64, 0);
+  p.roof('#8a3a2e', 2.5, 0.56, 0.28, 1.67, 0.12, 0.06);
+  // The bars between the doors: uprights a touch prouder than the rails, so their fronts never share a plane.
+  const cw = (g.x1 - g.x0) / POST_COLS;
+  const rh = (g.y1 - g.y0) / POST_ROWS;
+  for (let k = 0; k <= POST_COLS; k++) p.box(trim, 0.03, g.y1 - g.y0 + 0.03, 0.045, g.x0 + k * cw, (g.y0 + g.y1) / 2, g.z + 0.0225);
+  for (let k = 0; k <= POST_ROWS; k++) p.box(trim, g.x1 - g.x0 + 0.03, 0.03, 0.04, 0, g.y0 + k * rh, g.z + 0.02);
+  // The pillar box: red, round, with a domed cap, a slot and a little gold crown.
+  const red = '#c8302c';
+  const px = 1.75;
+  const pz = 0.05;
+  p.block('#a8a196', 0.6, 0.1, 0.6, px, 0, pz);
+  p.post(red, 0.24, 0.95, px, 0.1, pz, 18);
+  p.cyl(shade(red, -0.12), 0.27, 0.07, px, 1.06, pz, 18);
+  p.sphere(red, 0.25, 0.15, 0.25, px, 1.09, pz, 18, 8);
+  p.cyl(shade(red, -0.12), 0.26, 0.05, px, 0.14, pz, 18);
+  p.box('#1d1612', 0.2, 0.035, 0.04, px, 0.86, pz + 0.23);
+  p.box(shade(red, -0.15), 0.26, 0.05, 0.05, px, 0.9, pz + 0.23);
+  p.ico('#e2c06a', 0.05, px, 0.66, pz + 0.24, 0, 0.6);
+  p.box('#f6efe0', 0.16, 0.1, 0.02, px, 0.48, pz + 0.24);
+}
+
 function gate(p: Paint) {
   for (const sx of [-1, 1]) {
     p.block('#b3a58f', 0.75, 2.8, 0.75, sx * 2.6, 0, 0);
@@ -1444,6 +1483,7 @@ function blockers(): Blocker[] {
   add(WELL.x, WELL.z, 3);
   add(WOODPILE.x, WOODPILE.z, 2.5);
   add(NOTICEBOARD.x, NOTICEBOARD.z, 2.5);
+  add(POST.x, POST.z, 3.2);
   for (const l of [...squareLamps, ...roadLamps, ...pathLamps]) add(l.x, l.z, 1.2);
   return b;
 }
@@ -1569,6 +1609,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   well(painter(WELL.x, WELL.z));
   woodpile(painter(WOODPILE.x, WOODPILE.z, WOODPILE.ry), r);
   noticeboard(painter(NOTICEBOARD.x, NOTICEBOARD.z), r);
+  postOffice(painter(POST.x, POST.z, POST.ry));
   gate(painter(0, GATE_Z));
 
   // Cottages.

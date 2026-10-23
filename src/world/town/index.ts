@@ -35,6 +35,7 @@ import {
   SQUARE_R,
 } from './layout';
 import { PATHS, buildOutdoor } from './outdoor';
+import { postFront } from './post';
 import { addCloudShadow, beamUniforms, makeClouds, makeContactShadows, makeDust, makePuddles, type Footprint, type PuddleSpot } from './looks';
 import { signBoard, TextSign } from './sign';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
@@ -83,6 +84,8 @@ export interface TownWorld {
   setMeeting(m: { n: number; nominee: number | null; nominator?: number | null; hand: number | null; active: boolean; votes: number[]; label?: string }): void;
   /** Gravestones for the dead, by seat name. */
   setGraves(names: string[]): void;
+  /** The post office's letterboxes: everyone's name in grimoire order, and whose have letters waiting. */
+  setPost(names: string[], mail: boolean[]): void;
   /** Buildings that can be faded when they hide a player. */
   occluders: THREE.Mesh[];
   /** Where the condemned stands, on the trapdoor. */
@@ -664,6 +667,12 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   gallows.add(gallowsLabel);
   outdoor.group.add(gallows);
 
+  // The post office's front: a letterbox for each player.
+  const postBoxes = postFront();
+  postBoxes.set([], []);
+  outdoor.group.add(postBoxes.object);
+  document.fonts?.ready.then(() => postBoxes.redraw()).catch(() => {});
+
   // Meeting stools around the tower, the hand on the cobbles, and a mark by each raised hand.
   const stoolGeo = (() => {
     const b = new Builder();
@@ -1150,6 +1159,10 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       }
       signEl.textContent = m.label ?? '';
       sign.visible = Boolean(m.label);
+    },
+
+    setPost(names, mail) {
+      postBoxes.set(names, mail);
     },
 
     setGraves(names) {

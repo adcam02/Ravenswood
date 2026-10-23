@@ -18,6 +18,8 @@ import { joinNames } from '../lib/util';
 import { askForNotifications, notificationsSupported } from '../lib/notify';
 import { ScriptModal } from './ScriptPicker';
 import { SlayerModal } from './Slayer';
+import { ReadLettersModal, WriteLetterModal } from './Letters';
+import { AwardsModal } from './Awards';
 import { EndGameSetting, RecapModal } from './GameOver';
 import { useProblems } from '../lib/report';
 import { ReminderToken, Token } from './Token';
@@ -57,6 +59,12 @@ export function Modals() {
       return <SlayerModal />;
     case 'recap':
       return <RecapModal />;
+    case 'letter':
+      return <WriteLetterModal />;
+    case 'letters':
+      return <ReadLettersModal />;
+    case 'awards':
+      return <AwardsModal />;
   }
 }
 

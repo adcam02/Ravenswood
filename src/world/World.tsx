@@ -62,6 +62,7 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
       really: !view.grimoireRevealed && mode === 'st' && s.roleId && DISGUISED[s.roleId] && s.shownRoleId ? s.roleId : null,
       evil: s.alignment === 'evil',
       star: s.star,
+      mail: s.mail,
     })),
     nomination: view.nomination,
     marked: view.marked,

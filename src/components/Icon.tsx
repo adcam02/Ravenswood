@@ -266,6 +266,12 @@ const paths: Record<string, React.ReactNode> = {
       <path d="M7.5 15.5 9 21M18.5 9a4 4 0 0 1 0 6" />
     </>
   ),
+  trophy: (
+    <>
+      <path d="M7 4h10v5a5 5 0 0 1-10 0V4Z" />
+      <path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4M12 14v4M8.5 21h7M9.5 18h5" />
+    </>
+  ),
   gift: (
     <>
       <rect x="3.5" y="8.5" width="17" height="4" rx="1" />
