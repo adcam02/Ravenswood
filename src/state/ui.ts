@@ -30,6 +30,8 @@ export type Modal =
   | { kind: 'awards' }
   /** Sending a messenger pigeon to someone. */
   | { kind: 'pigeon' }
+  /** A player changing their name, animal, hat or pet. */
+  | { kind: 'customise' }
   | null;
 
 export type Pick =

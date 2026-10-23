@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { create } from 'zustand';
 import { useNotes } from '../state/notes';
 import type { View } from '../state/view';
-import { FEATS, HATS, type FeatId, type HatId, type Progress } from '../world/types';
+import { FEATS, HAT_SPEED, HATS, hatsOwned, type FeatId, type HatId, type Progress } from '../world/types';
 
 const KEY = 'ravenswood:progress';
 
@@ -114,6 +114,18 @@ export function hatUnlocked(hat: HatId | null | undefined): boolean {
   if (!hat) return true;
   const h = HATS.find((x) => x.id === hat);
   return Boolean(h?.unlocked(useProgress.getState()));
+}
+
+let boostFor: Stored | null = null;
+let boost = 1;
+/** How much quicker this player's hats make them about town (1.007 for seven hats), worked out again when they change. */
+export function hatBoost(): number {
+  const s = useProgress.getState();
+  if (s !== boostFor) {
+    boostFor = s;
+    boost = 1 + hatsOwned(s) * HAT_SPEED;
+  }
+  return boost;
 }
 
 /** ↑ ↑ ↓ ↓ ← → ← → B A, typed anywhere but a text box. */

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { create } from 'zustand';
 import { askForNotifications } from '../../lib/notify';
 import { drawless } from '../../lib/util';
@@ -6,13 +6,13 @@ import { player, useClient, useTaken } from '../../net/client';
 import { useVoice, voice } from '../../voice/voice';
 import { AnimalPreview } from '../../world/AnimalPreview';
 import { animalThumbnail } from '../../world/animals';
-import { ANIMALS, animalInfo, BACKS, EXTRA_COLORS, FACES, fixLook, HATS, NECKS, PETS, type AnimalId, type Look } from '../../world/types';
+import { ANIMALS_ABC, animalInfo, EXTRA_COLORS, fixLook, HATS, hatsOwned, hatSpeedLabel, PETS, type AnimalId, type Look } from '../../world/types';
 import { useProgress } from '../../game/progress';
 
 type Step = 'name' | 'animal' | 'mic';
 
-/** Lets the settings window reopen the animal picker later. */
-export const useJoin = create<{ reopen: boolean; held: string | null }>(() => ({ reopen: false, held: null }));
+/** The animal we're holding with the host while we look at it in the picker (or the customiser). */
+export const useJoin = create<{ held: string | null }>(() => ({ held: null }));
 
 /** Holds an animal with the host while we look at it (or choose it), so nobody else takes it meanwhile. */
 function holdAnimal(name: string, animal: string) {
@@ -21,10 +21,17 @@ function holdAnimal(name: string, animal: string) {
   player.hold(name, animal);
 }
 
+/** Lets go of whatever we were holding (closing the customiser without changing animal, or the game starting). */
+export function letGoOfAnimal(name: string) {
+  if (!useJoin.getState().held) return;
+  useJoin.setState({ held: null });
+  player.hold(name, null);
+}
+
 const NAME_KEY = 'ravenswood:name';
 const LOOK_KEY = 'ravenswood:look';
 
-function saved<T>(key: string, fallback: T): T {
+export function saved<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
     return raw ? (JSON.parse(raw) as T) : fallback;
@@ -41,13 +48,24 @@ function save(key: string, value: unknown) {
   }
 }
 
+/** Remembers the name and look in this browser for next time, and asks the host for them. */
+export function wearLook(name: string, look: Look) {
+  const clean = name.trim();
+  save(NAME_KEY, clean);
+  save(LOOK_KEY, look);
+  player.join(clean, fixLook(look));
+}
+
+export const savedLook = () => saved<Look | null>(LOOK_KEY, null);
+
 /** Arriving in Ravenswood: your name, then your animal, then your microphone. */
 export function JoinFlow({ room, current }: { room: string; current: { name: string; look: Look | null } | null }) {
-  const reopen = useJoin((s) => s.reopen);
-  const [step, setStep] = useState<Step>(reopen && current ? 'animal' : 'name');
+  const [step, setStep] = useState<Step>('name');
   const [name, setName] = useState(current?.name || saved<string>(NAME_KEY, ''));
-  const others = useOthersAnimals();
-  const [look, setLook] = useState<Look>(() => fixLook(current?.look ?? saved<Look | null>(LOOK_KEY, null)));
+  const [look, setLook] = useState<Look>(() => fixLook(current?.look ?? savedLook()));
+  // (Someone back again starts with their own animal in view in the list; someone new, at the top.)
+  const [returning] = useState(() => Boolean(current?.look ?? savedLook()));
+  const [tab, setTab] = useState<PickTab>('animal');
   const [note, setNote] = useState<string | null>(null);
 
   // The host said our animal is someone else's: back to the picker, which moves us to a free one.
@@ -58,16 +76,13 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
     if (useJoin.getState().held === taken.animal) useJoin.setState({ held: null });
     const who = animalInfo(taken.animal as AnimalId)?.name ?? 'that animal';
     setNote(`${taken.by} just took the ${who.toLowerCase()}. Pick another!`);
+    setTab('animal');
     setStep((s) => (s === 'name' ? s : 'animal'));
   }, [taken.at, taken.animal, taken.by]);
 
   const finish = (l: Look) => {
-    const clean = name.trim();
-    save(NAME_KEY, clean);
-    save(LOOK_KEY, l);
-    player.join(clean, fixLook(l));
+    wearLook(name, l);
     askForNotifications();
-    useJoin.setState({ reopen: false });
   };
 
   const afterName = () => {
@@ -97,38 +112,155 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
         </form>
       )}
       {step === 'animal' && (
-        <AnimalPicker
-          name={name}
-          look={look}
-          setLook={setLook}
-          others={others}
-          note={note}
-          onBack={() => setStep('name')}
-          onDone={() => {
-            setNote(null);
-            if (reopen) finish(look);
-            else setStep('mic');
-          }}
-        />
+        <div className="join-card cosy-panel join-animal">
+          <div className="join-animal-head">
+            <span className="join-eyebrow">Hi {name.trim()}!</span>
+            <h1>Choose your animal</h1>
+            {note && <p className="join-note">{note}</p>}
+          </div>
+          <LookEditor name={name} look={look} setLook={setLook} locked={false} tab={tab} setTab={setTab} showMine={returning} />
+          <div className="join-actions">
+            <button className="cosy-btn" onClick={() => setStep('name')}>
+              Back
+            </button>
+            <button
+              className="cosy-btn primary big"
+              onClick={() => {
+                setNote(null);
+                setStep('mic');
+              }}
+            >
+              This is me!
+            </button>
+          </div>
+        </div>
       )}
       {step === 'mic' && <MicStep name={name} look={look} onBack={() => setStep('animal')} onDone={() => finish(look)} />}
     </div>
   );
 }
 
-type DressTab = 'hat' | 'face' | 'neck' | 'back' | 'pet';
-const TABS: { id: DressTab; label: string; icon: string }[] = [
+export type PickTab = 'animal' | 'hat' | 'pet';
+const TABS: { id: PickTab; label: string; icon: string }[] = [
+  { id: 'animal', label: 'Animal', icon: '🦊' },
   { id: 'hat', label: 'Hats', icon: '🎩' },
-  { id: 'face', label: 'Face', icon: '👓' },
-  { id: 'neck', label: 'Neck', icon: '🎀' },
-  { id: 'back', label: 'Back', icon: '🎒' },
   { id: 'pet', label: 'Pet', icon: '🐾' },
 ];
 
-/** Dress-up, like Among Us: hats are earned in earlier games (locked ones say how); the rest is free. */
-function DressUp({ look, setLook }: { look: Look; setLook: (l: Look) => void }) {
+/**
+ * Choosing how you look, for the join screen and the customiser alike: the animal turning on its stand (with its pet)
+ * and its colours on one side; the animals, hats and pets to choose from on the other. While a game is on (`locked`)
+ * the animal and colour stay as they are, and only the hat and pet can change.
+ */
+export function LookEditor({
+  name,
+  look,
+  setLook,
+  locked,
+  tab,
+  setTab,
+  showMine = true,
+}: {
+  name: string;
+  look: Look;
+  setLook: (l: Look) => void;
+  locked: boolean;
+  tab: PickTab;
+  setTab: (t: PickTab) => void;
+  /** Scroll the list to the chosen animal when it opens. */
+  showMine?: boolean;
+}) {
+  const others = useOthersAnimals();
+  const theirs = (id: string) => others.get(id);
+  // The animal we are (or are looking at) in view in the list, which can be a long way down.
+  const grid = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (tab === 'animal' && showMine) grid.current?.querySelector('.join-tile.on')?.scrollIntoView({ block: 'nearest' });
+  }, [tab, showMine]);
+  // Hold whatever we're looking at; if it's someone else's, move to the first free animal.
+  useEffect(() => {
+    if (locked) return;
+    if (theirs(look.animal)) {
+      const free = ANIMALS_ABC.find((a) => !theirs(a.id));
+      if (free && free.id !== look.animal) setLook({ ...look, animal: free.id, color: free.colors[0] });
+      return;
+    }
+    holdAnimal(name, look.animal);
+  });
+  const info = animalInfo(look.animal);
+  const colors = [...info.colors, ...EXTRA_COLORS.filter((c) => !info.colors.includes(c))];
+  const pick = (id: AnimalId) => {
+    if (locked || theirs(id)) return;
+    const next = animalInfo(id);
+    // A new animal keeps its hat and pet.
+    setLook({ ...look, animal: id, color: next.colors[0] });
+  };
+  const stays = 'Your animal and its colour stay the same until this game ends';
+  return (
+    <div className="join-animal-body">
+      <div className="join-stage">
+        <AnimalPreview look={look} size={260} spin={false} turnable anim="idle" />
+        <strong className="join-animal-name">
+          {info.name}
+          {info.aquatic && <span className="join-wet"> · a little bit wet</span>}
+        </strong>
+        <div className={`join-colors ${locked ? 'locked' : ''}`} role="radiogroup" aria-label="Colour">
+          {colors.map((c) => (
+            <button
+              key={c}
+              className={`join-color ${look.color.toLowerCase() === c.toLowerCase() ? 'on' : ''}`}
+              style={{ background: c }}
+              onClick={() => !locked && setLook({ ...look, color: c })}
+              aria-label={c}
+              role="radio"
+              aria-checked={look.color.toLowerCase() === c.toLowerCase()}
+              aria-disabled={locked}
+              title={locked ? stays : undefined}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="join-picks">
+        <div className="dress-tabs" role="tablist">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              className={`dress-tab ${tab === t.id ? 'on' : ''} ${t.id !== 'animal' && look[t.id] ? 'has' : ''}`}
+              onClick={() => setTab(t.id)}
+            >
+              <span>{t.icon}</span> {t.label}
+            </button>
+          ))}
+        </div>
+        {tab === 'animal' ? (
+          <>
+            {locked && (
+              <p className="join-pick-note locked">
+                🔒 You’re the {info.name.toLowerCase()} until this game ends, so everyone can keep track of who’s who. Your hat and pet can change any time,
+                and once the game is over you can choose a new animal.
+              </p>
+            )}
+            <div ref={grid} className={`join-grid ${locked ? 'locked' : ''}`} role="radiogroup" aria-label="Animal">
+              {ANIMALS_ABC.map((a) => (
+                <AnimalTile key={a.id} id={a.id} on={a.id === look.animal} owner={theirs(a.id)} locked={locked && a.id !== look.animal} onPick={() => pick(a.id)} />
+              ))}
+            </div>
+          </>
+        ) : (
+          <DressUp tab={tab} look={look} setLook={setLook} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Hats are earned in earlier games (locked ones say how, when picked); pets are free for everyone. */
+function DressUp({ tab, look, setLook }: { tab: 'hat' | 'pet'; look: Look; setLook: (l: Look) => void }) {
   const progress = useProgress();
-  const [tab, setTab] = useState<DressTab>('hat');
+  const [hint, setHint] = useState<string | null>(null);
+  useEffect(() => setHint(null), [tab]);
   const items: { id: string; name: string; icon: string; locked?: string }[] =
     tab === 'hat'
       ? HATS.map((h) => {
@@ -136,44 +268,42 @@ function DressUp({ look, setLook }: { look: Look; setLook: (l: Look) => void }) 
           // Secret hats keep their secret until they're found.
           return got ? { id: h.id, name: h.name, icon: h.icon } : h.secret ? { id: h.id, name: 'A secret hat', icon: '❓', locked: 'Keep exploring Ravenswood…' } : { id: h.id, name: h.name, icon: h.icon, locked: h.how };
         })
-      : tab === 'face'
-        ? FACES
-        : tab === 'neck'
-          ? NECKS
-          : tab === 'back'
-            ? BACKS
-            : PETS;
+          // The ones you have first.
+          .sort((a, b) => Number(Boolean(a.locked)) - Number(Boolean(b.locked)))
+      : PETS;
   const current = (look[tab] ?? null) as string | null;
   const choose = (id: string | null) => setLook({ ...look, [tab]: id });
+  const owned = hatsOwned(progress);
   return (
-    <div className="dress-up">
-      <div className="dress-tabs" role="tablist">
-        {TABS.map((t) => (
-          <button key={t.id} role="tab" aria-selected={tab === t.id} className={`dress-tab ${tab === t.id ? 'on' : ''} ${look[t.id] ? 'has' : ''}`} onClick={() => setTab(t.id)}>
-            <span>{t.icon}</span> {t.label}
-          </button>
-        ))}
-      </div>
-      <div className="join-hats" role="radiogroup" aria-label={TABS.find((t) => t.id === tab)?.label}>
-        <button className={`join-hat ${!current ? 'on' : ''}`} onClick={() => choose(null)} role="radio" aria-checked={!current} title="None">
-          <span>🚫</span>
+    <>
+      <p className="join-pick-note">
+        {hint ??
+          (tab === 'hat'
+            ? `Each hat you own: +0.1% speed. You have ${owned}, so you’re ${hatSpeedLabel(owned)} quicker about town.`
+            : 'Your pet trots along beside you wherever you go.')}
+      </p>
+      <div className="join-items" role="radiogroup" aria-label={tab === 'hat' ? 'Hat' : 'Pet'}>
+        <button className={`join-item ${!current ? 'on' : ''}`} onClick={() => choose(null)} role="radio" aria-checked={!current}>
+          <span className="join-item-icon">🚫</span>
+          <span className="join-item-name">{tab === 'hat' ? 'No hat' : 'No pet'}</span>
         </button>
         {items.map((it) => (
           <button
             key={it.id}
-            className={`join-hat ${current === it.id ? 'on' : ''} ${it.locked ? 'locked' : ''}`}
-            onClick={() => !it.locked && choose(it.id)}
+            className={`join-item ${current === it.id ? 'on' : ''} ${it.locked ? 'locked' : ''}`}
+            onClick={() => (it.locked ? setHint(`🔒 ${it.name}: ${it.locked}`) : (setHint(null), choose(it.id)))}
             role="radio"
             aria-checked={current === it.id}
             aria-disabled={Boolean(it.locked)}
             title={it.locked ? `${it.name}: ${it.locked}` : it.name}
           >
-            <span>{it.icon}</span>
+            <span className="join-item-icon">{it.icon}</span>
+            <span className="join-item-name">{it.name}</span>
             {it.locked && <i>🔒</i>}
           </button>
         ))}
       </div>
-    </div>
+    </>
   );
 }
 
@@ -191,89 +321,6 @@ function useOthersAnimals(): Map<string, { by: string; choosing: boolean }> {
     for (const [animal, by] of Object.entries(pub?.picking ?? {})) if (animal !== held && !out.has(animal)) out.set(animal, { by, choosing: true });
     return out;
   }, [pub, mySeat, held]);
-}
-
-function AnimalPicker({
-  name,
-  look,
-  setLook,
-  others,
-  note,
-  onBack,
-  onDone,
-}: {
-  name: string;
-  look: Look;
-  setLook: (l: Look) => void;
-  others: Map<string, { by: string; choosing: boolean }>;
-  note: string | null;
-  onBack: () => void;
-  onDone: () => void;
-}) {
-  const choices = ANIMALS;
-  const theirs = (id: string) => others.get(id);
-  // Hold whatever we're looking at; if it's someone else's, move to the first free animal.
-  useEffect(() => {
-    if (theirs(look.animal)) {
-      const free = choices.find((a) => !theirs(a.id));
-      if (free && free.id !== look.animal) setLook({ ...look, animal: free.id, color: free.colors[0] });
-      return;
-    }
-    holdAnimal(name, look.animal);
-  });
-  const info = animalInfo(look.animal);
-  const colors = [...info.colors, ...EXTRA_COLORS.filter((c) => !info.colors.includes(c))];
-  const pick = (id: AnimalId) => {
-    if (theirs(id)) return;
-    const next = animalInfo(id);
-    // A new animal keeps its outfit.
-    setLook({ ...look, animal: id, color: next.colors[0] });
-  };
-  return (
-    <div className="join-card cosy-panel join-animal">
-      <div className="join-animal-head">
-        <span className="join-eyebrow">Hi {name.trim()}!</span>
-        <h1>Choose your animal</h1>
-        {note && <p className="join-note">{note}</p>}
-      </div>
-      <div className="join-animal-body">
-        <div className="join-stage">
-          <AnimalPreview look={look} size={260} spin anim="idle" />
-          <strong className="join-animal-name">
-            {info.name}
-            {info.aquatic && <span className="join-wet"> · a little bit wet</span>}
-          </strong>
-          <div className="join-colors" role="radiogroup" aria-label="Colour">
-            {colors.map((c) => (
-              <button
-                key={c}
-                className={`join-color ${look.color.toLowerCase() === c.toLowerCase() ? 'on' : ''}`}
-                style={{ background: c }}
-                onClick={() => setLook({ ...look, color: c })}
-                aria-label={c}
-                role="radio"
-                aria-checked={look.color.toLowerCase() === c.toLowerCase()}
-              />
-            ))}
-          </div>
-          <DressUp look={look} setLook={setLook} />
-        </div>
-        <div className="join-grid" role="radiogroup" aria-label="Animal">
-          {choices.map((a) => (
-            <AnimalTile key={a.id} id={a.id} on={a.id === look.animal} owner={theirs(a.id)} onPick={() => pick(a.id)} />
-          ))}
-        </div>
-      </div>
-      <div className="join-actions">
-        <button className="cosy-btn" onClick={onBack}>
-          Back
-        </button>
-        <button className="cosy-btn primary big" onClick={onDone}>
-          This is me!
-        </button>
-      </div>
-    </div>
-  );
 }
 
 /** Portraits are drawn one per frame, in order, so the picker stays responsive while they appear. */
@@ -320,7 +367,7 @@ function saveThumb(id: AnimalId, color: string, url: string) {
   }
 }
 
-function AnimalTile({ id, on, owner, onPick }: { id: AnimalId; on: boolean; owner?: { by: string; choosing: boolean }; onPick: () => void }) {
+function AnimalTile({ id, on, owner, locked, onPick }: { id: AnimalId; on: boolean; owner?: { by: string; choosing: boolean }; locked?: boolean; onPick: () => void }) {
   const info = animalInfo(id);
   const [src, setSrc] = useState<string | null>(() => loadThumb(id, info.colors[0]));
   useEffect(() => {
@@ -343,11 +390,11 @@ function AnimalTile({ id, on, owner, onPick }: { id: AnimalId; on: boolean; owne
   }, [id, info.colors, src]);
   return (
     <button
-      className={`join-tile ${on ? 'on' : ''} ${info.aquatic ? 'wet' : ''} ${owner ? 'taken' : ''}`}
+      className={`join-tile ${on ? 'on' : ''} ${info.aquatic ? 'wet' : ''} ${owner ? 'taken' : ''} ${locked ? 'locked' : ''}`}
       onClick={onPick}
       role="radio"
       aria-checked={on}
-      aria-disabled={Boolean(owner)}
+      aria-disabled={Boolean(owner) || locked}
       title={owner ? `${info.name}: ${owner.choosing ? `${owner.by} is choosing it` : `taken by ${owner.by}`}` : info.name}
     >
       {src ? <img src={src} alt="" /> : <span className="join-tile-blank" />}

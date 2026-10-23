@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import * as Animals from './animals';
 import { buildAnimal, buildStoryteller, type Rig } from './animals';
-import { wrapAngle, type Anim, type BackId, type FaceId, type HatId, type Item, type Look, type NeckId, type PetId } from './types';
+import { wrapAngle, type Anim, type HatId, type Item, type Look, type PetId } from './types';
 
 export interface AvatarInfo {
   name: string;
@@ -96,7 +96,6 @@ const BLOB_TEX = (() => {
 type RigExtras = {
   setHat?: (hat: HatId | null) => void;
   setDetail?: (level: 'high' | 'low') => void;
-  setDressUp?: (d: { face?: FaceId | null; neck?: NeckId | null; back?: BackId | null }) => void;
 };
 interface Pet {
   root: THREE.Object3D;
@@ -128,7 +127,6 @@ export class AvatarView {
   private blob: THREE.Mesh;
   private blobMat: THREE.MeshBasicMaterial;
   private hatKey: string | undefined = undefined;
-  private dressKey: string | undefined = undefined;
   private petKey = '';
   private pet: Pet | null = null;
   private petPos = new THREE.Vector3();
@@ -194,7 +192,6 @@ export class AvatarView {
     this.scene.add(rig.root);
     this.itemKey = '';
     this.hatKey = undefined;
-    this.dressKey = undefined;
     this.detail = 'high';
     rig.root.userData.avatar = this;
     AvatarView.noShadows(rig.root);
@@ -221,19 +218,12 @@ export class AvatarView {
       this.rig.setGhost(ghost);
       AvatarView.noShadows(this.rig.root);
     }
-    // The hat and the rest of the outfit they've chosen, if the rig can wear them.
+    // The hat they've chosen, if the rig can wear one.
     const look = info.storyteller ? null : info.look;
     const hat = look?.hat ?? null;
     if ((hat ?? '') !== this.hatKey) {
       this.hatKey = hat ?? '';
       (this.rig as unknown as RigExtras).setHat?.(hat);
-      AvatarView.noShadows(this.rig.root);
-    }
-    const dress = { face: look?.face ?? null, neck: look?.neck ?? null, back: look?.back ?? null };
-    const dressKey = `${dress.face}|${dress.neck}|${dress.back}`;
-    if (dressKey !== this.dressKey) {
-      this.dressKey = dressKey;
-      (this.rig as unknown as RigExtras).setDressUp?.(dress);
       AvatarView.noShadows(this.rig.root);
     }
     // A pet that trots along beside them.

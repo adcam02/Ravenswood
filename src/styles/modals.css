@@ -2736,6 +2736,12 @@
   font-size: 13px;
   text-align: center;
 }
+.awards-speed {
+  margin: 0 0 12px;
+  color: var(--text-dim);
+  font-size: 14px;
+  text-align: center;
+}
 
 /* ---------------------------------------------------------------- the messenger pigeon */
 

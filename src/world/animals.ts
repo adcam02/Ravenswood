@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { SMOOTH_LOOK, eyeMaterial, glow, shifting, soft, wet, type Shift, type Vec3 } from './build';
-import { buildBack, buildFace, buildNeck, type BackFit, type BuiltPiece, type FaceFit, type NeckFit } from './dressup';
 import { all, any, armForms, details, finishSculpt, region, sculptOf, sock, useSurface } from './forms';
 import { buildHat, type BuiltHat, type HatFit } from './hats';
 import { buildItem, disposeObject } from './items';
@@ -8,16 +7,9 @@ import { Fold, lowDetail, seedOf, seeded, solid, tube } from './paper';
 import { ellipsoid, rod, type Probe } from './sculpt';
 import { DETAILS, RECIPES, profileOf } from './recipes';
 import { col, colorsFor, mix, newKit, onHead, type Kit, type Mannerism, type Part, type Profile, type Shape } from './species';
-import { animalInfo, type Anim, type AnimalId, type BackId, type FaceId, type HatId, type Item, type ItemKind, type Look, type NeckId } from './types';
+import { animalInfo, type Anim, type AnimalId, type HatId, type Item, type ItemKind, type Look } from './types';
 
 export { buildPet, type Pet } from './pets';
-
-/** What's worn besides a hat: on the face, round the neck, on the back. */
-export interface DressUp {
-  face?: FaceId | null;
-  neck?: NeckId | null;
-  back?: BackId | null;
-}
 
 /**
  * Papercraft animals, folded in code from faceted card (see species.ts and recipes.ts). Each animal is one
@@ -48,8 +40,6 @@ export interface Rig {
   setHat(hat: HatId | null): void;
   /** 'low' swaps in a cheaper version of the model, for players far away. */
   setDetail(level: 'high' | 'low'): void;
-  /** Puts on (or takes off) face, neck and back pieces; a field left out is left as it is, null takes it off. */
-  setDressUp(d: DressUp): void;
   dispose(): void;
 }
 
@@ -416,8 +406,6 @@ interface RigParts {
   /** Builds the same animal with lighter shapes, and the key its geometry is cached under. */
   lowKit?: () => Kit;
   lowKey?: string;
-  /** Where dress-up goes; none for the Storyteller. */
-  dressFit?: { face: FaceFit; neck: NeckFit; back: BackFit };
 }
 
 /** Distant versions of each animal and colour, shared by every rig that needs one. Never disposed: they're small. */
@@ -531,10 +519,6 @@ class AnimalRig implements Rig {
   private hatFit?: HatPlace;
   private hat: { id: HatId; built: BuiltHat; holder: THREE.Group } | null = null;
   private baseHeadHeight = 1;
-  private dressFit?: { face: FaceFit; neck: NeckFit; back: BackFit };
-  private worn: Record<'face' | 'neck' | 'back', { id: string; piece: BuiltPiece } | null> = { face: null, neck: null, back: null };
-  private lastSpeed = 0;
-  private lastT = 0;
   // Landmarks in body space, for aiming paws.
   private shoulder: THREE.Vector3;
   private grip: THREE.Vector3;
@@ -580,7 +564,6 @@ class AnimalRig implements Rig {
     this.material = p.material;
     this.eyeMaterial = p.eyeMaterial ?? p.material;
     this.hatFit = p.hatFit;
-    this.dressFit = p.dressFit;
     this.lowKit = p.lowKit;
     this.lowKey = p.lowKey;
     this.owned.push(p.material);
@@ -790,37 +773,8 @@ class AnimalRig implements Rig {
     this.headHeight = Math.max(this.baseHeadHeight, top);
   }
 
-  setDressUp(d: DressUp) {
-    const fit = this.dressFit;
-    if (!fit) return;
-    const slots: ['face' | 'neck' | 'back', string | null | undefined][] = [
-      ['face', d.face],
-      ['neck', d.neck],
-      ['back', d.back],
-    ];
-    for (const [slot, id] of slots) {
-      if (id === undefined) continue;
-      const cur = this.worn[slot];
-      if ((cur?.id ?? null) === id) continue;
-      if (cur) {
-        cur.piece.group.removeFromParent();
-        cur.piece.group.traverse((o) => (o as THREE.Mesh).isMesh && (o as THREE.Mesh).geometry.dispose());
-        for (const m of cur.piece.materials) m.dispose();
-        this.worn[slot] = null;
-      }
-      if (!id) continue;
-      const piece = slot === 'face' ? buildFace(id as FaceId, fit.face) : slot === 'neck' ? buildNeck(id as NeckId, fit.neck) : buildBack(id as BackId, fit.back);
-      if (!piece) continue;
-      // Face pieces move with the head; the rest with the body.
-      (slot === 'face' ? this.neck : this.body).add(piece.group);
-      this.worn[slot] = { id, piece };
-      piece.update?.(this.lastT, 0, this.lastSpeed);
-    }
-    this.applyHatGhost();
-  }
-
   private applyHatGhost() {
-    const solids = [...(this.hat?.built.solid ?? []), ...Object.values(this.worn).flatMap((w) => w?.piece.solid ?? [])];
+    const solids = this.hat?.built.solid ?? [];
     for (const { mesh, material } of solids) {
       mesh.material = this.ghost ? this.ghostMaterial : material;
       mesh.castShadow = !this.ghost;
@@ -1781,10 +1735,6 @@ class AnimalRig implements Rig {
       b.position.set(rest.x + a[3], rest.y + a[4], rest.z + a[5]);
       b.scale.setScalar(a[6]);
     }
-    // Plates down a back (the kaiju's, the dragon's spikes), or a fin on it (the whale shark's), fold away inside it
-    // under a cape or a backpack.
-    const plates = this.bones.get('backPlates');
-    if (plates && this.backCovered()) plates.scale.setScalar(0.001);
     // Something standing up off the top of the head (the robot's antenna, the homunculus's sprout) folds away under a hat.
     const crest = this.bones.get('crest');
     if (crest && this.hat) crest.scale.setScalar(0.001);
@@ -1869,15 +1819,6 @@ class AnimalRig implements Rig {
     }
     if (this.drips && !this.ghost) this.updateDrips(dt);
     this.hat?.built.update?.(s.t + this.seed);
-    const moving = s.anim === 'walk' || s.anim === 'run' ? Math.max(s.speed, s.anim === 'run' ? 4 : 1.6) : 0;
-    this.lastSpeed = moving;
-    this.lastT = s.t + this.seed;
-    for (const w of Object.values(this.worn)) w?.piece.update?.(s.t + this.seed, dt, moving);
-  }
-
-  /** Whether a cape or a backpack is on, which things on the back (plates, little wings) fold away under. */
-  private backCovered(): boolean {
-    return this.worn.back?.id === 'cape' || this.worn.back?.id === 'backpack';
   }
 
   /**
@@ -1892,13 +1833,7 @@ class AnimalRig implements Rig {
     const flap = Math.sin(w.phase) * w.open * m.beat;
     const y = m.shut[0] + (m.open[0] - m.shut[0]) * w.open;
     const z = m.shut[1] + (m.open[1] - m.shut[1]) * w.open;
-    // (They fold away under a cape or a backpack, and when it's wearing a pair of wings instead.)
-    const back = this.worn.back?.id;
-    const hidden = this.backCovered() || back === 'wings' || back === 'butterfly';
-    for (const [b, side] of w.bones) {
-      b.rotation.set(0, side * y, side * (z + flap));
-      b.scale.setScalar(hidden ? 0.001 : 1);
-    }
+    for (const [b, side] of w.bones) b.rotation.set(0, side * y, side * (z + flap));
   }
 
   /**
@@ -2052,7 +1987,6 @@ class AnimalRig implements Rig {
   dispose() {
     this.setItem(null);
     this.setHat(null);
-    this.setDressUp({ face: null, neck: null, back: null });
     // Back to this rig's own geometry first: the distant version is shared and stays cached.
     this.setDetail('high');
     this.highGeo.dispose();
@@ -2093,7 +2027,6 @@ export function buildAnimal(look: Look): Rig {
     sleepy: res.sleepy,
     tendril: res.tendril,
     hatFit: hatFit(info.id, k),
-    dressFit: dressFit(info.id, k),
     lowKey: `${info.id}:${coat}`,
     lowKit: () => {
       const lk = newKit(info.id);
@@ -2103,59 +2036,7 @@ export function buildAnimal(look: Look): Rig {
     },
   });
   if (look.hat) rig.setHat(look.hat);
-  if (look.face || look.neck || look.back) rig.setDressUp({ face: look.face ?? null, neck: look.neck ?? null, back: look.back ?? null });
   return rig;
-}
-
-/** Torso half-width at a height, from its pear (narrower towards the top). */
-function torsoR(s: Shape, y: number) {
-  const u = (y - s.tc[1]) / s.tr[1];
-  const sm = THREE.MathUtils.smoothstep((u + 1) / 2, 0.25, 1);
-  return s.tr[0] * Math.sqrt(Math.max(0, 1 - u * u)) * (1 - 0.42 * sm);
-}
-
-/**
- * Some bodies need their neck ring or back placed by hand: the snail's back is its shell, the kaiju's cape stops
- * short of the top of its great tail, the robot is boxy, and the plumpest necks (the dragon's, the bee's fluffy
- * collar, the chameleon's) need a wider ring to show round them. The whale shark's scarf goes under its broad head
- * and its cape round its barrel of a body, and the prawn's scarf round the top of its bands.
- */
-const DRESS_NUDGE: Partial<Record<AnimalId, { neck?: Partial<NeckFit>; back?: Partial<BackFit>; floating?: boolean }>> = {
-  snail: { neck: { centre: [0, 0.23, 0.35], r: 0.095, tilt: 0.4 }, back: { centre: [0, 0.33, -0.06], r: 0.12, depth: 0.2, top: 0.55, bottom: 0.13, rim: [0.22, 0.19] }, floating: true },
-  kaiju: { back: { bottom: 0.32 } },
-  // The robot's back is a box, wider at its corners than the usual round body, and its scarf goes round the post
-  // between its body and head.
-  robot: { neck: { centre: [0, 0.49, 0], r: 0.095, tilt: 0 }, back: { r: 0.25, depth: 0.165, bottom: 0.1 } },
-  homunculus: { back: { r: 0.165, depth: 0.155 } },
-  // The mushroom's stem is wide all the way up to its face.
-  fungi: { neck: { centre: [0, 0.39, 0.015], r: 0.15, tilt: 0.1 }, back: { r: 0.235, depth: 0.2 } },
-  dragon: { neck: { centre: [0, 0.52, 0.03], r: 0.175 } },
-  bee: { neck: { centre: [0, 0.44, 0.02], r: 0.2 } },
-  chameleon: { neck: { centre: [0, 0.455, 0.03], r: 0.145 } },
-  whaleshark: { neck: { centre: [0, 0.42, 0.02], r: 0.255, tilt: 0.12 }, back: { r: 0.265, depth: 0.27, bottom: 0.28 } },
-  prawn: { neck: { centre: [0, 0.465, 0.035], r: 0.168, tilt: 0.1 }, back: { r: 0.165, depth: 0.18, bottom: 0.2 } },
-};
-
-function dressFit(id: AnimalId, k: Kit): { face: FaceFit; neck: NeckFit; back: BackFit } {
-  const s = k.shape;
-  const neckY = k.joints.neck[1];
-  const n = DRESS_NUDGE[id] ?? {};
-  // The neck ring sits just under the chin, wide enough to show round the top of the torso.
-  const chin = neckY + s.hc[1] - s.hr[1] * 0.9;
-  const ny = Math.min(chin, s.tc[1] + s.tr[1] * 0.85);
-  const nr = Math.max(0.09, torsoR(s, ny) + 0.015);
-  const neck: NeckFit = { centre: [0, ny, s.tc[2] + 0.01], r: nr, tilt: 0.12, ...n.neck };
-  const back: BackFit = {
-    centre: s.tc,
-    r: s.tr[0] * 0.9,
-    depth: s.tr[2],
-    top: s.tc[1] + s.tr[1] * 0.7,
-    bottom: s.tc[1] - s.tr[1] * 0.8,
-    headTop: neckY + s.hc[1] + s.hr[1],
-    ...n.back,
-  };
-  const face: FaceFit = { eyeX: k.eyeX, eyeY: k.eyeY, eyeR: k.eyeR, eyeZ: k.eyeZ, nose: k.nose, hc: s.hc, hr: s.hr, floating: n.floating };
-  return { face, neck, back };
 }
 
 /**
@@ -2342,7 +2223,7 @@ const thumbCache = new Map<string, string>();
 const THUMB_NUDGE: Partial<Record<AnimalId, number>> = { squid: -0.2, snail: 0.1 };
 
 export function animalThumbnail(look: Look, size = 128): string {
-  const key = `${look.animal}:${look.color}:${look.hat ?? ''}:${look.face ?? ''}:${look.neck ?? ''}:${look.back ?? ''}:${size}`;
+  const key = `${look.animal}:${look.color}:${look.hat ?? ''}:${size}`;
   const hit = thumbCache.get(key);
   if (hit) return hit;
   try {

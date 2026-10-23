@@ -120,7 +120,8 @@ function loadGame(): GameState | null {
   g.execution ??= null;
   g.weather ??= 'clear';
   g.dayTimer ??= null;
-  for (const s of g.seats) s.look ??= null;
+  // (Only what a look can still hold: the face, neck and back pieces there once were are gone.)
+  for (const s of g.seats) s.look = s.look ? fixLook(s.look) : null;
   // A script picked before untitled ones got a name of their own.
   if (!g.script.name?.trim()) g.script.name = 'Custom script';
   setCustomRoles(g.script.custom);
@@ -238,6 +239,13 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
 
 /** Characters are out and the first night has begun: a change to someone's character now is news to them. */
 export const underway = (g: { revealed: boolean; phase: Phase; day: number }) => g.revealed && !(g.day === 0 && g.phase === 'day');
+
+/**
+ * A game is on (characters handed out or the first night begun, and not yet called): players keep their animal and
+ * its colour until it's over, so everyone knows who's who. Hats and pets can change any time.
+ */
+export const animalsLocked = (g: { revealed: boolean; phase: Phase; day: number; ended?: unknown }) =>
+  !g.ended && (g.revealed || g.day > 0 || g.phase === 'night');
 
 /** Whether a player can claim to be the Slayer right now: the script has one, and it's a day of the game. */
 export function slayerOpen(g: { script: { roles: string[] }; phase: Phase; day: number; ended?: GameEnd | null }): boolean {
@@ -1196,6 +1204,9 @@ export const st = {
       if (!clean) return null;
       const g0 = hostGame();
       const fixed = fixLook(look);
+      // While a game is on, someone who already has an animal keeps it (and its colour): only the hat and pet change.
+      const kept = animalsLocked(g0) ? g0.seats.find((s) => s.playerId === playerId)?.look : null;
+      if (kept) Object.assign(fixed, { animal: kept.animal, color: kept.color });
       const by = animalTakenBy(g0, fixed.animal, playerId);
       update((g) => {
         let seat = g.seats.find((s) => s.playerId === playerId);
@@ -1217,6 +1228,8 @@ export const st = {
     /** Holds an animal while a player looks at it in the picker. The first to ask gets it. */
     hold(playerId: string, name: string, animal: string | null): { taken: string; by: string } | null {
       const g0 = hostGame();
+      // (Nobody with an animal goes looking for another while a game is on.)
+      if (animal !== null && animalsLocked(g0) && g0.seats.some((s) => s.playerId === playerId && s.look)) return null;
       if (animal !== null) {
         const info = ANIMALS.find((a) => a.id === animal);
         if (!info) return null;

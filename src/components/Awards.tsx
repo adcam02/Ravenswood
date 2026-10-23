@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useProgress } from '../game/progress';
-import { FEATS, HATS } from '../world/types';
+import { FEATS, HATS, hatSpeedLabel } from '../world/types';
 import { Modal } from './Modal';
 
 /**
- * Everything a player can earn: the hats (worn from the dress-up when joining) and the achievements, with how to get
+ * Everything a player can earn: the hats (worn from the customiser) and the achievements, with how to get
  * the ones still to come. Secret ones stay a question mark until they're found. All of it is kept in this browser.
  */
 export function AwardsModal() {
@@ -31,6 +31,11 @@ export function AwardsModal() {
         </div>
       }
     >
+      {tab === 'hats' && (
+        <p className="awards-speed">
+          Each hat you own: +0.1% speed. With {gotHats} you’re {hatSpeedLabel(gotHats)} quicker about town.
+        </p>
+      )}
       <ul className="awards-list">
         {(tab === 'feats' ? feats : hats).map((a) => {
           const hidden = !a.got && a.secret;

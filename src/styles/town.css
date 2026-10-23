@@ -701,18 +701,21 @@
 }
 .join-animal {
   width: min(980px, 100%);
-  max-height: calc(100dvh - 32px);
+  /* A set height, so the lists scroll inside the card and the buttons along the bottom always show. */
+  height: min(700px, calc(100dvh - 32px));
   grid-template-rows: auto minmax(0, 1fr) auto;
-  padding: 22px 24px;
+  padding: 20px 24px;
 }
 .join-animal-head {
   display: grid;
+  justify-items: center;
   gap: 2px;
 }
 .join-animal-body {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: 290px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 18px;
   width: 100%;
   min-height: 0;
 }
@@ -720,10 +723,30 @@
   display: grid;
   justify-items: center;
   align-content: start;
+  align-content: safe center;
   gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
   padding: 10px;
   border-radius: 18px;
   background: linear-gradient(180deg, #d6eefb, #eaf6e1);
+}
+/* The animals, hats and pets to choose from: tabs, a line about them, and a list that scrolls. */
+.join-picks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.join-card .join-pick-note {
+  max-width: none;
+  font-size: 14px;
+}
+.join-card .join-pick-note.locked {
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: #fff3d6;
+  color: var(--cosy-ink);
 }
 .join-animal-name {
   font-size: 22px;
@@ -755,7 +778,15 @@
   box-shadow: 0 0 0 3px var(--cosy-accent);
   transform: scale(1.12);
 }
-.join-grid {
+.join-colors.locked .join-color:not(.on) {
+  opacity: 0.3;
+  cursor: not-allowed;
+  transform: none;
+}
+.join-grid,
+.join-items {
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
   gap: 8px;
@@ -826,23 +857,203 @@
   color: var(--cosy-red) !important;
   font-size: 14px;
 }
-@media (max-width: 760px) {
-  .join-animal-body {
-    grid-template-columns: 1fr;
+/* Turning the animal round to look at it: a button either side (hold to keep turning), or drag it. */
+.preview-turn {
+  position: relative;
+  touch-action: none;
+  cursor: grab;
+}
+.preview-turn:active {
+  cursor: grabbing;
+}
+.preview-turn-btn {
+  position: absolute;
+  bottom: 8px;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 250, 241, 0.92);
+  color: var(--cosy-ink);
+  box-shadow: 0 2px 6px rgba(60, 40, 30, 0.22);
+  cursor: pointer;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform 0.1s var(--ease-spring);
+}
+.preview-turn-btn.left {
+  left: 6px;
+}
+.preview-turn-btn.right {
+  right: 6px;
+}
+.preview-turn-btn svg {
+  width: 22px;
+  height: 22px;
+}
+.preview-turn-btn:hover {
+  background: #fff;
+}
+.preview-turn-btn:active {
+  transform: scale(0.92);
+}
+/* The room code would sit on the card once the card is most of the window's width. */
+@media (max-width: 1100px) {
+  .join:has(.join-animal) .join-room {
+    display: none;
+  }
+}
+/* Shorter windows (a laptop with its toolbars): a smaller animal. */
+@media (max-height: 720px) {
+  .join-animal-head h1 {
+    font-size: 24px;
   }
   .join-stage canvas {
-    width: 180px !important;
-    height: 180px !important;
+    width: 200px !important;
+    height: 200px !important;
   }
-  .join-grid {
-    grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
-    max-height: 34dvh;
+}
+/* A phone on its side: the animal and its colours side by side, as on a phone held upright. */
+@media (max-height: 560px) and (min-width: 761px) {
+  .join-animal {
+    gap: 8px;
+    padding: 12px 18px;
+  }
+  .join-animal-head h1 {
+    font-size: 20px;
+  }
+  .join-animal-body {
+    grid-template-columns: 400px minmax(0, 1fr);
+  }
+  .join-stage {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'view name'
+      'view colours';
+    align-items: center;
+    gap: 6px 10px;
+  }
+  .join-stage > :first-child {
+    grid-area: view;
+  }
+  .join-stage canvas {
+    width: 150px !important;
+    height: 150px !important;
+  }
+  .join-animal-name {
+    grid-area: name;
+    align-self: end;
+    font-size: 18px;
+  }
+  .join-colors {
+    grid-area: colours;
+    align-self: start;
+    gap: 6px;
+  }
+  .join-color {
+    width: 24px;
+    height: 24px;
+    border-width: 2px;
+  }
+}
+@media (max-width: 760px) {
+  .join {
+    padding: 10px;
+  }
+  .join-animal {
+    height: calc(100dvh - 20px);
+    gap: 10px;
+    padding: 14px 12px 12px;
+  }
+  .join-animal-head h1 {
+    font-size: 22px;
+  }
+  /* The animal and its colours side by side on top, then the lists. */
+  .join-animal-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 10px;
+  }
+  .join-stage {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'view name'
+      'view colours';
+    align-items: center;
+    gap: 6px 10px;
+    padding: 8px;
+    overflow: visible;
+  }
+  .join-stage > :first-child {
+    grid-area: view;
+  }
+  .join-stage canvas {
+    width: 150px !important;
+    height: 150px !important;
+  }
+  .join-animal-name {
+    grid-area: name;
+    align-self: end;
+    font-size: 18px;
+  }
+  .join-colors {
+    grid-area: colours;
+    align-self: start;
+    gap: 6px;
+  }
+  .join-color {
+    width: 24px;
+    height: 24px;
+    border-width: 2px;
+  }
+  .preview-turn-btn {
+    bottom: 4px;
+    width: 34px;
+    height: 34px;
+  }
+  .preview-turn-btn.left {
+    left: 2px;
+  }
+  .preview-turn-btn.right {
+    right: 2px;
+  }
+  .join-grid,
+  .join-items {
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    gap: 6px;
   }
   .join-tile img,
   .join-tile-blank {
-    width: 56px;
-    height: 56px;
+    width: 52px;
+    height: 52px;
   }
+  .join-card .join-pick-note {
+    font-size: 13px;
+  }
+}
+
+/* ---------------------------------------------------------------- the customiser, over the town */
+.join.customise {
+  z-index: 60;
+  background: rgba(40, 28, 20, 0.38);
+}
+.customise-name {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 4px;
+  font-weight: 600;
+  color: var(--cosy-ink-soft);
+}
+.customise-name .cosy-input {
+  width: min(260px, 60vw);
+  padding: 6px 14px;
+  font-size: 20px;
+  text-align: center;
 }
 
 /* ---------------------------------------------------------------- landing & connecting */
@@ -1649,41 +1860,54 @@
   position: absolute;
 }
 
-/* ---------------------------------------------------------------- hats in the join flow */
-.join-hats {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px;
-  margin-top: 8px;
-}
-.join-hat {
+/* ---------------------------------------------------------------- hats and pets in the picker */
+.join-item {
   position: relative;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  border: 2px solid rgba(0, 0, 0, 0.08);
-  background: #fffaf1;
-  font-size: 20px;
   display: grid;
-  place-items: center;
+  justify-items: center;
+  align-content: start;
+  gap: 4px;
+  padding: 8px 4px;
+  border: 3px solid transparent;
+  border-radius: 14px;
+  background: var(--cosy-bg-2);
+  font-family: var(--cosy-font);
+  font-weight: 500;
+  font-size: 12px;
+  line-height: 1.15;
+  color: var(--cosy-ink);
   cursor: pointer;
+  transition: transform 0.12s var(--ease-spring), border-color 0.12s;
 }
-.join-hat.on {
-  border-color: #ff9a62;
-  box-shadow: 0 0 0 3px rgba(255, 154, 98, 0.3);
+.join-item:hover {
+  transform: translateY(-2px);
 }
-.join-hat.locked {
+.join-item.on {
+  border-color: var(--cosy-accent);
+  background: #fff1e4;
+}
+.join-item-icon {
+  font-size: 28px;
+  line-height: 1.2;
+}
+.join-item-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.join-item.locked {
   cursor: help;
 }
-.join-hat.locked span {
+.join-item.locked .join-item-icon,
+.join-item.locked .join-item-name {
   filter: grayscale(1);
-  opacity: 0.35;
+  opacity: 0.4;
 }
-.join-hat i {
+.join-item i {
   position: absolute;
-  right: -3px;
-  bottom: -3px;
+  top: 4px;
+  right: 6px;
   font-size: 12px;
   font-style: normal;
 }
@@ -1766,11 +1990,6 @@
 }
 
 /* ---------------------------------------------------------------- dress-up tabs */
-.dress-up {
-  display: grid;
-  gap: 6px;
-  margin-top: 8px;
-}
 .dress-tabs {
   display: flex;
   justify-content: center;
@@ -1795,18 +2014,28 @@
 .dress-tab.has:not(.on) {
   box-shadow: inset 0 0 0 2px rgba(255, 154, 98, 0.6);
 }
+.join-picks .dress-tab {
+  padding: 7px 16px;
+  font-size: 15px;
+}
 
 /* ---------------------------------------------------------------- animals other players have */
 .join-tile {
   position: relative;
 }
-.join-tile.taken {
+.join-tile.taken,
+.join-tile.locked {
   cursor: not-allowed;
 }
 .join-tile.taken img,
-.join-tile.taken > span:not(.join-tile-blank) {
+.join-tile.taken > span:not(.join-tile-blank),
+.join-tile.locked img,
+.join-tile.locked > span:not(.join-tile-blank) {
   filter: grayscale(1);
   opacity: 0.38;
+}
+.join-tile.locked:hover {
+  transform: none;
 }
 .join-tile-owner {
   position: absolute;

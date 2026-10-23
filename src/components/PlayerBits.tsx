@@ -92,6 +92,7 @@ export function PlayerRail() {
   const view = useView();
   const panel = useUI((s) => s.panel);
   const muted = useUI((s) => s.muted);
+  const modal = useUI((s) => s.modal?.kind);
   const me = view.seats.find((s) => s.isMe);
   const slayer = slayerButton(view);
   const open = (p: Exclude<Panel, null>) => () => ui.togglePanel(p);
@@ -103,6 +104,8 @@ export function PlayerRail() {
       disabled: !me?.roleId,
       action: () => me?.roleId && ui.open({ kind: 'role', roleId: me.roleId }),
     },
+    // Your name, animal, hat and pet (only the hat and pet while a game is on).
+    { key: 'customise', icon: 'paw', label: 'Customise', on: modal === 'customise', action: () => ui.open({ kind: 'customise' }) },
     { key: 'reference', icon: 'book', label: 'Characters', on: panel === 'reference', action: open('reference') },
     { key: 'notes', icon: 'notepad', label: 'Notepad', on: panel === 'notes', action: open('notes') },
     { key: 'journal', icon: 'scroll', label: 'Storyteller info', on: panel === 'journal', action: open('journal') },

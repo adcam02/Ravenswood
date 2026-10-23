@@ -11,7 +11,6 @@ import { game } from '../game/hud';
 import { local } from '../game/local';
 import { presence } from '../game/presence';
 import { hostLink } from '../net/host';
-import { useJoin } from './town/JoinFlow';
 
 function Popover({ geo, pt, children }: { geo: Geometry; pt: { x: number; y: number }; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -224,14 +223,13 @@ export function PlayerSeatMenu({ seat, geo, pt }: { seat: SeatView; geo: Geometr
             </Item>
           )}
           <Item
-            icon="pencil"
+            icon="paw"
             onClick={() => {
               close();
-              useUI.setState({ grimoireOpen: false });
-              useJoin.setState({ reopen: true });
+              ui.open({ kind: 'customise' });
             }}
           >
-            Change name or animal
+            Customise
           </Item>
         </div>
       </Popover>

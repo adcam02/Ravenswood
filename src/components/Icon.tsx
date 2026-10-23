@@ -297,6 +297,27 @@ const paths: Record<string, React.ReactNode> = {
       <path d="M6 10h.01M9.5 10h.01M13 10h.01M16.5 10h.01M6 14h.01M18 14h.01M9 14h6" />
     </>
   ),
+  paw: (
+    <>
+      <ellipse cx="5.6" cy="10.4" rx="1.8" ry="2.3" transform="rotate(-20 5.6 10.4)" />
+      <ellipse cx="9.4" cy="5.8" rx="1.9" ry="2.5" transform="rotate(-6 9.4 5.8)" />
+      <ellipse cx="14.6" cy="5.8" rx="1.9" ry="2.5" transform="rotate(6 14.6 5.8)" />
+      <ellipse cx="18.4" cy="10.4" rx="1.8" ry="2.3" transform="rotate(20 18.4 10.4)" />
+      <path d="M12 11.5c-2.9 0-5.6 3.2-5.6 5.9 0 1.9 1.4 2.8 2.9 2.8 1.1 0 1.8-.6 2.7-.6s1.6.6 2.7.6c1.5 0 2.9-.9 2.9-2.8 0-2.7-2.7-5.9-5.6-5.9Z" />
+    </>
+  ),
+  turnLeft: (
+    <>
+      <path d="M4 5v5h5" />
+      <path d="M4.6 9.8A8 8 0 1 1 5 15.5" />
+    </>
+  ),
+  turnRight: (
+    <>
+      <path d="M20 5v5h-5" />
+      <path d="M19.4 9.8A8 8 0 1 0 19 15.5" />
+    </>
+  ),
 };
 
 export type IconName = keyof typeof paths;

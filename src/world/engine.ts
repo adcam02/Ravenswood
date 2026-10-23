@@ -21,7 +21,7 @@ import { BED, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, GRAVEYARD, MEETING_CENTRE, 
 import { nearPath } from './town/outdoor';
 import { Fireworks } from './fireworks';
 import { reportProblem } from '../lib/report';
-import { earn, notePerfect, tally } from '../game/progress';
+import { earn, hatBoost, notePerfect, tally } from '../game/progress';
 
 /** Hats are a player's own: the Storyteller doesn't collect them. */
 const isPlayerView = (v: WorldView | null) => v?.mode === 'player';
@@ -1533,7 +1533,8 @@ export class Engine {
       this.standUp();
       if (this.emote && this.emote.anim !== 'drink') this.emote = null;
       const running = this.keys.has('shift');
-      const speed = st ? (running ? FLOAT * 1.7 : FLOAT) : running ? RUN : WALK;
+      // (Every hat a player has makes them a touch quicker.)
+      const speed = st ? (running ? FLOAT * 1.7 : FLOAT) : (running ? RUN : WALK) * hatBoost();
       const nx = local.x + dx * speed * dt;
       const nz = local.z + dz * speed * dt;
       // Animals bump gently off each other; the Storyteller's ghost drifts through anyone.

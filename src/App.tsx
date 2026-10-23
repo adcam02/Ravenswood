@@ -35,7 +35,7 @@ import { DayClock, ProgressWatcher, SceneBar } from './components/town/Scenes';
 import { WorldSeatMenu } from './components/town/WorldSeatMenu';
 import { UpdateNotice } from './components/UpdateNotice';
 import { Landing } from './components/Landing';
-import { JoinFlow, useJoin } from './components/town/JoinFlow';
+import { JoinFlow } from './components/town/JoinFlow';
 import {
   ActionPrompt,
   Announce,
@@ -203,7 +203,6 @@ function Player({ room }: { room: string }) {
   }, [room]);
   const view = usePlayerView();
   const status = useClient((s) => s.status);
-  const reopen = useJoin((s) => s.reopen);
   useEffects(view);
   if (!view) {
     return (
@@ -231,7 +230,7 @@ function Player({ room }: { room: string }) {
     );
   }
   const me = view.seats.find((s) => s.isMe);
-  const joining = !me || !me.look || reopen;
+  const joining = !me || !me.look;
   return (
     <ModeContext.Provider value="player">
       <ViewContext.Provider value={view}>

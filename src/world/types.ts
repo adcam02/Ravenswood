@@ -122,50 +122,23 @@ export const ANIMALS: AnimalInfo[] = [
 export const animalInfo = (id: AnimalId | string | null | undefined): AnimalInfo =>
   ANIMALS.find((a) => a.id === id) ?? ANIMALS[0];
 
+/** The animals in alphabetical order of their names, the way players see them to choose from. */
+export const ANIMALS_ABC: AnimalInfo[] = [...ANIMALS].sort((a, b) => a.name.localeCompare(b.name));
+
 export interface Look {
   animal: AnimalId;
   /** The main coat colour, as a hex string. */
   color: string;
   /** A hat earned in earlier games, worn on the head. */
   hat?: HatId | null;
-  /** Dress-up, free for everyone: something on the face, round the neck, on the back, and a pet. */
-  face?: FaceId | null;
-  neck?: NeckId | null;
-  back?: BackId | null;
+  /** A pet that trots along beside them. */
   pet?: PetId | null;
 }
 
-// ---------------------------------------------------------------- dress-up, free for everyone
+// ---------------------------------------------------------------- pets, free for everyone
 
-export type FaceId = 'glasses' | 'shades' | 'hearts' | 'monocle' | 'moustache' | 'mask';
-export type NeckId = 'bowtie' | 'scarf' | 'bandana' | 'bell' | 'lei' | 'pearls';
-export type BackId = 'backpack' | 'cape' | 'wings' | 'butterfly' | 'balloon' | 'satchel';
 export type PetId = 'chick' | 'slime' | 'ghost' | 'mouse' | 'bee' | 'snail';
 
-export const FACES: { id: FaceId; name: string; icon: string }[] = [
-  { id: 'glasses', name: 'Round glasses', icon: '👓' },
-  { id: 'shades', name: 'Sunnies', icon: '🕶️' },
-  { id: 'hearts', name: 'Heart glasses', icon: '😍' },
-  { id: 'monocle', name: 'Monocle', icon: '🧐' },
-  { id: 'moustache', name: 'Moustache', icon: '🥸' },
-  { id: 'mask', name: 'Hero mask', icon: '🦸' },
-];
-export const NECKS: { id: NeckId; name: string; icon: string }[] = [
-  { id: 'bowtie', name: 'Bow tie', icon: '🎀' },
-  { id: 'scarf', name: 'Scarf', icon: '🧣' },
-  { id: 'bandana', name: 'Bandana', icon: '🤠' },
-  { id: 'bell', name: 'Bell collar', icon: '🔔' },
-  { id: 'lei', name: 'Flower lei', icon: '🌺' },
-  { id: 'pearls', name: 'Pearls', icon: '📿' },
-];
-export const BACKS: { id: BackId; name: string; icon: string }[] = [
-  { id: 'backpack', name: 'Backpack', icon: '🎒' },
-  { id: 'cape', name: 'Cape', icon: '🦹' },
-  { id: 'wings', name: 'Angel wings', icon: '🪽' },
-  { id: 'butterfly', name: 'Butterfly wings', icon: '🦋' },
-  { id: 'balloon', name: 'Balloon', icon: '🎈' },
-  { id: 'satchel', name: 'Satchel', icon: '👜' },
-];
 export const PETS: { id: PetId; name: string; icon: string }[] = [
   { id: 'chick', name: 'Chick', icon: '🐤' },
   { id: 'slime', name: 'Slime', icon: '🟢' },
@@ -176,9 +149,9 @@ export const PETS: { id: PetId; name: string; icon: string }[] = [
 ];
 
 const pickFrom = <T extends string>(list: { id: T }[], v: unknown): T | null => (list.some((x) => x.id === v) ? (v as T) : null);
-/** Keeps only known dress-up pieces. */
-export function fixDressUp(look: Partial<Look> | null | undefined): Pick<Look, 'face' | 'neck' | 'back' | 'pet'> {
-  return { face: pickFrom(FACES, look?.face), neck: pickFrom(NECKS, look?.neck), back: pickFrom(BACKS, look?.back), pet: pickFrom(PETS, look?.pet) };
+/** Keeps only a known pet (anything else an older page sends, like the face, neck and back pieces there once were, goes). */
+export function fixDressUp(look: Partial<Look> | null | undefined): Pick<Look, 'pet'> {
+  return { pet: pickFrom(PETS, look?.pet) };
 }
 
 // ---------------------------------------------------------------- hats, earned and kept between games
@@ -284,6 +257,12 @@ export const HATS: { id: HatId; name: string; icon: string; how: string; unlocke
   { id: 'pumpkin', name: 'Jack-o’-lantern', icon: '🎃', how: 'Dance among the graves as a ghost', unlocked: (p) => got(p, 'thriller'), secret: true },
 ];
 
+/** Each hat a player has unlocked makes them a touch quicker about town, walking and running: 0.1% a hat. */
+export const HAT_SPEED = 0.001;
+export const hatsOwned = (p: Progress) => HATS.filter((h) => h.unlocked(p)).length;
+/** "+0.7%", for telling players what their hats are worth. */
+export const hatSpeedLabel = (hats: number) => `+${(hats * HAT_SPEED * 100).toFixed(1)}%`;
+
 // ---------------------------------------------------------------- achievements
 
 export type FeatId =
@@ -370,7 +349,7 @@ export const FEATS: { id: FeatId; name: string; icon: string; how: string; secre
 /** The weather the Storyteller can call for. */
 export type Weather = 'clear' | 'mist' | 'rain';
 
-/** A valid look: a known animal and colour, and only known hats and dress-up. */
+/** A valid look: a known animal and colour, and only a known hat and pet. */
 export function fixLook(look: Partial<Look> | null | undefined): Look {
   const info = ANIMALS.find((a) => a.id === look?.animal) ?? ANIMALS[0];
   const color = /^#[0-9a-f]{6}$/i.test(look?.color ?? '') ? look!.color! : info.colors[0];

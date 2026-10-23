@@ -25,8 +25,7 @@ import { EndGameSetting, RecapModal } from './GameOver';
 import { useProblems } from '../lib/report';
 import { ReminderToken, Token } from './Token';
 import { WakeComposer } from './WakeComposer';
-import { useJoin } from './town/JoinFlow';
-import { animalInfo } from '../world/types';
+import { CustomiseModal } from './town/Customise';
 
 export function Modals() {
   const modal = useUI((s) => s.modal);
@@ -70,6 +69,8 @@ export function Modals() {
       return <AwardsModal />;
     case 'pigeon':
       return <PigeonModal />;
+    case 'customise':
+      return <CustomiseModal />;
   }
 }
 
@@ -536,29 +537,9 @@ function PlayerProblems() {
 function PlayerSettings() {
   const ambienceOn = useUI((s) => s.ambience);
   const view = useView();
-  const me = view.seats.find((s) => s.isMe);
   return (
     <Modal title="Settings" eyebrow={`Room ${view.room}`} size="sm">
       <div className="settings">
-        {me && (
-          <>
-            <div className="setting">
-              <div>
-                <strong>{me.label}</strong>
-                <span>{me.look ? animalInfo(me.look.animal).name : 'No animal yet'}</span>
-              </div>
-              <button
-                className="btn"
-                onClick={() => {
-                  useJoin.setState({ reopen: true });
-                  ui.close();
-                }}
-              >
-                Change name or animal
-              </button>
-            </div>
-          </>
-        )}
         <div className="setting">
           <div>
             <strong>Ambient sound</strong>

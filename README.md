@@ -19,8 +19,14 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    on the paws, the bear's claws, the deer's fawn spots, the frog's and gecko's spots, suckers down the
    octopus's tentacles. Each animal belongs to one player: animals someone
    else has, or is looking at right now, are greyed out with their name, and if two people click the
-   same one at the same moment the first gets it and the other is asked to pick again.
-   Then they turn on their microphone (or just listen).
+   same one at the same moment the first gets it and the other is asked to pick again. Animals are
+   listed alphabetically, and the one you're looking at stands on a turntable with your pet beside it:
+   turn it round with the buttons either side (hold one to keep turning) or drag it.
+   Then they turn on their microphone (or just listen). Later, **Customise** on the bar changes your
+   name, animal, colour, hat and pet. While a game is on (from the characters being handed out until
+   the Storyteller calls it) your animal and its colour stay as they are, so everyone keeps track of
+   who's who; the hat and pet can change any time, and once the game is over (or the Storyteller sets
+   up a new one) you can be any animal that's free.
 3. **Wander around town.** Talk to whoever is near you. Step into the tavern, the bakery, the church,
    the clock tower or anyone's house to talk privately. The clock tower has a door on every side (you
    come back out of the one you went in by), into the clock room: the dials glow from behind (showing the real time, backwards), the movement ticks once a
@@ -158,8 +164,9 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    headscarf for the laundry, a feathered cap for darts, a sailor's cap for skimming stones, a
    leprechaun hat for the wishing well and a clockmaker's cap (with a little clock, a cog and a loupe)
    for keeping time. A new hat pops up on screen with your animal wearing it and a
-   **Wear it now** button. Hats are remembered in each player's own browser and chosen under the
-   colours in the animal picker; locked ones say how to earn them.
+   **Wear it now** button. Hats are remembered in each player's own browser and chosen in the animal
+   picker (or with **Customise**); locked ones say how to earn them. Every hat you own makes you a
+   touch quicker about town, walking and running: 0.1% each (40 hats is 4%).
 7. **Achievements.** 36 more things to do, with twenty more hats: win on the good team (a laurel wreath)
    or the evil team (devil horns), catch 10 fish (a pirate's tricorn), run a whole lap of the ring
    road (a jogger's headband), talk with someone through the confession booth (a confessor's candle),

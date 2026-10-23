@@ -8,7 +8,6 @@ import { clientLink, player } from '../net/client';
 import { hostLink } from '../net/host';
 import { DISGUISED, heldRole, st, townAction, useHost } from '../state/host';
 import { useUI } from '../state/ui';
-import { useJoin } from '../components/town/JoinFlow';
 import { ViewContext, type View } from '../state/view';
 import { voice } from '../voice/voice';
 import { earshot } from '../voice/earshot';
@@ -22,7 +21,7 @@ function lastWakeOf(g: { wakes: { id: string; to: string[] }[] }) {
 
 function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', paused: boolean, reading: boolean): WorldView {
   const me = view?.seats.find((s) => s.isMe);
-  const dim = mode === 'player' && (!me?.look || useJoin.getState().reopen);
+  const dim = mode === 'player' && !me?.look;
   if (!view) {
     return {
       mode: 'preview',
@@ -98,8 +97,7 @@ export function World({ mode }: { mode: 'st' | 'player' | 'preview' }) {
   const grimoire = useUI((s) => s.grimoireOpen);
   const paused = Boolean(modal) || grimoire;
   const reading = mode === 'st' && grimoire;
-  const reopen = useJoin((s) => s.reopen);
-  const wv = useMemo(() => toWorldView(view, mode, paused, reading), [view, mode, paused, reading, reopen]);
+  const wv = useMemo(() => toWorldView(view, mode, paused, reading), [view, mode, paused, reading]);
 
   useEffect(() => {
     const el = ref.current;
