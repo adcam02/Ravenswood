@@ -307,10 +307,12 @@ await check('voice: far away is silent, and walls are absolute', async () => {
   await gainUntil(players.abbey, 'Colter', (g) => g.gain === null || g.gain < 0.01, 'through a wall');
 });
 
-await check('voice: lines to far-away players hang up, and reopen when they come back', async () => {
+await check('voice: lines to far-away players go quiet at once, hang up after two minutes, and reopen', async () => {
   await place(players.abbey, 'town', 4, 24, 0);
   await place(players.colter, 'town', -30, 30, 0);
-  await gainUntil(players.abbey, 'Colter', (g) => g.gain === null, 'the far line to hang up', 45000);
+  await gainUntil(players.abbey, 'Colter', (g) => g.gain === null || g.gain === 0, 'the far line to go quiet', 10000);
+  // An idle line is kept for two minutes (LINGER_MS in voice.ts), so walking back is instant.
+  await gainUntil(players.abbey, 'Colter', (g) => g.gain === null, 'the far line to hang up', 160000);
   await place(players.colter, 'town', 5, 24, 0);
   await gainUntil(players.abbey, 'Colter', (g) => g.gain !== null && g.gain > 0.5, 'the line to reopen', 60000);
 });
