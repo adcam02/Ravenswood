@@ -1014,35 +1014,71 @@ export function decal(k: Kit, o: DecalOpts) {
   if (a.lengthSq() < 1e-6) a.set(1, 0, 0).addScaledVector(n, -n.x);
   a.normalize();
   const b = new THREE.Vector3().crossVectors(n, a);
-  // Onto the surface, then just off it (a cut face can lie a little inside the sculpt between its corners).
-  const g = new THREE.Vector3();
-  const onto = (p: THREE.Vector3, lift: number) => {
-    for (let i = 0; i < 4; i++) {
-      const d = sc.at(p.x, p.y, p.z);
-      sc.grad(p.x, p.y, p.z, g);
-      p.addScaledVector(g, -d);
-    }
-    return p.addScaledVector(sc.grad(p.x, p.y, p.z, g), lift);
-  };
   const lift = 0.0035 + o.r * 0.05;
   const sides = o.sides ?? 9;
   const turn = (seedOf(o.name) % 100) / 100;
   const rim = Array.from({ length: sides }, (_, i) => {
     const t = ((i + turn) / sides) * Math.PI * 2;
-    return onto(hit.p.clone().addScaledVector(a, Math.cos(t) * o.r * (o.stretch ?? 1)).addScaledVector(b, Math.sin(t) * o.r), lift);
+    return onto(sc, hit.p.clone().addScaledVector(a, Math.cos(t) * o.r * (o.stretch ?? 1)).addScaledVector(b, Math.sin(t) * o.r), lift);
   });
-  const mid = onto(hit.p.clone(), lift + o.r * 0.05);
-  const f = part(k, `piece:${o.bone}`, o.bone);
-  const origin = boneAt(k, o.bone);
-  const tint = new THREE.Color(o.color);
+  const mid = onto(sc, hit.p.clone(), lift + o.r * 0.05);
+  onSurface(k, o.bone, o.color, rim.map((p, i) => [mid, p, rim[(i + 1) % sides], n]));
+}
+
+/**
+ * A crisp thin line of colour lying on the surface (see `decal`): `w` either side of a path of points on or near
+ * it, narrowing to a point at each end, fixed to one bone (one that isn't turned at rest). Close up only.
+ */
+export function decalLine(k: Kit, o: { bone: string; pts: THREE.Vector3[]; w: number; color: Color }) {
+  if (isLow() || o.pts.length < 2) return;
+  const sc = sculptOf(k);
+  sc.grow = (k.step ?? STEP) * 0.15;
+  const lift = 0.0035 + o.w * 0.05;
+  const on = o.pts.map((p) => onto(sc, p.clone(), 0));
+  const last = on.length - 1;
+  const edge = on.map((p, i) => {
+    const n = sc.grad(p.x, p.y, p.z).normalize();
+    const a = new THREE.Vector3().crossVectors(n, on[Math.min(i + 1, last)].clone().sub(on[Math.max(0, i - 1)])).normalize();
+    const w = i === 0 || i === last ? 0 : o.w;
+    return { n, l: onto(sc, p.clone().addScaledVector(a, w), lift), r: onto(sc, p.clone().addScaledVector(a, -w), lift) };
+  });
+  onSurface(
+    k,
+    o.bone,
+    o.color,
+    edge.slice(1).flatMap((t, i) => {
+      const s = edge[i];
+      return [
+        [s.l, s.r, t.r, s.n],
+        [s.l, t.r, t.l, s.n],
+      ];
+    }),
+  );
+}
+
+/** Moves a point near the sculpted surface onto it, then `lift` off it (a cut face can lie a little inside the sculpt between its corners). */
+function onto(sc: Sculpt, p: THREE.Vector3, lift: number): THREE.Vector3 {
+  const g = new THREE.Vector3();
+  for (let i = 0; i < 4; i++) {
+    const d = sc.at(p.x, p.y, p.z);
+    sc.grad(p.x, p.y, p.z, g);
+    p.addScaledVector(g, -d);
+  }
+  return p.addScaledVector(sc.grad(p.x, p.y, p.z, g), lift);
+}
+
+/** Adds faces lying on the surface to a bone's crisp pieces, in one colour, each wound to face out along its own way (model space). */
+function onSurface(k: Kit, bone: string, color: Color, tris: THREE.Vector3[][]) {
+  const f = part(k, `piece:${bone}`, bone);
+  const origin = boneAt(k, bone);
+  const tint = new THREE.Color(color);
   const e1 = new THREE.Vector3();
   const e2 = new THREE.Vector3();
-  for (let i = 0; i < sides; i++) {
-    const p = rim[i];
-    const q = rim[(i + 1) % sides];
-    // Wound to face out.
-    const tri = e1.subVectors(p, mid).cross(e2.subVectors(q, mid)).dot(n) > 0 ? [mid, p, q] : [mid, q, p];
-    for (const v of tri) {
+  for (const [a, p, q, out] of tris) {
+    const n = e1.subVectors(p, a).cross(e2.subVectors(q, a));
+    // (Leaving out any squeezed to nothing, at the point of a line.)
+    if (n.lengthSq() < 1e-12) continue;
+    for (const v of n.dot(out) > 0 ? [a, p, q] : [a, q, p]) {
       f.pos.push(v.x - origin.x, v.y - origin.y, v.z - origin.z);
       f.col.push(tint.r, tint.g, tint.b);
       f.along.push(-1);

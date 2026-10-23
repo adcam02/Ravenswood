@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import type { Vec3 } from './build';
-import { all, any, armForms, boneAt, type Details, beakForm, decal, earForms, earMarks, finForm, headForm, legForms, membrane, membraneWings, piece, region, sculptOf, snoutForm, sock as sockOf, suckerForms, surfaceHit, tailForm, tentacleForms, torso, unitOf, useSurface, whiskers, wingForms } from './forms';
+import { all, any, armForms, boneAt, type Details, beakForm, decal, decalLine, earForms, earMarks, type Field, finForm, headForm, legForms, membrane, membraneWings, piece, region, sculptOf, snoutForm, sock as sockOf, suckerForms, surfaceHit, tailForm, tentacleForms, torso, unitOf, useSurface, whiskers, wingForms } from './forms';
 import { curve, isLow, pillar, solid, type Color, type Fold } from './paper';
-import { box, ellipsoid, pyramid, rod, spiral, type Probe } from './sculpt';
+import { box, ellipsoid, Probe, pyramid, rod, spiral } from './sculpt';
 import {
   CHARCOAL,
   CREAM,
@@ -2954,6 +2954,318 @@ const chameleon: Recipe = (k, c) => {
   return { swivel: true, shifts: true };
 };
 
+const whaleshark: Recipe = (k, c) => {
+  const belly = mix(c.coat, '#f2eee6', 0.86);
+  // (On a pale coat, the pattern a shade darker instead, so it still shows.)
+  const pale = luminance(c.coat) > 0.6 ? mix(c.coat, '#6a7a90', 0.3) : mix(c.coat, '#f6f3ec', 0.8);
+  const deep = mix(c.coat, '#1a2236', 0.28);
+  const ridge = mix(c.coat, '#1a2236', 0.1);
+  // The biggest fish in the sea as a gentle giant: a broad flat head with a very wide smile right across the
+  // front and little eyes set far apart, a pale tummy, and its back covered in pale spots in rows between thin
+  // pale stripes, over ridges running down it. Long fins for arms, a fin half way down its back, and a tall
+  // crescent tail.
+  k.joints.neck = [0, 0.52, 0.05];
+  k.joints.shoulder = [0.21, 0.42, 0.07];
+  k.joints.hip = [0.11, 0.15, -0.02];
+  k.joints.tail = [0, 0.2, -0.19];
+  const bellyC: Vec3 = [0, 0.29, -0.02];
+  torso(k, {
+    belly: [bellyC, [0.25, 0.27, 0.22]],
+    chest: [
+      [0, 0.46, 0.03],
+      [0.225, 0.16, 0.2],
+    ],
+    melt: 0.2,
+  });
+  const headAt: Vec3 = [0, 0.11, 0.06];
+  const headR: Vec3 = [0.3, 0.165, 0.25];
+  headForm(k, { r: headR, at: headAt, melt: 0.2 });
+  const hc = plus(k.joints.neck, headAt);
+  const sc = sculptOf(k);
+  // The broad, flat, blunt front of the head.
+  sc.add(ellipsoid('neck', [0, hc[1] - 0.035, hc[2] + 0.1], [0.27, 0.12, 0.17], { k: 0.08, name: 'jaw' }));
+  wingForms(k, { len: 0.3, w: 0.1, d: 0.04, taper: 0.62, fwd: 0.25, out: 0.62 });
+  legForms(k, { r0: 0.065, r1: 0.055, foot: [0.065, 0.035, 0.085] });
+  const tp = tailPath(0.3, [0, -0.15, -1], [0.3, 0, 0], 0.11, [1, 0.8, 0.58, 0.42]);
+  const tailAt = tailForm(k, tp);
+  const tj = new THREE.Vector3(...k.joints.tail);
+  const end = plus(k.joints.tail, tp.pts[tp.pts.length - 1]);
+  // The crescent tail: a tall lobe sweeping up and back and a shorter one down, each a flat blade curving back.
+  const lobe = (pts: Vec3[], radii: number[], name: string) => {
+    for (let i = 0; i + 1 < pts.length; i++) {
+      sc.add(rod('tail2', plus(end, pts[i]), plus(end, pts[i + 1]), radii[i], radii[i + 1], { k: i === 0 ? 0.04 : 0.02, anchor: end, reach: 0.1, name: `${name}${i}`, squash: [0.34, 1, 1], thin: true }));
+    }
+  };
+  lobe([[0, 0, 0], [0, 0.1, -0.035], [0, 0.19, -0.09], [0, 0.26, -0.17]], [0.07, 0.06, 0.042, 0.014], 'finUp');
+  lobe([[0, 0, 0], [0, -0.06, -0.05], [0, -0.095, -0.12]], [0.06, 0.042, 0.014], 'finDown');
+  // The fin on its back, on a bone of its own inside the body so it can fold away under a cape or a backpack.
+  bone(k, 'backPlates', 'body', [0, 0.36, -0.2]);
+  finForm(k, 'backPlates', [0, 0.36, -0.2], { len: 0.13, w: 0.028, d: 0.07, rot: [-1.6, 0, 0], name: 'dorsal', melt: 0.05 });
+  // Where a line out from the middle of the body, round from straight behind, comes out through its back.
+  const back = (a: number, y: number) => surfaceHit(k, new THREE.Vector3(0, y, bellyC[2]), new THREE.Vector3(Math.sin(a), 0, -Math.cos(a)));
+  useSurface(k);
+  eyes(k, { x: 0.62, y: 0.1, size: 0.62, wide: 1, slant: 0, color: '#141018' });
+  mouth(k, { w: 0.68, y: -0.3, curve: 0.12, r: 0.009 });
+  k.nose = v3(onHead(k, 0, -0.12));
+  // (Whether a point is on the body itself, clear of the fin, the tail and the arms.)
+  const probe = new Probe(sc);
+  const onBody = region(k, 'belly', 'chest');
+  const inBody = (p: THREE.Vector3, by = 0.005) => onBody(probe.set(p.x, p.y, p.z)) < -by;
+  // Ridges down the back, two a side: low crisp ridges lying along the surface.
+  for (const a of [-1.1, -0.55, 0.55, 1.1]) {
+    const pts: THREE.Vector3[] = [];
+    for (let y = 0.55; y > 0.17; y -= 0.055) {
+      const h = back(a, y);
+      if (h && inBody(h.p)) pts.push(h.p);
+    }
+    const w = pts.map((_, i) => (i === 0 || i === pts.length - 1 ? 0 : 0.022));
+    piece(k, { bone: 'body', pts, w, t: w.map((x) => x * 0.55), across: new THREE.Vector3(Math.cos(a), 0, Math.sin(a)), colors: pts.slice(1).map(() => ridge), name: `ridge${a > 0 ? 'L' : 'R'}${Math.abs(a) > 0.8 ? 1 : 0}` });
+  }
+  // The pattern (crisp, see `decal`): thin stripes across the back, broken where the fin or the tail is in the
+  // way, rows of spots above and below them, and smaller spots scattered evenly over the top of the head.
+  for (const y of [0.25, 0.35, 0.45]) {
+    const runs: THREE.Vector3[][] = [[]];
+    for (let a = -1.45; a < 1.5; a += 0.1) {
+      const h = back(a, y);
+      if (h && inBody(h.p)) runs[runs.length - 1].push(h.p);
+      else runs.push([]);
+    }
+    for (const pts of runs) decalLine(k, { bone: 'body', pts, w: 0.0075, color: pale });
+  }
+  [0.2, 0.3, 0.4, 0.5].forEach((y, row) => {
+    for (const a of [-1.36, -0.83, -0.27, 0.27, 0.83, 1.36]) {
+      const h = back(a, y);
+      if (h && inBody(h.p, 0.03)) decal(k, { bone: 'body', from: new THREE.Vector3(0, y, bellyC[2]), dir: new THREE.Vector3(Math.sin(a), 0, -Math.cos(a)), r: 0.028, color: pale, sides: 9, name: `spot${row}_${a}` });
+    }
+  });
+  speckle(k, 'neck', hc, headR, 80, (d) => d.y > 0.28 && d.z < 0.82, 0.022, pale, 'headSpot', 9);
+  // Far off, where those aren't drawn, a few big painted spots instead.
+  const far: THREE.Vector3[] = [];
+  if (isLow()) {
+    for (const d of fibonacci(26)) {
+      const h = d.y > 0.3 && d.z < 0.8 && surfaceHit(k, new THREE.Vector3(...hc), new THREE.Vector3(d.x * headR[0], d.y * headR[1], d.z * headR[2]));
+      if (h) far.push(h.p);
+    }
+    for (const y of [0.25, 0.43]) {
+      for (const a of [-1.2, -0.45, 0.45, 1.2]) {
+        const h = back(a, y);
+        if (h) far.push(h.p);
+      }
+    }
+  }
+  const head = unitOf(k, 'head');
+  k.marks = {
+    base: c.coat,
+    marks: [
+      // A pale tummy, and a pale lower jaw under the smile.
+      { color: belly, f: frontOval(k, ['belly', 'chest'], 0, 0.3, 0.19, 0.29) },
+      { color: belly, f: all(region(k, 'head', 'jaw'), (q) => -head(q).z, (q) => head(q).y - (-0.34 + 0.12 * head(q).x ** 2)) },
+      { color: belly, f: all(region(k, /^leg/), (q) => q.p.y - 0.03) },
+      { color: belly, f: all(region(k, /^tail\d/), (q) => q.p.y - (tj.y + (end[1] - tj.y) * tailAt(q.p)) + 0.02) },
+      { color: deep, f: region(k, 'dorsal', /^finUp/, /^finDown/) },
+      { color: pale, f: (q) => Math.min(...far.map((p) => q.p.distanceTo(p))) - 0.045 },
+    ],
+  };
+  return { aquatic: true };
+};
+
+/** Euler angles that turn a shape's own +y to point along `along`, with its own +z towards `face`. */
+function turnTo(along: THREE.Vector3, face: THREE.Vector3): Vec3 {
+  const y = along.clone().normalize();
+  const x = new THREE.Vector3().crossVectors(y, face).normalize();
+  const z = new THREE.Vector3().crossVectors(x, y);
+  const e = new THREE.Euler().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+  return [e.x, e.y, e.z];
+}
+
+/** A prawn's body, top to bottom: rings standing a little proud of it (height, how far forward, half-width, half-depth). */
+const PRAWN_BANDS: [number, number, number, number][] = [
+  [0.47, 0.035, 0.15, 0.14],
+  [0.4, 0.01, 0.162, 0.152],
+  [0.33, -0.015, 0.168, 0.158],
+  [0.26, -0.03, 0.165, 0.155],
+  [0.19, -0.036, 0.152, 0.142],
+];
+
+/**
+ * The lines between rings (each a shape whose own y runs along the body): where a point is about as far past the end
+ * of one as it is short of the start of the next.
+ */
+function grooves(k: Kit, names: string[], w: number): Field {
+  const units = names.map((n) => unitOf(k, n));
+  return (q) => {
+    let d = Infinity;
+    for (let i = 0; i + 1 < units.length; i++) {
+      const a = units[i](q).y;
+      const b = units[i + 1](q).y;
+      if (a * b < 0.04) d = Math.min(d, Math.abs(a + b) * 0.5);
+    }
+    return d - w;
+  };
+}
+
+const prawn: Recipe = (k, c) => {
+  const light = mix(c.coat, '#fff3e8', 0.3);
+  const deep = mix(c.coat, '#4a2028', 0.3);
+  // A little prawn standing up: a round shell of a head with a pointed rostrum, eyes on short stalks and very long
+  // feelers sweeping back past its body; a curved body in bands, little walking legs down the front, small claws
+  // for paws, and a banded tail ending in a fan. Cut a little finer, for the bands.
+  k.step = 0.034;
+  k.joints.neck = [0, 0.5, 0.04];
+  k.joints.shoulder = [0.13, 0.43, 0.07];
+  k.joints.hip = [0.075, 0.13, 0];
+  k.joints.tail = [0, 0.17, -0.12];
+  // The body inside the bands, which stand proud of it all round.
+  torso(k, {
+    belly: [
+      [0, 0.27, -0.03],
+      [0.13, 0.17, 0.12],
+    ],
+    chest: [
+      [0, 0.42, 0.015],
+      [0.125, 0.11, 0.115],
+    ],
+    melt: 0.14,
+  });
+  const sc = sculptOf(k);
+  const BANDS = PRAWN_BANDS.map(([y, z, w, d], i) => {
+    sc.add(ellipsoid('body', [0, y, z], [w, 0.05, d], { rot: [0.06 * i, 0, 0], k: 0.012, name: `band${i}` }));
+    return `band${i}`;
+  });
+  // (Measured round the bands, for dressing up and holding things.)
+  k.shape.tr = [0.168, k.shape.tr[1], 0.165];
+  k.front = (k.front ?? 0) + 0.03;
+  const headAt: Vec3 = [0, 0.12, 0.04];
+  headForm(k, { r: [0.19, 0.165, 0.185], at: headAt, melt: 0.1 });
+  armForms(k, { len: 0.19, r0: 0.034, r1: 0.03, paw: [0.036, 0.032, 0.046], fwd: 0.55, out: 0.32 });
+  legForms(k, { r0: 0.04, r1: 0.034, foot: [0.042, 0.022, 0.06], fwd: 0.025 });
+  // The tail: short, in rings like the body's, curling a little up behind.
+  const tp = tailPath(0.2, [0, -0.35, -1], [0.85, 0, 0], 0.075, [1, 0.86, 0.72, 0.6]);
+  tailForm(k, tp);
+  const tj = new THREE.Vector3(...k.joints.tail);
+  const n = tp.pts.length - 1;
+  const at = (i: number) => new THREE.Vector3(...tp.pts[Math.min(n, Math.floor(i))]).lerp(new THREE.Vector3(...tp.pts[Math.min(n, Math.floor(i) + 1)]), i % 1).add(tj);
+  const across = new THREE.Vector3(1, 0, 0);
+  const RINGS = [1.8, 5.2].map((i, j) => {
+    const dir = at(i + 0.5).sub(at(i - 0.5)).normalize();
+    const r = 0.09 - j * 0.014;
+    sc.add(ellipsoid(i < n / 3 ? 'tail' : i < (n * 2) / 3 ? 'tail1' : 'tail2', v3(at(i)), [r, 0.034, r * 0.9], { rot: turnTo(dir, new THREE.Vector3(0, 1, 0)), k: 0.012, name: `ring${j}` }));
+    return `ring${j}`;
+  });
+  // The fan: a pointed middle flanked by two rounded paddles a side, spread about the end of the tail and tipped up
+  // a little either side of the middle, so it shows from the side as well as from above.
+  const end = at(n);
+  const along = at(n).sub(at(n - 1)).normalize();
+  const flat = new THREE.Vector3().crossVectors(across, along).normalize();
+  for (const a of [-1.1, -0.55, 0, 0.55, 1.1]) {
+    const side = across.clone().multiplyScalar(Math.cos(0.45)).addScaledVector(flat, Math.sin(0.45) * Math.sign(a));
+    const dir = along.clone().multiplyScalar(Math.cos(a)).addScaledVector(side, Math.sin(a));
+    const base = end.clone().addScaledVector(dir, -0.02);
+    if (a === 0) sc.add(pyramid('tail2', v3(base), 0.055, 0.19, 0.022, { rot: turnTo(dir, flat), k: 0.02, anchor: v3(end), reach: 0.06, round: 0.012, name: 'fan0', thin: true }));
+    else sc.add(ellipsoid('tail2', v3(base.addScaledVector(dir, 0.105)), [0.056, 0.11, 0.024], { rot: turnTo(dir, new THREE.Vector3().crossVectors(side, along)), k: 0.02, anchor: v3(end), reach: 0.06, name: `fan${a > 0 ? 'L' : 'R'}${Math.abs(a) > 0.7 ? 2 : 1}`, thin: true }));
+  }
+  useSurface(k);
+  mouth(k, { w: 0.22, y: -0.4, curve: 0.08, r: 0.006 });
+  k.nose = v3(onHead(k, 0, -0.2));
+  // Eyes on short stalks, each on its own bone so they can look about separately: big round dark eyes, low enough
+  // on the face to stay clear of a hat.
+  const tipRel = new THREE.Vector3(0, 0.06, 0.05);
+  for (const side of [-1, 1]) {
+    const nm = side > 0 ? 'L' : 'R';
+    const base = onHead(k, side * 0.4, 0.3, -0.015);
+    bone(k, `stalk${nm}`, 'neck', v3(base));
+    const tip = tipRel.clone().add(new THREE.Vector3(side * 0.035, 0, 0));
+    bone(k, `blink${nm}`, `stalk${nm}`, v3(tip));
+    const stalk = part(k, `stalk${nm}`, `stalk${nm}`);
+    pillar(stalk, k.rnd, [0, 0, 0], v3(tip), 0.021, 0.018, c.coat, { base: 'limb5' });
+    const eye = part(k, `eye${nm}`, `stalk${nm}`, { bone: `blink${nm}`, eyes: true });
+    const m = frame(tip);
+    solid(eye, k.rnd, { base: 'ico2', r: [0.036, 0.038, 0.034], matrix: m, color: INK, tone: 0.1 });
+    solid(eye, k.rnd, { base: 'ico1', r: [0.012, 0.012, 0.006], matrix: inside(m, [0.011, 0.015, 0.029]), color: '#fffdf8', tone: 0 });
+    solid(eye, k.rnd, { base: 'ico1', r: [0.005, 0.005, 0.003], matrix: inside(m, [-0.012, -0.011, 0.031]), color: '#fffdf8', tone: 0 });
+  }
+  k.blink = ['blinkL', 'blinkR'];
+  const eyeAt = onHead(k, 0.4, 0.3).add(tipRel);
+  k.eyeY = eyeAt.y;
+  k.eyeX = eyeAt.x + 0.035;
+  k.eyeR = 0.038;
+  k.eyeZ = eyeAt.z + 0.034;
+  const nk = new THREE.Vector3(...k.joints.neck);
+  // The rostrum: a pointed blade out of the brow between the eyes, with little teeth along its top.
+  const r0 = onHead(k, 0, 0.38, -0.02).add(nk);
+  const ros = [r0, r0.clone().add(new THREE.Vector3(0, 0.028, 0.065)), r0.clone().add(new THREE.Vector3(0, 0.05, 0.135)), r0.clone().add(new THREE.Vector3(0, 0.07, 0.2))];
+  piece(k, { bone: 'neck', pts: ros, w: [0.016, 0.013, 0.008, 0], t: [0.03, 0.022, 0.012, 0], across, colors: [c.coat, c.coat, deep], name: 'rostrum' });
+  [0.35, 0.6, 0.82].forEach((f, i) => {
+    const p = ros[0].clone().lerp(ros[3], f);
+    const h = 0.03 * (1 - f) + 0.004;
+    piece(k, { bone: 'neck', pts: [p.clone().add(new THREE.Vector3(0, h - 0.01, -0.01)), p.clone().add(new THREE.Vector3(0, h + 0.013, 0.008))], w: [0.005, 0], t: [0.008, 0], across, colors: [c.coat], name: `rostrumTooth${i}` });
+  });
+  // Very long feelers from the sides of the face under the eyes, arcing out and back past the body, below where a
+  // hat sits: each in a few pieces so it keeps its curve far off (where every piece is cut down to a straight spike).
+  const FEELER: Vec3[] = [
+    [0, 0, 0],
+    [0.04, 0.005, 0.02],
+    [0.11, 0.035, 0.005],
+    [0.19, 0.075, -0.05],
+    [0.265, 0.08, -0.16],
+    [0.32, 0.03, -0.3],
+    [0.355, -0.09, -0.45],
+    [0.365, -0.26, -0.56],
+    [0.36, -0.45, -0.61],
+  ];
+  // Each is on a bone of its own at its root, so it can drift about, and lie along the covers in bed.
+  for (const side of [-1, 1]) {
+    const nm = `feeler${side > 0 ? 'L' : 'R'}`;
+    const at = onHead(k, side * 0.58, 0.14, -0.015);
+    bone(k, nm, 'neck', v3(at));
+    const root = at.add(nk);
+    const curve = new THREE.CatmullRomCurve3(FEELER.map(([x, y, z]) => root.clone().add(new THREE.Vector3(side * x, y, z))));
+    const pts = curve.getSpacedPoints(16);
+    const w = pts.map((_, i) => (i === 16 ? 0 : 0.0075 - 0.0045 * (i / 16)));
+    for (let j = 0; j < 4; j++) {
+      const a = j * 4;
+      piece(k, { bone: nm, pts: pts.slice(a, a + 5), w: w.slice(a, a + 5), t: w.slice(a, a + 5), across: new THREE.Vector3(0, 1, 0), colors: [c.coat, c.coat, c.coat, c.coat], name: `${nm}${j}` });
+    }
+  }
+  // Small claws: a fixed finger and a moving one on each paw, a little open and curving in at the tips.
+  for (const p of k.paws ?? []) {
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(...p.rot));
+    const c0 = new THREE.Vector3(...p.at);
+    const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(q);
+    const upv = new THREE.Vector3(0, 1, 0).applyQuaternion(q);
+    const x = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
+    for (const s of [1, -1]) {
+      const at = (f: number, u: number) => c0.clone().addScaledVector(fwd, f).addScaledVector(upv, u * s);
+      piece(k, { bone: p.bone, pts: [at(0.005, 0.012), at(0.045, 0.02), at(0.075, 0.016), at(0.095, 0.004)], w: [0.017, 0.015, 0.011, 0], t: [0.014, 0.012, 0.009, 0], across: x, colors: [c.coat, c.coat, deep], name: `claw${p.bone}${s > 0 ? 'Top' : 'Low'}` });
+    }
+  }
+  // Little walking legs down the front, in pairs, each bent at the knee.
+  for (let i = 0; i < 4; i++) {
+    const y = 0.43 - i * 0.07;
+    for (const side of [-1, 1]) {
+      const hit = surfaceHit(k, new THREE.Vector3(side * 0.05, y, 0), new THREE.Vector3(side * 0.4, -0.1, 1));
+      if (!hit) continue;
+      const root = hit.p.clone().addScaledVector(hit.n, -0.015);
+      const knee = hit.p.clone().add(new THREE.Vector3(side * 0.025, 0.012, 0.035));
+      const ankle = knee.clone().add(new THREE.Vector3(side * 0.008, -0.055, 0.01));
+      const toe = ankle.clone().add(new THREE.Vector3(0, -0.008, 0.004));
+      piece(k, { bone: 'body', pts: [root, knee, ankle, toe], w: [0.012, 0.011, 0.009, 0], t: [0.011, 0.01, 0.008, 0], across, colors: [c.coat, c.coat, c.coat], name: `walker${side > 0 ? 'L' : 'R'}${i}` });
+    }
+  }
+  k.marks = {
+    base: c.coat,
+    marks: [
+      // A darker line in each groove between the bands, down the body and along the tail.
+      { color: deep, f: all(region(k, ...BANDS, 'belly', 'chest'), grooves(k, BANDS, 0.2)) },
+      { color: deep, f: all(region(k, ...RINGS, /^tail\d/), grooves(k, RINGS, 0.16)) },
+      // A paler front.
+      { color: light, f: frontOval(k, BANDS, 0, 0.3, 0.1, 0.2) },
+      { color: deep, f: region(k, /^fan/) },
+    ],
+  };
+  return { aquatic: true };
+};
+
 export const RECIPES: Record<AnimalId, Recipe> = {
   raccoon,
   fox,
@@ -2994,6 +3306,8 @@ export const RECIPES: Record<AnimalId, Recipe> = {
   dragon,
   bee,
   chameleon,
+  whaleshark,
+  prawn,
 };
 
 /** How each species carries itself. Anything left out is the plain default. */
@@ -3076,6 +3390,10 @@ const PROFILES: Partial<Record<AnimalId, Partial<Profile>>> = {
   bee: { lean: 0.02, head: -0.03, gait: 'flap', cadence: 1.3, stride: 0.7, sit: 'settle', idles: ['rubPaws', 'earTwitch', 'lookAround'], tailSway: 0 },
   // Slow and careful, rocking as it goes; sways, tilts its head, its eyes always roving.
   chameleon: { lean: 0.04, head: -0.03, gait: 'amble', cadence: 0.6, stride: 0.75, sit: 'feet', idles: ['sway', 'headTilt', 'lookAround'], tailSway: 0.05 },
+  // Unhurried and gentle: a slow waddle, slow blinks, a lazy swish of the great tail.
+  whaleshark: { lean: 0.03, head: -0.02, gait: 'waddle', cadence: 0.75, stride: 0.6, sit: 'settle', idles: ['slowBlink', 'tailSwish', 'chill'], tailSway: 0.22 },
+  // Scuttles about on quick little steps, claws up, eyes swivelling on their stalks.
+  prawn: { lean: 0.02, head: -0.03, paws: 0.12, gait: 'scuttle', cadence: 1.35, stride: 0.6, sit: 'settle', idles: ['stalks', 'rubPaws', 'tailSwish'], tailSway: 0.2 },
 };
 
 /** Finishing touches: toes on the feet, claws, buck teeth. */

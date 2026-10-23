@@ -1661,6 +1661,19 @@ class AnimalRig implements Rig {
       P.hrx += sin(t * 13) * 0.04;
       P.hrz += sin(t * 7) * 0.025;
     }
+    // Long feelers (the prawn's) drift as it goes about, and on its back lie along the covers rather than reaching
+    // down through the bed.
+    if (this.bones.has('feelerL')) {
+      const lie = s.anim === 'sleep' && prof.bed !== 'upright' && this.hasLegs && !this.floats ? -1 : 0;
+      for (const [n, side] of [
+        ['feelerL', 1],
+        ['feelerR', -1],
+      ] as const) {
+        const a = aux(A, n);
+        a[0] += lie + sin(t * 0.9 + side) * 0.05;
+        a[2] += side * sin(t * 1.3 + side * 0.7) * 0.04;
+      }
+    }
     if (this.tentacles && s.anim === 'sleep') {
       if (prof.bed !== 'upright') {
         // On its back the tentacles would stand straight up out of the covers: turned back down to lie flat.
@@ -1768,7 +1781,8 @@ class AnimalRig implements Rig {
       b.position.set(rest.x + a[3], rest.y + a[4], rest.z + a[5]);
       b.scale.setScalar(a[6]);
     }
-    // Plates down a back (the kaiju's, the dragon's spikes) fold away inside it under a cape or a backpack.
+    // Plates down a back (the kaiju's, the dragon's spikes), or a fin on it (the whale shark's), fold away inside it
+    // under a cape or a backpack.
     const plates = this.bones.get('backPlates');
     if (plates && this.backCovered()) plates.scale.setScalar(0.001);
     // Something standing up off the top of the head (the robot's antenna, the homunculus's sprout) folds away under a hat.
@@ -2103,7 +2117,8 @@ function torsoR(s: Shape, y: number) {
 /**
  * Some bodies need their neck ring or back placed by hand: the snail's back is its shell, the kaiju's cape stops
  * short of the top of its great tail, the robot is boxy, and the plumpest necks (the dragon's, the bee's fluffy
- * collar, the chameleon's) need a wider ring to show round them.
+ * collar, the chameleon's) need a wider ring to show round them. The whale shark's scarf goes under its broad head
+ * and its cape round its barrel of a body, and the prawn's scarf round the top of its bands.
  */
 const DRESS_NUDGE: Partial<Record<AnimalId, { neck?: Partial<NeckFit>; back?: Partial<BackFit>; floating?: boolean }>> = {
   snail: { neck: { centre: [0, 0.23, 0.35], r: 0.095, tilt: 0.4 }, back: { centre: [0, 0.33, -0.06], r: 0.12, depth: 0.2, top: 0.55, bottom: 0.13, rim: [0.22, 0.19] }, floating: true },
@@ -2117,6 +2132,8 @@ const DRESS_NUDGE: Partial<Record<AnimalId, { neck?: Partial<NeckFit>; back?: Pa
   dragon: { neck: { centre: [0, 0.52, 0.03], r: 0.175 } },
   bee: { neck: { centre: [0, 0.44, 0.02], r: 0.2 } },
   chameleon: { neck: { centre: [0, 0.455, 0.03], r: 0.145 } },
+  whaleshark: { neck: { centre: [0, 0.42, 0.02], r: 0.255, tilt: 0.12 }, back: { r: 0.265, depth: 0.27, bottom: 0.28 } },
+  prawn: { neck: { centre: [0, 0.465, 0.035], r: 0.168, tilt: 0.1 }, back: { r: 0.165, depth: 0.18, bottom: 0.2 } },
 };
 
 function dressFit(id: AnimalId, k: Kit): { face: FaceFit; neck: NeckFit; back: BackFit } {
@@ -2160,6 +2177,8 @@ const HAT_NUDGE: Partial<Record<AnimalId, HatNudge & { hats?: Partial<Record<Hat
   // The mushroom's head is its face: a hat goes up on the top of the big cap, and the reaper's hood (which would
   // have the cap's rim cutting through it) is drawn right over the cap, tipped back with it.
   fungi: { dy: 0.235, dz: -0.08, scale: 1.5, hats: { reaper: { dy: 0.37, dz: -0.16, scale: 1.8, rot: [-0.3, 0, 0] } } },
+  // Back a little, so the brim clears the eyes on their stalks.
+  prawn: { dy: 0.005, dz: -0.03 },
 };
 
 /** Where hats sit on a head, and where particular hats sit instead, if any do. */
