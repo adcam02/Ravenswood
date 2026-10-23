@@ -4,11 +4,12 @@
 import * as THREE from 'three';
 import { createTown } from '../src/world/town';
 import { swayUniforms } from '../src/world/town/fx';
-import { emptyTown, type Weather, type ZoneKind } from '../src/world/types';
+import { ANIMALS, emptyTown, type AnimalId, type PetId, type Weather, type ZoneKind } from '../src/world/types';
 import { buildAnimal } from '../src/world/animals';
 import { BED } from '../src/world/town/layout';
 import { NightVisit } from '../src/world/visit';
 import { PigeonFlight } from '../src/world/pigeon';
+import { AvatarView } from '../src/world/avatar';
 
 const q = new URLSearchParams(location.search);
 const num = (k: string, d: number) => (q.has(k) ? Number(q.get(k)) : d);
@@ -109,6 +110,17 @@ if (q.has('pigeon')) {
   pigeon = new PigeonFlight(scene, () => {}, 2.2);
 }
 
+// ?walkers=fox:zapmouse,bear:dragon: animals walking towards the camera past the focus, each with its pet in
+// tow (?stop=12 has them stand still for the last 12 frames, the pets catching up; ?ghost makes the second a ghost).
+const walkers: AvatarView[] = [];
+if (q.has('walkers')) {
+  q.get('walkers')!.split(',').forEach((w, i) => {
+    const [animal, pet] = w.split(':') as [AnimalId, PetId];
+    const color = ANIMALS.find((a) => a.id === animal)?.colors[0] ?? '#e2793a';
+    walkers.push(new AvatarView(scene, { name: animal, look: { animal, color, pet }, ghost: q.has('ghost') && i === 1, storyteller: false, isMe: false, role: null, badge: null }));
+  });
+}
+
 const clock = new THREE.Clock();
 let frames = 0;
 let shadowRenders = 0;
@@ -134,6 +146,15 @@ function loop() {
     const pose = visit.update(at);
     sleeper.root.position.y = BED.top + pose.dy;
     sleeper.root.rotation.z = pose.shake;
+  }
+  if (walkers.length) {
+    // In even steps, so a shot lands at the same moment however slowly this draws.
+    const going = frames < settle - num('stop', 0);
+    const walked = Math.min(frames, settle - num('stop', 0)) * 0.05 * 2.2;
+    walkers.forEach((w, i) => {
+      w.setTarget(tx + (i - (walkers.length - 1) / 2) * 1.5, tz - 3.5 + walked - (i % 2) * 0.7, 0);
+      w.update(0.05, frames * 0.05, going ? 'walk' : 'idle', false, false);
+    });
   }
   if (q.has('sway')) swayUniforms.uSway.value = num('sway', 4);
   if (q.has('ripple') && frames === 2) for (let i = 0; i < 4; i++) town.ripple(6.5 + (i - 1.5) * 1.6, 17.8 + (i % 2) * 1.2, 1);
