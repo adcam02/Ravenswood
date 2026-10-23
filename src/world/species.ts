@@ -179,7 +179,8 @@ export type Mannerism =
   | 'chill'
   | 'wingStretch'
   | 'flutter'
-  | 'lookAround';
+  | 'lookAround'
+  | 'sentinel';
 
 export interface Profile {
   /** Forward lean of the body when standing (radians), and the head's pitch and roll on top of it. */
@@ -193,8 +194,11 @@ export interface Profile {
   cadence: number;
   stride: number;
   sit: SitStyle;
-  /** How it sleeps: on its back (the usual), or settled upright against the pillow. */
-  bed?: 'back' | 'upright';
+  /**
+   * How it sleeps: on its back (the usual), settled upright against the pillow, or curled up on its side (when it
+   * has a fin, a shell or spines along its back that would dig into the bed).
+   */
+  bed?: 'back' | 'upright' | 'side';
   idles: Mannerism[];
   /** How much the tail sways at rest, and whether the ears lie back when moving. */
   tailSway: number;

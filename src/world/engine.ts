@@ -909,9 +909,12 @@ export class Engine {
     if (!v || v.mode === 'preview') return;
     const stride = this.keys.has('shift') ? 0.27 : 0.36;
     const walking = (local.anim === 'walk' || local.anim === 'run') && !this.seated && this.hoverY === 0 && v.mode !== 'st';
+    // A skeleton's bones rattle as it goes.
+    const rattles = (key: string | null | undefined) => v.seats.find((x) => x.id === key)?.look?.animal === 'skeleton';
     if (walking && t - this.stepAt > stride) {
       this.stepAt = t;
       ambience.footstep(surfaceAt(local.zone, local.x, local.z), 1);
+      if (rattles(v.mySeatId)) ambience.rattle(0.8);
       if (local.anim === 'run' && onDirt(local.zone, local.x, local.z)) this.town.puff(local.x, 0, local.z);
     }
     let onPier = walking && onDock(local.zone, local.x, local.z) ? [local.x, local.z] : null;
@@ -922,7 +925,10 @@ export class Engine {
       const moved = prev ? Math.hypot(p.x - prev.x, p.z - prev.z) : 0;
       if (!prev || t - prev.at > 0.4) {
         this.othersStepAt.set(key, { at: t, x: p.x, z: p.z });
-        if (prev && moved > 0.25 && d < 9) ambience.footstep(surfaceAt(p.zone, p.x, p.z), Math.max(0.15, 1 - d / 9) * 0.6);
+        if (prev && moved > 0.25 && d < 9) {
+          ambience.footstep(surfaceAt(p.zone, p.x, p.z), Math.max(0.15, 1 - d / 9) * 0.6);
+          if (rattles(key)) ambience.rattle(Math.max(0.15, 1 - d / 9) * 0.5);
+        }
         // Faster than a walk: running, so a puff of dust on the paths.
         if (prev && moved / Math.max(0.05, t - prev.at) > (WALK + RUN) / 2 && d < 30 && onDirt(p.zone, p.x, p.z)) this.town.puff(p.x, 0, p.z);
         if (prev && moved > 0.25 && onDock(p.zone, p.x, p.z)) onPier = [p.x, p.z];

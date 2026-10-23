@@ -47,7 +47,9 @@ export type AnimalId =
   | 'bee'
   | 'chameleon'
   | 'whaleshark'
-  | 'prawn';
+  | 'prawn'
+  | 'meerkat'
+  | 'skeleton';
 
 export interface AnimalInfo {
   id: AnimalId;
@@ -117,6 +119,8 @@ export const ANIMALS: AnimalInfo[] = [
   { id: 'chameleon', name: 'Chameleon', aquatic: false, colors: ['#76b84a', '#3ea89e', '#e2803c', '#5a86d0'] },
   { id: 'whaleshark', name: 'Whale Shark', aquatic: true, colors: ['#5f7f99', '#34476b', '#3f7f88', '#a59d8c'] },
   { id: 'prawn', name: 'Prawn', aquatic: true, colors: ['#f2906e', '#a9b9c6', '#f0705a', '#e8b448'] },
+  { id: 'meerkat', name: 'Meerkat', aquatic: false, colors: ['#c79d68', '#a8845c', '#dcc093', '#9c8b73'] },
+  { id: 'skeleton', name: 'Skeleton', aquatic: false, colors: ['#efe8d6', '#e2d3b0', '#d6e2e6', '#d4e8c4'] },
 ];
 
 export const animalInfo = (id: AnimalId | string | null | undefined): AnimalInfo =>
