@@ -14,7 +14,8 @@ const OUT = process.env.OUT || 'test-results';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
 const PORT = 5190;
 const PEER = 9000;
-const BUILD = joinPath(tmpdir(), 'ravenswood-test-build');
+// BUILT=/some/folder tests a site already built there (to compare two versions) instead of building this one.
+const BUILD = process.env.BUILT || joinPath(tmpdir(), 'ravenswood-test-build');
 mkdirSync(OUT, { recursive: true });
 // Machines without a graphics card (like CI) render slowly, so the pages run small, in low graphics, at a capped frame rate.
 const FLAGS = `peer=127.0.0.1:${PEER}&debug&fx=low&fps=4`;
@@ -41,9 +42,11 @@ async function waitFor(url, ms = 30000) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-console.log('Building…');
-const built = spawnSync('npx', ['vite', 'build', '--outDir', BUILD, '--emptyOutDir'], { stdio: ['ignore', 'ignore', 'inherit'] });
-if (built.status !== 0) process.exit(1);
+if (!process.env.BUILT) {
+  console.log('Building…');
+  const built = spawnSync('npx', ['vite', 'build', '--outDir', BUILD, '--emptyOutDir'], { stdio: ['ignore', 'ignore', 'inherit'] });
+  if (built.status !== 0) process.exit(1);
+}
 run('npx', ['peerjs', '--port', String(PEER), '--path', '/', '--host', '127.0.0.1']);
 run('npx', ['vite', 'preview', '--outDir', BUILD, '--port', String(PORT), '--strictPort']);
 await waitFor(`http://127.0.0.1:${PEER}/`);
@@ -82,13 +85,15 @@ async function open(name, path) {
 }
 async function check(name, fn) {
   if (ONLY.length && !ONLY.some((w) => name.toLowerCase().includes(w))) return;
+  const t0 = Date.now();
+  const took = () => `(${Math.round((Date.now() - t0) / 1000)}s)`;
   try {
     await fn();
     results.push(['PASS', name]);
-    console.log('PASS', name);
+    console.log('PASS', name, took());
   } catch (e) {
     results.push(['FAIL', name, e.message]);
-    console.log('FAIL', name, '-', e.message);
+    console.log('FAIL', name, took(), '-', e.message);
   }
 }
 function expect(cond, msg) {
