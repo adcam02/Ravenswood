@@ -2515,6 +2515,123 @@ const turtle: Recipe = (k, c) => {
   return { aquatic: true };
 };
 
+const kaiju: Recipe = (k, c) => {
+  const belly = mix(c.coat, '#e8dcc0', 0.45);
+  const back = mix(c.coat, CHARCOAL, 0.3);
+  const plate = mix(c.coat, CHARCOAL, 0.15);
+  const glow = mix(c.coat, '#bdf2ff', 0.7);
+  // A giant monster from the films, cut down to town size: a heavy upright lizard on thick legs and big flat
+  // feet, little arms held up in front, a blunt head with a heavy brow, and a long thick tail dragging behind.
+  // Jagged plates run in three rows from the shoulders right down the tail, pale at the tips as if about to glow.
+  k.joints.neck = [0, 0.62, 0.08];
+  k.joints.shoulder = [0.15, 0.5, 0.1];
+  k.joints.hip = [0.12, 0.2, -0.03];
+  k.joints.tail = [0, 0.24, -0.19];
+  torso(k, {
+    belly: [
+      [0, 0.34, -0.02],
+      [0.22, 0.25, 0.21],
+    ],
+    chest: [
+      [0, 0.51, 0.05],
+      [0.17, 0.15, 0.16],
+    ],
+    haunch: [
+      [0.13, 0.21, -0.05],
+      [0.105, 0.14, 0.15],
+    ],
+    melt: 0.18,
+  });
+  headForm(k, { r: [0.15, 0.13, 0.16], at: [0, 0.1, 0.06], melt: 0.13 });
+  const snout = snoutForm(k, { dy: -0.22, len: 0.09, ra: 0.115, rb: 0.088, drop: 0.015, squash: [1.08, 0.72, 1] });
+  // A heavy brow ridge over the eyes.
+  const sc = sculptOf(k);
+  const hc = new THREE.Vector3(...k.joints.neck).add(new THREE.Vector3(...k.shape.hc));
+  for (const side of [-1, 1]) sc.add(ellipsoid('neck', [side * 0.07, hc.y + 0.06, hc.z + 0.1], [0.065, 0.03, 0.05], { k: 0.04, rot: [0, 0, side * 0.32], name: side > 0 ? 'browL' : 'browR' }));
+  armForms(k, { len: 0.17, r0: 0.05, r1: 0.04, paw: [0.042, 0.03, 0.045], fwd: 0.7, out: 0.32 });
+  legForms(k, { r0: 0.085, r1: 0.07, foot: [0.078, 0.034, 0.1] });
+  const path = tailPath(0.74, [0, -0.42, -1], [0.18, 0.5, 0], 0.13, [1, 0.86, 0.7, 0.52, 0.34, 0.16]);
+  const tailAt = tailForm(k, path);
+  useSurface(k);
+  eyes(k, { x: 0.46, y: 0.24, size: 0.75, wide: 1.25, slant: 0.2, color: '#1a1210', ring: '#f2c84a', ringSize: 1.35 });
+  mouth(k, { w: 0.5, y: -0.36, curve: 0.06, r: 0.006 });
+  // Two little fangs over the bottom lip.
+  const nk = new THREE.Vector3(...k.joints.neck);
+  for (const side of [-1, 1]) {
+    const from = new THREE.Vector3(...snout.nose).add(nk).add(new THREE.Vector3(side * 0.034, -0.01, -0.04));
+    const hit = surfaceHit(k, from, new THREE.Vector3(side * 0.2, -1, 0.25));
+    if (!hit) continue;
+    const down = new THREE.Vector3(0, -1, 0.15).normalize();
+    piece(k, { bone: 'neck', pts: [hit.p.clone().addScaledVector(down, -0.012), hit.p.clone().addScaledVector(down, 0.01), hit.p.clone().addScaledVector(down, 0.027)], w: [0.01, 0.008, 0], t: [0.007, 0.006, 0], across: new THREE.Vector3(1, 0, 0), colors: ['#fbf8f1', '#fbf8f1'], name: `fang${side > 0 ? 'L' : 'R'}` });
+  }
+  // The plates: a row down the middle of the back and tail with a smaller row either side, each plate a flat
+  // leaf pointing out, biggest over the shoulders and getting smaller down the tail.
+  const spine: { at: THREE.Vector3; up: THREE.Vector3; along: THREE.Vector3; bone: string; size: number }[] = [];
+  // Down the back: from just under the head to the root of the tail, out through the surface behind. These are on
+  // a bone of their own inside the body, so they can fold away under a cape or a backpack.
+  bone(k, 'backPlates', 'body', [0, 0.42, -0.06]);
+  for (let y = 0.6; y > 0.3; y -= 0.065) {
+    const dir = new THREE.Vector3(0, 0.35 * (y - 0.3), -1).normalize();
+    spine.push({ at: new THREE.Vector3(0, y, -0.02), up: dir, along: new THREE.Vector3(0, 1, 0.3), bone: 'backPlates', size: 0.75 + (0.6 - y) * 1.2 });
+  }
+  // Down the tail, along its top.
+  const j = new THREE.Vector3(...k.joints.tail);
+  const n = path.pts.length - 1;
+  const i1 = Math.max(1, Math.round(n / 3));
+  const i2 = Math.max(i1 + 1, Math.round((n * 2) / 3));
+  for (let i = 1; i < n - 1; i++) {
+    const a = new THREE.Vector3(...path.pts[i]).add(j);
+    const b = new THREE.Vector3(...path.pts[i + 1]).add(j);
+    const along = b.clone().sub(a).normalize();
+    const up = new THREE.Vector3(0, 1, 0).addScaledVector(along, -along.y).normalize();
+    spine.push({ at: a, up, along, bone: i < i1 ? 'tail' : i < i2 ? 'tail1' : 'tail2', size: 0.85 * (1 - i / n) + 0.3 });
+  }
+  let m = 0;
+  spine.forEach((s, i) => {
+    const side = new THREE.Vector3().crossVectors(s.along, s.up).normalize();
+    const rows = [
+      { off: 0, tilt: 0, scale: 1 },
+      { off: -1, tilt: -0.42, scale: 0.68 },
+      { off: 1, tilt: 0.42, scale: 0.68 },
+    ];
+    for (const r of rows) {
+      if (r.off && i % 2) continue;
+      const dir = s.up.clone().applyAxisAngle(s.along, r.tilt).normalize();
+      const hit = surfaceHit(k, s.at, dir);
+      if (!hit) continue;
+      const len = 0.13 * s.size * r.scale * (1 + ((m * 7) % 5) * 0.04);
+      const w = 0.055 * s.size * r.scale;
+      const root = hit.p.clone().addScaledVector(dir, -0.02);
+      // A jagged leaf: widest a third of the way out, a notch, then a point.
+      const p1 = hit.p.clone().addScaledVector(dir, len * 0.35);
+      const p2 = hit.p.clone().addScaledVector(dir, len * 0.62);
+      const tip = hit.p.clone().addScaledVector(dir, len).addScaledVector(s.along, -len * 0.18);
+      piece(k, {
+        bone: s.bone,
+        pts: [root, p1, p2, tip],
+        w: [w * 0.8, w, w * 0.62, 0],
+        t: [0.013, 0.011, 0.008, 0],
+        across: s.along.clone().addScaledVector(side, r.off * 0.2),
+        colors: [plate, plate, glow],
+        name: `plate${m++}`,
+      });
+    }
+  });
+  const head = unitOf(k, 'head');
+  k.marks = {
+    base: c.coat,
+    marks: [
+      // A paler belly and throat, and the back a shade darker, as on the tail.
+      { color: belly, f: frontOval(k, ['belly', 'chest'], 0, 0.38, 0.13, 0.25) },
+      { color: belly, f: all(region(k, 'head', 'muzzle'), (q) => -head(q).y - 0.35, (q) => -q.p.z + 0.5) },
+      { color: back, f: all(region(k, 'belly', 'chest', 'haunchL', 'haunchR'), (q) => q.p.z + 0.06) },
+      { color: back, f: all(region(k, /^tail\d/), (q) => 0.04 - (q.p.y - (j.y - 0.32 * tailAt(q.p)))) },
+      { color: back, f: region(k, 'browL', 'browR') },
+    ],
+  };
+  return {};
+};
+
 export const RECIPES: Record<AnimalId, Recipe> = {
   raccoon,
   fox,
@@ -2558,6 +2675,7 @@ export const RECIPES: Record<AnimalId, Recipe> = {
   ibis,
   crab,
   turtle,
+  kaiju,
 };
 
 /** How each species carries itself. Anything left out is the plain default. */
@@ -2646,6 +2764,8 @@ const PROFILES: Partial<Record<AnimalId, Partial<Profile>>> = {
   crab: { lean: 0, head: 0, paws: 0.12, gait: 'scuttle', cadence: 1.3, stride: 0.6, sit: 'settle', idles: ['stalks', 'rubPaws', 'lookAround'], tailSway: 0 },
   // Unhurried: a slow waddle, slow blinks, a stretch of the neck.
   turtle: { lean: 0.03, head: -0.02, gait: 'waddle', cadence: 0.6, stride: 0.55, sit: 'settle', idles: ['slowBlink', 'headTilt', 'chill'], tailSway: 0.05 },
+  // Stomps about in a heavy rolling amble, the great tail swinging behind; looks about, stretches up tall.
+  kaiju: { lean: 0.06, head: -0.03, paws: 0.1, gait: 'amble', cadence: 0.7, stride: 0.85, sit: 'tuck', idles: ['lookAround', 'stretch', 'tailSwish'], tailSway: 0.15 },
 };
 
 /** Finishing touches: toes on the feet, claws, buck teeth. */
@@ -2665,6 +2785,7 @@ export const DETAILS: Partial<Record<AnimalId, Details>> = {
   bunny: { toes: 2, teeth: true },
   chinchilla: { toes: 2, teeth: true },
   ferret: { toes: 2, paws: 2 },
+  kaiju: { claws: 3 },
 };
 
 export function profileOf(id: AnimalId): Profile {

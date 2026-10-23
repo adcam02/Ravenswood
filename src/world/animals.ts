@@ -1698,6 +1698,9 @@ class AnimalRig implements Rig {
       b.position.set(rest.x + a[3], rest.y + a[4], rest.z + a[5]);
       b.scale.setScalar(a[6]);
     }
+    // Plates down a back (the kaiju's) fold away inside it under a cape or a backpack.
+    const plates = this.bones.get('backPlates');
+    if (plates && (this.worn.back?.id === 'cape' || this.worn.back?.id === 'backpack')) plates.scale.setScalar(0.001);
     // A tendril only comes out when there's something to hold or a gesture to make.
     const grow = this.tendril ? Math.max(0.001, this.grow) : 1;
     if (this.tendril) this.armR.scale.multiplyScalar(grow);
@@ -1952,9 +1955,13 @@ function torsoR(s: Shape, y: number) {
   return s.tr[0] * Math.sqrt(Math.max(0, 1 - u * u)) * (1 - 0.42 * sm);
 }
 
-/** Some bodies need their neck ring or back placed by hand: the snail's back is its shell. */
+/**
+ * Some bodies need their neck ring or back placed by hand: the snail's back is its shell, and the kaiju's cape
+ * stops short of the top of its great tail.
+ */
 const DRESS_NUDGE: Partial<Record<AnimalId, { neck?: Partial<NeckFit>; back?: Partial<BackFit>; floating?: boolean }>> = {
   snail: { neck: { centre: [0, 0.23, 0.35], r: 0.095, tilt: 0.4 }, back: { centre: [0, 0.33, -0.06], r: 0.12, depth: 0.2, top: 0.55, bottom: 0.13, rim: [0.22, 0.19] }, floating: true },
+  kaiju: { back: { bottom: 0.32 } },
 };
 
 function dressFit(id: AnimalId, k: Kit): { face: FaceFit; neck: NeckFit; back: BackFit } {
