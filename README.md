@@ -257,7 +257,9 @@ anyone still playing on a page from before the update can open dialogs and minig
 
 To test with several browsers on one computer, run `npm run peer` (a local lobby on port 9000) and
 add `?peer=127.0.0.1:9000` to every address. `node tools/test-town.mjs` runs a full game with a
-Storyteller and four players in headless Chrome and saves screenshots.
+Storyteller and four players in headless Chrome and saves screenshots. Only one player's page draws as it
+goes; the others are opened with `?debug&nodraw`, which does everything (voice included) except draw, so the
+whole game runs in about a quarter of an hour on a machine without a graphics card.
 
 ## Credits
 
