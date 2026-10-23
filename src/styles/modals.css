@@ -2881,7 +2881,7 @@
 }
 .profile-feat-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 6px;
 }
 .profile-feat {
@@ -2935,7 +2935,7 @@
   .profile-hats {
     display: none;
   }
-  .profiles-tools .btn {
-    padding-inline: 10px;
+  .profiles-tools .btn span {
+    display: none;
   }
 }

@@ -39,16 +39,16 @@ export function ProfilesModal() {
   return (
     <Modal
       title="Players’ profiles"
-      eyebrow={`${all.length} ${all.length === 1 ? 'name' : 'names'} · kept in this browser`}
+      eyebrow={`${all.length} ${all.length === 1 ? 'name' : 'names'}`}
       size="lg"
       className="profiles-modal"
       head={
         <div className="profiles-tools">
           <button className="btn small" onClick={save} disabled={!all.length} title="Save every profile to a file">
-            <Icon name="download" /> Export
+            <Icon name="download" /> <span>Export</span>
           </button>
           <button className="btn small" onClick={() => file.current?.click()} title="Load profiles from a file (same names are replaced)">
-            <Icon name="upload" /> Import
+            <Icon name="upload" /> <span>Import</span>
           </button>
           <input ref={file} type="file" accept="application/json,.json" hidden onChange={(e) => void load(e.target.files?.[0])} />
         </div>

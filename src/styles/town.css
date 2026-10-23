@@ -2768,6 +2768,26 @@
     font-size: 13px;
     padding-right: 8px;
   }
+  /* On a phone the chip stops short of the voice buttons, and gives way to the money: the place name, the time of
+     day and any warning shorten first. */
+  .mode-player .place-chip {
+    max-width: calc(100vw - 210px);
+  }
+  .mode-player .place-chip strong {
+    flex-shrink: 3;
+  }
+  .mode-player .place-chip .place-time {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .place-chip .place-warn {
+    flex-shrink: 6;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .money-pop {
     font-size: 13.5px;
   }
@@ -2790,5 +2810,13 @@
   from {
     opacity: 0;
     transform: scale(0.7);
+  }
+}
+/* On a phone the recap button sits below the place name and money, not over them. */
+@media (max-width: 760px) {
+  .mode-player .recap-pill {
+    top: 66px;
+    font-size: 14px;
+    padding: 7px 14px 8px;
   }
 }
