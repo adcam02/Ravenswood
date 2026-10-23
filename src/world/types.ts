@@ -39,7 +39,10 @@ export type AnimalId =
   | 'ibis'
   | 'crab'
   | 'turtle'
-  | 'kaiju';
+  | 'kaiju'
+  | 'robot'
+  | 'homunculus'
+  | 'fungi';
 
 export interface AnimalInfo {
   id: AnimalId;
@@ -101,6 +104,9 @@ export const ANIMALS: AnimalInfo[] = [
   { id: 'crab', name: 'Crab', aquatic: true, colors: ['#e0563a', '#e8843a', '#4a6a8a', '#8a5a3a'] },
   { id: 'turtle', name: 'Turtle', aquatic: true, colors: ['#7a7a3a', '#8a6238', '#4f7a6a'] },
   { id: 'kaiju', name: 'Kaiju', aquatic: false, colors: ['#5d7a5a', '#4a4f55', '#3f7a7a', '#6a5a8a'] },
+  { id: 'robot', name: 'Little Robot', aquatic: false, colors: ['#3f9c98', '#b4ada2', '#d4543e', '#dca33a'] },
+  { id: 'homunculus', name: 'Homunculus', aquatic: false, colors: ['#e3a48c', '#b9856a', '#8e6250', '#b4cc98'] },
+  { id: 'fungi', name: 'Fungi', aquatic: false, colors: ['#d4402f', '#9a6a44', '#8a5ab0', '#3f9ee6'] },
 ];
 
 export const animalInfo = (id: AnimalId | string | null | undefined): AnimalInfo =>

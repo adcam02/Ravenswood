@@ -387,7 +387,7 @@ interface RigParts {
   extras?: (body: THREE.Object3D, hand: THREE.Group, armL: THREE.Object3D) => void;
   eyeMaterial?: THREE.Material;
   /** Where a hat sits; none for the Storyteller, who never wears one. */
-  hatFit?: HatFit;
+  hatFit?: HatPlace;
   /** Builds the same animal with lighter shapes, and the key its geometry is cached under. */
   lowKit?: () => Kit;
   lowKey?: string;
@@ -494,7 +494,7 @@ class AnimalRig implements Rig {
   private detail: 'high' | 'low' = 'high';
   private lowKit?: () => Kit;
   private lowKey?: string;
-  private hatFit?: HatFit;
+  private hatFit?: HatPlace;
   private hat: { id: HatId; built: BuiltHat; holder: THREE.Group } | null = null;
   private baseHeadHeight = 1;
   private dressFit?: { face: FaceFit; neck: NeckFit; back: BackFit };
@@ -724,7 +724,7 @@ class AnimalRig implements Rig {
     if (!hat) return;
     const built = buildHat(hat);
     if (!built) return;
-    const fit = this.hatFit;
+    const fit = this.hatFit.hats?.[hat] ?? this.hatFit;
     const holder = new THREE.Group();
     holder.position.set(...fit.pos);
     holder.rotation.set(...fit.rot);
@@ -1701,6 +1701,9 @@ class AnimalRig implements Rig {
     // Plates down a back (the kaiju's) fold away inside it under a cape or a backpack.
     const plates = this.bones.get('backPlates');
     if (plates && (this.worn.back?.id === 'cape' || this.worn.back?.id === 'backpack')) plates.scale.setScalar(0.001);
+    // Something standing up off the top of the head (the robot's antenna, the homunculus's sprout) folds away under a hat.
+    const crest = this.bones.get('crest');
+    if (crest && this.hat) crest.scale.setScalar(0.001);
     // A tendril only comes out when there's something to hold or a gesture to make.
     const grow = this.tendril ? Math.max(0.001, this.grow) : 1;
     if (this.tendril) this.armR.scale.multiplyScalar(grow);
@@ -1956,12 +1959,18 @@ function torsoR(s: Shape, y: number) {
 }
 
 /**
- * Some bodies need their neck ring or back placed by hand: the snail's back is its shell, and the kaiju's cape
- * stops short of the top of its great tail.
+ * Some bodies need their neck ring or back placed by hand: the snail's back is its shell, the kaiju's cape
+ * stops short of the top of its great tail, and the robot is boxy.
  */
 const DRESS_NUDGE: Partial<Record<AnimalId, { neck?: Partial<NeckFit>; back?: Partial<BackFit>; floating?: boolean }>> = {
   snail: { neck: { centre: [0, 0.23, 0.35], r: 0.095, tilt: 0.4 }, back: { centre: [0, 0.33, -0.06], r: 0.12, depth: 0.2, top: 0.55, bottom: 0.13, rim: [0.22, 0.19] }, floating: true },
   kaiju: { back: { bottom: 0.32 } },
+  // The robot's back is a box, wider at its corners than the usual round body, and its scarf goes round the post
+  // between its body and head.
+  robot: { neck: { centre: [0, 0.49, 0], r: 0.095, tilt: 0 }, back: { r: 0.25, depth: 0.165, bottom: 0.1 } },
+  homunculus: { back: { r: 0.165, depth: 0.155 } },
+  // The mushroom's stem is wide all the way up to its face.
+  fungi: { neck: { centre: [0, 0.39, 0.015], r: 0.15, tilt: 0.1 }, back: { r: 0.235, depth: 0.2 } },
 };
 
 function dressFit(id: AnimalId, k: Kit): { face: FaceFit; neck: NeckFit; back: BackFit } {
@@ -1990,20 +1999,29 @@ function dressFit(id: AnimalId, k: Kit): { face: FaceFit; neck: NeckFit; back: B
  * Where a hat goes on each animal. By default it sits on the crown, scaled to the head's width and tipped
  * back a touch; some heads need it nudged clear of ears, antlers, fins or eye stalks.
  */
-const HAT_NUDGE: Partial<Record<AnimalId, { dy?: number; dz?: number; dx?: number; scale?: number; rot?: Vec3 }>> = {
+type HatNudge = { dy?: number; dz?: number; dx?: number; scale?: number; rot?: Vec3 };
+const HAT_NUDGE: Partial<Record<AnimalId, HatNudge & { hats?: Partial<Record<HatId, HatNudge>> }>> = {
   snail: { dy: -0.01, dz: 0.0, scale: 0.85 },
+  // The mushroom's head is its face: a hat goes up on the top of the big cap, and the reaper's hood (which would
+  // have the cap's rim cutting through it) is drawn right over the cap, tipped back with it.
+  fungi: { dy: 0.235, dz: -0.08, scale: 1.5, hats: { reaper: { dy: 0.37, dz: -0.16, scale: 1.8, rot: [-0.3, 0, 0] } } },
 };
 
-function hatFit(id: AnimalId, k: Kit): HatFit {
+/** Where hats sit on a head, and where particular hats sit instead, if any do. */
+type HatPlace = HatFit & { hats?: Partial<Record<HatId, HatFit>> };
+
+function hatFit(id: AnimalId, k: Kit): HatPlace {
   const s = k.shape;
-  const n = HAT_NUDGE[id] ?? {};
   const top = onHead(k, 0, 0.995);
-  const scale = THREE.MathUtils.clamp(s.hr[0] / 0.25, 0.55, 1.2) * (n.scale ?? 1);
-  return {
+  const fit = (n: HatNudge): HatFit => ({
     pos: [s.hc[0] + (n.dx ?? 0), top.y - 0.01 + (n.dy ?? 0), s.hc[2] - 0.01 + (n.dz ?? 0)],
-    scale,
+    scale: THREE.MathUtils.clamp(s.hr[0] / 0.25, 0.55, 1.2) * (n.scale ?? 1),
     rot: n.rot ?? [-0.12, 0, 0],
-  };
+  });
+  const n = HAT_NUDGE[id] ?? {};
+  const hats: Partial<Record<HatId, HatFit>> = {};
+  for (const [hat, m] of Object.entries(n.hats ?? {})) hats[hat as HatId] = fit(m);
+  return { ...fit(n), hats };
 }
 
 /**

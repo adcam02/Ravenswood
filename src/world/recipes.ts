@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import type { Vec3 } from './build';
-import { all, any, armForms, type Details, beakForm, decal, earForms, earMarks, finForm, headForm, legForms, membraneWings, piece, region, sculptOf, snoutForm, sock as sockOf, suckerForms, surfaceHit, tailForm, tentacleForms, torso, unitOf, useSurface, whiskers, wingForms } from './forms';
-import { curve, pillar, solid, type Color } from './paper';
-import { ellipsoid, pyramid, rod, spiral, type Probe } from './sculpt';
+import { all, any, armForms, boneAt, type Details, beakForm, decal, earForms, earMarks, finForm, headForm, legForms, membraneWings, piece, region, sculptOf, snoutForm, sock as sockOf, suckerForms, surfaceHit, tailForm, tentacleForms, torso, unitOf, useSurface, whiskers, wingForms } from './forms';
+import { curve, isLow, pillar, solid, type Color, type Fold } from './paper';
+import { box, ellipsoid, pyramid, rod, spiral, type Probe } from './sculpt';
 import {
   CHARCOAL,
   CREAM,
@@ -15,6 +15,7 @@ import {
   frame,
   headNormal,
   inside,
+  luminance,
   mix,
   mouth,
   nose,
@@ -2227,6 +2228,371 @@ const kaiju: Recipe = (k, c) => {
   return {};
 };
 
+/** A rounded rectangle across a face (half-width a, half-height b, corners rounded by r): below zero inside. */
+const roundRect = (x: number, y: number, a: number, b: number, r: number) => {
+  const qx = Math.abs(x) - a + r;
+  const qy = Math.abs(y) - b + r;
+  return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+};
+
+/** A puffy heart about two across, flat front and back with rounded edges, facing +z (the robot's chest light). */
+function heartGeometry(): THREE.BufferGeometry {
+  const s = new THREE.Shape();
+  s.moveTo(0, -0.95);
+  s.bezierCurveTo(-0.25, -0.62, -1, -0.28, -1, 0.28);
+  s.bezierCurveTo(-1, 0.82, -0.36, 1.02, 0, 0.6);
+  s.bezierCurveTo(0.36, 1.02, 1, 0.82, 1, 0.28);
+  s.bezierCurveTo(1, -0.28, 0.25, -0.62, 0, -0.95);
+  const low = isLow();
+  const g = new THREE.ExtrudeGeometry(s, { depth: 0.3, curveSegments: low ? 2 : 4, bevelEnabled: true, bevelThickness: 0.25, bevelSize: 0.16, bevelSegments: low ? 1 : 2 });
+  g.translate(0, -0.05, -0.15);
+  g.deleteAttribute('uv');
+  g.deleteAttribute('normal');
+  return g;
+}
+
+/** A little bolt head (a short seven-sided disc) on a surface: where (model space), which way is out, how big. */
+function bolt(k: Kit, f: Fold, bone: string, at: THREE.Vector3, n: THREE.Vector3, r: number, color: Color) {
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), n.clone().normalize());
+  const m = new THREE.Matrix4().compose(at.clone().sub(boneAt(k, bone)), q, new THREE.Vector3(1, 1, 1));
+  solid(f, k.rnd, { base: 'disc', r: [r, r * 0.55, r], matrix: m, color });
+}
+
+const robot: Recipe = (k, c) => {
+  // A little friendly robot, like a tin toy come to life: a soft-cornered boxy body under a bigger boxy head, a
+  // dark screen for a face with two big round glowing eyes and a smile, an antenna with a ball on top, round ear
+  // discs, a chest panel with a heart light and a bolt at each corner, bendy arms on ball joints ending in round
+  // claw hands, and short legs on chunky feet. Painted metal with a contrasting trim. Cut a little finer, for its
+  // crisp edges.
+  const hsl = { h: 0, s: 0, l: 0 };
+  c.coat.getHSL(hsl, THREE.SRGBColorSpace);
+  // A warm silver trim, or on a pale or greyish robot a darker shade of its own paint.
+  const pale = (hsl.s < 0.22 && hsl.l > 0.45) || hsl.l > 0.76;
+  const trim = pale ? mix(c.coat, '#2c3036', 0.52) : mix('#d8d2c6', c.coat, 0.08);
+  const joint = mix(trim, CHARCOAL, 0.4);
+  const screen = '#1a232e';
+  const glow = '#8cf0ff';
+  // A red ball and heart, or butter yellow on a red or pink robot.
+  const accent = (hsl.h < 0.05 || hsl.h > 0.9) && hsl.s > 0.35 ? '#f6cf4a' : '#e8443a';
+  k.step = 0.03;
+  k.joints.neck = [0, 0.52, 0];
+  k.joints.shoulder = [0.212, 0.41, 0];
+  k.joints.hip = [0.085, 0.15, 0];
+  k.joints.tail = [0, 0.22, -0.14];
+  const sc = sculptOf(k);
+  // The body: a box with soft corners. (Its summary for dress-up, seats and holding is the box itself.)
+  const bodyC: Vec3 = [0, 0.3, 0];
+  const bodyR: Vec3 = [0.18, 0.16, 0.145];
+  sc.add(box('body', bodyC, bodyR, { round: 0.085, name: 'chassis' }));
+  k.shape.tc = bodyC;
+  k.shape.tr = bodyR;
+  k.shape.pear = 0;
+  k.front = bodyR[2];
+  k.seat = bodyC[1] - bodyR[1];
+  // The head: a bigger box on a short post.
+  const n = k.joints.neck;
+  const headAt: Vec3 = [0, 0.15, 0.01];
+  const headR: Vec3 = [0.2, 0.155, 0.165];
+  k.shape.hr = headR;
+  k.shape.hc = headAt;
+  k.headBend = undefined;
+  const hc = plus(n, headAt);
+  sc.add(box('neck', hc, headR, { round: 0.08, name: 'head' }));
+  sc.add(rod('neck', [0, n[1] - 0.08, 0], [0, n[1] + 0.03, 0], 0.068, 0.068, { name: 'post' }));
+  // Round discs for ears, and the socket the antenna stands in.
+  for (const side of [-1, 1]) {
+    sc.add(rod('neck', [side * (headR[0] - 0.02), hc[1] - 0.005, hc[2] - 0.01], [side * (headR[0] + 0.022), hc[1] - 0.005, hc[2] - 0.01], 0.056, 0.05, { k: 0.01, name: side > 0 ? 'discL' : 'discR' }));
+  }
+  sc.add(ellipsoid('neck', [0, hc[1] + headR[1] - 0.004, hc[2]], [0.042, 0.024, 0.042], { k: 0.012, name: 'socket' }));
+  // Arms hung on a ball at each shoulder, rather than grown out of the body.
+  armForms(k, { len: 0.16, r0: 0.036, r1: 0.032, paw: [0.047, 0.045, 0.047], fwd: 0.2, out: 0.14 });
+  for (const nm of ['armL', 'armR']) sc.named(nm)!.k = 0.015;
+  for (const side of [-1, 1]) {
+    const sh = k.joints.shoulder;
+    sc.add(ellipsoid(side > 0 ? 'armL' : 'armR', [side * (sh[0] - 0.008), sh[1], sh[2]], [0.054, 0.054, 0.054], { k: 0.012, name: side > 0 ? 'shoulderL' : 'shoulderR' }));
+  }
+  // Short legs into chunky feet.
+  for (const side of [-1, 1]) {
+    const name = side > 0 ? 'legL' : 'legR';
+    const x = side * k.joints.hip[0];
+    sc.add(rod(name, [x, 0.19, 0], [x, 0.07, 0.005], 0.042, 0.04, { k: 0.015, anchor: [x, 0.15, 0], reach: 0.08, name }));
+    sc.add(box(name, [x, 0.039, 0.025], [0.064, 0.039, 0.09], { round: 0.032, k: 0.02, anchor: [x, 0.07, 0.005], reach: 0.07, name: `${name}Foot` }));
+  }
+  useSurface(k);
+  // Two prongs curling down from each round hand, closing like a little grabber.
+  for (const p of k.paws ?? []) {
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(...p.rot));
+    const at = new THREE.Vector3(...p.at);
+    const L = (x: number, y: number, z: number) => at.clone().add(new THREE.Vector3(x, y, z).applyQuaternion(q));
+    for (const s of [-1, 1]) {
+      piece(k, {
+        bone: p.bone,
+        pts: [L(s * 0.016, -0.018, 0.012), L(s * 0.034, -0.052, 0.018), L(s * 0.012, -0.08, 0.016)],
+        w: [0.013, 0.011, 0],
+        t: [0.009, 0.008, 0],
+        across: new THREE.Vector3(0, 0, 1).applyQuaternion(q),
+        colors: [joint, joint],
+        name: `prong${p.bone}${s}`,
+      });
+    }
+  }
+  // The antenna, on a bone of its own just inside the top of the head so it can fold away under a hat.
+  bone(k, 'crest', 'neck', [0, headAt[1] + headR[1] - 0.03, headAt[2]]);
+  const antenna = part(k, 'crest', 'crest');
+  pillar(antenna, k.rnd, [0, 0, 0], [0, 0.15, 0], 0.011, 0.009, trim, { base: 'limb5' });
+  solid(antenna, k.rnd, { base: 'ico2', r: 0.034, pos: [0, 0.163, 0], color: accent });
+  // (Not the usual rosy blush, which goes muddy on the dark screen: little pink lights for cheeks instead.)
+  eyes(k, { x: 0.4, y: 0.14, size: 1.45, wide: 1, slant: 0, color: glow, blush: false });
+  mouth(k, { w: 0.2, y: -0.4, curve: 0.13, r: 0.0075, color: glow });
+  for (const side of [-1, 1]) {
+    const at = onHead(k, side * 0.6, -0.3, 0.001);
+    const m = new THREE.Matrix4().compose(at, new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), headNormal(k, side * 0.6, -0.3)), new THREE.Vector3(1, 1, 1));
+    solid(k.head, k.rnd, { base: 'ico1', r: [0.028, 0.016, 0.005], matrix: m, color: '#ff8fb0' });
+  }
+  // The heart light in the middle of the chest panel, and a bolt at each of its corners and on each ear disc.
+  const panelY = 0.315;
+  solid(k.torso, k.rnd, { base: heartGeometry(), r: [0.036, 0.036, 0.024], pos: [0, panelY, bodyR[2] + 0.003], color: accent });
+  for (const [x, y] of [
+    [-0.072, panelY - 0.06],
+    [0.072, panelY - 0.06],
+    [-0.072, panelY + 0.06],
+    [0.072, panelY + 0.06],
+  ]) {
+    const hit = surfaceHit(k, new THREE.Vector3(x, y, 0), new THREE.Vector3(0, 0, 1));
+    if (hit) bolt(k, k.torso, 'body', hit.p, hit.n, 0.013, joint);
+  }
+  for (const side of [-1, 1]) {
+    const hit = surfaceHit(k, new THREE.Vector3(side * 0.15, hc[1] - 0.005, hc[2] - 0.01), new THREE.Vector3(side, 0, 0));
+    if (hit) bolt(k, k.head, 'neck', hit.p, hit.n, 0.018, joint);
+  }
+  const armAxis = (side: string) => unitOf(k, `arm${side}Axis`);
+  const [axL, axR] = [armAxis('L'), armAxis('R')];
+  k.marks = {
+    base: c.coat,
+    marks: [
+      // The screen, across the front of the head.
+      { color: screen, f: all(region(k, 'head'), (q) => hc[2] + headR[2] - 0.035 - q.p.z, (q) => roundRect(q.p.x, q.p.y - hc[1] + 0.008, 0.152, 0.112, 0.045)) },
+      { color: trim, f: region(k, 'discL', 'discR', 'socket') },
+      { color: joint, f: region(k, 'post') },
+      // The chest panel, and a band of trim round the waist.
+      { color: trim, f: all(region(k, 'chassis'), (q) => bodyR[2] - 0.035 - q.p.z, (q) => roundRect(q.p.x, q.p.y - panelY, 0.1, 0.088, 0.03)) },
+      { color: trim, f: all(region(k, 'chassis'), (q) => Math.abs(q.p.y - 0.19) - 0.022) },
+      // Silver arms with a dark band at the elbow, on silver shoulder balls; round hands in the paint.
+      { color: joint, f: any(all(region(k, 'armL', 'foreL'), (q) => Math.abs(axL(q).y - 0.52) - 0.07), all(region(k, 'armR', 'foreR'), (q) => Math.abs(axR(q).y - 0.52) - 0.07)) },
+      { color: trim, f: region(k, 'armL', 'foreL', 'armR', 'foreR', 'shoulderL', 'shoulderR') },
+      // Silver legs, and dark soles under the feet.
+      { color: trim, f: region(k, 'legL', 'legR') },
+      { color: joint, f: all(region(k, 'legLFoot', 'legRFoot'), (q) => q.p.y - 0.016) },
+    ],
+  };
+  return {};
+};
+
+const homunculus: Recipe = (k, c) => {
+  const belly = mix(c.coat, '#f8e8d6', 0.2);
+  const inner = mix(c.coat, '#e0707e', 0.38);
+  const nosey = mix(c.coat, '#d8606a', 0.2);
+  const seam = mix(c.coat, '#3a1e1a', 0.6);
+  const leaf = '#8cc65c';
+  const sprout = '#5f9c48';
+  // A little creature grown in an alchemist's flask: a big round head with huge round amber eyes, long pointed
+  // ears out to the sides, a button nose and a wide grin, a round pot belly on a small body, and hands and feet
+  // far too big for it. A seedling sprouts from the top of its head, and a stitched seam runs over one temple.
+  k.joints.neck = [0, 0.5, 0.02];
+  k.joints.shoulder = [0.105, 0.445, 0.0];
+  k.joints.hip = [0.065, 0.2, 0];
+  k.joints.tail = [0, 0.2, -0.13];
+  k.step = 0.036;
+  // A narrow chest over a round pot belly, up on short thin legs.
+  torso(k, {
+    belly: [
+      [0, 0.31, 0.02],
+      [0.145, 0.145, 0.145],
+    ],
+    chest: [
+      [0, 0.43, -0.005],
+      [0.1, 0.085, 0.085],
+    ],
+    melt: 0.14,
+  });
+  headForm(k, { r: [0.215, 0.195, 0.195], at: [0, 0.17, 0.03], melt: 0.1 });
+  const snout = snoutForm(k, { dy: -0.2, len: 0.012, ra: 0.044, rb: 0.042, drop: 0.01 });
+  earForms(k, { x: 0.88, y: 0.2, w: 0.05, h: 0.21, d: 0.034, splay: 1.05, rake: 0.2, cup: 0.5, notch: true });
+  // Thin arms hanging down its sides, and hands and feet much too big for them: each hand a big flat mitten
+  // hanging palm in, with a thumb out in front.
+  armForms(k, { len: 0.21, r0: 0.03, r1: 0.026, paw: [0.036, 0.07, 0.062], fwd: 0.12, out: 0.4 });
+  const sc = sculptOf(k);
+  const hands = (k.paws ?? []).map((p) => {
+    const side = p.at[0] > 0 ? 1 : -1;
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(...p.rot));
+    const at = new THREE.Vector3(...p.at);
+    return { ...p, side, q, at, L: (x: number, y: number, z: number) => at.clone().add(new THREE.Vector3(x, y, z).applyQuaternion(q)) };
+  });
+  for (const h of hands) {
+    const r = [h.rot[0] - 0.5, 0, h.rot[2] - h.side * 0.35] as Vec3;
+    sc.add(ellipsoid(h.bone, v3(h.L(-h.side * 0.012, 0.012, 0.055)), [0.022, 0.034, 0.021], { rot: r, k: 0.025, anchor: v3(h.at), reach: 0.09, name: `thumb${h.side > 0 ? 'L' : 'R'}` }));
+  }
+  legForms(k, { r0: 0.038, r1: 0.032, foot: [0.074, 0.04, 0.13], fwd: 0.075 });
+  useSurface(k);
+  eyes(k, { x: 0.4, y: 0.04, size: 1.45, wide: 1, slant: 0, color: '#1a1210', ring: '#e2a93c', ringSize: 1.32 });
+  mouth(k, { w: 0.32, y: -0.52, curve: 0.13, r: 0.0065 });
+  // Two faint wrinkles across the brow, like a little old man.
+  const wrinkle = mix(c.coat, '#5a3020', 0.32);
+  mouth(k, { w: 0.15, y: 0.44, curve: -0.05, r: 0.0042, color: wrinkle });
+  mouth(k, { w: 0.1, y: 0.53, curve: -0.04, r: 0.0038, color: wrinkle });
+  k.nose = snout.nose;
+  const nk = new THREE.Vector3(...k.joints.neck);
+  // The sprout: a little stem with two leaves, on a bone of its own just inside the crown so it can fold away
+  // under a hat.
+  const crest = onHead(k, 0.06, 0.97, -0.02);
+  bone(k, 'crest', 'neck', v3(crest));
+  const root = crest.clone().add(nk);
+  const up = new THREE.Vector3(0.15, 1, 0.1).normalize();
+  const top = root.clone().addScaledVector(up, 0.11);
+  piece(k, { bone: 'crest', pts: [root.clone().addScaledVector(up, -0.01), root.clone().addScaledVector(up, 0.06), top], w: [0.009, 0.007, 0], t: [0.009, 0.007, 0], across: new THREE.Vector3(1, 0, 0), colors: [sprout, sprout], name: 'sprout' });
+  for (const s of [-1, 1]) {
+    const out = new THREE.Vector3(s, 0.3, -0.1 * s).normalize();
+    const from = top.clone().addScaledVector(up, -0.014);
+    const across = new THREE.Vector3(-out.z, 0, out.x).normalize();
+    piece(k, {
+      bone: 'crest',
+      pts: [from, from.clone().addScaledVector(out, 0.042).add(new THREE.Vector3(0, 0.006, 0)), from.clone().addScaledVector(out, 0.085).add(new THREE.Vector3(0, 0.024, 0))],
+      w: [0, 0.025, 0],
+      t: [0, 0.006, 0],
+      across,
+      colors: [leaf, leaf],
+      name: `leaf${s}`,
+    });
+  }
+  // The seam: a fine dark line over the left temple with little stitches across it.
+  const along: THREE.Vector3[] = [];
+  const normals: THREE.Vector3[] = [];
+  for (let i = 0; i <= 6; i++) {
+    const t = i / 6;
+    const ux = 0.3 + 0.36 * t;
+    const uy = 0.74 - 0.48 * t + 0.08 * Math.sin(t * Math.PI);
+    along.push(onHead(k, ux, uy).add(nk));
+    normals.push(headNormal(k, ux, uy));
+  }
+  piece(k, {
+    bone: 'neck',
+    pts: along.map((p, i) => p.clone().addScaledVector(normals[i], i === 0 || i === along.length - 1 ? -0.002 : 0.0014)),
+    w: along.map((_, i) => (i === 0 || i === along.length - 1 ? 0 : 0.0032)),
+    t: along.map((_, i) => (i === 0 || i === along.length - 1 ? 0 : 0.0022)),
+    across: new THREE.Vector3(1, 0, 0),
+    colors: along.slice(1).map(() => seam),
+    name: 'seam',
+  });
+  for (const i of [1, 2, 3, 4, 5]) {
+    const p = along[i];
+    const nrm = normals[i];
+    const dir = along[i + 1].clone().sub(along[i - 1]).normalize();
+    const side = new THREE.Vector3().crossVectors(nrm, dir).normalize();
+    const a = p.clone().addScaledVector(side, -0.016);
+    const b = p.clone().addScaledVector(side, 0.016);
+    piece(k, { bone: 'neck', pts: [a.addScaledVector(nrm, -0.002), p.clone().addScaledVector(nrm, 0.002), b.addScaledVector(nrm, -0.002)], w: [0, 0.003, 0], t: [0, 0.0022, 0], across: dir, colors: [seam, seam], name: `stitch${i}` });
+  }
+  // A little belly button in the middle of the pot belly.
+  decal(k, { bone: 'body', from: new THREE.Vector3(0, 0.32, 0.02), dir: new THREE.Vector3(0, 0, 1), r: 0.011, stretch: 1.3, color: mix(c.coat, '#5a3020', 0.38), sides: 8, name: 'navel' });
+  // Fingers: creases up the outside of each hand from its bottom edge.
+  for (const h of hands) {
+    for (const z of [-0.026, 0, 0.026]) {
+      const hits = [1.02, 0.8, 0.58, 0.4].map((v) => surfaceHit(k, h.at, new THREE.Vector3(h.side * 0.02, -v * 0.07, z).applyQuaternion(h.q)));
+      if (hits.some((x) => !x)) continue;
+      const col = mix(c.coat, CHARCOAL, 0.38);
+      const pts = hits.map((x, j) => x!.p.clone().addScaledVector(x!.n.normalize(), j === 0 || j === hits.length - 1 ? -0.002 : 0.0014));
+      piece(k, { bone: h.bone, pts, w: [0, 0.0032, 0.0032, 0], t: [0, 0.0022, 0.0022, 0], across: new THREE.Vector3(0, 0, 1).applyQuaternion(h.q), colors: [col, col, col], name: `finger${h.bone}${z}` });
+    }
+  }
+  const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
+  k.marks = {
+    base: c.coat,
+    marks: [
+      { color: inner, f: any(...ears.map((e) => e.inner)) },
+      { color: nosey, f: region(k, 'muzzle') },
+      { color: belly, f: frontOval(k, ['belly', 'chest'], 0, 0.31, 0.09, 0.09) },
+    ],
+  };
+  return {};
+};
+
+const fungi: Recipe = (k, c) => {
+  const stem = mix(c.coat, '#f4ecdc', 0.86);
+  // White spots, or on a very pale cap a soft brown so they still show.
+  const spot = luminance(c.coat) > 0.68 ? mix(c.coat, '#7a5a40', 0.32) : mix(c.coat, '#fffcf4', 0.9);
+  const shade = mix(stem, c.coat, 0.4);
+  const gill = mix(stem, c.coat, 0.14);
+  // A little mushroom out for a walk: a big domed cap for a head, with round white spots on top and fine gills
+  // underneath, tipped back a touch so the face peeps out from under the brim at the top of a chunky pale stem,
+  // with little arms and stubby feet. It hops about.
+  k.joints.neck = [0, 0.43, 0.02];
+  k.joints.shoulder = [0.13, 0.34, 0.06];
+  k.joints.hip = [0.075, 0.13, 0];
+  k.joints.tail = [0, 0.15, -0.14];
+  const sc = sculptOf(k);
+  const n = k.joints.neck;
+  // The cap first, so the hollow underneath (where the gills are) bites only into it.
+  const tip: Vec3 = [-0.14, 0, 0];
+  const turn = new THREE.Quaternion().setFromEuler(new THREE.Euler(...tip));
+  const capC = new THREE.Vector3(0, n[1] + 0.28, n[2] - 0.04);
+  const capR: Vec3 = [0.34, 0.21, 0.32];
+  const cap = ellipsoid('neck', v3(capC), capR, { rot: tip, name: 'cap' });
+  const hollow = ellipsoid('neck', v3(capC.clone().add(new THREE.Vector3(0, -0.14, 0).applyQuaternion(turn))), [0.305, 0.13, 0.285], { rot: tip, k: 0.05, carve: true, name: 'hollow' });
+  sc.add(cap, hollow);
+  torso(k, {
+    belly: [
+      [0, 0.22, 0],
+      [0.175, 0.2, 0.165],
+    ],
+    chest: [
+      [0, 0.36, 0.01],
+      [0.14, 0.11, 0.135],
+    ],
+    melt: 0.2,
+  });
+  headForm(k, { r: [0.165, 0.14, 0.155], at: [0, 0.08, 0.03], melt: 0.12 });
+  // The top of the stem, running on up into the cap.
+  sc.add(rod('neck', [0, n[1] + 0.1, n[2] - 0.01], v3(capC.clone().add(new THREE.Vector3(0, -0.02, 0).applyQuaternion(turn))), 0.13, 0.1, { k: 0.06, name: 'stemTop' }));
+  armForms(k, { len: 0.15, r0: 0.04, r1: 0.034, paw: [0.042, 0.036, 0.045], fwd: 0.4, out: 0.25 });
+  legForms(k, { r0: 0.05, r1: 0.045, foot: [0.062, 0.036, 0.08] });
+  useSurface(k);
+  eyes(k, { x: 0.4, y: 0.0, size: 1.15, wide: 1, slant: 0, color: '#1a1210' });
+  mouth(k, { w: 0.22, y: -0.42, curve: 0.12, r: 0.006 });
+  // The gills: thin pale blades radiating under the cap from the stem out to the rim, standing out of its
+  // shadowed underside. Each is found by looking straight down (in the cap's own turn) from inside the cap.
+  const capAt = (x: number, y: number, z: number) => capC.clone().add(new THREE.Vector3(x, y, z).applyQuaternion(turn));
+  const down = new THREE.Vector3(0, -1, 0).applyQuaternion(turn);
+  const G = 24;
+  for (let i = 0; i < G && !isLow(); i++) {
+    const a = ((i + 0.5) / G) * Math.PI * 2;
+    const hits = [0.13, 0.2, 0.275].map((rho) => {
+      const x = rho * Math.sin(a);
+      const z = rho * Math.cos(a);
+      const ceiling = -0.14 + 0.13 * Math.sqrt(Math.max(0, 1 - (x / 0.305) ** 2 - (z / 0.285) ** 2));
+      const dome = capR[1] * Math.sqrt(Math.max(0, 1 - (x / capR[0]) ** 2 - (z / capR[2]) ** 2));
+      return surfaceHit(k, capAt(x, (ceiling + dome) / 2, z), down);
+    });
+    if (hits.some((h) => !h)) continue;
+    const across = hits.reduce((sum, h) => sum.add(h!.n.normalize()), new THREE.Vector3()).normalize();
+    piece(k, { bone: 'neck', pts: hits.map((h) => h!.p.clone().addScaledVector(h!.n, 0.004)), w: [0, 0.011, 0], t: [0, 0.003, 0], across, colors: [gill, gill], name: `gill${i}` });
+  }
+  // The underside is the hollow's own surface; the cap's colour is only on the outside of it (the stem rising
+  // through the hollow lies inside the cap's dome, so is in its region too).
+  const under = (q: Probe) => Math.abs(hollow.d(q.p.x, q.p.y, q.p.z)) - 0.012;
+  const outside = (q: Probe) => -hollow.d(q.p.x, q.p.y, q.p.z);
+  const onCap = region(k, 'cap');
+  k.marks = {
+    base: stem,
+    marks: [
+      { color: shade, f: all(onCap, under) },
+      { color: spot, f: spots(k, 'cap', [[0, 0, 0.27], [40, 0, 0.21], [44, 72, 0.2], [44, -72, 0.2], [46, 144, 0.21], [46, -144, 0.21], [74, 36, 0.17], [74, -36, 0.17], [76, 108, 0.17], [76, -108, 0.17], [76, 180, 0.17]]) },
+      { color: c.coat, f: all(onCap, outside) },
+      { color: mix(stem, c.coat, 0.14), f: all(region(k, /^leg/), (q) => q.p.y - 0.05) },
+    ],
+  };
+  return {};
+};
+
 export const RECIPES: Record<AnimalId, Recipe> = {
   raccoon,
   fox,
@@ -2261,6 +2627,9 @@ export const RECIPES: Record<AnimalId, Recipe> = {
   crab,
   turtle,
   kaiju,
+  robot,
+  homunculus,
+  fungi,
 };
 
 /** How each species carries itself. Anything left out is the plain default. */
@@ -2331,6 +2700,12 @@ const PROFILES: Partial<Record<AnimalId, Partial<Profile>>> = {
   turtle: { lean: 0.03, head: -0.02, gait: 'waddle', cadence: 0.6, stride: 0.55, sit: 'settle', idles: ['slowBlink', 'headTilt', 'chill'], tailSway: 0.05 },
   // Stomps about in a heavy rolling amble, the great tail swinging behind; looks about, stretches up tall.
   kaiju: { lean: 0.06, head: -0.03, paws: 0.1, gait: 'amble', cadence: 0.7, stride: 0.85, sit: 'tuck', idles: ['lookAround', 'stretch', 'tailSwish'], tailSway: 0.15 },
+  // Stiff little steps, rocking from foot to foot like a wind-up toy; swivels its head right round, sits with its feet out.
+  robot: { lean: 0, head: 0, gait: 'waddle', cadence: 1.3, stride: 0.5, sit: 'feet', idles: ['headSwivel', 'lookAround', 'headTilt'], tailSway: 0 },
+  // Scampers about on its big feet, rubbing its big hands together, ears twitching.
+  homunculus: { lean: 0.04, head: -0.04, gait: 'trot', cadence: 1.4, stride: 0.75, sit: 'feet', idles: ['rubPaws', 'earTwitch', 'headTilt', 'lookAround'], tailSway: 0 },
+  // Hops everywhere, sways a little, blinks slowly.
+  fungi: { lean: 0, head: -0.02, gait: 'hop', cadence: 1.05, sit: 'feet', idles: ['sway', 'headTilt', 'slowBlink'], tailSway: 0 },
 };
 
 /** Finishing touches: toes on the feet, claws, buck teeth. */
@@ -2346,6 +2721,7 @@ export const DETAILS: Partial<Record<AnimalId, Details>> = {
   otter: { toes: 3 },
   ferret: { toes: 2, paws: 2 },
   kaiju: { claws: 3 },
+  homunculus: { toes: 3 },
 };
 
 export function profileOf(id: AnimalId): Profile {

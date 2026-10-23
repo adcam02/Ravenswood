@@ -142,6 +142,37 @@ export function rod(bone: string, a: Vec3, b: Vec3, ra: number, rb: number, o: {
   };
 }
 
+/** A box with its edges and corners rounded off by `round`: half-sizes r, turned by `rot` (after Inigo Quilez). */
+export function box(bone: string, centre: Vec3, r: Vec3, o: { rot?: Vec3; round?: number; k?: number; anchor?: Vec3; reach?: number; name?: string; carve?: boolean; thin?: boolean } = {}): Shape {
+  const toLocal = framer(centre, o.rot);
+  const l = [0, 0, 0];
+  const round = Math.min(o.round ?? 0.02, ...r);
+  const [bx, by, bz] = r.map((x) => x - round);
+  const d: SDF = (x, y, z) => {
+    toLocal(x, y, z, l);
+    const qx = Math.abs(l[0]) - bx;
+    const qy = Math.abs(l[1]) - by;
+    const qz = Math.abs(l[2]) - bz;
+    return len3(Math.max(qx, 0), Math.max(qy, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qy, qz), 0) - round;
+  };
+  return {
+    d,
+    c: new THREE.Vector3(...centre),
+    r: len3(...r),
+    bone,
+    k: o.k ?? 0,
+    anchor: o.anchor ? new THREE.Vector3(...o.anchor) : undefined,
+    reach: o.reach,
+    name: o.name,
+    carve: o.carve,
+    thin: o.thin,
+    unit: (p) => {
+      toLocal(p.x, p.y, p.z, l);
+      return new THREE.Vector3(l[0] / r[0], l[1] / r[1], l[2] / r[2]);
+    },
+  };
+}
+
 /**
  * A chunky pyramid with a square base (half-width w, half-depth dz) and height h, its apex up its own +y,
  * rounded off by `round` (an ear). Placed at `base` and turned by `rot`.
