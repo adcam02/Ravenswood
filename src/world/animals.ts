@@ -2148,6 +2148,15 @@ function dressFit(id: AnimalId, k: Kit): { face: FaceFit; neck: NeckFit; back: B
 type HatNudge = { dy?: number; dz?: number; dx?: number; scale?: number; rot?: Vec3 };
 const HAT_NUDGE: Partial<Record<AnimalId, HatNudge & { hats?: Partial<Record<HatId, HatNudge>> }>> = {
   snail: { dy: -0.01, dz: 0.0, scale: 0.85 },
+  // The frog's eyes sit right on top of its head: hats go a little higher and further back, and a size down, so
+  // the snug ones don't pull down over them.
+  frog: {
+    dy: 0.055,
+    dz: -0.035,
+    scale: 0.84,
+    // The snuggest hats, which come furthest down, sit higher and further back again.
+    hats: Object.fromEntries((['beanie', 'lumberjack', 'deerstalker', 'trainer', 'postie', 'sailor', 'propeller', 'souwester', 'headscarf'] as const).map((h) => [h, { dy: 0.095, dz: -0.07, scale: 0.8, rot: [-0.26, 0, 0] as Vec3 }])),
+  },
   // The mushroom's head is its face: a hat goes up on the top of the big cap, and the reaper's hood (which would
   // have the cap's rim cutting through it) is drawn right over the cap, tipped back with it.
   fungi: { dy: 0.235, dz: -0.08, scale: 1.5, hats: { reaper: { dy: 0.37, dz: -0.16, scale: 1.8, rot: [-0.3, 0, 0] } } },
