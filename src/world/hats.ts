@@ -555,6 +555,17 @@ const MAKERS: Record<HatId, () => BuiltHat> = {
   sailor,
   leprechaun,
   clockmaker,
+  // Stand-ins until these are modelled.
+  propeller: beanie,
+  reaper: beanie,
+  horns: beanie,
+  laurel: beanie,
+  tricorn: beanie,
+  toadstool: beanie,
+  headband: beanie,
+  candle: beanie,
+  postie: beanie,
+  jester: beanie,
 };
 
 export function buildHat(hat: HatId): BuiltHat | null {

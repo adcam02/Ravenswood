@@ -205,7 +205,18 @@ export type HatId =
   | 'feathercap'
   | 'sailor'
   | 'leprechaun'
-  | 'clockmaker';
+  | 'clockmaker'
+  // Earned with achievements (some of them secret).
+  | 'propeller'
+  | 'reaper'
+  | 'horns'
+  | 'laurel'
+  | 'tricorn'
+  | 'toadstool'
+  | 'headband'
+  | 'candle'
+  | 'postie'
+  | 'jester';
 
 /** What a player has done across all their games, kept in their own browser. */
 export interface Progress {
@@ -215,11 +226,14 @@ export interface Progress {
   nights: number;
   /** The jobs they've done perfectly at least once (by job id). */
   perfect: string[];
+  /** Achievements earned (by id, see FEATS). */
+  feats: string[];
 }
 
 const did = (p: Progress, ...jobs: string[]) => jobs.some((j) => p.perfect.includes(j));
+const got = (p: Progress, feat: FeatId) => p.feats.includes(feat);
 
-export const HATS: { id: HatId; name: string; icon: string; how: string; unlocked: (p: Progress) => boolean }[] = [
+export const HATS: { id: HatId; name: string; icon: string; how: string; unlocked: (p: Progress) => boolean; secret?: boolean }[] = [
   { id: 'beanie', name: 'Beanie', icon: '🧶', how: 'Free for everyone', unlocked: () => true },
   { id: 'flower', name: 'Flower crown', icon: '🌸', how: 'Earn a gold star counting sheep', unlocked: (p) => p.stars >= 1 },
   { id: 'party', name: 'Party hat', icon: '🥳', how: 'Earn 3 gold stars', unlocked: (p) => p.stars >= 3 },
@@ -239,6 +253,79 @@ export const HATS: { id: HatId; name: string; icon: string; how: string; unlocke
   { id: 'sailor', name: 'Sailor’s cap', icon: '⚓', how: 'Get three stars skimming stones', unlocked: (p) => did(p, 'skimming') },
   { id: 'leprechaun', name: 'Leprechaun hat', icon: '🍀', how: 'Make a wish at the wishing well', unlocked: (p) => did(p, 'coin') },
   { id: 'clockmaker', name: 'Clockmaker’s cap', icon: '🕰️', how: 'Get three stars keeping time in the clock tower', unlocked: (p) => did(p, 'clock') },
+  { id: 'laurel', name: 'Laurel wreath', icon: '🌿', how: 'Win a game on the good team', unlocked: (p) => got(p, 'goodwin') },
+  { id: 'horns', name: 'Devil horns', icon: '😈', how: 'Win a game on the evil team', unlocked: (p) => got(p, 'evilwin') },
+  { id: 'tricorn', name: 'Pirate’s tricorn', icon: '🏴‍☠️', how: 'Catch 10 fish', unlocked: (p) => got(p, 'angler') },
+  { id: 'headband', name: 'Jogger’s headband', icon: '🏃', how: 'Run a whole lap of the ring road without stopping', unlocked: (p) => got(p, 'lap') },
+  { id: 'candle', name: 'Confessor’s candle', icon: '🕯️', how: 'Talk with someone through the confession booth', unlocked: (p) => got(p, 'confess') },
+  { id: 'postie', name: 'Postie’s cap', icon: '✉️', how: 'Post 5 letters', unlocked: (p) => got(p, 'postie') },
+  { id: 'propeller', name: 'Propeller beanie', icon: '🚁', how: '↑ ↑ ↓ ↓ ← → ← → B A', unlocked: (p) => got(p, 'konami'), secret: true },
+  { id: 'reaper', name: 'Reaper’s hood', icon: '💀', how: 'Have a visitor in the night', unlocked: (p) => got(p, 'visited'), secret: true },
+  { id: 'toadstool', name: 'Toadstool cap', icon: '🍄', how: 'Find the fairy ring', unlocked: (p) => got(p, 'fairyring'), secret: true },
+  { id: 'jester', name: 'Jester’s cap', icon: '🃏', how: 'Spin round and round and round', unlocked: (p) => got(p, 'dizzy'), secret: true },
+];
+
+// ---------------------------------------------------------------- achievements
+
+export type FeatId =
+  | 'goodwin'
+  | 'evilwin'
+  | 'angler'
+  | 'lap'
+  | 'confess'
+  | 'postie'
+  | 'konami'
+  | 'visited'
+  | 'fairyring'
+  | 'dizzy'
+  | 'survivor'
+  | 'gallows'
+  | 'slayer'
+  | 'nominated'
+  | 'nominator'
+  | 'voter'
+  | 'ghostvote'
+  | 'chatterbox'
+  | 'tourist'
+  | 'generous'
+  | 'regular'
+  | 'fanmail'
+  | 'lucky'
+  | 'peckish'
+  | 'disco'
+  | 'haunting';
+
+/**
+ * Things to do around Ravenswood, kept in the player's own browser with everything else they've earned. Secret ones
+ * show as a question mark until they're found; some come with a hat.
+ */
+export const FEATS: { id: FeatId; name: string; icon: string; how: string; secret?: boolean; hat?: HatId }[] = [
+  { id: 'goodwin', name: 'Hero of Ravenswood', icon: '🌿', how: 'Win a game on the good team', hat: 'laurel' },
+  { id: 'evilwin', name: 'Wicked', icon: '😈', how: 'Win a game on the evil team', hat: 'horns' },
+  { id: 'survivor', name: 'Survivor', icon: '🛡️', how: 'Still be alive when a game ends' },
+  { id: 'regular', name: 'Regular', icon: '🏡', how: 'Play 5 games to the end' },
+  { id: 'gallows', name: 'Hung out to dry', icon: '🪢', how: 'Be hanged at the gallows' },
+  { id: 'nominated', name: 'In the hot seat', icon: '🔥', how: 'Be nominated' },
+  { id: 'nominator', name: 'J’accuse!', icon: '👉', how: 'Nominate someone' },
+  { id: 'voter', name: 'Hands up', icon: '✋', how: 'Raise your hand in 10 votes' },
+  { id: 'ghostvote', name: 'Voice from beyond', icon: '👻', how: 'Use your ghost vote' },
+  { id: 'slayer', name: 'Bold claim', icon: '🗡️', how: 'Claim to be the Slayer' },
+  { id: 'chatterbox', name: 'Chatterbox', icon: '🗣️', how: 'Talk for 10 minutes in all' },
+  { id: 'tourist', name: 'Tourist', icon: '🗺️', how: 'Visit the tavern, bakery, church and clock tower in one day' },
+  { id: 'generous', name: 'Generous', icon: '🎁', how: 'Hand things to 5 different players' },
+  { id: 'peckish', name: 'Peckish', icon: '🥧', how: 'Eat or drink 20 things' },
+  { id: 'lucky', name: 'Lucky', icon: '🪙', how: 'Make 10 wishes at the well' },
+  { id: 'angler', name: 'Angler', icon: '🎣', how: 'Catch 10 fish', hat: 'tricorn' },
+  { id: 'lap', name: 'Fun run', icon: '🏃', how: 'Run a whole lap of the ring road without stopping', hat: 'headband' },
+  { id: 'confess', name: 'Bless me', icon: '🕯️', how: 'Talk with someone through the confession booth', hat: 'candle' },
+  { id: 'postie', name: 'Pen pal', icon: '✉️', how: 'Post 5 letters', hat: 'postie' },
+  { id: 'fanmail', name: 'Fan mail', icon: '💌', how: 'Get 3 letters in one night' },
+  { id: 'konami', name: 'Old school', icon: '🎮', how: 'Enter the secret code', secret: true, hat: 'propeller' },
+  { id: 'visited', name: 'A knock in the night', icon: '💀', how: 'Have a visitor in the night', secret: true, hat: 'reaper' },
+  { id: 'fairyring', name: 'Away with the fairies', icon: '🍄', how: 'Find the fairy ring', secret: true, hat: 'toadstool' },
+  { id: 'dizzy', name: 'Dizzy', icon: '😵‍💫', how: 'Spin round and round and round', secret: true, hat: 'jester' },
+  { id: 'disco', name: 'Dance floor', icon: '🪩', how: 'Dance in the middle of the meeting circle', secret: true },
+  { id: 'haunting', name: 'Haunting', icon: '🪦', how: 'Wander the graveyard as a ghost', secret: true },
 ];
 
 /** The weather the Storyteller can call for. */

@@ -19,10 +19,11 @@ function load(): Stored {
       ghosts: Number(raw?.ghosts) || 0,
       nights: Number(raw?.nights) || 0,
       perfect: Array.isArray(raw?.perfect) ? raw!.perfect!.filter((x): x is string => typeof x === 'string').slice(0, 40) : [],
+      feats: Array.isArray(raw?.feats) ? raw!.feats!.filter((x): x is string => typeof x === 'string').slice(0, 80) : [],
       seen: Array.isArray(raw?.seen) ? raw!.seen!.slice(-400) : [],
     };
   } catch {
-    return { stars: 0, records: 0, ghosts: 0, nights: 0, perfect: [], seen: [] };
+    return { stars: 0, records: 0, ghosts: 0, nights: 0, perfect: [], feats: [], seen: [] };
   }
 }
 

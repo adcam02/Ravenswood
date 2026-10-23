@@ -15,7 +15,7 @@ import { useVoice, voice, type Listener } from '../voice/voice';
 import { AvatarView, type AvatarInfo } from './avatar';
 import { resolve, turnToward } from './collide';
 import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWorld } from './town';
-import { COTTAGE_NAMES, DAIS, DOCK, MEETING_CENTRE, SQUARE_R, groundAt } from './town/layout';
+import { COTTAGE_NAMES, DAIS, DOCK, MEETING_CENTRE, SQUARE_R, STOOL_R, groundAt } from './town/layout';
 import { nearPath } from './town/outdoor';
 import { Fireworks } from './fireworks';
 import { reportProblem } from '../lib/report';
@@ -1800,6 +1800,12 @@ export class Engine {
       const g = this.town.gallowsSpot;
       wantPos.set(g.x + Math.sin(0.45) * 8.5, 6.4, g.z + Math.cos(0.45) * 8.5);
       wantLook.set(g.x, g.y + 1.1, g.z);
+    } else if (this.pinned()) {
+      // On our stool at a town meeting: from behind our seat, looking down into the middle of the circle, far
+      // enough back that every stool (and whoever is on it) is in the shot.
+      const shot = this.meetingShot();
+      wantPos.copy(shot.pos);
+      wantLook.copy(shot.look);
     } else if (this.view?.reading && this.me) {
       // Over the Storyteller's shoulder, looking down into the open book.
       const root = this.me.rig.root;
@@ -1820,13 +1826,65 @@ export class Engine {
       this.camera.near = near;
       this.camera.updateProjectionMatrix();
     }
-    // Closing in on the book is a slow swoop; everything else follows closely.
-    let ease = this.view?.reading ? 1 - Math.exp(-dt * 4) : this.show ? 1 - Math.exp(-dt * 6) : 1 - Math.exp(-dt * 9);
+    // Closing in on the book (or pulling back over the meeting) is a slow swoop; everything else follows closely.
+    let ease = this.view?.reading || this.pinned() ? 1 - Math.exp(-dt * 4) : this.show ? 1 - Math.exp(-dt * 6) : 1 - Math.exp(-dt * 9);
     if (!this.me && !this.view?.reading) ease = 1;
     this.camPos.lerp(wantPos, ease);
     this.camLook.lerp(wantLook, ease);
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
+  }
+
+  private meetCam: { key: string; pos: THREE.Vector3; look: THREE.Vector3 } | null = null;
+  private meetProbe = new THREE.PerspectiveCamera();
+
+  /**
+   * Where the camera sits for the meeting: out past our own stool, looking at the middle of the circle, and just far
+   * enough back that the whole ring fits the screen (worked out for this screen's shape, so it suits phones held
+   * upright too). The scroll wheel still pulls it in or out a little.
+   */
+  private meetingShot(): { pos: THREE.Vector3; look: THREE.Vector3 } {
+    const c = MEETING_CENTRE;
+    const out = Math.atan2(local.x - c.x, local.z - c.z);
+    const zoom = THREE.MathUtils.clamp(this.dist / 14, 0.8, 1.6);
+    const key = `${out.toFixed(2)}:${this.camera.aspect.toFixed(2)}:${this.camera.fov}:${zoom.toFixed(2)}`;
+    if (this.meetCam?.key === key) return this.meetCam;
+    const pitch = 0.98;
+    const look = new THREE.Vector3(c.x, STOOL_Y + 0.3, c.z);
+    const dir = new THREE.Vector3(Math.sin(out) * Math.cos(pitch), Math.sin(pitch), Math.cos(out) * Math.cos(pitch));
+    // Every stool's place, at the feet and above the head of whoever sits there.
+    const pts: THREE.Vector3[] = [];
+    const rim = STOOL_R + 0.75;
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      for (const y of [STOOL_Y - 0.3, STOOL_Y + 1.3]) pts.push(new THREE.Vector3(c.x + Math.sin(a) * rim, y, c.z + Math.cos(a) * rim));
+    }
+    const probe = this.meetProbe;
+    probe.fov = this.camera.fov;
+    probe.aspect = this.camera.aspect;
+    probe.near = 1;
+    probe.far = 400;
+    probe.updateProjectionMatrix();
+    const v = new THREE.Vector3();
+    const fits = (d: number) => {
+      probe.position.copy(look).addScaledVector(dir, d);
+      probe.lookAt(look);
+      probe.updateMatrixWorld();
+      return pts.every((p) => {
+        v.copy(p).project(probe);
+        return Math.abs(v.x) < 0.9 && Math.abs(v.y) < 0.82 && v.z < 1;
+      });
+    };
+    let lo = 4;
+    let hi = 60;
+    for (let i = 0; i < 16; i++) {
+      const mid = (lo + hi) / 2;
+      if (fits(mid)) hi = mid;
+      else lo = mid;
+    }
+    const pos = look.clone().addScaledVector(dir, hi * zoom);
+    this.meetCam = { key, pos, look };
+    return this.meetCam;
   }
 
   private syncVoice(v: WorldView | null) {
