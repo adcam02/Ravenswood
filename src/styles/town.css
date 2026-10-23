@@ -629,6 +629,10 @@
   .action-prompt {
     bottom: 160px;
   }
+  /* The letters button in bed stays above the bedside prompt. */
+  .bed-letters {
+    bottom: 214px;
+  }
   .help-card,
   .help-btn {
     display: none;
