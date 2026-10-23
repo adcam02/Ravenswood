@@ -260,6 +260,8 @@ export class Engine {
   private time = 0;
   private litAt = -1;
   private yaw = 0;
+  /** Where the player has swung the camera round them by holding the right mouse button (and how far up or down). */
+  private swing = { yaw: 0, pitch: 0, drag: null as { id: number; x: number; y: number } | null };
   private dist = 14;
   private camTarget = new THREE.Vector3();
   private camPos = new THREE.Vector3(0, 12, 14);
@@ -383,6 +385,9 @@ export class Engine {
     window.addEventListener('blur', this.onBlur);
     const canvas = this.renderer.domElement;
     canvas.addEventListener('pointerdown', this.onPointerDown);
+    canvas.addEventListener('pointermove', this.onPointerMove);
+    canvas.addEventListener('pointerup', this.onPointerUp);
+    canvas.addEventListener('pointercancel', this.onPointerUp);
     canvas.addEventListener('wheel', this.onWheel, { passive: false });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     // The browser can take the graphics away (a GPU reset, a driver update, too many tabs). three.js picks up
@@ -772,7 +777,7 @@ export class Engine {
         this.me.snap();
       }
       this.camTarget.set(x, 0, z);
-      if (zoneKind(zone) !== 'town') this.yaw = 0;
+      if (zoneKind(zone) !== 'town') this.yaw = this.swing.yaw = 0;
       then?.();
     };
     if (!fade) return go();
@@ -877,12 +882,33 @@ export class Engine {
 
   private onPointerDown = (e: PointerEvent) => {
     this.wakeAmbience();
+    // Holding the right button and dragging swings the camera round our animal.
+    if (e.button === 2) {
+      this.swing.drag = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      this.renderer.domElement.setPointerCapture?.(e.pointerId);
+      return;
+    }
     if (e.button !== 0 || !this.me || this.view?.paused || this.job || this.inBed) return;
     // The Storyteller clicking a player opens their menu; anywhere else, a click walks there (not off a meeting stool).
     if (this.pinned()) return;
     const seat = this.view?.mode === 'st' ? this.avatarAt(e.clientX, e.clientY) : null;
     if (seat) game.pickSeat(seat, e.clientX, e.clientY);
     else this.walkTo(e.clientX, e.clientY);
+  };
+
+  private onPointerMove = (e: PointerEvent) => {
+    const d = this.swing.drag;
+    if (!d || d.id !== e.pointerId) return;
+    this.swing.yaw -= (e.clientX - d.x) * 0.008;
+    // Indoors the rooms are open on one side only: just a little way round either way.
+    if (zoneKind(local.zone) !== 'town') this.swing.yaw = Math.max(-0.6, Math.min(0.6, this.swing.yaw));
+    this.swing.pitch = Math.max(-0.4, Math.min(0.5, this.swing.pitch + (e.clientY - d.y) * 0.004));
+    d.x = e.clientX;
+    d.y = e.clientY;
+  };
+
+  private onPointerUp = (e: PointerEvent) => {
+    if (this.swing.drag?.id === e.pointerId) this.swing.drag = null;
   };
 
   /** Walks to the ground under a screen point. */
@@ -2221,8 +2247,9 @@ export class Engine {
 
   private updateCamera(dt: number, t: number) {
     const inside = zoneKind(local.zone) !== 'town';
-    // The camera always looks north from the south of the player; only the join screen drifts round.
-    this.yaw += (0 - this.yaw) * Math.min(1, dt * 6);
+    // The camera looks north from the south of the player unless they've swung it round (holding the right button);
+    // only the join screen drifts round on its own.
+    this.yaw += (this.swing.yaw - this.yaw) * Math.min(1, dt * 10);
     let tx: number;
     let tz: number;
     if (this.me) {
@@ -2262,7 +2289,7 @@ export class Engine {
       wantLook.set(0, 1.08, 0.5).applyAxisAngle(new THREE.Vector3(0, 1, 0), root.rotation.y).add(root.position);
     } else {
       const dist = inside ? Math.min(this.dist, 13) : this.me ? this.dist : 30;
-      const pitch = inside ? 0.95 : 0.78;
+      const pitch = Math.max(0.3, Math.min(1.35, (inside ? 0.95 : 0.78) + this.swing.pitch));
       const flat = dist * Math.cos(pitch);
       wantPos.set(this.camTarget.x + Math.sin(this.yaw) * flat, dist * Math.sin(pitch), this.camTarget.z + Math.cos(this.yaw) * flat);
       wantLook.set(this.camTarget.x, 0.8, this.camTarget.z);

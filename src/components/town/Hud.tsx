@@ -443,8 +443,9 @@ export function HelpCard() {
           <span className="cosy-key">G</span> give what you’re holding, <span className="cosy-key">Q</span> put it away
         </li>
         <li>
-          <span className="cosy-key">M</span> mute, hold <span className="cosy-key">H</span> to shout, scroll to zoom in and out
+          <span className="cosy-key">M</span> mute, hold <span className="cosy-key">H</span> to shout
         </li>
+        <li>Hold the right mouse button and drag to swing the camera round, scroll to zoom</li>
       </ul>
       <p>Talk out loud: people nearby hear you, and buildings are private.</p>
       <button className="cosy-btn primary small" onClick={close}>
