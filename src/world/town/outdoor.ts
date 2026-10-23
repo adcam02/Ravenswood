@@ -925,8 +925,9 @@ function bakery(p: Paint, r: () => number, smoke: (v: THREE.Vector3) => void) {
   p.box(WOOD, 0.8, 1.0, 0.04, 3.6, 0.75, D / 2 + 0.97, -0.2);
   for (const sx of [-1, 1]) p.box(WOOD, 0.05, 1.2, 0.05, 3.6 + sx * 0.3, 0.6, D / 2 + 0.9, -0.2);
   for (let k = 0; k < 3; k++) p.box('#f6efe0', 0.4 - k * 0.08, 0.025, 0.012, 3.6, 1.0 - k * 0.2, D / 2 + 1.03, -0.2);
-  p.box(IRON, 0.08, 0.08, 1.3, 2.3, 3.7, D / 2 + 0.65);
-  p.box(IRON, 0.05, 0.05, 0.5, 2.3, 3.5, D / 2 + 0.3, -0.7);
+  // The hanging sign's bracket, off the front corner post: past the end of the awning, and under the eaves.
+  p.box(IRON, 0.08, 0.08, 1.3, W / 2 + 0.12, 3.28, D / 2 + 0.65);
+  p.box(IRON, 0.05, 0.05, 0.5, W / 2 + 0.12, 3.08, D / 2 + 0.3, -0.7);
 }
 
 function cottage(p: Paint, r: () => number, slot: number, smoke: (v: THREE.Vector3) => void) {
@@ -1959,7 +1960,8 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     signMaterials.push(material);
   };
   hang(['The Raven’s Rest', 'tavern & inn'], TAVERN, 2.6, TAVERN.d / 2 + 1.0, 3.05, 1.6, 0.95);
-  hang(['Bakery', 'fresh every morning'], BAKERY, 2.3, BAKERY.d / 2 + 1.0, 3.05, 1.5, 0.85, { bg: '#f6e7cf', fg: '#a0523a', border: '#a0523a' });
+  // (The bakery's hangs off its front corner, clear of the awning.)
+  hang(['Bakery', 'fresh every morning'], BAKERY, BAKERY.w / 2 + 0.12, BAKERY.d / 2 + 1.0, 2.83, 1.5, 0.85, { bg: '#f6e7cf', fg: '#a0523a', border: '#a0523a' });
   {
     const sign = new TextSign({ w: 512, h: 128, bg: '#5a3d2a', fg: '#f6e3b0', border: '#c9a24f' }, ['Ravenswood Bluff']);
     const { mesh, material } = signBoard(sign, 3.6, 0.9, { lit: true });

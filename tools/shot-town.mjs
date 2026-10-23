@@ -39,6 +39,9 @@ const ALL = {
   // The bakery's gable ends, from either side.
   'bakery-gable-n': 'x=20&z=-6&t=0&dist=14&pitch=0.6&yaw=3.14',
   'bakery-gable-s': 'x=20&z=6&t=0&dist=14&pitch=0.6&yaw=0',
+  // Its front with the striped awning, and the hanging sign up close.
+  'bakery-front': 'x=16&z=0&t=0&dist=12&pitch=0.35&yaw=-1.57',
+  'bakery-sign': 'x=15.5&z=4.6&t=0&dist=6&pitch=0.25&yaw=-0.5',
   'church-inside': 'zone=church&t=0',
   // A messenger pigeon flying in to a fox by the pond, perched on its shoulder, and bursting into confetti.
   'pigeon-fly': 'x=2&z=20&t=0&dist=6&pitch=0.45&pigeon=1.3&frames=30',
