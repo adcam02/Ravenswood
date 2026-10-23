@@ -20,6 +20,7 @@ import {
   NOTICEBOARD,
   POND,
   POST,
+  FAIRY_RING,
   POST_COLS,
   POST_ROWS,
   RING_ROAD_R,
@@ -1405,6 +1406,29 @@ function postOffice(p: Paint) {
   p.box('#f6efe0', 0.16, 0.1, 0.02, px, 0.48, pz + 0.24);
 }
 
+/** The fairy ring: toadstools in a circle, red caps with white spots, and a few tiny white flowers inside. */
+function fairyRing(p: Paint, r: () => number) {
+  const n = 11;
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + (r() - 0.5) * 0.2;
+    const x = Math.sin(a) * FAIRY_RING.r;
+    const z = Math.cos(a) * FAIRY_RING.r;
+    const h = 0.1 + r() * 0.07;
+    const cap = 0.07 + r() * 0.04;
+    p.post('#f2ead8', 0.026, h, x, 0, z, 8);
+    p.sphere(pick(r, ['#d8343a', '#c8302c', '#e04a3a']), cap, cap * 0.6, cap, x, h, z, 12, 6);
+    for (let k = 0; k < 3; k++) {
+      const da = r() * Math.PI * 2;
+      p.sphere('#fff7ec', cap * 0.18, cap * 0.12, cap * 0.18, x + Math.cos(da) * cap * 0.55, h + cap * 0.38, z + Math.sin(da) * cap * 0.55, 6, 4);
+    }
+  }
+  for (let i = 0; i < 6; i++) {
+    const a = r() * Math.PI * 2;
+    const d = r() * 0.6;
+    flowerStem(p, r, Math.sin(a) * d, Math.cos(a) * d, '#ffffff', 0.12);
+  }
+}
+
 function gate(p: Paint) {
   for (const sx of [-1, 1]) {
     p.block('#b3a58f', 0.75, 2.8, 0.75, sx * 2.6, 0, 0);
@@ -1484,6 +1508,7 @@ function blockers(): Blocker[] {
   add(WOODPILE.x, WOODPILE.z, 2.5);
   add(NOTICEBOARD.x, NOTICEBOARD.z, 2.5);
   add(POST.x, POST.z, 3.2);
+  add(FAIRY_RING.x, FAIRY_RING.z, 2.2);
   for (const l of [...squareLamps, ...roadLamps, ...pathLamps]) add(l.x, l.z, 1.2);
   return b;
 }
@@ -1610,6 +1635,9 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   woodpile(painter(WOODPILE.x, WOODPILE.z, WOODPILE.ry), r);
   noticeboard(painter(NOTICEBOARD.x, NOTICEBOARD.z), r);
   postOffice(painter(POST.x, POST.z, POST.ry));
+  fairyRing(painter(FAIRY_RING.x, FAIRY_RING.z), r);
+  // A faint glimmer over it at night.
+  for (let i = 0; i < 3; i++) glowSpots.push({ x: FAIRY_RING.x + (i - 1) * 0.5, y: 0.35 + i * 0.15, z: FAIRY_RING.z + ((i % 2) - 0.5) * 0.6, size: 0.5, color: '#c8b8ff' });
   gate(painter(0, GATE_Z));
 
   // Cottages.

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getRole } from '../data';
 import { player } from '../net/client';
+import { earn } from '../game/progress';
 import { seatName, slayerOpen, st, useHost } from '../state/host';
 import { ui, useUI } from '../state/ui';
 import { useView, type View } from '../state/view';
@@ -50,6 +51,7 @@ export function SlayerModal() {
               onClick={() => {
                 if (!chosen) return;
                 player.slay(chosen.id);
+                earn('slayer');
                 ui.close();
               }}
             >

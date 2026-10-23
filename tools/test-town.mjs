@@ -315,6 +315,34 @@ await check('voice: the Storyteller can speak to everyone', async () => {
   }
 });
 
+await check('booth: the confession booth is private, one to a side', async () => {
+  const sides = await players.abbey.evaluate(() => window.__engine.town.stations.filter((s) => s.job === 'confess'));
+  expect(sides.length === 2, `${sides.length} sides to the booth`);
+  const step = async (p, side) => {
+    await place(p, 'church', side.x, side.z + 0.55, Math.PI);
+    await sleep(500);
+    await p.evaluate(() => window.__game.interact());
+  };
+  const inside = (p) => p.evaluate(() => window.__local.zone === 'church' && window.__local.z < -7.37 && window.__local.x > 2.85);
+  await step(players.abbey, sides[0]);
+  await until(players.abbey, () => window.__local.zone === 'church' && window.__local.z < -7.37, null, 8000, 'Abbey to be in the booth');
+  await step(players.colter, sides[1]);
+  await until(players.colter, () => window.__local.zone === 'church' && window.__local.z < -7.37, null, 8000, 'Colter to be in the booth');
+  // Steele right outside the booth, in the same room.
+  await place(players.steele, 'church', 4.3, -6.5, Math.PI);
+  await gainUntil(players.abbey, 'Colter', (g) => g.gain !== null && g.gain > 0.9, 'Abbey to hear Colter through the grille');
+  await gainUntil(players.colter, 'Abbey', (g) => g.gain !== null && g.gain > 0.9, 'Colter to hear Abbey through the grille');
+  await gainUntil(players.steele, 'Abbey', (g) => g.gain === null || g.gain < 0.01, 'Steele, outside, not to hear Abbey');
+  await gainUntil(players.abbey, 'Steele', (g) => g.gain === null || g.gain < 0.01, 'Abbey not to hear Steele outside');
+  // A side with someone in it stays shut.
+  await step(players.steele, sides[0]);
+  await sleep(1000);
+  expect(!(await inside(players.steele)), 'Steele got into the side Abbey is in');
+  await shot(players.steele, '09b-booth');
+  for (const p of [players.abbey, players.colter]) await p.evaluate(() => window.__game.interact());
+  for (const p of [players.abbey, players.colter]) await until(p, () => window.__local.z > -7.37, null, 8000, 'to step out of the booth');
+});
+
 // ---------------------------------------------------------------- doors, jobs and items
 
 const stationFor = (p, job) => p.evaluate((job) => window.__engine.town.stations.find((s) => s.job === job), job);
@@ -496,6 +524,31 @@ await check('town: the washing line, flowers and bakes show up for others', asyn
   await shot(p, '11-flower-bed');
 });
 
+await check('letters: posted by day, waiting with the flag up, not readable yet', async () => {
+  const colter = await seatOf('Colter');
+  const a = players.abbey;
+  const post = await stationFor(a, 'post');
+  await place(a, 'town', post.stand.x, post.stand.z, post.stand.ry);
+  await sleep(600);
+  await a.evaluate(() => window.__game.interact());
+  await a.waitForSelector('.letter-modal', { timeout: 10000 });
+  await jsClick(a, '.letter-modal .ask-seat >> text=Colter', 5000);
+  await a.fill('.letter-paper textarea', 'Meet me by the pond at noon. I know who the Imp is.');
+  await shot(a, '11b-letter-writing');
+  await jsClick(a, '.letter-actions .btn.primary', 5000);
+  await a.waitForSelector('.letter-done', { timeout: 15000 });
+  await jsClick(a, '.letter-actions .btn.primary', 5000);
+  // And an unsigned one from Steele.
+  await players.steele.evaluate((id) => window.__clientLink.send({ t: 'letter', to: id, text: 'Watch your back.', signed: false }), colter);
+  await until(players.steele, (id) => window.__client.getState().pub.seats.find((s) => s.id === id)?.mail === true, colter, 10000, 'the flag up on Colter’s letterbox');
+  await until(st, (id) => (window.__host.getState().g.letters ?? []).filter((l) => l.to === id).length === 2, colter, 10000, 'both letters with the host');
+  const early = await players.colter.evaluate(() => window.__client.getState().priv?.letters?.length ?? 0);
+  expect(early === 0, 'Colter can read his letters before night');
+  await place(a, 'town', post.stand.x + 1.6, post.stand.z + 1.2, post.stand.ry + 0.6);
+  await sleep(1500);
+  await shot(a, '11c-post-office');
+});
+
 // ---------------------------------------------------------------- the game itself
 
 await check('game: dealing and night sends everyone home with doors locked', async () => {
@@ -555,6 +608,26 @@ await check('night: counting the sheep right earns a gold star for the morning',
   }, id, 10000, 'the host to award Abbey a star');
 });
 
+await check('letters: at night they arrive, for their reader only, and open in bed', async () => {
+  const c = players.colter;
+  await until(c, () => (window.__client.getState().priv?.letters?.length ?? 0) >= 2, null, 15000, 'Colter’s letters to arrive');
+  const letters = await c.evaluate(() => window.__client.getState().priv.letters);
+  const signed = letters.find((l) => /pond/.test(l.text));
+  const unsigned = letters.find((l) => /back/.test(l.text));
+  expect(signed?.name === 'Abbey', `the signed letter says it's from ${signed?.name}`);
+  expect(unsigned && unsigned.name === null && !('from' in unsigned) && !('to' in unsigned), `the unsigned letter came as ${JSON.stringify(unsigned)}`);
+  const abbeys = await players.abbey.evaluate(() => window.__client.getState().priv?.letters?.length ?? 0);
+  expect(abbeys === 0, `Abbey was sent ${abbeys} letters`);
+  await c.waitForSelector('.bed-letters', { timeout: 15000 });
+  await jsClick(c, '.bed-letters', 5000);
+  await c.waitForSelector('.letter-envelope', { timeout: 5000 });
+  await shot(c, '12e-letters');
+  await jsClick(c, '.letter-envelope', 5000);
+  await c.waitForSelector('.letter-paper.reading', { timeout: 5000 });
+  await shot(c, '12f-letter-read');
+  await jsClick(c, '.modal-close', 5000);
+});
+
 await check('game: the Storyteller floats into a house to talk', async () => {
   const id = await seatOf('Steele');
   await st.evaluate((id) => window.__engine.goTo(id), id);
@@ -572,6 +645,15 @@ await check('game: a night death shows at dawn and the dead walk as ghosts', asy
   await sleep(500);
   const early = await players.abbey.evaluate((id) => window.__client.getState().pub.seats.find((s) => s.id === id).dead, id);
   expect(!early, 'players saw the death before dawn');
+  // The hooded figure visits Colter, and only Colter.
+  await until(players.colter, () => Boolean(window.__engine.visit), null, 15000, 'the hooded figure to visit Colter');
+  const others = await players.abbey.evaluate(() => [Boolean(window.__engine.visit), window.__client.getState().priv?.visit ?? null]);
+  expect(!others[0] && !others[1], `Abbey was told of the visit: ${JSON.stringify(others)}`);
+  await sleep(3800);
+  await shot(players.colter, '15a-night-visit');
+  await players.colter.waitForSelector('.visit-card', { timeout: 15000 });
+  await shot(players.colter, '15b-killed-in-the-night');
+  await until(players.colter, () => !window.__engine.visit, null, 15000, 'the visit to end');
   await st.evaluate(() => window.__st.st.setPhase('day'));
   for (const p of all()) await until(p, () => window.__local.zone === 'town', null, 8000, 'to be back outside');
   await players.abbey.waitForSelector('.phase-banner', { timeout: 40000 });
@@ -632,7 +714,17 @@ await check('game: ringing the bell gathers everyone at the square', async () =>
   for (const p of all()) expect(!(await p.$('.bell-call')), `${p.label} still sees the bell call after sitting`);
   const me = await players.abbey.evaluate(() => ({ ...window.__local }));
   expect(Math.hypot(me.x, me.z) < 13, `Abbey ended up ${Math.hypot(me.x, me.z).toFixed(1)}m from the tower`);
+  // Seated, the camera looks at the middle of the circle (not at the player), from behind their own stool.
+  await sleep(2500);
+  for (const p of [players.abbey, players.colter]) {
+    const cam = await p.evaluate(() => ({ look: window.__engine.camLook, pos: window.__engine.camPos, me: { x: window.__local.x, z: window.__local.z } }));
+    const off = Math.hypot(cam.look.x - 0, cam.look.z - 9.3);
+    expect(off < 1, `${p.label}'s camera looks ${off.toFixed(1)}m from the middle of the circle`);
+    const behind = Math.hypot(cam.pos.x - 0, cam.pos.z - 9.3) > Math.hypot(cam.me.x - 0, cam.me.z - 9.3);
+    expect(behind, `${p.label}'s camera isn't behind their stool`);
+  }
   await shot(players.colter, '16b-seated-minimap');
+  await shot(players.abbey, '16d-meeting-camera');
 });
 
 await check('game: nominations and votes raise paws round the clock', async () => {
@@ -721,8 +813,12 @@ await check('game: an execution plays out at the gallows for everyone', async ()
   await frame(3.5, '23-execution-puff');
   await frame(3.95, '23-execution-ghost');
   expect((await ghostToAbbey()) === true, 'Steele is not a ghost after the puff');
+  // Steele's first death unlocks the halo, but nothing pops up over the hanging.
+  expect(!(await players.steele.$('.new-hat, .new-feat')), 'an unlock popped up in the middle of the hanging');
   for (const p of viewers) await p.evaluate(() => void (window.__engine.showFreeze = null));
   await until(players.steele, () => !window.__engine.show, null, 15000, 'the show to end');
+  await players.steele.waitForSelector('.new-hat, .new-feat', { timeout: 20000 });
+  await shot(players.steele, '23c-unlock-after-hanging');
   await until(players.abbey, () => !window.__engine.show, null, 15000, 'the show to end for Abbey');
   const dead = await players.abbey.evaluate((id) => window.__client.getState().pub.seats.find((s) => s.id === id)?.dead, id);
   expect(dead, 'Steele is not dead after the execution');

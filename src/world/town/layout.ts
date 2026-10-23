@@ -116,6 +116,8 @@ export const NOTICEBOARD = { x: 3.2, z: -13.6 };
  * front faces the road), with a red pillar box beside it.
  */
 export const POST = { x: -3.1, z: 16.6, ry: Math.PI / 2 };
+/** A ring of toadstools out among the trees past the washing lines, for anyone who goes looking. Stand in it. */
+export const FAIRY_RING = { x: -17.8, z: 25.4, r: 0.95 };
 export const POST_COLS = 6;
 export const POST_ROWS = 4;
 export const GATE_Z = TOWN_R + 0.6;

@@ -325,7 +325,7 @@ export const FEATS: { id: FeatId; name: string; icon: string; how: string; secre
   { id: 'fairyring', name: 'Away with the fairies', icon: '🍄', how: 'Find the fairy ring', secret: true, hat: 'toadstool' },
   { id: 'dizzy', name: 'Dizzy', icon: '😵‍💫', how: 'Spin round and round and round', secret: true, hat: 'jester' },
   { id: 'disco', name: 'Dance floor', icon: '🪩', how: 'Dance in the middle of the meeting circle', secret: true },
-  { id: 'haunting', name: 'Haunting', icon: '🪦', how: 'Wander the graveyard as a ghost', secret: true },
+  { id: 'haunting', name: 'Haunting', icon: '🪦', how: 'Visit the graveyard as a ghost', secret: true },
 ];
 
 /** The weather the Storyteller can call for. */

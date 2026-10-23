@@ -28,6 +28,7 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
       joined: false,
       mySeatId: null,
       phase: 'day',
+      day: 0,
       started: false,
       seats: [],
       nomination: null,
@@ -51,6 +52,7 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
     joined: mode === 'st' || Boolean(me?.look),
     mySeatId: view.mySeatId,
     phase: view.phase,
+    day: view.day,
     started: view.phase === 'night' || view.day > 0,
     seats: view.seats.map((s) => ({
       id: s.id,

@@ -16,11 +16,11 @@ import { useVoice, voice, type Listener } from '../voice/voice';
 import { AvatarView, type AvatarInfo } from './avatar';
 import { resolve, turnToward } from './collide';
 import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWorld } from './town';
-import { BED, COTTAGE_NAMES, DAIS, DOCK, MEETING_CENTRE, SQUARE_R, STOOL_R, groundAt } from './town/layout';
+import { BED, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, GRAVEYARD, MEETING_CENTRE, RING_ROAD_R, SQUARE_R, STOOL_R, groundAt } from './town/layout';
 import { nearPath } from './town/outdoor';
 import { Fireworks } from './fireworks';
 import { reportProblem } from '../lib/report';
-import { earn, notePerfect } from '../game/progress';
+import { earn, notePerfect, tally } from '../game/progress';
 
 /** Hats are a player's own: the Storyteller doesn't collect them. */
 const isPlayerView = (v: WorldView | null) => v?.mode === 'player';
@@ -68,6 +68,7 @@ import {
   houseOwner,
   houseZone,
   inBooth,
+  wrapAngle,
   zoneKind,
   type Anim,
   type Collider,
@@ -105,6 +106,7 @@ export interface WorldView {
   joined: boolean;
   mySeatId: string | null;
   phase: 'day' | 'night';
+  day: number;
   /** Characters have been handed out, so night sends everyone home. */
   started: boolean;
   seats: WorldSeat[];
@@ -938,6 +940,8 @@ export class Engine {
     this.seated = null;
     this.emote = { anim, until: this.clock.elapsedTime + (EMOTE_TIME[anim] ?? 2.5) };
     this.moveTarget = null;
+    // Dancing right in the middle of the meeting circle, up on the dais.
+    if (anim === 'dance' && this.view?.mode === 'player' && local.zone === 'town' && Math.hypot(local.x - MEETING_CENTRE.x, local.z - MEETING_CENTRE.z) < 1.2) earn('disco');
   }
 
   private standUp() {
@@ -959,6 +963,7 @@ export class Engine {
         if (local.item === item) {
           setItem(null);
           this.me?.bubble(['ale', 'cider', 'milk', 'cocoa'].includes(item.k) ? 'Ahh!' : 'Yum!', 1800);
+          if (this.view?.mode === 'player') tally('snacks');
         }
       }, 1500);
     }
@@ -1050,6 +1055,9 @@ export class Engine {
     setItem(null);
     this.sips = 0;
     this.emote = { anim: 'wave', until: this.clock.elapsedTime + 1.2 };
+    // Different people, by name, across games.
+    const to = this.view?.seats.find((s) => s.id === near.key)?.name;
+    if (this.view?.mode === 'player' && to) tally('gifts', 1, `gift:${to.toLowerCase()}`);
   }
 
   private putAway() {
@@ -1178,6 +1186,7 @@ export class Engine {
           const x = r as NonNullable<JobResults['fishing']>;
           this.hooks.townAction({ k: 'fish', kind: x.kind, cm: x.cm });
           if (x.cm > 0) item = { k: 'fish' };
+          if (x.cm > 0 && this.view?.mode === 'player') tally('fish');
           if (x.tier === 'rare' || x.tier === 'legendary') this.me?.bubble(`${x.tier === 'legendary' ? '🌙 Legendary' : '✨ Rare'}: ${x.kind}, ${x.cm}cm!`, 5000);
           break;
         }
@@ -1218,6 +1227,7 @@ export class Engine {
         case 'coin': {
           const x = r as JobResults['coin'];
           this.me?.bubble(x.wish ? `✨ ${x.fortune}` : 'Clink. Not this time.', 6000);
+          if (this.view?.mode === 'player') tally('wishes');
           break;
         }
         case 'clock': {
@@ -1550,6 +1560,58 @@ export class Engine {
     this.checkDoors(v, moving, dx, dz);
     this.checkStations(v);
     this.checkBooth(dt, v);
+    if (v.mode === 'player') this.trackFeats(dt, t, v, moving);
+  }
+
+  /** For the achievements: talk, places visited today, a lap of the ring road, spinning, a ghost among the graves. */
+  private feat = { talk: 0, places: new Set<string>(), day: -1, lapAngle: 0, lapLast: null as number | null, still: 0, spin: [] as { t: number; d: number }[], lastRy: 0 };
+  private trackFeats(dt: number, t: number, v: WorldView, moving: boolean) {
+    const f = this.feat;
+    // Every ten seconds of talking counts.
+    if (local.speaking) {
+      f.talk += dt;
+      if (f.talk >= 10) {
+        f.talk -= 10;
+        tally('talk', 10);
+      }
+    }
+    // The four public buildings in one day.
+    const day = v.phase === 'day' ? v.day : -1;
+    if (day !== f.day) {
+      f.day = day;
+      f.places.clear();
+    }
+    const kind = zoneKind(local.zone);
+    if (v.phase === 'day' && kind !== 'town' && kind !== 'house') {
+      f.places.add(kind);
+      if (f.places.size >= 4) earn('tourist');
+    }
+    // A lap of the ring road, keeping going: the angle round the town adds up while on the road and moving.
+    const r = Math.hypot(local.x, local.z);
+    const onRoad = kind === 'town' && Math.abs(r - RING_ROAD_R) < 2.2;
+    f.still = moving ? 0 : f.still + dt;
+    if (!onRoad || f.still > 2) {
+      f.lapAngle = 0;
+      f.lapLast = null;
+    } else {
+      const a = Math.atan2(local.x, -local.z);
+      if (f.lapLast !== null) f.lapAngle += wrapAngle(a - f.lapLast);
+      f.lapLast = a;
+      if (Math.abs(f.lapAngle) >= Math.PI * 2) earn('lap');
+    }
+    // Spinning: five whole turns inside six seconds.
+    const turn = wrapAngle(local.ry - f.lastRy);
+    f.lastRy = local.ry;
+    if (Math.abs(turn) > 0.0001) f.spin.push({ t, d: turn });
+    while (f.spin.length && t - f.spin[0].t > 6) f.spin.shift();
+    if (Math.abs(f.spin.reduce((sum, x) => sum + x.d, 0)) >= Math.PI * 10) earn('dizzy');
+    if (kind === 'town') {
+      // The fairy ring, out among the trees.
+      if (Math.hypot(local.x - FAIRY_RING.x, local.z - FAIRY_RING.z) < FAIRY_RING.r * 0.75) earn('fairyring');
+      // A ghost wandering among the graves.
+      const me = v.seats.find((s) => s.id === v.mySeatId);
+      if (me?.dead && Math.abs(local.x - GRAVEYARD.x) < GRAVEYARD.hw + 1 && Math.abs(local.z - GRAVEYARD.z) < GRAVEYARD.hd + 1) earn('haunting');
+    }
   }
 
   private doorTarget(door: Door, v: WorldView): { zone: ZoneId; x: number; z: number; ry: number } | { locked: string } {

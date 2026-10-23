@@ -114,8 +114,55 @@ export function hatUnlocked(hat: HatId | null | undefined): boolean {
   return Boolean(h?.unlocked(useProgress.getState()));
 }
 
-/** Watches the game for things worth remembering: gold stars, town records, nights in bed, ghostly walks. */
+/** ↑ ↑ ↓ ↓ ← → ← → B A, typed anywhere but a text box. */
+const KONAMI = ['arrowup', 'arrowup', 'arrowdown', 'arrowdown', 'arrowleft', 'arrowright', 'arrowleft', 'arrowright', 'b', 'a'];
+function useSecretCode(on: boolean) {
+  useEffect(() => {
+    if (!on) return;
+    let at = 0;
+    const onKey = (e: KeyboardEvent) => {
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+      const k = e.key.toLowerCase();
+      at = k === KONAMI[at] ? at + 1 : k === KONAMI[0] ? 1 : 0;
+      if (at === KONAMI.length) {
+        at = 0;
+        earn('konami');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [on]);
+}
+
+/**
+ * Watches the game for things worth remembering: gold stars, town records, nights in bed, ghostly walks, and the
+ * achievements that come from how the game goes (votes, nominations, the gallows, winning and losing).
+ */
 export function useProgressTracker(view: View | null) {
+  const player = view?.mode === 'player';
+  useSecretCode(player);
+  const meNow = view?.seats.find((s) => s.isMe);
+  const ended = view?.ended;
+  const history = view?.history;
+  const nom = view?.nomination;
+  const execution = view?.execution;
+  useEffect(() => {
+    if (!player || !meNow) return;
+    const room = view?.room ?? '';
+    if (nom?.nomineeId === meNow.id) earn('nominated');
+    if (nom?.nominatorId === meNow.id) earn('nominator');
+    if (execution?.seatId === meNow.id) earn('gallows');
+    for (const r of history ?? []) if (r.voters.includes(meNow.id)) tally('votes', 1, `vote:${room}:${r.id}`);
+    // A dead player whose ghost vote is gone has used it.
+    if (meNow.dead && !meNow.ghostVote) earn('ghostvote');
+    if (ended) {
+      tally('games', 1, `game:${room}:${ended.at}`);
+      if (!meNow.dead) earn('survivor');
+      if (meNow.alignment && meNow.alignment === ended.winner) earn(ended.winner === 'good' ? 'goodwin' : 'evilwin');
+    }
+  }, [player, meNow, ended, history, nom, execution, view?.room]);
+
   const me = view?.seats.find((s) => s.isMe);
   const room = view?.room ?? '';
   const day = view?.day ?? 0;
