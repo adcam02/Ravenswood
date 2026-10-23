@@ -1857,7 +1857,7 @@ export class Engine {
       if (av && av.shown && (mine || this.others.get(p.to)?.shown)) {
         const ry = av.rig.root.rotation.y;
         // On the right shoulder, just below the top of the head.
-        shoulder = new THREE.Vector3(Math.cos(ry) * -0.24, av.rig.headHeight * 0.72, -Math.sin(ry) * -0.24).add(av.rig.root.position);
+        shoulder = new THREE.Vector3(Math.cos(ry) * -0.27, av.rig.headHeight * 0.76, -Math.sin(ry) * -0.27).add(av.rig.root.position);
       }
       // (The note comes separately from the bird, so it may land a moment after it.)
       if (mine && !p.noted && age >= PIGEON.land) {

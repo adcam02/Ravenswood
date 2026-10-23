@@ -8,6 +8,7 @@ import { emptyTown, type Weather, type ZoneKind } from '../src/world/types';
 import { buildAnimal } from '../src/world/animals';
 import { BED } from '../src/world/town/layout';
 import { NightVisit } from '../src/world/visit';
+import { PigeonFlight } from '../src/world/pigeon';
 
 const q = new URLSearchParams(location.search);
 const num = (k: string, d: number) => (q.has(k) ? Number(q.get(k)) : d);
@@ -95,6 +96,17 @@ if (q.has('visit')) {
   }
 }
 
+// ?pigeon=3.5: a messenger pigeon held at that many seconds in, coming to a fox standing at x, z.
+let pigeon: PigeonFlight | null = null;
+let perch: ReturnType<typeof buildAnimal> | null = null;
+if (q.has('pigeon')) {
+  perch = buildAnimal({ animal: (q.get('animal') ?? 'fox') as never, color: '#e2793a' });
+  perch.root.position.set(tx, 0, tz);
+  perch.root.rotation.y = num('ry', 0.4);
+  town.groups[zone].add(perch.root);
+  pigeon = new PigeonFlight(scene, () => {}, 2.2);
+}
+
 const clock = new THREE.Clock();
 let frames = 0;
 let shadowRenders = 0;
@@ -104,6 +116,13 @@ function loop() {
   // Weather fades over two seconds, so let it arrive at once here.
   const dt = frames < 3 && q.has('weather') ? 2.5 : clock.getDelta();
   town.update(dt, clock.elapsedTime + num('skip', 0));
+  if (pigeon && perch) {
+    const pt = Math.min(num('pigeon', 3), (frames / Math.max(1, settle - 1)) * num('pigeon', 3));
+    perch.update({ anim: 'idle', speed: 0, dt: 0.016, t: pt });
+    const ry = perch.root.rotation.y;
+    const shoulder = new THREE.Vector3(Math.cos(ry) * -0.24, perch.headHeight * 0.72, -Math.sin(ry) * -0.24).add(perch.root.position);
+    pigeon.update(pt, shoulder, ry);
+  }
   if (visit && sleeper) {
     // Walked up to the moment in small steps, so the puffs and drops along the way are where they'd be.
     const vt = num('vt', 3);

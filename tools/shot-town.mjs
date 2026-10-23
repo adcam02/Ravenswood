@@ -37,6 +37,10 @@ const ALL = {
   'tavern-inside': 'zone=tavern&t=0',
   'bakery-inside': 'zone=bakery&t=0',
   'church-inside': 'zone=church&t=0',
+  // A messenger pigeon flying in to a fox by the pond, perched on its shoulder, and bursting into confetti.
+  'pigeon-fly': 'x=2&z=20&t=0&dist=6&pitch=0.45&pigeon=1.3&frames=30',
+  'pigeon-perch': 'x=2&z=20&t=0&dist=3.2&pitch=0.3&pigeon=3.6&frames=40',
+  'pigeon-burst': 'x=2&z=20&t=0&dist=4.5&pitch=0.35&pigeon=6.9&frames=60',
   // The hooded figure's night visit, each way it goes, at the moment it strikes (and the glide in, from above).
   'visit-in': 'zone=house&night&t=1&visit=0&vt=1.4&x=1&z=-0.5&dist=10&frames=30',
   'visit-dagger': 'zone=house&night&t=1&visit=0&vt=3.82&vcam&frames=40',

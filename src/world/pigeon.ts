@@ -58,7 +58,7 @@ function bird(material: THREE.Material) {
   return { root, wings };
 }
 
-const CONFETTI = 70;
+const CONFETTI = 90;
 const COLOURS = ['#f6c445', '#ff6a5a', '#5ac8fa', '#7cc28b', '#b494dd', '#ff9ac0', '#ffffff', '#ff9a3a'];
 
 export class PigeonFlight {
@@ -83,9 +83,9 @@ export class PigeonFlight {
     from = Math.random() * Math.PI * 2,
   ) {
     this.bird = bird(this.material);
-    this.bird.root.scale.setScalar(1.25);
+    this.bird.root.scale.setScalar(1.45);
     this.from.set(Math.sin(from) * 9, 6, Math.cos(from) * 9);
-    this.confetti = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.05, 0.03), this.confettiMat, CONFETTI);
+    this.confetti = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.075, 0.045), this.confettiMat, CONFETTI);
     this.confetti.frustumCulled = false;
     this.confetti.visible = false;
     const c = new THREE.Color();
