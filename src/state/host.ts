@@ -299,9 +299,11 @@ export function winCheck(g: GameState): WinCheck | null {
     return { winner: 'good', reason: `${name} is dead`, key: `good:${demons.map((d) => d.id).join()}`, note, pass };
   }
   // The Goblin's team wins if they claimed to be the Goblin when nominated (the Storyteller marks it with the Claimed
-  // reminder) and are executed that day: executed and dead today, by this game's reckoning.
+  // reminder) and are executed that day. Executed is enough: one who survives the hanging (the Devil's Advocate's
+  // choice, say) still counts. (Today's execution is cleared at each change of phase.)
   const hanged = g.phase === 'day' ? g.deaths.filter((d) => d.how === 'executed' && d.day === g.day && d.phase === 'day').map((d) => d.seatId) : [];
-  const goblin = g.seats.find((s) => s.roleId === 'goblin' && s.dead && hanged.includes(s.id) && s.reminders.some((r) => r.roleId === 'goblin' && r.text === 'Claimed'));
+  if (g.phase === 'day' && g.execution?.survives) hanged.push(g.execution.seatId);
+  const goblin = g.seats.find((s) => s.roleId === 'goblin' && hanged.includes(s.id) && s.reminders.some((r) => r.roleId === 'goblin' && r.text === 'Claimed'));
   if (goblin) {
     return {
       winner: 'evil',
