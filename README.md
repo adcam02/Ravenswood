@@ -31,6 +31,11 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      someone's letterbox; a little red flag goes up on it. It arrives that night, and they open it in bed
      (a **Letters** button appears when they have some). Each player is only ever sent their own letters,
      and an anonymous one never carries who wrote it. A few letters a day each.
+   - **Messenger pigeons**: the **Pigeon** button on a player's menu sends a pigeon to whoever they choose.
+     It flies in to wherever that player is (even indoors), lands on their shoulder and tells them who wants
+     to speak to them and where that person is ("in the church", "by the pond"), then bursts into confetti.
+     Anyone nearby sees it land, but only the one it came for learns who sent it. By day only, and a pigeon
+     needs twenty seconds' rest between flights.
 4. **Daytime jobs**, each a little minigame:
    - **Bartender** at the Raven's Rest: pour drinks onto the bar for anyone to pick up.
    - **Laundry** at the washhouse: scrub the mud out and hang it on the line.
