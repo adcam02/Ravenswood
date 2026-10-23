@@ -23,7 +23,7 @@ const LEVEL = {
   clink: 0.012,
   hum: 0.028,
   tick: 0.06,
-  rain: 0.09,
+  rain: 0.045,
   steps: 0.07,
 };
 
@@ -147,7 +147,7 @@ class Ambience {
     const outdoorLevel = outside ? 1 : kind === 'house' ? 0.12 : 0.3;
     const rain = this.weather === 'rain' ? 1 : 0;
     const mist = this.weather === 'mist' ? 1 : 0;
-    set('wind', LEVEL.wind * (0.6 + 0.4 * day) * (1 + rain * 0.6) * outdoorLevel);
+    set('wind', LEVEL.wind * (0.6 + 0.4 * day) * (1 + rain * 0.3) * outdoorLevel);
     set('tune', LEVEL.tune * day * outdoorLevel);
     set('pad', LEVEL.pad * day * outdoorLevel);
     // Birds go quiet in the rain and hush a little in the mist.

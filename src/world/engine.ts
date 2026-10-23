@@ -8,7 +8,7 @@ import { SCORE_OF, type GameJob, type JobResults } from '../jobs/meta';
 import { rememberBest } from '../game/bests';
 import type { DayTimer, Execution, Nomination, TownAction, TownHall, Visit } from '../state/types';
 import { ambience } from '../lib/ambience';
-import { drumroll, gavel, pigeonSound, ropeSnap, visitSound } from '../lib/audio';
+import { doorChime, drumroll, gavel, pigeonSound, ropeSnap, visitSound } from '../lib/audio';
 import { NightVisit, VISIT, type VictimPose } from './visit';
 import { PIGEON, PigeonFlight } from './pigeon';
 import { ui, useUI } from '../state/ui';
@@ -145,8 +145,10 @@ export interface WorldHooks {
   give: (to: string, item: Item) => void;
 }
 
-/** Voice lines open to people within this distance in town (earshot fades out at 15 m). */
+/** Voice lines open to people within this distance in town (earshot fades out at 9.5 m, a shout's at 26 m). */
 const VOICE_CONNECT_R = 22;
+/** Going in somewhere, you wait this long at the door while it opens and the chime rings inside (then the fade). */
+const DOOR_WAIT_MS = 1100;
 const WALK = 4.3;
 const RUN = 7.2;
 const FLOAT = 6;
@@ -280,6 +282,10 @@ export class Engine {
   private sips = 0;
   /** Doors stay shut for a moment after arriving somewhere, so you don't bounce straight back through. */
   private doorsShutUntil = 0;
+  /** Waiting at a door on the way in (see enterBy). */
+  private entering: ReturnType<typeof setTimeout> | null = null;
+  /** Where each other person was last seen going in through a door, so the chime rings once each time. */
+  private doorBells = new Map<string, ZoneId>();
   private frozen = false;
   /** Tucked up in bed for the night: no getting up until morning. */
   private inBed = false;
@@ -417,6 +423,7 @@ export class Engine {
     this.stopVoice = steadyInterval(() => {
       try {
         this.syncVoice(this.view);
+        this.listenAtDoors();
       } catch (e) {
         console.error(e);
       }
@@ -741,6 +748,12 @@ export class Engine {
 
   /** Moves the local animal somewhere, optionally through a fade to black. */
   private place(zone: ZoneId, x: number, z: number, ry: number, fade: boolean, then?: () => void) {
+    // Moved somewhere else (the bell, bedtime, the Storyteller) while waiting at a door: not going in after all.
+    if (this.entering) {
+      clearTimeout(this.entering);
+      this.entering = null;
+      local.entering = null;
+    }
     const go = () => {
       this.hoverY = 0;
       this.booth = null;
@@ -818,6 +831,7 @@ export class Engine {
     if (isTyping() || e.metaKey || e.ctrlKey || e.altKey) return;
     const k = e.key.toLowerCase();
     if (k === 'v') voice.setHolding(true);
+    if (k === 'h' && this.view?.mode === 'player') voice.setShouting(true);
     if (useHud.getState().notice) {
       if (k === 'escape') useHud.setState({ notice: false });
       return;
@@ -851,12 +865,14 @@ export class Engine {
   private onKeyUp = (e: KeyboardEvent) => {
     const k = e.key.toLowerCase();
     if (k === 'v') voice.setHolding(false);
+    if (k === 'h') voice.setShouting(false);
     this.keys.delete(k);
   };
 
   private onBlur = () => {
     this.keys.clear();
     voice.setHolding(false);
+    voice.setShouting(false);
   };
 
   private onPointerDown = (e: PointerEvent) => {
@@ -1030,10 +1046,11 @@ export class Engine {
     return best;
   }
 
-  /** Whoever (else) is sitting in this side of the confession booth, by name. */
+  /** Whoever (else) is sitting in this side of the confession booth: by name for the Storyteller, otherwise just someone. */
   private boothTaken(s: Station): string | null {
     for (const [key, p] of presence.others) {
       if (p.zone !== 'church' || Math.hypot(p.x - s.stand.x, p.z - s.stand.z) > 0.5) continue;
+      if (this.view?.mode !== 'st') return 'Someone';
       return key === 'st' ? 'The Storyteller' : this.view?.seats.find((x) => x.id === key)?.name || 'Someone';
     }
     return null;
@@ -1493,7 +1510,7 @@ export class Engine {
     let iz = 0;
     const pinned = this.pinned();
     if (pinned) this.moveTarget = null;
-    if (!v.paused && !this.job && !this.frozen && !this.inBed && !pinned) {
+    if (!v.paused && !this.job && !this.frozen && !this.inBed && !pinned && !this.entering) {
       if (this.keys.has('w') || this.keys.has('arrowup')) iz -= 1;
       if (this.keys.has('s') || this.keys.has('arrowdown')) iz += 1;
       if (this.keys.has('a') || this.keys.has('arrowleft')) ix -= 1;
@@ -1511,7 +1528,7 @@ export class Engine {
       dx = ix * cos + iz * sin;
       dz = -ix * sin + iz * cos;
     }
-    if (!(ix || iz) && this.moveTarget && !this.frozen) {
+    if (!(ix || iz) && this.moveTarget && !this.frozen && !this.entering) {
       const tx = this.moveTarget.x - local.x;
       const tz = this.moveTarget.z - local.z;
       const d = Math.hypot(tx, tz);
@@ -1582,6 +1599,8 @@ export class Engine {
     else if (this.seated) anim = this.seated.anim;
     local.anim = anim;
     local.speaking = voice.speaking();
+    me.setVoiceState(Boolean(local.muted), Boolean(local.shout));
+    me.setPrivate(inBooth(local.zone, local.x, local.z));
     useHud.setState((h) => {
       const emote = this.emote?.anim ?? (this.seated?.anim === 'sit' && this.seated.y === 0 ? 'sit' : null);
       const canSip = Boolean(local.item && SIPPABLE.has(local.item.k));
@@ -1741,13 +1760,48 @@ export class Engine {
         const len = Math.hypot(dx, dz) * Math.hypot(local.x, local.z) || 1;
         toward = (-local.x * dx - local.z * dz) / len > 0.6;
       }
-      if (toward && performance.now() >= this.doorsShutUntil && !this.job) {
+      if (toward && performance.now() >= this.doorsShutUntil && !this.job && !this.entering) {
         this.doorsShutUntil = performance.now() + 1000;
         if (door.id.startsWith('tower-in')) this.towerDoor = door;
-        this.place(target.zone, target.x, target.z, target.ry, true);
+        if (zoneKind(target.zone) !== 'town') this.enterBy(door, target);
+        else this.place(target.zone, target.x, target.z, target.ry, true);
       }
       return;
     }
+  }
+
+  /**
+   * Going in somewhere (anywhere but out into town): a moment at the door while it swings open and the chime rings
+   * for whoever is inside, so they can stop talking, and then in. The chime goes out with our pose (`entering`).
+   */
+  private enterBy(door: Door, target: { zone: ZoneId; x: number; z: number; ry: number }) {
+    this.moveTarget = null;
+    this.emote = null;
+    local.ry = Math.atan2(door.x - local.x, door.z - local.z);
+    local.entering = target.zone;
+    doorChime(0.7);
+    this.town.openDoor(door.x, door.z);
+    const wait = setTimeout(() => {
+      if (this.entering !== wait) return;
+      this.entering = null;
+      local.entering = null;
+      this.place(target.zone, target.x, target.z, target.ry, true);
+    }, DOOR_WAIT_MS);
+    this.entering = wait;
+  }
+
+  /** Someone else coming in through a door: the chime for everyone inside, and the door swinging open for anyone outside. */
+  private listenAtDoors() {
+    for (const [key, p] of presence.others) {
+      const to = p.entering ?? null;
+      if (to === (this.doorBells.get(key) ?? null)) continue;
+      if (to) this.doorBells.set(key, to);
+      else this.doorBells.delete(key);
+      if (!to || !this.me) continue;
+      if (to === local.zone) doorChime();
+      else if (p.zone === local.zone) this.town.openDoor(p.x, p.z);
+    }
+    for (const key of this.doorBells.keys()) if (!presence.others.has(key)) this.doorBells.delete(key);
   }
 
   private checkStations(v: WorldView) {
@@ -1792,7 +1846,10 @@ export class Engine {
       prompt = { label: ['ale', 'cider', 'milk', 'cocoa'].includes(local.item.k) ? 'Have a sip' : 'Have a bite', key: 'E' };
     }
     const near = local.item && local.item.k !== 'grimoire' && !this.job ? this.nearestOther(2.6) : null;
-    const giveTo = near ? { key: near.key, name: near.key === 'st' ? 'the Storyteller' : v.seats.find((s) => s.id === near.key)?.name || 'them' } : null;
+    // (Someone in a booth stays nameless.)
+    const at = near ? presence.others.get(near.key) : undefined;
+    const nameless = Boolean(at && v.mode !== 'st' && inBooth(at.zone, at.x, at.z));
+    const giveTo = near ? { key: near.key, name: nameless ? 'them' : near.key === 'st' ? 'the Storyteller' : v.seats.find((s) => s.id === near.key)?.name || 'them' } : null;
     const json = JSON.stringify([prompt, giveTo]);
     if (json !== this.hudPrompt) {
       this.hudPrompt = json;
@@ -2094,7 +2151,10 @@ export class Engine {
       const far = Math.hypot(av.x - this.camTarget.x, av.z - this.camTarget.z);
       if (far > LOD_FAR) av.setDetail('low');
       else if (far < LOD_NEAR) av.setDetail('high');
-      av.setTagShown(!dangle?.hidden && (v?.mode === 'st' || key === 'st' || far < TAG_FAR || p.speaking));
+      // Nobody but the Storyteller sees who is sitting in a confession booth.
+      const hidden = inBooth(p.zone, p.x, p.z) && v.mode !== 'st';
+      av.setTagShown(!dangle?.hidden && !hidden && (v.mode === 'st' || key === 'st' || far < TAG_FAR || p.speaking || Boolean(p.shout)));
+      av.setVoiceState(Boolean(p.muted), Boolean(p.shout));
       av.update(dt, t, anim, p.speaking, true);
       const jolt = this.visit && !this.visit.mine && this.visit.seatId === key ? this.victimPose : null;
       av.rig.root.rotation.z = (dangle?.swing ?? 0) + (jolt?.shake ?? 0);
@@ -2277,16 +2337,17 @@ export class Engine {
     let hearing = 0;
     for (const [key, p] of presence.others) {
       const gain = earshot(local, p, key === 'st', ctx);
-      // Distance and walls work both ways, so this is also roughly who can hear us.
+      // And the other way round: who can hear us (not the same when one of us shouts, or the Storyteller speaks to everyone).
+      const heard = earshot(p, local, v.mode === 'st', ctx);
       const av = this.others.get(key);
-      const near = gain > 0.02 && (!p.voiceId || key !== 'st' || !presence.announce);
+      const near = heard > 0.02;
       av?.setHearing(near);
       if (near) hearing += 1;
       if (!p.voiceId) continue;
       // Only open voice lines to people in or near earshot (and the Storyteller, who can speak to everyone),
       // rather than to the whole town: far less bandwidth with a big group.
       const inRange = p.zone === local.zone && (zoneKind(p.zone) !== 'town' || Math.hypot(p.x - local.x, p.z - local.z) < VOICE_CONNECT_R);
-      if (!(gain > 0 || inRange || key === 'st' || v.mode === 'st')) continue;
+      if (!(gain > 0 || heard > 0 || inRange || key === 'st' || v.mode === 'st')) continue;
       list.push({ voiceId: p.voiceId, gain, key });
     }
     if (hearing !== this.hearing) {

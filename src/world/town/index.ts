@@ -36,6 +36,7 @@ import {
   SQUARE_R,
 } from './layout';
 import { PATHS, buildOutdoor } from './outdoor';
+import { makeSwingDoors } from './doors';
 import { postFront } from './post';
 import { addCloudShadow, beamUniforms, makeClouds, makeContactShadows, makeDust, makePuddles, type Footprint, type PuddleSpot } from './looks';
 import { signBoard, TextSign } from './sign';
@@ -100,6 +101,8 @@ export interface TownWorld {
   follow(x: number, z: number): void;
   update(dt: number, t: number): void;
   bellRing(): void;
+  /** Swings open the front door nearest x, z in town for a moment (someone going in). */
+  openDoor(x: number, z: number): void;
   /** Draws the confession booth's curtains (someone sits on each side) or ties them back; they move over a moment. */
   setBoothCurtains(closed: boolean): void;
   /** Low graphics: the forest beyond the fence, the night glows, the birds and the mist sheets are left out. */
@@ -446,6 +449,9 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   const birds = makeBirds(outdoor.perches, 9);
   const ripples = makeRipples();
   outdoor.group.add(rain.group, mist.group, glows.mesh, birds.group, ripples.mesh);
+  // Front doors that swing open as someone goes in.
+  const swingDoors = makeSwingDoors(outdoor.doors);
+  outdoor.group.add(swingDoors.group);
   // The cobbles shine a little when wet; the paths and grass darken.
   const cobbles = outdoor.group.getObjectByName('cobbles') as THREE.Mesh | undefined;
   const cobbleMat = new THREE.MeshPhongMaterial({ vertexColors: true, specular: '#000000', shininess: 46 });
@@ -1234,6 +1240,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
 
     update(dt, t) {
       nowT = t;
+      swingDoors.update(t);
       // The booth's curtains slide towards wherever they're wanted.
       if (curtainsAt !== curtainsWant) {
         curtainsAt = curtainsWant > curtainsAt ? Math.min(curtainsWant, curtainsAt + dt / 0.7) : Math.max(curtainsWant, curtainsAt - dt / 0.7);
@@ -1386,6 +1393,9 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
 
     setBoothCurtains(closed) {
       curtainsWant = closed ? 1 : 0;
+    },
+    openDoor(x, z) {
+      swingDoors.open(x, z);
     },
     bellRing() {
       bellPending = true;

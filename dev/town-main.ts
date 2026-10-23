@@ -33,8 +33,10 @@ town.setTime(num('t', 0));
 if (q.has('day')) town.setDayProgress(num('day', 0.35));
 if (q.has('weather')) town.setWeather(q.get('weather') as Weather);
 
-const tx = num('x', 0);
-const tz = num('z', 0);
+// ?door=tavern-in: that door held wide open (as when someone goes in), and the camera on it unless x, z say otherwise.
+const openDoor = q.has('door') ? town.doors.find((d) => d.id === q.get('door')) : undefined;
+const tx = openDoor && !q.has('x') ? openDoor.x : num('x', 0);
+const tz = openDoor && !q.has('z') ? openDoor.z : num('z', 0);
 const wide = q.has('wide');
 const dist = num('dist', wide ? 95 : 16);
 const yaw = num('yaw', 0);
@@ -136,6 +138,7 @@ function loop() {
     sleeper.root.rotation.z = pose.shake;
   }
   if (q.has('sway')) swayUniforms.uSway.value = num('sway', 4);
+  if (openDoor) town.openDoor(openDoor.x, openDoor.z);
   if (q.has('ripple') && frames === 2) for (let i = 0; i < 4; i++) town.ripple(6.5 + (i - 1.5) * 1.6, 17.8 + (i % 2) * 1.2, 1);
   // ?dust: someone running along x from the focus, kicking up a puff each frame.
   if (q.has('dust') && frames < settle - 1) town.puff(tx + frames * 0.35, 0, tz);

@@ -541,10 +541,15 @@ export const emptyTown = (): TownState => ({ drinks: [], clothes: [], flowers: [
 // ---------------------------------------------------------------- where everyone is
 
 /**
- * One avatar's state on the wire: [x, z, ry, zone, anim, item, speaking, voiceId].
- * Sent about ten times a second while moving.
+ * One avatar's state on the wire: [x, z, ry, zone, anim, item, speaking, voiceId, flags, entering].
+ * Sent about ten times a second while moving. The last two are left off while there's nothing in them (most of
+ * the time), so pages from before them still read everyone.
  */
-export type Pose = [number, number, number, ZoneId, Anim, Item | null, boolean, string | null];
+export type Pose = [number, number, number, ZoneId, Anim, Item | null, boolean, string | null, number?, ZoneId?];
+
+/** Pose flags: the mic is muted (or off), and shouting. */
+export const POSE_MUTED = 1;
+export const POSE_SHOUT = 2;
 
 export interface PoseState {
   x: number;
@@ -555,18 +560,21 @@ export interface PoseState {
   item: Item | null;
   speaking: boolean;
   voiceId: string | null;
+  /** Can't be heard: muted, or no mic. */
+  muted?: boolean;
+  /** Shouting: heard much further off out in town. */
+  shout?: boolean;
+  /** Going in through a door to this place: the door chime rings for whoever is inside. */
+  entering?: ZoneId | null;
 }
 
-export const toPose = (p: PoseState): Pose => [
-  Math.round(p.x * 100) / 100,
-  Math.round(p.z * 100) / 100,
-  Math.round(p.ry * 100) / 100,
-  p.zone,
-  p.anim,
-  p.item,
-  p.speaking,
-  p.voiceId,
-];
+export const toPose = (p: PoseState): Pose => {
+  const pose: Pose = [Math.round(p.x * 100) / 100, Math.round(p.z * 100) / 100, Math.round(p.ry * 100) / 100, p.zone, p.anim, p.item, p.speaking, p.voiceId];
+  const flags = (p.muted ? POSE_MUTED : 0) | (p.shout ? POSE_SHOUT : 0);
+  if (p.entering) pose.push(flags, p.entering);
+  else if (flags) pose.push(flags);
+  return pose;
+};
 
 /** The town and every room fit well inside this, so anything further out is a bad message. */
 const WORLD_EDGE = 500;
@@ -599,4 +607,7 @@ export const fromPose = (p: Pose): PoseState => ({
   item: p[5] && typeof p[5] === 'object' && typeof p[5].k === 'string' ? { k: p[5].k.slice(0, 24) as Item['k'], c: typeof p[5].c === 'string' ? p[5].c.slice(0, 9) : undefined } : null,
   speaking: Boolean(p[6]),
   voiceId: typeof p[7] === 'string' ? p[7].slice(0, 80) : null,
+  muted: (Number(p[8]) & POSE_MUTED) !== 0,
+  shout: (Number(p[8]) & POSE_SHOUT) !== 0,
+  entering: typeof p[9] === 'string' ? p[9].slice(0, 60) : null,
 });

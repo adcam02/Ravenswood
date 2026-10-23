@@ -117,6 +117,7 @@ export class AvatarView {
   private badgeEl: HTMLSpanElement;
   private earEl: HTMLSpanElement;
   private bubbleEl: HTMLDivElement;
+  private shoutEl: HTMLSpanElement;
   private bubbleTimer: ReturnType<typeof setTimeout> | null = null;
   private key = '';
   private info: AvatarInfo;
@@ -170,8 +171,11 @@ export class AvatarView {
     this.nameEl.className = 'tag-name';
     this.badgeEl = document.createElement('span');
     this.badgeEl.className = 'tag-badge';
+    this.shoutEl = document.createElement('span');
+    this.shoutEl.className = 'tag-shout';
+    this.shoutEl.textContent = '📣 Shouting!';
     plate.append(voice, this.nameEl, this.earEl, this.badgeEl);
-    this.el.append(this.bubbleEl, this.roleEl, plate);
+    this.el.append(this.bubbleEl, this.roleEl, this.shoutEl, plate);
     this.label = new CSS2DObject(this.el);
     this.label.center.set(0.5, 1);
     this.blobMat = new THREE.MeshBasicMaterial({ map: BLOB_TEX, transparent: true, depthWrite: false, opacity: 1 });
@@ -426,6 +430,17 @@ export class AvatarView {
       this.hand.position.y = this.rig.headHeight + 0.55 + (this.ghost ? 0.35 : 0) + Math.abs(Math.sin(t * 3)) * 0.06;
     }
     this.el.classList.toggle('talking', speaking);
+  }
+
+  /** Muted (the dot on the left of the name plate turns into a red crossed-out mic) or shouting (a cue over it). */
+  setVoiceState(muted: boolean, shout: boolean) {
+    this.el.classList.toggle('is-muted', muted);
+    this.el.classList.toggle('is-shouting', shout && !muted);
+  }
+
+  /** Our own plate while nobody else can see it (in the confession booth): faded, so we know. */
+  setPrivate(on: boolean) {
+    this.el.classList.toggle('is-private', on);
   }
 
   /** Whether they're within earshot, shown by a little speaker by their name. */

@@ -16,6 +16,8 @@ interface VoiceUI {
   pushToTalk: boolean;
   /** V is held down. */
   holding: boolean;
+  /** Shouting (H, or the button held down): heard much further off out in town. */
+  shouting: boolean;
   /** How loud everyone else is, 0 to 1. */
   volume: number;
   /** How loud each person is, 0 to 1, by seat id ('st' for the Storyteller); anyone not here is at full. */
@@ -33,6 +35,7 @@ export const useVoice = create<VoiceUI>(() => ({
   muted: prefs.muted ?? false,
   pushToTalk: prefs.pushToTalk ?? false,
   holding: false,
+  shouting: false,
   volume: prefs.volume ?? 1,
   people: prefs.people ?? {},
   links: 0,
@@ -220,11 +223,12 @@ class Voice {
       if (silent) this.sendStream.addTrack(silent);
     }
     if (silent) for (const l of this.links.values()) if (l.sending) this.replaceTrack(l.call, silent);
-    useVoice.setState({ mic: 'error' });
+    useVoice.setState({ mic: 'error', shouting: false });
+    this.applyMute();
   }
 
   setMuted(muted: boolean) {
-    useVoice.setState({ muted });
+    useVoice.setState(muted ? { muted, shouting: false } : { muted });
     this.applyMute();
   }
 
@@ -239,15 +243,31 @@ class Voice {
     this.applyMute();
   }
 
+  /** Shouting only lasts while it's held. With push-to-talk, a shout opens the mic too. Muted, it does nothing. */
+  setShouting(on: boolean) {
+    if (on && this.silenced) return;
+    if (useVoice.getState().shouting === on) return;
+    useVoice.setState({ shouting: on });
+    this.applyMute();
+  }
+
   /** True while our own mic is actually sending. */
   get live(): boolean {
     const s = useVoice.getState();
-    return Boolean(this.mic) && !s.muted && (!s.pushToTalk || s.holding);
+    return Boolean(this.mic) && !s.muted && (!s.pushToTalk || s.holding || s.shouting);
+  }
+
+  /** Nobody can hear us at all: muted, or no mic. (Push-to-talk between presses doesn't count: it's a key away.) */
+  get silenced(): boolean {
+    return !this.mic || useVoice.getState().muted;
   }
 
   private applyMute() {
     const live = this.live;
     for (const t of this.mic?.getAudioTracks() ?? []) t.enabled = live;
+    // Everyone else sees it on our name plate.
+    local.muted = this.silenced;
+    local.shout = useVoice.getState().shouting && !local.muted;
   }
 
   /** Whether we're making noise right now, for the little speaking ring. */

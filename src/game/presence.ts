@@ -23,7 +23,7 @@ export const presence = {
     const now = Date.now();
     for (const key of [...this.others.keys()]) if (!(key in all) || key === skip) this.others.delete(key);
     for (const [key, pose] of Object.entries(all)) {
-      if (key === skip || !Array.isArray(pose) || pose.length !== 8) continue;
+      if (key === skip || !Array.isArray(pose) || pose.length < 8) continue;
       this.others.set(key, { ...fromPose(pose as Pose), at: now });
     }
   },
