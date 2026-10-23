@@ -44,6 +44,8 @@ let sheetDraw: (() => void) | null = null;
 
 const hatParam = q.get('hat') as HatId | null;
 const pets: { pet: Pet; moving: boolean }[] = [];
+/** Pets drawn as a sheet of close-ups, this many to a row (0: all in one view). */
+let petSheet = 0;
 const lookOf = (id: AnimalId, extra: Partial<Look> = {}): Look => ({ animal: id, color: ANIMALS.find((x) => x.id === id)!.colors[0], ...extra });
 const lowParam = q.get('detail') === 'low';
 /** Each rig's face audit: faces built and faces pointing into their own shape (must be 0). */
@@ -546,10 +548,15 @@ if (view === 'grid' || view === 'night') {
   camera.position.set(0, 3.6, 8.2);
   camera.lookAt(0, 0.5, -0.2);
 } else if (view === 'pets') {
-  PETS.forEach((p, i) => {
-    const pet = buildPet(p.id);
-    pet.root.position.set((i - 2.5) * 0.7, 0, 0);
-    pet.root.rotation.y = 0.35;
+  // ?pets=chick,bee picks some (all by default); ?cols=5 draws them as a sheet of close-ups, one tile each,
+  // turned by ?ry= (0 faces us, 1.57 shows the left side); ?ghost shows them as ghosts.
+  const ids = (q.get('pets')?.split(',') ?? PETS.map((p) => p.id)) as PetId[];
+  petSheet = Number(q.get('cols') ?? 0);
+  ids.forEach((id, i) => {
+    const pet = buildPet(id);
+    pet.root.position.set((i - (ids.length - 1) / 2) * (petSheet ? 1.5 : 0.7), 0, 0);
+    pet.root.rotation.y = Number(q.get('ry') ?? 0.35);
+    if (q.has('ghost')) pet.setGhost(true);
     scene.add(pet.root);
     pets.push({ pet, moving: q.has('moving') });
   });
@@ -615,6 +622,25 @@ function frame(now: number) {
   // (A sheet is drawn just once: drawing every cell is slow.)
   if (sheetDraw) {
     if (frames === 10) sheetDraw();
+  } else if (petSheet) {
+    // One tile per pet, the camera stepping along the row.
+    const rows = Math.ceil(pets.length / petSheet);
+    const tw = W / petSheet;
+    const th = H / rows;
+    camera.aspect = tw / th;
+    camera.updateProjectionMatrix();
+    renderer.setScissorTest(true);
+    pets.forEach((p, i) => {
+      const x = (i % petSheet) * tw;
+      const y = H - (Math.floor(i / petSheet) + 1) * th;
+      renderer.setViewport(x, y, tw, th);
+      renderer.setScissor(x, y, tw, th);
+      const at = p.pet.root.position;
+      camera.position.set(at.x, 0.36, at.z + 0.8);
+      camera.lookAt(at.x, 0.17, at.z);
+      renderer.render(scene, camera);
+    });
+    renderer.setScissorTest(false);
   } else renderer.render(scene, orthoCam ?? camera);
   frames++;
   W8.frame = frames;
