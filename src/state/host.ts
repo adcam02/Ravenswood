@@ -377,19 +377,38 @@ export function toPrivate(g: GameState, playerId: string): PrivateState {
   };
 }
 
-/** How many ways the hooded figure has of doing it (see the town's night visits). */
-export const VISIT_KINDS = 4;
+/** How many ways the hooded figure has of doing it (VISIT_NAMES in the town's night visits). */
+export const VISIT_KINDS = 10;
 
 /**
- * Killed tonight: the hooded figure's visit to their bedroom. Which way it goes is picked from the seat and the
- * night, so it stays the same however often it's worked out.
+ * Killed tonight: the hooded figure's visit to their bedroom. The game's night kills take the ways in turn, in an
+ * order shuffled for the game, so every way comes up before any comes round again (and two killed the same night
+ * see different ones). It's worked out from the deaths so far, so it stays the same however often it's worked out.
  */
 export function visitFor(g: GameState, seatId: string): Visit | null {
   if (g.phase !== 'night' || g.ended || !g.nightDeaths.includes(seatId)) return null;
-  const death = [...g.deaths].reverse().find((d) => d.seatId === seatId && d.phase === 'night');
-  let h = g.day * 7;
-  for (const ch of seatId) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return { id: `${g.day}:${seatId}`, seatId, variant: h % VISIT_KINDS, at: death?.at ?? Date.now() };
+  const nights = g.deaths.filter((d) => d.phase === 'night');
+  let n = nights.length;
+  for (let i = nights.length - 1; i >= 0; i--) {
+    if (nights[i].seatId !== seatId) continue;
+    n = i;
+    break;
+  }
+  const variant = visitOrder(g, Math.floor(n / VISIT_KINDS))[n % VISIT_KINDS];
+  return { id: `${g.day}:${seatId}`, seatId, variant, at: nights[n]?.at ?? Date.now() };
+}
+
+/** The ways in a shuffled order: the same every time for this game and each round of ten. */
+function visitOrder(g: GameState, round: number): number[] {
+  let h = ((g.startedAt ?? 0) % 2147483647) + round * 7919;
+  for (const ch of g.room) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  const order = Array.from({ length: VISIT_KINDS }, (_, i) => i);
+  for (let i = order.length - 1; i > 0; i--) {
+    h = (Math.imul(h, 1664525) + 1013904223) >>> 0;
+    const j = Math.floor((h / 4294967296) * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order;
 }
 
 /** Pigeons still worth showing: sent in the last minute. */

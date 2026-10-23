@@ -232,7 +232,10 @@ export function ropeSnap() {
   });
 }
 
-/** The night visit's sounds: a door creaking open, a rush of cloak, the moment itself, a gasp, and a puff. */
+/**
+ * The night visit's sounds: a door creaking open, a rush of cloak, the moment itself, a gasp, and a puff; and the
+ * newer ways' own (a bonk and a boing, a music box and a pop, thunder, ravens, a snuffing, a lever and a long drop).
+ */
 export function visitSound(name: string) {
   const c = audio();
   if (!c) return;
@@ -314,7 +317,165 @@ export function visitSound(name: string) {
     out.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
     src.connect(f).connect(out);
     src.start(t);
+  } else if (name === 'windup') {
+    // A slide whistle going up, wavering.
+    tone(c, out, t, 0.75, 300, 1500, 0.05, 'sine', 7, 18, 0.7);
+  } else if (name === 'bonk') {
+    // A hollow wooden BONK: a knock, a deep thump under it, and a clack on top.
+    tone(c, out, t, 0.14, 560, 190, 0.3, 'sine');
+    tone(c, out, t, 0.3, 240, 70, 0.3, 'triangle');
+    rush(c, out, t, 0.04, 2200, 1200, 0.25);
+  } else if (name === 'boing') {
+    // A spring: bwoing.
+    tone(c, out, t, 0.55, 150, 460, 0.12, 'sine', 24, 60);
+  } else if (name === 'tweet') {
+    // Little birds going round: quick chirps, up and down.
+    for (let i = 0; i < 7; i++) tone(c, out, t + i * 0.14, 0.07, i % 2 ? 2900 : 2300, i % 2 ? 3500 : 3100, 0.035, 'sine');
+  } else if (name === 'crank') {
+    // A music box, wound: a little tune that stops short, with the ratchet ticking under it.
+    const tune = [659.3, 784, 880, 784, 659.3, 523.3, 587.3, 659.3];
+    tune.forEach((f, i) => {
+      const at = t + i * 0.11;
+      tone(c, out, at, 0.45, f * 2, f * 2, 0.045, 'sine');
+      tone(c, out, at, 0.25, f * 4, f * 4, 0.012, 'sine');
+      rush(c, out, at, 0.015, 5000, 4000, 0.02, 'highpass');
+    });
+  } else if (name === 'pop') {
+    // POP, and the spring boinging out.
+    rush(c, out, t, 0.05, 1800, 900, 0.3, 'highpass');
+    tone(c, out, t, 0.09, 900, 300, 0.15, 'sine');
+    tone(c, out, t + 0.03, 0.6, 220, 560, 0.1, 'sine', 20, 70);
+  } else if (name === 'eek') {
+    // A frightened squeak.
+    tone(c, out, t, 0.2, 700, 1700, 0.05, 'sine', 30, 40, 0.6);
+    tone(c, out, t + 0.18, 0.15, 1700, 1300, 0.04, 'sine');
+  } else if (name === 'cackle') {
+    // The jester laughing: hee-hee-hee, falling away.
+    for (let i = 0; i < 5; i++) {
+      const at = t + i * 0.15;
+      const f = c.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 1500;
+      f.Q.value = 2;
+      f.connect(out);
+      tone(c, f, at, 0.1, 900 - i * 60, 760 - i * 60, 0.08, 'square');
+    }
+  } else if (name === 'spell') {
+    // The book falling open: a shimmer of rising notes.
+    [660, 880, 1109, 1319, 1760].forEach((f, i) => {
+      tone(c, out, t + i * 0.07, 0.7, f, f, 0.03, 'sine', 6, 6);
+      tone(c, out, t + i * 0.07, 0.6, f * 1.005, f * 1.005, 0.02, 'triangle');
+    });
+  } else if (name === 'crackle') {
+    // Static gathering in the cloud: ticks and a rising hum.
+    for (let i = 0; i < 14; i++) rush(c, out, t + Math.random() * 0.5, 0.012, 4000, 3000, 0.02 + Math.random() * 0.06, 'highpass');
+    tone(c, out, t, 0.55, 55, 110, 0.04, 'sawtooth');
+  } else if (name === 'thunder') {
+    // A crack of lightning, and the rumble rolling after it.
+    rush(c, out, t, 0.18, 3000, 1200, 0.35, 'highpass');
+    rush(c, out, t + 0.03, 1.8, 320, 70, 0.32, 'lowpass');
+    tone(c, out, t, 0.5, 90, 35, 0.25, 'sine');
+  } else if (name === 'fizzle') {
+    // A sizzle dying away.
+    rush(c, out, t, 1.0, 5200, 2500, 0.05, 'bandpass', 0.7);
+  } else if (name === 'flock' || name === 'scatter') {
+    // A flurry of wings (and on the way in, a caw or two).
+    for (let i = 0; i < 16; i++) rush(c, out, t + i * 0.055 + Math.random() * 0.03, 0.06, 600 + Math.random() * 400, 500, 0.06, 'bandpass', 0.8);
+    if (name === 'flock') {
+      caw(c, out, t + 0.15, 560);
+      caw(c, out, t + 0.5, 500);
+    }
+  } else if (name === 'caw') {
+    caw(c, out, t, 520 + Math.random() * 80);
+  } else if (name === 'fwump') {
+    // A big muffled thump, and the brass ringing.
+    tone(c, out, t, 0.35, 130, 45, 0.35, 'sine');
+    rush(c, out, t, 0.25, 500, 150, 0.15, 'lowpass');
+    tone(c, out, t + 0.01, 1.4, 1180, 1180, 0.025, 'sine');
+    tone(c, out, t + 0.01, 1.1, 2960, 2960, 0.01, 'sine');
+  } else if (name === 'hiss') {
+    // A flame snuffed out.
+    rush(c, out, t, 0.7, 2500, 6000, 0.06, 'highpass');
+  } else if (name === 'lever') {
+    // Clunk-clack.
+    rush(c, out, t, 0.05, 900, 700, 0.2);
+    tone(c, out, t, 0.09, 320, 120, 0.15, 'triangle');
+    rush(c, out, t + 0.1, 0.03, 1800, 1500, 0.12);
+  } else if (name === 'drop') {
+    // The cartoon fall: a long whistle going down.
+    tone(c, out, t, 1.0, 1500, 240, 0.06, 'sine', 0, 0, 0.75);
+  } else if (name === 'thud') {
+    // A thump far down below.
+    tone(c, out, t, 0.4, 95, 40, 0.25, 'sine');
+    rush(c, out, t, 0.3, 260, 120, 0.12, 'lowpass');
+  } else if (name === 'slam') {
+    rush(c, out, t, 0.14, 520, 300, 0.3);
+    tone(c, out, t, 0.22, 150, 60, 0.3, 'sine');
   }
+}
+
+/**
+ * A tone for the night visit's sounds: `type` of wave sliding `from` one pitch `to` another over `len` seconds, with a
+ * quick swell and a fade (held full for the first `hold` of it), and if asked a wobble (`wob` times a second, `depth`
+ * Hz either way).
+ */
+function tone(c: AudioContext, out: AudioNode, at: number, len: number, from: number, to: number, vol: number, type: OscillatorType = 'sine', wob = 0, depth = 0, hold = 0) {
+  const osc = c.createOscillator();
+  const g = c.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(from, at);
+  osc.frequency.exponentialRampToValueAtTime(to, at + len);
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(vol, at + Math.min(0.02, len * 0.2));
+  if (hold) g.gain.setValueAtTime(vol, at + len * hold);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+  osc.connect(g).connect(out);
+  osc.start(at);
+  osc.stop(at + len + 0.05);
+  if (wob) {
+    const lfo = c.createOscillator();
+    const d = c.createGain();
+    lfo.frequency.value = wob;
+    d.gain.value = depth;
+    lfo.connect(d).connect(osc.frequency);
+    lfo.start(at);
+    lfo.stop(at + len + 0.05);
+  }
+}
+
+/** A burst of noise through a filter whose frequency slides `from` `to`, for the night visit's sounds. */
+function rush(c: AudioContext, out: AudioNode, at: number, len: number, from: number, to: number, vol: number, type: BiquadFilterType = 'bandpass', q = 1) {
+  const src = noise(c, len);
+  const f = c.createBiquadFilter();
+  f.type = type;
+  f.Q.value = q;
+  f.frequency.setValueAtTime(from, at);
+  f.frequency.exponentialRampToValueAtTime(to, at + len);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(vol, at + Math.min(0.01, len * 0.1));
+  g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+  src.connect(f).connect(g).connect(out);
+  src.start(at);
+}
+
+/** A raven: kraa, harsh and falling, with a rattle in it. */
+function caw(c: AudioContext, out: AudioNode, at: number, pitch: number) {
+  const f = c.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = 1150;
+  f.Q.value = 2.5;
+  const rattle = c.createGain();
+  rattle.gain.value = 0.6;
+  const lfo = c.createOscillator();
+  const d = c.createGain();
+  lfo.frequency.value = 34;
+  d.gain.value = 0.4;
+  lfo.connect(d).connect(rattle.gain);
+  f.connect(rattle).connect(out);
+  tone(c, f, at, 0.3, pitch, pitch * 0.75, 0.16, 'sawtooth');
+  lfo.start(at);
+  lfo.stop(at + 0.35);
 }
 
 /** The messenger pigeon: a flurry of wingbeats, a soft coo, and the pop of confetti. */

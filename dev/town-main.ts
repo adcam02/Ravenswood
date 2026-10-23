@@ -4,10 +4,10 @@
 import * as THREE from 'three';
 import { createTown } from '../src/world/town';
 import { swayUniforms } from '../src/world/town/fx';
-import { emptyTown, type Weather, type ZoneKind } from '../src/world/types';
+import { ANIMALS, emptyTown, type Weather, type ZoneKind } from '../src/world/types';
 import { buildAnimal } from '../src/world/animals';
 import { BED } from '../src/world/town/layout';
-import { NightVisit } from '../src/world/visit';
+import { NightVisit, bendVictim } from '../src/world/visit';
 import { PigeonFlight } from '../src/world/pigeon';
 
 const q = new URLSearchParams(location.search);
@@ -83,14 +83,27 @@ if (q.has('bell')) town.bellRing();
 if (q.has('curtains')) town.setBoothCurtains(true);
 if (q.has('gallows')) town.setGallows({ open: num('gallows', 1), label: 'Steele is executed', ring: num('ring', 0), rope: num('rope', 0.97), swing: num('swing', 0), puff: num('puff', 0) });
 
-// ?visit=0..3&vt=4.2: the hooded figure's night visit, held at vt seconds in, with a fox asleep in the bed (and
-// ?vcam to look from where the game's camera does).
+// ?visit=0..9&vt=4.2: the hooded figure's night visit, held at vt seconds in, with a fox asleep in the bed (or
+// ?animal=kaiju; ?ghost to show them as the ghost they are by then in the game; ?vcam to look from where the game's
+// camera does). ?vt=1.4,3.3,3.9 stops at each moment in turn, waiting for `next()` between them, for contact sheets.
 let visit: NightVisit | null = null;
 let sleeper: ReturnType<typeof buildAnimal> | null = null;
+const moments = (q.get('vt') ?? '3').split(',').map(Number);
+let moment = 0;
+let walkFrom = 0;
+let walkStart = 0;
+(window as unknown as { next: () => void }).next = () => {
+  walkFrom = moments[moment];
+  moment = Math.min(moments.length - 1, moment + 1);
+  walkStart = frames;
+  (window as unknown as { done: boolean }).done = false;
+};
 if (q.has('visit')) {
   visit = new NightVisit(town.groups.house, num('visit', 0));
-  sleeper = buildAnimal({ animal: (q.get('animal') ?? 'fox') as never, color: '#e2793a' });
+  const animal = q.get('animal') ?? 'fox';
+  sleeper = buildAnimal({ animal: animal as never, color: ANIMALS.find((a) => a.id === animal)?.colors[0] ?? '#e2793a' });
   sleeper.root.position.set(BED.x, BED.top, BED.z + 0.25);
+  if (q.has('ghost')) sleeper.setGhost(true);
   town.groups.house.add(sleeper.root);
   if (q.has('vcam')) {
     camera.position.set(BED.x + 1.5, 2.6, BED.z + 3.3);
@@ -127,13 +140,17 @@ function loop() {
   }
   if (visit && sleeper) {
     // Walked up to the moment in small steps, so the puffs and drops along the way are where they'd be.
-    const vt = num('vt', 3);
-    const at = Math.min(vt, (frames / Math.max(1, settle - 1)) * vt);
+    const vt = moments[moment];
+    const steps = moment ? Math.max(3, Math.ceil((vt - walkFrom) / 0.1)) : Math.max(1, settle - 1);
+    const at = walkFrom + (vt - walkFrom) * Math.min(1, (frames - walkStart) / steps);
     sleeper.update({ anim: 'sleep', speed: 0, dt: 0.016, t: at });
     if (frames === 3) visit.aim(new THREE.Box3().setFromObject(sleeper.root));
     const pose = visit.update(at);
     sleeper.root.position.y = BED.top + pose.dy;
-    sleeper.root.rotation.z = pose.shake;
+    sleeper.root.rotation.set(0, 0, pose.shake);
+    sleeper.root.scale.setScalar(1);
+    bendVictim(sleeper.root, pose);
+    if (moment && frames - walkStart === steps + 2) (window as unknown as { done: boolean }).done = true;
   }
   if (q.has('sway')) swayUniforms.uSway.value = num('sway', 4);
   if (q.has('ripple') && frames === 2) for (let i = 0; i < 4; i++) town.ripple(6.5 + (i - 1.5) * 1.6, 17.8 + (i % 2) * 1.2, 1);
