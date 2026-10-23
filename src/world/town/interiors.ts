@@ -61,6 +61,14 @@ export interface Interiors {
   ownerSign: TextSign;
   /** The clock tower's moving parts. */
   clockwork: Clockwork;
+  /** The confession booth's curtains, drawn while someone sits on each side. */
+  boothCurtains: BoothCurtains;
+}
+
+export interface BoothCurtains {
+  group: THREE.Group;
+  /** 0: tied back at the sides; 1: drawn across both doorways. */
+  set(closed: number): void;
 }
 
 const WALL_H = 3.3;
@@ -692,6 +700,48 @@ function confessional(p: Paint, glow: Builder) {
   // A candle on a bracket on the open side, for the dim corner.
   p.box(gold, 0.14, 0.03, 0.04, x0 - 0.07, 1.86, z1 - 0.25);
   candle(p, glow, x0 - 0.12, 1.875, z1 - 0.25, 0.16);
+}
+
+/**
+ * Velvet that draws across both doorways of the confession booth while someone sits on each side: each half hangs
+ * from beside its tied-back curtain and slides across to meet the other, over the half door.
+ */
+function boothCurtains(): BoothCurtains {
+  const { x0, x1, z1 } = BOOTH;
+  const mid = BOOTH_SEATS[0].x + (BOOTH_SEATS[1].x - BOOTH_SEATS[0].x) / 2;
+  const y0 = 0.08 + 0.92;
+  const h = 2.3 - 0.13 - y0;
+  const group = new THREE.Group();
+  group.name = 'booth-curtains';
+  const halves: THREE.Object3D[] = [];
+  const material = matte();
+  for (const seat of BOOTH_SEATS) {
+    const left = seat.x < mid ? x0 + 0.11 : mid + 0.04;
+    const right = seat.x < mid ? mid - 0.04 : x1 - 0.11;
+    const span = (right - left) / 2 + 0.02;
+    for (const k of [-1, 1]) {
+      const half = new THREE.Group();
+      half.position.set(k < 0 ? left : right, y0, z1 - 0.1);
+      const b = new Builder();
+      const n = 6;
+      for (let i = 0; i < n; i++) {
+        // Pleats of slightly different lengths, so no two caps share a plane.
+        const len = h - (i % 2) * 0.02;
+        b.add(new THREE.CylinderGeometry(1, 1, 1, 8), shade('#7a1f2e', (i % 2) * 0.07 - 0.035), { pos: [-k * span * ((i + 0.5) / n), h - len / 2, 0], scale: [(span / n) * 0.66, len, 0.045] });
+      }
+      // A gold fringe along the hem.
+      b.add(new THREE.BoxGeometry(1, 1, 1), '#c9a24f', { pos: [-k * span * 0.5, 0.025, 0.012], scale: [span, 0.035, 0.07] });
+      half.add(b.mesh(material));
+      group.add(half);
+      halves.push(half);
+    }
+  }
+  const set = (closed: number) => {
+    group.visible = closed > 0.01;
+    for (const half of halves) half.scale.x = 0.12 + 0.88 * closed;
+  };
+  set(0);
+  return { group, set };
 }
 
 // ---------------------------------------------------------------- the clock tower
@@ -1332,5 +1382,7 @@ export function buildInteriors(): Interiors {
     },
   };
   for (const room of Object.keys(rooms) as Room[]) rooms[room].glows = halos[room];
-  return { rooms, glassMaterial, ownerSign, clockwork };
+  const curtains = boothCurtains();
+  rooms.church.group.add(curtains.group);
+  return { rooms, glassMaterial, ownerSign, clockwork, boothCurtains: curtains };
 }

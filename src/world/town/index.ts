@@ -97,6 +97,8 @@ export interface TownWorld {
   follow(x: number, z: number): void;
   update(dt: number, t: number): void;
   bellRing(): void;
+  /** Draws the confession booth's curtains (someone sits on each side) or ties them back; they move over a moment. */
+  setBoothCurtains(closed: boolean): void;
   /** Low graphics: the forest beyond the fence, the night glows, the birds and the mist sheets are left out. */
   setLowDetail(on: boolean): void;
   /** A little puff of dust kicked up at someone's feet (in town). */
@@ -361,6 +363,8 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   const windowMat = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#ffc46b', emissiveIntensity: 0 });
   const outdoor = buildOutdoor(windowMat);
   const interiors = buildInteriors();
+  let curtainsWant = 0;
+  let curtainsAt = 0;
   scene.add(outdoor.group);
   for (const room of Object.values(interiors.rooms)) scene.add(room.group);
 
@@ -1224,6 +1228,12 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
 
     update(dt, t) {
       nowT = t;
+      // The booth's curtains slide towards wherever they're wanted.
+      if (curtainsAt !== curtainsWant) {
+        curtainsAt = curtainsWant > curtainsAt ? Math.min(curtainsWant, curtainsAt + dt / 0.7) : Math.max(curtainsWant, curtainsAt - dt / 0.7);
+        const k = curtainsAt * curtainsAt * (3 - 2 * curtainsAt);
+        interiors.boothCurtains.set(k);
+      }
       // Lamp flicker and the fires inside.
       lamps.forEach((l, i) => {
         const s = lampSpecs[i];
@@ -1368,6 +1378,9 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       if (zone === 'town') dust.puff(x, y, z);
     },
 
+    setBoothCurtains(closed) {
+      curtainsWant = closed ? 1 : 0;
+    },
     bellRing() {
       bellPending = true;
     },

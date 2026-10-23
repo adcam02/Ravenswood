@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { create } from 'zustand';
+import { useNotes } from '../state/notes';
 import type { View } from '../state/view';
 import { FEATS, HATS, type FeatId, type HatId, type Progress } from '../world/types';
 
@@ -62,9 +63,10 @@ export function earn(feat: FeatId) {
 }
 
 /** Running counts toward achievements, and the count each needs. */
-export type TallyKey = 'fish' | 'wishes' | 'snacks' | 'votes' | 'letters' | 'games' | 'talk' | 'gifts';
+export type TallyKey = 'fish' | 'kinds' | 'wishes' | 'snacks' | 'votes' | 'letters' | 'games' | 'talk' | 'gifts';
 const GOALS: Record<TallyKey, [number, FeatId]> = {
   fish: [10, 'angler'],
+  kinds: [8, 'trainer'],
   wishes: [10, 'lucky'],
   snacks: [20, 'peckish'],
   votes: [10, 'voter'],
@@ -156,8 +158,18 @@ export function useProgressTracker(view: View | null) {
     for (const r of history ?? []) if (r.voters.includes(meNow.id)) tally('votes', 1, `vote:${room}:${r.id}`);
     // A dead player whose ghost vote is gone has used it.
     if (meNow.dead && !meNow.ghostVote) earn('ghostvote');
+    // Three different players put up for execution by us in one game.
+    const accused = new Set((history ?? []).filter((r) => r.nominatorId === meNow.id).map((r) => r.nomineeId));
+    if (nom?.nominatorId === meNow.id) accused.add(nom.nomineeId);
+    if (accused.size >= 3) earn('conspiracy');
+    // (Months count from nought: 9 is October.)
+    if (new Date().getMonth() === 9) earn('spooky');
     if (ended) {
       tally('games', 1, `game:${room}:${ended.at}`);
+      // Our notepad's guesses against who everyone really was, now it's all out in the open.
+      const guesses = useNotes.getState().notes;
+      const right = (view?.seats ?? []).filter((s) => !s.isMe && s.roleId && guesses[s.id]?.guess === s.roleId).length;
+      if (right >= 3) earn('detective');
       if (!meNow.dead) earn('survivor');
       if (meNow.alignment && meNow.alignment === ended.winner) earn(ended.winner === 'good' ? 'goodwin' : 'evilwin');
     }

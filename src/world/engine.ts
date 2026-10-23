@@ -65,6 +65,7 @@ const SHOW = { lower: 0.9, drop: 1.6, puff: 3.3, rise: 0.6, end: 4.3, snap: 0.18
 const SHADOW_SAFETY_S = 10;
 import {
   BOOTH,
+  BOOTH_SEATS,
   cottageSlot,
   cottageZone,
   houseOwner,
@@ -187,6 +188,7 @@ const VISITS_SEEN_KEY = 'ravenswood:visits-seen';
 
 const EMOTE_TIME: Partial<Record<Anim, number>> = { wave: 2.4, cheer: 2.6, laugh: 2.6, cry: 3.2, dance: 8, drink: 1.6 };
 const SIPPABLE = new Set(['ale', 'cider', 'milk', 'cocoa', 'loaf', 'pie', 'bun', 'water', 'wine']);
+const DRINKS = new Set(['ale', 'cider', 'milk', 'cocoa', 'water', 'wine']);
 
 /** What the signs over the stations say. */
 const SIGN_TEXT: Partial<Record<Station['job'], string>> = {
@@ -522,6 +524,7 @@ export class Engine {
     const newCall = v.townHall && !v.ended && (!prev?.townHall || prev.townHall.ring !== v.townHall.ring || prev.townHall.id !== v.townHall.id);
     if (newCall) {
       this.town.bellRing();
+      if (v.mode === 'player' && zoneKind(local.zone) === 'tower') earn('fez');
       ui.banner('The bell is ringing', 'Everyone to the town square');
       // Players head to their stool on their own after a moment, so the circle matches the grimoire.
       if (v.mode === 'player' && v.mySeatId && !this.inBed && !(this.seated && this.seated.y === STOOL_Y)) {
@@ -1025,6 +1028,15 @@ export class Engine {
     return null;
   }
 
+  /** Whether both sides of the confession booth have someone sitting in them (us included). */
+  private boothFull(): boolean {
+    return BOOTH_SEATS.every((seat) => {
+      if (this.booth && local.zone === 'church' && Math.hypot(local.x - seat.x, local.z - seat.z) < 0.5) return true;
+      for (const p of presence.others.values()) if (p.zone === 'church' && Math.hypot(p.x - seat.x, p.z - seat.z) < 0.5) return true;
+      return false;
+    });
+  }
+
   /** Out through the curtain, to stand in front of the side we were in. */
   private leaveBooth() {
     const s = this.booth;
@@ -1074,7 +1086,16 @@ export class Engine {
     // Different people, by name, across games.
     const to = this.view?.seats.find((s) => s.id === near.key)?.name;
     if (this.view?.mode === 'player' && to) tally('gifts', 1, `gift:${to.toLowerCase()}`);
+    // A tea party: drinks for three different people in one day.
+    if (this.view?.mode === 'player' && DRINKS.has(item.k)) {
+      const day = this.view.day;
+      if (this.teaParty.day !== day) this.teaParty = { day, to: new Set() };
+      this.teaParty.to.add(near.key);
+      if (this.teaParty.to.size >= 3) earn('teaparty');
+    }
   }
+
+  private teaParty = { day: -1, to: new Set<string>() };
 
   private putAway() {
     if (!local.item || local.item.k === 'grimoire' || this.job) return;
@@ -1203,6 +1224,10 @@ export class Engine {
           this.hooks.townAction({ k: 'fish', kind: x.kind, cm: x.cm });
           if (x.cm > 0) item = { k: 'fish' };
           if (x.cm > 0 && this.view?.mode === 'player') tally('fish');
+          if (this.view?.mode === 'player') {
+            tally('kinds', 1, `fishkind:${x.kind}`);
+            if (x.kind === 'Old Boot') earn('boot');
+          }
           if (x.tier === 'rare' || x.tier === 'legendary') this.me?.bubble(`${x.tier === 'legendary' ? '🌙 Legendary' : '✨ Rare'}: ${x.kind}, ${x.cm}cm!`, 5000);
           break;
         }
@@ -1403,6 +1428,8 @@ export class Engine {
     this.updateCamera(dt, t);
     this.fadeOccluders(dt);
     this.town.follow(this.camTarget.x, this.camTarget.z);
+    // The confession booth's curtains close while someone sits on each side.
+    this.town.setBoothCurtains(this.boothFull());
     this.town.update(dt, t);
     this.footsteps(t, v);
     this.fireworks.update(dt);
@@ -1584,7 +1611,19 @@ export class Engine {
   }
 
   /** For the achievements: talk, places visited today, a lap of the ring road, spinning, a ghost among the graves. */
-  private feat = { talk: 0, talkAt: 0, places: new Set<string>(), day: -1, lapAngle: 0, lapLast: null as number | null, still: 0, spin: [] as { t: number; d: number }[], lastRy: 0 };
+  private feat = {
+    talk: 0,
+    talkAt: 0,
+    places: new Set<string>(),
+    day: -1,
+    lapAngle: 0,
+    lapLast: null as number | null,
+    still: 0,
+    spin: [] as { t: number; d: number }[],
+    lastRy: 0,
+    danceSince: null as number | null,
+    idleSince: null as number | null,
+  };
   private trackFeats(dt: number, t: number, v: WorldView, moving: boolean) {
     const f = this.feat;
     // Every ten seconds of talking counts (real time between frames, however few frames there are).
@@ -1627,6 +1666,14 @@ export class Engine {
     if (Math.abs(turn) > 0.0001) f.spin.push({ t, d: turn });
     while (f.spin.length && t - f.spin[0].t > 6) f.spin.shift();
     if (Math.abs(f.spin.reduce((sum, x) => sum + x.d, 0)) >= Math.PI * 10) earn('dizzy');
+    // Dancing a whole minute without a break (each dance lasts a few seconds, so keep it going), and standing
+    // stock still, doing nothing at all, for five (real time, however few frames there are).
+    const dancing = this.emote?.anim === 'dance' && this.emote.until > this.clock.elapsedTime;
+    f.danceSince = dancing ? (f.danceSince ?? t) : null;
+    if (f.danceSince !== null && t - f.danceSince >= 60) earn('onemore');
+    const idle = !moving && !this.emote && !this.seated && !this.inBed && !this.job && !this.show && Math.abs(turn) < 0.0001;
+    f.idleSince = idle ? (f.idleSince ?? t) : null;
+    if (f.idleSince !== null && t - f.idleSince >= 300) earn('afk');
     if (kind === 'town') {
       // The fairy ring, out among the trees.
       if (Math.hypot(local.x - FAIRY_RING.x, local.z - FAIRY_RING.z) < FAIRY_RING.r * 0.75) earn('fairyring');

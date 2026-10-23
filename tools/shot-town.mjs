@@ -56,6 +56,8 @@ const ALL = {
   // The confession booth in the front corner, as a player beside it sees it, and closer in.
   booth: 'zone=church&t=0&x=3.6&z=-6.2&dist=11',
   'booth-close': 'zone=church&t=0&x=4.3&z=-7.8&dist=5.5&pitch=0.55&yaw=-0.3',
+  'booth-curtains': 'zone=church&t=0&x=4.3&z=-7.8&dist=5.5&pitch=0.55&yaw=-0.3&curtains&frames=90',
+  'booth-curtains-far': 'zone=church&t=0&x=3.6&z=-6.2&dist=11&curtains&frames=90',
   'house-inside': 'zone=house&t=0',
   'tower-inside': 'zone=tower&t=0&dist=13',
   'tower-inside-close': 'zone=tower&t=0&x=0&z=-1.5&dist=8',

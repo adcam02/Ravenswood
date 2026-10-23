@@ -276,7 +276,16 @@ export type FeatId =
   | 'peckish'
   | 'disco'
   | 'haunting'
-  | 'spared';
+  | 'spared'
+  | 'fez'
+  | 'detective'
+  | 'conspiracy'
+  | 'trainer'
+  | 'teaparty'
+  | 'boot'
+  | 'onemore'
+  | 'afk'
+  | 'spooky';
 
 /**
  * Things to do around Ravenswood, kept in the player's own browser with everything else they've earned. Secret ones
@@ -310,6 +319,15 @@ export const FEATS: { id: FeatId; name: string; icon: string; how: string; secre
   { id: 'disco', name: 'Dance floor', icon: '🪩', how: 'Dance in the middle of the meeting circle', secret: true },
   { id: 'haunting', name: 'Haunting', icon: '🪦', how: 'Visit the graveyard as a ghost', secret: true },
   { id: 'spared', name: 'Not today', icon: '🍀', how: 'Walk away from the gallows', secret: true },
+  { id: 'detective', name: 'Elementary', icon: '🔍', how: 'Guess three players’ characters right in your notepad by the end of a game' },
+  { id: 'trainer', name: 'Gotta catch ’em all', icon: '🐟', how: 'Catch 8 different kinds of fish' },
+  { id: 'fez', name: 'Fezzes are cool', icon: '🕰️', how: 'Be inside the clock tower when the bell rings', secret: true },
+  { id: 'conspiracy', name: 'They’re onto me', icon: '🛸', how: 'Nominate three different players in one game', secret: true },
+  { id: 'teaparty', name: 'A very merry unbirthday', icon: '🫖', how: 'Hand drinks to three different players in one day', secret: true },
+  { id: 'boot', name: 'There’s a snake in my boot!', icon: '🥾', how: 'Fish up an old boot', secret: true },
+  { id: 'onemore', name: 'One more time', icon: '🪩', how: 'Dance for a whole minute without stopping', secret: true },
+  { id: 'afk', name: 'AFK', icon: '🚧', how: 'Stand perfectly still for five minutes', secret: true },
+  { id: 'spooky', name: 'Spooky season', icon: '🎃', how: 'Play in October', secret: true },
 ];
 
 /** The weather the Storyteller can call for. */
