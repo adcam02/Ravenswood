@@ -16,7 +16,7 @@ function App() {
     <div>
       <div className="row">
         <AnimalPreview look={look} size={280} />
-        <AnimalPreview look={{ animal: 'bunny', color: '#f4efe6' }} size={200} anim="wave" spin={false} />
+        <AnimalPreview look={{ animal: 'panda', color: '#f4efe6' }} size={200} anim="wave" spin={false} />
       </div>
       <div className="row">
         {ANIMALS.map((a) => (
