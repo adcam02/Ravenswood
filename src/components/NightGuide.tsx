@@ -1,5 +1,5 @@
 import { getRole, nightReminder } from '../data';
-import { bringDawn, guide, guideSteps, nightKind, stepName, stepsLeft, type NightStep } from '../lib/nightGuide';
+import { bringDawn, guide, guideSteps, nightKind, stepName, stepNote, stepsLeft, type NightStep } from '../lib/nightGuide';
 import { joinNames } from '../lib/util';
 import { seatName, useHost } from '../state/host';
 import { ui, useUI } from '../state/ui';
@@ -34,6 +34,7 @@ export function NightGuide() {
   }
   const k = nightKind(g);
   const text = nightReminder(step.row.id, k);
+  const note = stepNote(g, step);
   const after = stepsLeft(g, step.key)[0];
   const canBack = steps.slice(0, at - 1).some((s) => g.nightDone.includes(s.key));
   return (
@@ -60,6 +61,7 @@ export function NightGuide() {
               <RichText text={text} />
             </p>
           )}
+          {note && <p className="night-guide-note">{note.text}</p>}
         </div>
       </div>
       <div className="night-guide-actions">
@@ -67,7 +69,13 @@ export function NightGuide() {
           <Icon name="chevronLeft" />
         </button>
         <span className="grow" />
-        <Actions step={step} next={after ? `Next: ${stepName(after)}` : 'Done'} sent={draft.step === step.key && Boolean(draft.sentId)} reopen={draft.step === step.key} />
+        <Actions
+          step={step}
+          next={after ? `Next: ${stepName(after)}` : 'Done'}
+          sent={draft.step === step.key && Boolean(draft.sentId)}
+          reopen={draft.step === step.key}
+          idle={Boolean(note?.idle)}
+        />
       </div>
     </div>
   );
@@ -92,7 +100,7 @@ function Who({ step }: { step: NightStep }) {
   );
 }
 
-function Actions({ step, next, sent, reopen }: { step: NightStep; next: string; sent: boolean; reopen: boolean }) {
+function Actions({ step, next, sent, reopen, idle }: { step: NightStep; next: string; sent: boolean; reopen: boolean; idle: boolean }) {
   const g = useHost((s) => s.g);
   const wake = () => (reopen ? ui.open({ kind: 'wake' }) : guide.wake(step));
   if (step.row.id === 'dawn') {
@@ -123,12 +131,13 @@ function Actions({ step, next, sent, reopen }: { step: NightStep; next: string; 
       </>
     );
   }
+  // When the grimoire says nobody need wake (the Barber didn't die, say), skipping is the likely choice.
   return (
     <>
-      <button className="btn" onClick={() => guide.skip(step.key)} title="Tick this off without waking anyone">
+      <button className={`btn ${idle ? 'primary' : ''}`} onClick={() => guide.skip(step.key)} title="Tick this off without waking anyone">
         Skip
       </button>
-      <button className="btn primary" onClick={wake}>
+      <button className={`btn ${idle ? '' : 'primary'}`} onClick={wake}>
         <Icon name="wake" /> Wake {names}
       </button>
     </>

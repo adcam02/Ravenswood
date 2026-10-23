@@ -34,7 +34,8 @@ export type Pick =
   | { kind: 'nominee'; nominatorId: string | null }
   | { kind: 'swap'; seatId: string }
   | { kind: 'move'; seatId: string }
-  | { kind: 'swapRole'; seatId: string }
+  /** `alignments`: during the game, alignments go with the characters too (a Snake Charmer), not stay put (a Barber). */
+  | { kind: 'swapRole'; seatId: string; alignments?: boolean }
   | null;
 
 export type Panel = 'night' | 'reference' | 'history' | 'notes' | 'journal' | null;

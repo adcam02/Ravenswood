@@ -23,7 +23,8 @@ export function ScriptModal() {
   const [text, setText] = useState('');
   const [error, setError] = useState('');
   const [parsed, setParsed] = useState<Script | null>(null);
-  const [recent, setRecent] = useState<Script[]>(() => loadJSON(RECENT, []));
+  // (Untitled scripts kept from before they were given a name.)
+  const [recent, setRecent] = useState<Script[]>(() => loadJSON<Script[]>(RECENT, []).map((r) => (r.name?.trim() ? r : { ...r, name: 'Custom script' })));
   const file = useRef<HTMLInputElement>(null);
 
   const use = (script: Script) => {

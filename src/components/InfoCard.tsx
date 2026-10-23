@@ -219,6 +219,9 @@ export const SIGNS: { id: string; label: string }[] = [
   { id: 'no', label: 'No' },
   { id: 'good', label: 'Good' },
   { id: 'evil', label: 'Evil' },
+  // The Shugenja's answer: which way round the circle.
+  { id: 'clockwise', label: 'Clockwise' },
+  { id: 'anticlockwise', label: 'Anticlockwise' },
 ];
 
 export function signLabel(sign: string): string {
@@ -262,7 +265,41 @@ const PIPS: Record<number, [number, number][]> = {
   ],
 };
 
+/**
+ * A ring of seats with an arrow going round inside it, clockwise: three quarters of a circle from the top left,
+ * ending in an arrowhead. Mirrored, it goes anticlockwise.
+ */
+const TURN = (() => {
+  const c = 12;
+  const r = 6;
+  const at = (deg: number, rad = r) => [c + Math.cos((deg * Math.PI) / 180) * rad, c + Math.sin((deg * Math.PI) / 180) * rad];
+  const [x0, y0] = at(-160);
+  const [x1, y1] = at(95);
+  // The arrowhead points along the way round at the end (clockwise on screen is increasing angle).
+  const tip = at(95 + 14);
+  const back = (side: number) => at(95 - 10, r + side * 3);
+  const f = (n: number) => n.toFixed(2);
+  return {
+    arc: `M ${f(x0)} ${f(y0)} A ${r} ${r} 0 1 1 ${f(x1)} ${f(y1)}`,
+    head: `M ${f(back(1)[0])} ${f(back(1)[1])} L ${f(tip[0])} ${f(tip[1])} L ${f(back(-1)[0])} ${f(back(-1)[1])}`,
+    seats: Array.from({ length: 8 }, (_, i) => at(i * 45 - 90, 10.6)),
+  };
+})();
+
 export function SignGlyph({ sign }: { sign: string }) {
+  if (sign === 'clockwise' || sign === 'anticlockwise') {
+    return (
+      <svg viewBox="0 0 24 24" className="sign-svg sign-line">
+        <g transform={sign === 'anticlockwise' ? 'translate(24 0) scale(-1 1)' : undefined}>
+          {TURN.seats.map(([x, y], i) => (
+            <circle key={i} cx={x} cy={y} r="1.15" fill="currentColor" stroke="none" />
+          ))}
+          <path d={TURN.arc} fill="none" />
+          <path d={TURN.head} fill="none" />
+        </g>
+      </svg>
+    );
+  }
   if (sign === 'good' || sign === 'evil') {
     return <img className={`sign-mask ${sign}`} src={genericIcon(sign)} alt="" />;
   }

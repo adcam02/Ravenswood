@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ALL_ROLES, getRole } from '../data';
-import { demonInfo, minionInfo, wholeEvilTeam } from '../lib/presets';
+import { canWakeTogether, demonInfo, minionInfo, wholeEvilTeam } from '../lib/presets';
 import { guide, guideSteps, stepName, stepsLeft } from '../lib/nightGuide';
 import { joinNames } from '../lib/util';
 import { seatName, st, useHost, grimoireSnapshot } from '../state/host';
@@ -115,7 +115,16 @@ export function WakeComposer() {
       }
       head={
         <div className="wake-presets">
-          <button className="btn small" disabled={!evil.demons || !evil.minions} onClick={() => load(wholeEvilTeam())} title="Wake the Demon and Minions together so they see each other">
+          <button
+            className="btn small"
+            disabled={!canWakeTogether(g)}
+            onClick={() => load(wholeEvilTeam())}
+            title={
+              g.seats.some((s) => s.roleId === 'magician')
+                ? 'Not with the Magician in play: use Minion info and Demon info, which show the Magician to each as the other'
+                : 'Wake the Demon and Minions together so they see each other'
+            }
+          >
             Evil team
           </button>
           <button className="btn small" disabled={!evil.minions} onClick={() => load(minionInfo())}>

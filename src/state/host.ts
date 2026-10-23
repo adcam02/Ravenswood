@@ -40,6 +40,7 @@ import type {
   Visit,
   WakeMessage,
   WakePanel,
+  WakeReply,
 } from './types';
 
 const KEY = 'ravenswood:storyteller';
@@ -120,6 +121,8 @@ function loadGame(): GameState | null {
   g.weather ??= 'clear';
   g.dayTimer ??= null;
   for (const s of g.seats) s.look ??= null;
+  // A script picked before untitled ones got a name of their own.
+  if (!g.script.name?.trim()) g.script.name = 'Custom script';
   setCustomRoles(g.script.custom);
   return g;
 }
@@ -176,6 +179,13 @@ export function nightLabel(g: { phase: Phase; day: number }): string {
   return `${g.phase === 'night' ? 'Night' : 'Day'} ${g.day}`;
 }
 
+/** The latest answer this seat gave tonight, if they've been asked anything. */
+export function replyTonight(g: GameState, seatId: string): WakeReply | null {
+  const when = nightLabel(g);
+  const asked = g.wakes.filter((w) => w.when === when && w.ask && w.to.includes(seatId)).map((w) => w.id);
+  return [...g.replies].reverse().find((r) => r.seatId === seatId && asked.includes(r.wakeId)) ?? null;
+}
+
 export function toPublic(g: GameState, online: Set<string>): PublicState {
   return {
     room: g.room,
@@ -226,25 +236,79 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
   };
 }
 
+/** Characters are out and the first night has begun: a change to someone's character now is news to them. */
+export const underway = (g: { revealed: boolean; phase: Phase; day: number }) => g.revealed && !(g.day === 0 && g.phase === 'day');
+
 /** Whether a player can claim to be the Slayer right now: the script has one, and it's a day of the game. */
 export function slayerOpen(g: { script: { roles: string[] }; phase: Phase; day: number; ended?: GameEnd | null }): boolean {
   return g.script.roles.includes('slayer') && g.phase === 'day' && g.day > 0 && !g.ended;
 }
 
+export interface WinCheck {
+  winner: 'good' | 'evil';
+  reason: string;
+  key: string;
+  /** More about it, when the usual words don't fit. */
+  note?: string;
+  /** A Demon that died tonight by its own ability can hand on: who could take over, and as which Demon. */
+  pass?: { roleId: string; seatIds: string[] };
+}
+
+/** Whoever could take over from a Demon that died tonight: a living Minion for the Imp, an Outsider for the Fang Gu. */
+function demonPass(g: GameState, demons: Seat[]): WinCheck['pass'] {
+  if (g.phase !== 'night') return undefined;
+  const team = (s: Seat) => (isTraveller(s.roleId) ? null : getRole(s.roleId)?.team);
+  for (const d of demons) {
+    if (!g.nightDeaths.includes(d.id)) continue;
+    if (d.roleId === 'imp') {
+      const minions = g.seats.filter((s) => !s.dead && team(s) === 'minion');
+      if (minions.length) return { roleId: 'imp', seatIds: minions.map((s) => s.id) };
+    }
+    // The Fang Gu jumps once, to the Outsider it chose (if it said who).
+    if (d.roleId === 'fanggu' && !g.seats.some((s) => s.reminders.some((r) => r.roleId === 'fanggu' && r.text === 'Once'))) {
+      const outsiders = g.seats.filter((s) => !s.dead && team(s) === 'outsider');
+      const chose = replyTonight(g, d.id)?.seatIds?.[0];
+      const target = outsiders.filter((s) => s.id === chose);
+      if (outsiders.length) return { roleId: 'fanggu', seatIds: (target.length ? target : outsiders).map((s) => s.id) };
+    }
+  }
+  return undefined;
+}
+
 /**
- * Whether the grimoire says the game is over, for the Storyteller to confirm: every Demon dead (good wins), or
- * only two players left alive with the Demon among them (evil wins). `key` changes whenever the reason does, so
- * "not yet" holds until something moves on (a Scarlet Woman or a starpass makes a new Demon, say).
+ * Whether the grimoire says the game is over, for the Storyteller to confirm: every Demon dead (good wins), the
+ * Goblin executed today (evil wins, if they claimed), or only two players left alive with the Demon among them (evil
+ * wins). `key` changes whenever the reason does, so "not yet" holds until something moves on (a Scarlet Woman or a
+ * starpass makes a new Demon, say). A Demon killed tonight that could hand on says who could take over.
  */
-export function winCheck(g: GameState): { winner: 'good' | 'evil'; reason: string; key: string } | null {
-  if (g.ended || !g.revealed || (g.day === 0 && g.phase === 'day')) return null;
+export function winCheck(g: GameState): WinCheck | null {
+  if (g.ended || !underway(g)) return null;
   const players = g.seats.filter((s) => s.roleId && !isTraveller(s.roleId));
   const demons = players.filter((s) => getRole(s.roleId)?.team === 'demon');
   if (!demons.length) return null;
   const living = players.filter((s) => !s.dead);
   if (demons.every((s) => s.dead)) {
     const name = demons.length === 1 ? `The ${getRole(demons[0].roleId)?.name ?? 'Demon'}` : 'The Demon';
-    return { winner: 'good', reason: `${name} is dead`, key: `good:${demons.map((d) => d.id).join()}` };
+    const pass = demonPass(g, demons);
+    const note =
+      pass?.roleId === 'imp'
+        ? 'If the Imp chose itself tonight, a living Minion becomes the Imp and the game goes on. Who?'
+        : pass?.roleId === 'fanggu'
+          ? 'If the Fang Gu chose an Outsider tonight, the Fang Gu dies instead and they become an evil Fang Gu. Who?'
+          : undefined;
+    return { winner: 'good', reason: `${name} is dead`, key: `good:${demons.map((d) => d.id).join()}`, note, pass };
+  }
+  // The Goblin's team wins if they claimed to be the Goblin when nominated (the Storyteller marks it with the Claimed
+  // reminder) and are executed that day: executed and dead today, by this game's reckoning.
+  const hanged = g.phase === 'day' ? g.deaths.filter((d) => d.how === 'executed' && d.day === g.day && d.phase === 'day').map((d) => d.seatId) : [];
+  const goblin = g.seats.find((s) => s.roleId === 'goblin' && s.dead && hanged.includes(s.id) && s.reminders.some((r) => r.roleId === 'goblin' && r.text === 'Claimed'));
+  if (goblin) {
+    return {
+      winner: 'evil',
+      reason: 'The Goblin claimed and was executed',
+      key: `evil:goblin:${goblin.id}:${g.day}`,
+      note: 'They claimed to be the Goblin when they were nominated today, so evil wins (unless they were drunk or poisoned).',
+    };
   }
   if (living.length <= 2) return { winner: 'evil', reason: 'Only two players are left alive', key: `evil:${living.map((s) => s.id).join()}` };
   return null;
@@ -637,6 +701,26 @@ export const st = {
       s.shownRoleId = null;
       s.alignment = null;
       if (roleId && NEEDS_SHOWN.has(roleId)) s.shownRoleId = suggestShown(g, s);
+      if (!g.revealed && roleId) {
+        // Handing out the Demon after the Lunatic: the Lunatic thinks they're this Demon, not one that isn't in play.
+        if (getRole(roleId)?.team === 'demon') {
+          const demons = new Set(g.seats.filter((x) => getRole(x.roleId)?.team === 'demon').map((x) => x.roleId));
+          for (const x of g.seats) if (x.roleId === 'lunatic' && !demons.has(x.shownRoleId)) x.shownRoleId = roleId;
+        }
+        // A Drunk who was to think they're this Townsfolk needs another that isn't in play.
+        for (const x of g.seats) if (x !== s && x.shownRoleId === roleId && DISGUISED[x.roleId ?? '']) x.shownRoleId = suggestShown(g, x);
+      }
+    });
+  },
+  /** A Demon handing on in the night: this seat becomes it, evil (an Imp's starpass, a Fang Gu's jump, once only). */
+  becomeDemon(seatId: string, roleId: string) {
+    update((g) => {
+      const s = seatOf(g, seatId);
+      if (!s) return;
+      s.roleId = roleId;
+      s.shownRoleId = null;
+      s.alignment = null;
+      if (roleId === 'fanggu') s.reminders.push({ id: uid(), roleId: 'fanggu', text: 'Once' });
     });
   },
   setShownRole(id: string, roleId: string | null) {
@@ -652,14 +736,25 @@ export const st = {
       s.alignment = alignment === defaultAlignment(getRole(s.roleId)?.team) ? null : alignment;
     });
   },
-  swapRoles(a: string, b: string) {
+  /**
+   * Swaps two seats' characters. Their alignments go with the tokens (as when dealing, or for a Snake Charmer), or
+   * with `keepAlignments` each player stays on their own side, as with the Barber: a Minion swapped with a Townsfolk
+   * is an evil Townsfolk.
+   */
+  swapRoles(a: string, b: string, keepAlignments = false) {
     update((g) => {
       const x = seatOf(g, a);
       const y = seatOf(g, b);
       if (!x || !y) return;
+      const sides = [seatAlignment(x), seatAlignment(y)];
       [x.roleId, y.roleId] = [y.roleId, x.roleId];
       [x.shownRoleId, y.shownRoleId] = [y.shownRoleId, x.shownRoleId];
       [x.alignment, y.alignment] = [y.alignment, x.alignment];
+      if (!keepAlignments) return;
+      [x, y].forEach((s, i) => {
+        const natural = defaultAlignment(getRole(s.roleId)?.team);
+        s.alignment = sides[i] && sides[i] !== natural ? sides[i] : null;
+      });
     });
   },
   clearRoles() {

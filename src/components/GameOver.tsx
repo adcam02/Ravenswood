@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getRole } from '../data';
-import { st, useHost, winCheck } from '../state/host';
+import { tell } from '../lib/presets';
+import { seatName, st, useHost, winCheck } from '../state/host';
 import { useNotes } from '../state/notes';
 import type { DeathRecord } from '../state/types';
-import { ui } from '../state/ui';
+import { ui, useUI } from '../state/ui';
 import { useView, type SeatView, type View } from '../state/view';
 import { Icon } from './Icon';
 import { Modal } from './Modal';
@@ -30,24 +31,51 @@ const onTeam = (s: SeatView, winner: 'good' | 'evil') => (s.alignment ?? 'good')
 const players = (view: View) => view.seats.filter((s) => s.claimed || s.name || s.roleId);
 
 /**
- * Storyteller: the grimoire says the game might be over (every Demon dead, or two players left). Confirm it, or
- * say not yet (a Scarlet Woman, a starpass) and the question waits until something changes.
+ * Storyteller: the grimoire says the game might be over (every Demon dead, the Goblin executed, or two players left).
+ * Confirm it, or say not yet (a Scarlet Woman, say) and the question waits until something changes. A Demon killed
+ * tonight that can hand on (the Imp choosing itself, the Fang Gu choosing an Outsider) offers who takes over instead,
+ * and then the wake screen to tell them.
  */
 export function WinPrompt() {
   const g = useHost((s) => s.g);
+  const hide = useUI((s) => s.hideGrimoire);
   const check = winCheck(g);
   if (!check || check.key === g.winDismissed) return null;
   const good = check.winner === 'good';
+  const pass = hide ? undefined : check.pass;
+  const demon = getRole(pass?.roleId)?.name;
   return (
     <div className={`win-prompt surface ${check.winner}`} role="alertdialog" aria-label="Is the game over?">
       <span className="eyebrow">Is the game over?</span>
       <h3>{check.reason}.</h3>
-      <p>{good ? 'Unless something keeps the Demon alive (a Scarlet Woman, say), good wins.' : 'With two players left and the Demon alive, evil wins.'}</p>
+      <p>
+        {check.note && (pass || !check.pass)
+          ? check.note
+          : good
+            ? 'Unless something keeps the Demon alive (a Scarlet Woman, say), good wins.'
+            : 'With two players left and the Demon alive, evil wins.'}
+      </p>
+      {pass && (
+        <div className="win-pass">
+          {pass.seatIds.map((id) => (
+            <button
+              key={id}
+              className="btn blood"
+              onClick={() => {
+                st.becomeDemon(id, pass.roleId);
+                tell([id]);
+              }}
+            >
+              {seatName(g, id)} becomes the {demon}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="win-choice">
         <button className="btn" onClick={() => st.dismissWin(check.key)}>
           Not yet
         </button>
-        <button className={`btn ${good ? 'sapphire' : 'blood'}`} onClick={() => st.endGame(check.winner, check.reason)}>
+        <button className={`btn ${pass ? '' : good ? 'sapphire' : 'blood'}`} onClick={() => st.endGame(check.winner, check.reason)}>
           <Icon name="flag" /> {TEAM[check.winner]} wins
         </button>
       </div>

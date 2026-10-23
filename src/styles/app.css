@@ -432,6 +432,11 @@ button.my-card:hover {
   font-size: 17px;
   animation: drop 0.3s var(--ease-out);
 }
+/* Swapping characters during the game: whether alignments swap too. */
+.pick-banner .check {
+  font-size: 14px;
+  white-space: nowrap;
+}
 @keyframes drop {
   from {
     opacity: 0;

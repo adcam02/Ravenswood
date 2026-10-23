@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { defaultAlignment, getRole } from '../data';
-import { DISGUISED, st, useHost } from '../state/host';
+import { tell } from '../lib/presets';
+import { DISGUISED, st, underway, useHost } from '../state/host';
 import { notes, useNotes } from '../state/notes';
 import { ui, useUI } from '../state/ui';
 import { useView, type SeatView } from '../state/view';
@@ -58,12 +59,18 @@ function Item({ icon, children, onClick, tone, hint }: { icon: IconName; childre
 export function SeatMenu({ seat, geo, pt }: { seat: SeatView; geo: Geometry; pt: { x: number; y: number } }) {
   const view = useView();
   const raw = useHost((s) => s.g.seats.find((x) => x.id === seat.id));
+  const during = useHost((s) => underway(s.g));
   if (!raw) return null;
   const role = getRole(raw.roleId);
   const shown = getRole(raw.shownRoleId);
   const alignment = raw.alignment ?? defaultAlignment(role?.team);
   const close = () => ui.menu(null);
   const marked = view.marked?.seatId === seat.id;
+  // What they think they are, and so which side they think they're on (the Lunatic thinks they're evil).
+  const told = shown ?? role;
+  const toldSide = raw.alignment ?? defaultAlignment(told?.team);
+  // The Storyteller's mark that the Goblin claimed when nominated, which the win check looks for.
+  const claim = raw.reminders.find((r) => r.roleId === 'goblin' && r.text === 'Claimed');
 
   return (
     <Popover geo={geo} pt={pt}>
@@ -97,6 +104,16 @@ export function SeatMenu({ seat, geo, pt }: { seat: SeatView; geo: Geometry; pt:
         {role && (
           <Item icon="swap" onClick={() => ui.pick({ kind: 'swapRole', seatId: seat.id })}>
             Swap characters with…
+          </Item>
+        )}
+        {told && during && (
+          <Item icon="wake" hint={toldSide ? (toldSide === 'evil' ? 'Evil' : 'Good') : undefined} onClick={() => tell([seat.id])}>
+            Tell them they’re the {told.name}
+          </Item>
+        )}
+        {role?.id === 'goblin' && during && (
+          <Item icon="flag" onClick={() => (claim ? st.removeReminder(seat.id, claim.id) : st.addReminder(seat.id, 'goblin', 'Claimed'), close())}>
+            {claim ? 'Take away “Claimed” (Goblin)' : 'Claimed to be the Goblin'}
           </Item>
         )}
       </div>

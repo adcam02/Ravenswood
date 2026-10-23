@@ -77,6 +77,7 @@ function AskBox({ wake, reply }: { wake: WakeMessage; reply?: WakeReply }) {
       ...(reply.roleIds ?? []).map((id) => getRole(id)?.name ?? id),
       ...(reply.answer !== undefined ? [reply.answer ? 'Yes' : 'No'] : []),
     ];
+    if (!parts.length) parts.push(ask.kind === 'players' ? 'nobody' : 'none');
     return (
       <div className="ask-box answered">
         <span>
@@ -118,13 +119,20 @@ function AskBox({ wake, reply }: { wake: WakeMessage; reply?: WakeReply }) {
               <CharacterGrid ids={view.script.roles} size={58} selected={picked} onPick={pick} teams={['townsfolk', 'outsider', 'minion', 'demon']} />
             </div>
           )}
-          <button
-            className="btn primary"
-            disabled={picked.length !== count}
-            onClick={() => player.reply(wake.id, ask.kind === 'players' ? { seatIds: picked } : { roleIds: picked })}
-          >
-            Send {picked.length === count ? '' : `(${picked.length} of ${count})`}
-          </button>
+          <div className="ask-send">
+            {ask.optional && (
+              <button className="btn" onClick={() => player.reply(wake.id, ask.kind === 'players' ? { seatIds: [] } : { roleIds: [] })}>
+                {ask.kind === 'players' ? 'Nobody' : 'None'}
+              </button>
+            )}
+            <button
+              className="btn primary"
+              disabled={picked.length !== count}
+              onClick={() => player.reply(wake.id, ask.kind === 'players' ? { seatIds: picked } : { roleIds: picked })}
+            >
+              Send {picked.length === count ? '' : `(${picked.length} of ${count})`}
+            </button>
+          </div>
         </>
       )}
     </div>

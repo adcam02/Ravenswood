@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import { editionLogo, getRole, jinxesFor, nightOrderList, nightReminder, NIGHT_SPECIALS, rolesByTeam, TEAM_LABEL, TEAMS, genericIcon } from '../data';
 import { evilInfoStatus } from '../lib/evilInfo';
 import { nightKind, nightRows, wakeFor, type NightKind } from '../lib/nightGuide';
+import { nightWho } from '../lib/presets';
 import { seatName, st, useHost } from '../state/host';
 import { ui, useUI, type Panel } from '../state/ui';
 import { useView } from '../state/view';
@@ -103,7 +104,7 @@ function NightOrderList() {
           const wake = () => {
             const w = wakeFor(row, k);
             // Tonight's sheet: the wake screen can carry on to the next character from there.
-            ui.wake(w.to, w.panels, 'ask' in w ? w.ask : null, w.extra, k === tonight && g.phase === 'night' ? key : null);
+            ui.wake(w.to, w.panels, w.ask, w.extra, k === tonight && g.phase === 'night' ? key : null);
           };
           return (
             <li key={row.id} className={`night-row ${done ? 'done' : ''} ${!row.inPlay ? 'absent' : ''} ${dead || few ? 'dim' : ''} ${special ? 'special' : ''}`}>
@@ -141,7 +142,7 @@ function NightOrderList() {
                   </p>
                 )}
               </div>
-              {(row.holders.length > 0 || evilStep) && (
+              {(evilStep || nightWho(g, row.id, k, row.holders.map((h) => h.seat.id)).length > 0) && (
                 <button className="btn small night-wake" onClick={wake} title="Wake them">
                   <Icon name="wake" />
                 </button>

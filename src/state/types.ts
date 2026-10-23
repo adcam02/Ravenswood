@@ -89,8 +89,13 @@ export interface WakePanel {
   grimoire?: GrimoireSnapshot;
 }
 
-/** What the player is asked to answer, optionally in the Storyteller's own words ("Who do you want to kill?"). */
-export type Ask = (({ kind: 'players'; count: number } | { kind: 'character'; count: number } | { kind: 'yesno' }) & { prompt?: string }) | null;
+/**
+ * What the player is asked to answer, optionally in the Storyteller's own words ("Who do you want to kill?").
+ * `optional`: they may choose nobody (the Barber's Demon, the Professor).
+ */
+export type Ask =
+  | (({ kind: 'players'; count: number } | { kind: 'character'; count: number } | { kind: 'yesno' }) & { prompt?: string; optional?: boolean })
+  | null;
 
 export interface WakeMessage {
   id: string;

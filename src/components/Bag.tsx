@@ -3,6 +3,7 @@ import {
   adjustedComposition,
   canDuplicate,
   composition,
+  compositionOptions,
   CORE_TEAMS,
   genericIcon,
   getRole,
@@ -54,18 +55,21 @@ function useTargets() {
   const g = useHost((s) => s.g);
   const players = g.seats.filter((s) => !isTraveller(s.roleId)).length;
   const base = composition(players);
-  const target = base ? adjustedComposition(base, g.bag) : null;
   const have: Record<string, number> = { townsfolk: 0, outsider: 0, minion: 0, demon: 0, traveller: 0 };
   for (const id of g.bag) {
     const r = getRole(id);
     if (r && r.team in have) have[r.team] += 1;
   }
-  return { players, base, target, have };
+  // With a choice (the Godfather's -1 or +1 Outsider), the target is whichever the bag is closest to.
+  const target = base ? adjustedComposition(base, g.bag, { outsider: have.outsider }) : null;
+  const options = base ? compositionOptions(base, g.bag) : [];
+  const allowed = (team: Team) => [...new Set(options.map((o) => o[team as keyof typeof o]))].sort((a, b) => a - b);
+  return { players, base, target, have, allowed };
 }
 
 function Fill() {
   const g = useHost((s) => s.g);
-  const { players, target, have } = useTargets();
+  const { players, target, have, allowed } = useTargets();
   const counts: Record<string, number> = {};
   for (const id of g.bag) counts[id] = (counts[id] ?? 0) + 1;
   const notes = [...new Set(g.bag)].map((id) => getRole(id)).filter((r) => r && setupNote(r));
@@ -104,7 +108,7 @@ function Fill() {
                 <div>
                   <b>
                     {got}
-                    <small> / {want}</small>
+                    <small> / {allowed(team).length > 1 ? allowed(team).join(' or ') : want}</small>
                   </b>
                   <span>{TEAM_LABEL[team]}</span>
                 </div>
@@ -175,10 +179,11 @@ export function randomBag() {
     const demon = shuffle(byTeam.demon)[0];
     if (demon) bag.push(demon.id);
     bag.push(...shuffle(byTeam.minion).slice(0, base.minion).map((r) => r.id));
-    const target = adjustedComposition(base, bag);
-    if (target.outsider < 0 || target.outsider > byTeam.outsider.length) continue;
+    // Where a bracket gives a choice (the Godfather's -1 or +1 Outsider), either way that the script can fill.
+    const target = shuffle(compositionOptions(base, bag)).find((o) => o.outsider >= 0 && o.outsider <= byTeam.outsider.length);
+    if (!target) continue;
     bag.push(...shuffle(byTeam.outsider).slice(0, target.outsider).map((r) => r.id));
-    const t2 = adjustedComposition(base, bag);
+    const t2 = adjustedComposition(base, bag, { outsider: target.outsider });
     bag.push(...shuffle(byTeam.townsfolk).slice(0, t2.townsfolk).map((r) => r.id));
     st.setBag(bag);
     return;

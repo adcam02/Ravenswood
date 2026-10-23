@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { tell } from '../lib/presets';
 import { clamp } from '../lib/util';
 import { useNotes } from '../state/notes';
-import { disguise, DISGUISED, heldRole, st } from '../state/host';
+import { disguise, DISGUISED, heldRole, hostGame, st, underway } from '../state/host';
 import { ui, useUI } from '../state/ui';
 import { useView, type SeatView } from '../state/view';
 import { player } from '../net/client';
@@ -170,7 +171,15 @@ function SeatSpot({ seat, geo, i }: { seat: SeatView; geo: Geometry; i: number }
       if (pick.kind === 'nominee') st.nominate(pick.nominatorId, seat.id);
       else if (pick.kind === 'swap') st.swapSeats(pick.seatId, seat.id);
       else if (pick.kind === 'move') st.moveSeat(pick.seatId, seat.id);
-      else if (pick.kind === 'swapRole') st.swapRoles(pick.seatId, seat.id);
+      else if (pick.kind === 'swapRole') {
+        // During the game each player keeps their alignment (as with the Barber), and the wake screen opens ready to
+        // tell them both.
+        const during = underway(hostGame());
+        st.swapRoles(pick.seatId, seat.id, during && !pick.alignments);
+        ui.pick(null);
+        if (during) tell([pick.seatId, seat.id]);
+        return;
+      }
       ui.pick(null);
       return;
     }

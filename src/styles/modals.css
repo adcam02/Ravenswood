@@ -1637,6 +1637,13 @@
   display: flex;
   gap: 12px;
 }
+/* Send, and Nobody when choosing nobody is allowed. */
+.ask-send {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
 .ask-yesno .btn {
   min-width: 120px;
 }
@@ -2402,6 +2409,13 @@
   font-size: 14px;
   line-height: 1.4;
   color: var(--text-dim);
+}
+/* What the grimoire says about this step tonight (the Barber didn't die, the No Dashii's neighbours). */
+.night-guide-text .night-guide-note {
+  margin-top: 6px;
+  padding-left: 8px;
+  border-left: 2px solid var(--brass-hi);
+  color: var(--text);
 }
 .night-guide-actions {
   display: flex;

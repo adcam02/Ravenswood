@@ -172,8 +172,9 @@ export function parseScript(text: string): Script {
     const e = entry as Record<string, unknown>;
     const rawId = String(e.id ?? '');
     if (rawId === '_meta') {
-      if (typeof e.name === 'string') name = e.name;
-      if (typeof e.author === 'string') author = e.author;
+      // The script tool leaves the name (and author) as "" when nobody filled them in.
+      if (typeof e.name === 'string' && e.name.trim()) name = e.name.trim();
+      if (typeof e.author === 'string' && e.author.trim()) author = e.author.trim();
       if (typeof e.logo === 'string') logo = e.logo;
       if (Array.isArray(e.firstNight)) firstNight = e.firstNight.map((x) => normaliseId(String(x)));
       if (Array.isArray(e.otherNight)) otherNight = e.otherNight.map((x) => normaliseId(String(x)));
@@ -325,22 +326,61 @@ export function setupNote(role: Role): string | null {
   return m ? m[1] : null;
 }
 
-/** Applies setup brackets that are unambiguous, like the Baron's [+2 Outsiders]. */
-export function adjustedComposition(base: Composition, roleIds: string[]): Composition {
-  const out = { ...base };
+/** "+2", "-1", "−0": a setup bracket's change to a count. */
+const signed = (s: string) => (s[0] === '+' ? 1 : -1) * Number(s.slice(1));
+
+/**
+ * What a character's setup bracket can do to the counts: one change for the Baron's [+2 Outsiders], a choice of two
+ * for the Godfather's [-1 or +1 Outsider]. Null for brackets that need the Storyteller's judgement.
+ */
+function setupDeltas(role: Role): { team: 'townsfolk' | 'outsider' | 'minion'; deltas: number[] } | null {
+  const note = setupNote(role);
+  if (!note) return null;
+  const m = note.match(/^([+\-−–]\d+)(?: or ([+\-−–]\d+))? (Outsiders?|Minions?|Townsfolk)$/i);
+  if (!m) return null;
+  const word = m[3].toLowerCase();
+  const team = word.startsWith('outsider') ? 'outsider' : word.startsWith('minion') ? 'minion' : 'townsfolk';
+  return { team, deltas: [...new Set([m[1], m[2]].filter(Boolean).map(signed))] };
+}
+
+/**
+ * Every set of counts the setup brackets allow (the Godfather's [-1 or +1 Outsider] gives two), leaving out any
+ * that would need fewer than none of something.
+ */
+export function compositionOptions(base: Composition, roleIds: string[]): Composition[] {
+  let options = [{ ...base }];
   for (const id of new Set(roleIds)) {
     const role = getRole(id);
-    if (!role) continue;
-    const note = setupNote(role);
-    if (!note) continue;
-    const m = note.match(/^([+\-−–])(\d+) (Outsiders?|Minions?|Townsfolk)$/i);
-    if (!m) continue;
-    const delta = (m[1] === '+' ? 1 : -1) * Number(m[2]);
-    const team = m[3].toLowerCase().startsWith('outsider') ? 'outsider' : m[3].toLowerCase().startsWith('minion') ? 'minion' : 'townsfolk';
-    out[team] += delta;
-    if (team !== 'townsfolk') out.townsfolk -= delta;
+    const change = role && setupDeltas(role);
+    if (!change) continue;
+    options = options.flatMap((o) =>
+      change.deltas.map((d) => {
+        const next = { ...o };
+        next[change.team] += d;
+        if (change.team !== 'townsfolk') next.townsfolk -= d;
+        return next;
+      }),
+    );
   }
-  return out;
+  const seen = new Set<string>();
+  const unique = options.filter((o) => {
+    const key = `${o.townsfolk},${o.outsider},${o.minion}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const possible = unique.filter((o) => o.townsfolk >= 0 && o.outsider >= 0 && o.minion >= 0);
+  return possible.length ? possible : unique;
+}
+
+/**
+ * Applies setup brackets like the Baron's [+2 Outsiders]. Where there's a choice (the Godfather's [-1 or +1 Outsider]),
+ * it's the one closest to the Outsiders already in the bag, given as `have`.
+ */
+export function adjustedComposition(base: Composition, roleIds: string[], have?: { outsider: number }): Composition {
+  const options = compositionOptions(base, roleIds);
+  if (!have) return options[0];
+  return options.reduce((best, o) => (Math.abs(o.outsider - have.outsider) < Math.abs(best.outsider - have.outsider) ? o : best));
 }
 
 export function canDuplicate(role: Role | undefined): boolean {

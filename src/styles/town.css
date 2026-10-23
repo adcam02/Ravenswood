@@ -1798,6 +1798,12 @@
   gap: 10px;
   margin-top: 6px;
 }
+/* A Demon that died tonight handing on: who takes over. */
+.win-pass {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 
 /* The big announcement, over the town and its fireworks. */
 .victory {

@@ -3,7 +3,7 @@ import { go } from '../App';
 import { ALL_ROLES, defaultAlignment, genericIcon, getRole, jinxesFor, nightReminder, TEAM_SINGULAR, rolesOfTeam } from '../data';
 import { player } from '../net/client';
 import { hostLink, type PlayerLine } from '../net/host';
-import { NEEDS_SHOWN, seatName, st, useHost } from '../state/host';
+import { NEEDS_SHOWN, seatName, st, underway, useHost } from '../state/host';
 import { notes, useNotes } from '../state/notes';
 import { ui, useUI } from '../state/ui';
 import { useView } from '../state/view';
@@ -13,7 +13,7 @@ import { Icon } from './Icon';
 import { Modal } from './Modal';
 import { RichText } from './RichText';
 import { evilInfoStatus } from '../lib/evilInfo';
-import { demonInfo, minionInfo, wholeEvilTeam } from '../lib/presets';
+import { canWakeTogether, demonInfo, minionInfo, tell, wholeEvilTeam } from '../lib/presets';
 import { joinNames } from '../lib/util';
 import { askForNotifications, notificationsSupported } from '../lib/notify';
 import { ScriptModal } from './ScriptPicker';
@@ -106,10 +106,14 @@ function CharacterModal({ seatId, purpose }: { seatId: string; purpose: 'role' |
   const current =
     purpose === 'role' ? raw?.roleId : purpose === 'shown' ? raw?.shownRoleId : purpose === 'note' ? noted?.guess : noted?.claim;
   const pick = (id: string) => {
+    const g = useHost.getState().g;
     if (purpose === 'role') st.setRole(seatId, id);
     else if (purpose === 'shown') st.setShownRole(seatId, id);
     else notes.set(seatId, purpose === 'note' ? 'guess' : 'claim', id);
-    ui.close();
+    // A new character during the game (a starpass, a Hatter's tea party): the wake screen opens ready to tell them,
+    // for the Storyteller to show when they're ready (or close).
+    if (!mine && id !== current && raw?.playerId && underway(g)) tell([seatId]);
+    else ui.close();
   };
   const title =
     purpose === 'role'
@@ -689,7 +693,7 @@ function DawnCheck() {
       }
     >
       <div className="dawn-check">
-        {!s.minionsShown && !s.bluffsShown && (
+        {!s.minionsShown && !s.bluffsShown && canWakeTogether(g) && (
           <button
             className="btn primary dawn-together"
             onClick={() => {

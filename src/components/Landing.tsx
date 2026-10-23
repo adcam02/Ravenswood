@@ -38,7 +38,7 @@ export function Landing() {
                   Return to room {saved.room}
                 </button>
                 <span className="landing-note">
-                  {saved.script.name} · {named ? `${named} players` : 'no players yet'} · {saved.phase === 'night' ? 'Night' : 'Day'} {saved.day}
+                  {saved.script.name || 'Custom script'} · {named ? `${named} players` : 'no players yet'} · {saved.phase === 'night' ? 'Night' : 'Day'} {saved.day}
                 </span>
                 <button className="cosy-btn small" onClick={host}>
                   Start a fresh room instead
