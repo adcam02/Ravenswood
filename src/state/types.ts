@@ -141,6 +141,17 @@ export interface Execution {
   survives?: boolean;
 }
 
+/**
+ * A nominee publicly claiming to be the Goblin (if a real Goblin who claimed is executed that day, evil wins).
+ * Anyone nominated can claim it, once a day.
+ */
+export interface GoblinClaim {
+  id: string;
+  by: string;
+  day: number;
+  at: number;
+}
+
 /** Someone claiming to be the Slayer and choosing a player, in front of the whole town. Anyone can, once a game. */
 export interface SlayerShot {
   id: string;
@@ -250,6 +261,8 @@ export interface GameState {
   pigeons?: Pigeon[];
   /** Slayer claims this game, oldest first. */
   slayer: SlayerShot[];
+  /** Nominees claiming to be the Goblin this game, oldest first. */
+  goblins?: GoblinClaim[];
   /** Everyone who has died this game, in order. */
   deaths: DeathRecord[];
   /** Set once the Storyteller calls the game. */
@@ -306,6 +319,8 @@ export interface PublicState {
   town: TownState;
   /** Slayer claims this game (without whether they were the real Slayer). */
   slayer?: SlayerShot[];
+  /** Nominees claiming to be the Goblin this game. */
+  goblins?: GoblinClaim[];
   /** Pigeons in the air just now: whose shoulder each is heading for (not who sent it). */
   pigeons?: { id: string; to: string; at: number }[];
   /** The game is over. */
@@ -400,6 +415,8 @@ export type ClientMessage =
   | { t: 'give'; to: string; item: Item }
   /** Claim to be the Slayer and choose this seat. */
   | { t: 'slay'; seatId: string }
+  /** Claim to be the Goblin, while nominated. */
+  | { t: 'goblin' }
   /** Post a letter in someone's letterbox (by day), signed or not. */
   | { t: 'letter'; to: string; text: string; signed: boolean }
   /** Send a messenger pigeon to someone: "<name> wants to speak to you", and where the sender is. */

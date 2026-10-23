@@ -3,7 +3,7 @@ import { defaultAlignment, getRole, type Alignment, type Script } from '../data'
 import { useClient } from '../net/client';
 import { useHostNet } from '../net/host';
 import { isTraveller, seatAlignment, useHost, visitFor } from './host';
-import type { AwakeState, DayTimer, DeathRecord, Execution, GameEnd, LetterIn, Nomination, Phase, Reminder, SlayerShot, TownHall, Visit, VoteRecord } from './types';
+import type { AwakeState, DayTimer, DeathRecord, Execution, GameEnd, GoblinClaim, LetterIn, Nomination, Phase, Reminder, SlayerShot, TownHall, Visit, VoteRecord } from './types';
 import type { Look, TownState, Weather } from '../world/types';
 import { useUI } from './ui';
 
@@ -62,6 +62,8 @@ export interface View {
   mySeatId: string | null;
   /** Slayer claims this game (the Storyteller also sees which were the real Slayer). */
   slayer: SlayerShot[];
+  /** Nominees claiming to be the Goblin this game. */
+  goblins: GoblinClaim[];
   /** The game is over. */
   ended: GameEnd | null;
   /** Every death this game (players get these once it's over). */
@@ -125,6 +127,7 @@ export function useStorytellerView(): View {
       grimoireRevealed: g.grimoireRevealed,
       mySeatId: null,
       slayer: g.slayer,
+      goblins: g.goblins ?? [],
       ended: g.ended,
       deaths: g.deaths,
       letters: [],
@@ -190,6 +193,7 @@ export function usePlayerView(): View | null {
       grimoireRevealed: pub.grimoireRevealed,
       mySeatId: priv?.seatId ?? null,
       slayer: pub.slayer ?? [],
+      goblins: Array.isArray(pub.goblins) ? pub.goblins : [],
       ended: pub.ended ?? null,
       deaths: pub.deaths ?? [],
       letters: Array.isArray(priv?.letters) ? priv.letters : [],

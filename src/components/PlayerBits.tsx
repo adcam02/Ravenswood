@@ -1,5 +1,6 @@
 import { getRole, TEAM_SINGULAR } from '../data';
 import { player } from '../net/client';
+import { goblinOpen } from '../state/host';
 import { ui, useUI, type Panel } from '../state/ui';
 import { useView } from '../state/view';
 import { Icon, type IconName } from './Icon';
@@ -63,6 +64,8 @@ export function VoteBar() {
   const locked = n.locked.includes(me.id);
   const canVote = !me.dead || me.ghostVote;
   const myTurn = n.status !== 'idle' && n.status !== 'countdown' && n.step > 0 && n.order[n.step - 1] === me.id && !locked;
+  // On the block with the Goblin on the script: a public claim to be it.
+  const goblin = goblinOpen(view, me.id);
   let note = '';
   if (locked) note = up ? 'Your vote is in.' : 'The hand has passed you.';
   else if (!canVote) note = 'You have used your ghost vote.';
@@ -76,6 +79,11 @@ export function VoteBar() {
         </span>
         {note && <span>{note}</span>}
       </div>
+      {goblin && (
+        <button className="btn goblin-claim" onClick={() => player.goblin()} title="Claim, in front of everyone, to be the Goblin">
+          I’m the Goblin!
+        </button>
+      )}
       <button
         className={`btn big ${up ? 'primary' : ''}`}
         disabled={locked || (!canVote && !up)}

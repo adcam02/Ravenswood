@@ -219,6 +219,7 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
     ),
     town: g.town,
     slayer: g.slayer.map(({ real: _, ...shot }) => shot),
+    goblins: g.goblins ?? [],
     pigeons: recentPigeons(g).map(({ id, to, at }) => ({ id, to, at })),
     ended: g.ended && { winner: g.ended.winner, reason: g.ended.reason, at: g.ended.at, day: g.ended.day, since: g.ended.since },
     // Night deaths stay secret until dawn, so the list only goes out once the game is over.
@@ -227,6 +228,12 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
 }
 
 /** Whether a player can claim to be the Slayer right now: the script has one, and it's a day of the game. */
+/** Whether this seat could claim to be the Goblin now: it's on the block in an open nomination, and hasn't today. */
+export function goblinOpen(g: { script: { roles: string[] }; nomination: Nomination | null; day: number; goblins?: { by: string; day: number }[]; ended?: GameEnd | null }, seatId: string): boolean {
+  const n = g.nomination;
+  return g.script.roles.includes('goblin') && !g.ended && Boolean(n && n.nomineeId === seatId && n.status !== 'done') && !(g.goblins ?? []).some((c) => c.by === seatId && c.day === g.day);
+}
+
 export function slayerOpen(g: { script: { roles: string[] }; phase: Phase; day: number; ended?: GameEnd | null }): boolean {
   return g.script.roles.includes('slayer') && g.phase === 'day' && g.day > 0 && !g.ended;
 }
@@ -1167,6 +1174,22 @@ export const st = {
       const id = uid();
       const real = s.roleId === 'slayer';
       update((g) => void g.slayer.push({ id, by: s.id, target: target.id, at: Date.now(), result: 'pending', real, day: g.day }));
+    },
+    /**
+     * The nominee claiming to be the Goblin, while the nomination is open (once a day each). Everyone sees it; on the
+     * real Goblin the Storyteller's "Claimed" reminder goes on by itself.
+     */
+    goblin(playerId: string) {
+      const g = hostGame();
+      const s = g.seats.find((x) => x.playerId === playerId);
+      if (!s || !goblinOpen(g, s.id)) return;
+      update((g) => {
+        (g.goblins ??= []).push({ id: uid(), by: s.id, day: g.day, at: Date.now() });
+        const seat = seatOf(g, s.id);
+        if (seat?.roleId === 'goblin' && !seat.reminders.some((r) => r.roleId === 'goblin' && r.text === 'Claimed')) {
+          seat.reminders.push({ id: uid(), roleId: 'goblin', text: 'Claimed' });
+        }
+      });
     },
     /**
      * A letter posted in someone's letterbox. By day only, to another seat, a few a day each, and kept short; it
