@@ -137,6 +137,8 @@ export interface Execution {
   id: string;
   seatId: string;
   at: number;
+  /** They don't die (the Devil's Advocate's choice, the Fool, a Tea Lady's neighbour): the rope snaps. */
+  survives?: boolean;
 }
 
 /** Someone claiming to be the Slayer and choosing a player, in front of the whole town. Anyone can, once a game. */

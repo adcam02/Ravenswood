@@ -151,6 +151,11 @@ export function SeatMenu({ seat, geo, pt }: { seat: SeatView; geo: Geometry; pt:
             Execute at the gallows
           </Item>
         )}
+        {!seat.dead && view.phase === 'day' && (
+          <Item icon="axe" onClick={() => (st.spare(seat.id), close())}>
+            Execute, but they survive (the rope snaps)
+          </Item>
+        )}
         <Item icon={seat.dead ? 'heart' : 'skull'} tone={seat.dead ? undefined : 'blood'} onClick={() => (st.toggleDead(seat.id), close())}>
           {seat.dead ? 'Bring back to life' : view.phase === 'night' ? 'Kill (a hooded figure visits them; everyone else finds out at dawn)' : marked ? 'Execute (the whole town watches)' : 'Kill quietly'}
         </Item>

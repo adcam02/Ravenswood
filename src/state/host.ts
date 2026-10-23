@@ -702,6 +702,18 @@ export const st = {
       if (g.marked?.seatId === id) g.marked = null;
     });
   },
+  /**
+   * An execution that doesn't kill, for the Devil's Advocate's choice, the Fool, a Tea Lady's neighbour and the
+   * like: the whole town watches the hanging, and the rope snaps. They stay alive.
+   */
+  spare(id: string) {
+    update((g) => {
+      const s = seatOf(g, id);
+      if (!s || s.dead) return;
+      g.execution = { id: uid(), seatId: id, at: Date.now(), survives: true };
+      if (g.marked?.seatId === id) g.marked = null;
+    });
+  },
   toggleGhostVote(id: string) {
     update((g) => {
       const s = seatOf(g, id);

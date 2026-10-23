@@ -54,6 +54,8 @@ export interface GallowsState {
   swing?: number;
   /** A puff of smoke from the trapdoor, 0 to 1 through it (0 for none). */
   puff?: number;
+  /** Seconds since the rope snapped, for someone who survives the hanging (0: it hasn't). */
+  snapped?: number;
 }
 /**
  * The beam's underside above the platform; the rope's length to the knot when the noose hangs empty; and how
@@ -629,7 +631,22 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   ropeRig.add(rope, noose, knot, tie);
   gallows.add(ropeRig);
   // `ring` 0: the empty loop hangs upright under the knot. 1: it lies flat round a neck GALLOWS_KNOT to the side.
-  const placeRope = (len: number, ring: number, swing: number) => {
+  // Once it has snapped, a frayed stub is left on the beam and the noose drops to the boards round their feet.
+  let nooseY = -GALLOWS_ROPE_REST;
+  const placeRope = (len: number, ring: number, swing: number, snapped = 0) => {
+    if (snapped > 0) {
+      const stub = 0.42;
+      ropeRig.rotation.z = 0;
+      rope.scale.y = stub;
+      rope.position.y = -stub / 2;
+      knot.position.set(0, -stub, 0);
+      const floor = -GALLOWS_BEAM + 0.03;
+      noose.position.set(GALLOWS_KNOT, Math.max(floor, nooseY - 4.9 * snapped * snapped), 0);
+      noose.rotation.set(Math.PI / 2, 0, 0);
+      tie.visible = false;
+      return;
+    }
+    nooseY = -len;
     ropeRig.rotation.z = swing;
     rope.scale.y = Math.max(0.001, len);
     rope.position.y = -len / 2;
@@ -1177,15 +1194,15 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     gallowsSpot: { x: GALLOWS.x, z: GALLOWS.z, ry: GALLOWS.ry, y: PLAT_H },
     occluders: outdoor.occluders,
 
-    setGallows({ open, label, rope: len = GALLOWS_ROPE_REST, ring = 0, swing = 0, puff = 0 }) {
+    setGallows({ open, label, rope: len = GALLOWS_ROPE_REST, ring = 0, swing = 0, puff = 0, snapped = 0 }) {
       // (`rope` is beam to knot; see GallowsState.)
-      const key = `${open.toFixed(3)}:${len.toFixed(3)}:${ring.toFixed(3)}:${swing.toFixed(3)}`;
+      const key = `${open.toFixed(3)}:${len.toFixed(3)}:${ring.toFixed(3)}:${swing.toFixed(3)}:${Math.min(1, snapped).toFixed(3)}`;
       if (key !== gallowsKey) {
         gallowsKey = key;
         shadowDirty = true;
       }
       trap.rotation.z = -Math.PI * 0.52 * THREE.MathUtils.clamp(open, 0, 1);
-      placeRope(len, ring, swing);
+      placeRope(len, ring, swing, snapped);
       gallowsPuff.visible = puff > 0 && puff < 1;
       if (gallowsPuff.visible) {
         // Billows out fast, then drifts up and thins away.

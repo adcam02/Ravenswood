@@ -206,6 +206,32 @@ function noise(c: AudioContext, seconds: number): AudioBufferSourceNode {
   return src;
 }
 
+/** A rope snapping: a sharp crack, then the slither of it falling and a soft thump on the boards. */
+export function ropeSnap() {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.connect(c.destination);
+  [
+    [0, 0.06, 2600, 0.3],
+    [0.05, 0.35, 900, 0.06],
+    [0.38, 0.12, 180, 0.12],
+  ].forEach(([at, len, freq, vol]) => {
+    const src = noise(c, len);
+    const f = c.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = freq;
+    f.Q.value = 0.9;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t + at);
+    g.gain.exponentialRampToValueAtTime(vol, t + at + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + at + len);
+    src.connect(f).connect(g).connect(out);
+    src.start(t + at);
+  });
+}
+
 /** The night visit's sounds: a door creaking open, a rush of cloak, the moment itself, a gasp, and a puff. */
 export function visitSound(name: string) {
   const c = audio();

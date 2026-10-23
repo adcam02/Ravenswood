@@ -275,7 +275,8 @@ export type FeatId =
   | 'lucky'
   | 'peckish'
   | 'disco'
-  | 'haunting';
+  | 'haunting'
+  | 'spared';
 
 /**
  * Things to do around Ravenswood, kept in the player's own browser with everything else they've earned. Secret ones
@@ -308,6 +309,7 @@ export const FEATS: { id: FeatId; name: string; icon: string; how: string; secre
   { id: 'dizzy', name: 'Dizzy', icon: '😵‍💫', how: 'Spin round and round and round', secret: true, hat: 'jester' },
   { id: 'disco', name: 'Dance floor', icon: '🪩', how: 'Dance in the middle of the meeting circle', secret: true },
   { id: 'haunting', name: 'Haunting', icon: '🪦', how: 'Visit the graveyard as a ghost', secret: true },
+  { id: 'spared', name: 'Not today', icon: '🍀', how: 'Walk away from the gallows', secret: true },
 ];
 
 /** The weather the Storyteller can call for. */

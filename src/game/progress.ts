@@ -152,7 +152,7 @@ export function useProgressTracker(view: View | null) {
     const room = view?.room ?? '';
     if (nom?.nomineeId === meNow.id) earn('nominated');
     if (nom?.nominatorId === meNow.id) earn('nominator');
-    if (execution?.seatId === meNow.id) earn('gallows');
+    if (execution?.seatId === meNow.id) earn(execution.survives ? 'spared' : 'gallows');
     for (const r of history ?? []) if (r.voters.includes(meNow.id)) tally('votes', 1, `vote:${room}:${r.id}`);
     // A dead player whose ghost vote is gone has used it.
     if (meNow.dead && !meNow.ghostVote) earn('ghostvote');

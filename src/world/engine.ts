@@ -8,7 +8,7 @@ import { SCORE_OF, type GameJob, type JobResults } from '../jobs/meta';
 import { rememberBest } from '../game/bests';
 import type { DayTimer, Execution, Nomination, TownAction, TownHall, Visit } from '../state/types';
 import { ambience } from '../lib/ambience';
-import { drumroll, gavel, pigeonSound, visitSound } from '../lib/audio';
+import { drumroll, gavel, pigeonSound, ropeSnap, visitSound } from '../lib/audio';
 import { NightVisit, VISIT, type VictimPose } from './visit';
 import { PIGEON, PigeonFlight } from './pigeon';
 import { ui, useUI } from '../state/ui';
@@ -57,9 +57,10 @@ const LOD_NEAR = 16;
 const TAG_FAR = 26;
 /**
  * The hanging, in seconds from the start: the noose comes down onto the neck, the drop, the puff of smoke
- * (the ghost floats up out of the trapdoor over `rise`), and the end.
+ * (the ghost floats up out of the trapdoor over `rise`), and the end. For someone who survives it, the rope snaps
+ * `snap` seconds after the drop.
  */
-const SHOW = { lower: 0.9, drop: 1.6, puff: 3.3, rise: 0.6, end: 4.3 };
+const SHOW = { lower: 0.9, drop: 1.6, puff: 3.3, rise: 0.6, end: 4.3, snap: 0.18 };
 /** Even with nothing changing, the shadow map is redrawn this often, just in case. */
 const SHADOW_SAFETY_S = 10;
 import {
@@ -309,7 +310,7 @@ export class Engine {
   private gavelled = false;
   private lastWakeId: string | null = null;
   /** The gallows show in progress: who, and when it started on our clock. */
-  private show: { id: string; seatId: string; name: string; start: number; mine: boolean; released: boolean; alive: boolean } | null = null;
+  private show: { id: string; seatId: string; name: string; start: number; mine: boolean; released: boolean; alive: boolean; survives: boolean } | null = null;
   /** The Storyteller hovering higher than usual, over someone's bed. */
   private hoverY = 0;
   /** The ground under us, eased, for walking up and down steps. */
@@ -609,7 +610,7 @@ export class Engine {
     if (ex && ex.id !== this.show?.id && Date.now() - ex.at < 15000 && !this.lastShowId.has(ex.id)) {
       this.lastShowId.add(ex.id);
       const name = v.seats.find((s) => s.id === ex.seatId)?.name ?? 'Someone';
-      this.show = { id: ex.id, seatId: ex.seatId, name, start: this.clock.elapsedTime, mine: ex.seatId === v.mySeatId, released: false, alive: true };
+      this.show = { id: ex.id, seatId: ex.seatId, name, start: this.clock.elapsedTime, mine: ex.seatId === v.mySeatId, released: false, alive: true, survives: Boolean(ex.survives) };
       // (Popups wait from this moment, not from the next frame.)
       useHud.setState({ drama: true });
       // Everyone stops what they're doing to watch, but anyone on a meeting stool stays sat.
@@ -1750,22 +1751,39 @@ export class Engine {
       this.gavelled = true;
       gavel();
     }
-    // The trapdoor snaps open on the drop and swings shut once the ghost is up.
+    // The trapdoor snaps open on the drop and swings shut once the ghost is up. For someone who survives it only
+    // rattles: it jams, and the rope snaps instead.
     const shut = SHOW.puff + SHOW.rise;
-    const open = age < SHOW.drop ? 0 : age < shut ? Math.min(1, (age - SHOW.drop) / 0.1) : Math.max(0, 1 - (age - shut) / 0.3);
+    const after = age - SHOW.drop;
+    const open = show.survives
+      ? after > 0
+        ? 0.07 * Math.exp(-5 * after) * Math.abs(Math.sin(26 * after))
+        : 0
+      : age < SHOW.drop
+        ? 0
+        : age < shut
+          ? Math.min(1, after / 0.1)
+          : Math.max(0, 1 - (age - shut) / 0.3);
     const av = show.mine ? this.me : this.others.get(show.seatId);
     const pose = this.showPose(age, this.bodyOf(av));
     const over = age >= SHOW.end;
+    const snapped = show.survives ? after - SHOW.snap : 0;
+    if (snapped > 0 && !show.released) {
+      show.released = true;
+      ropeSnap();
+      this.town.puff(pose.x, pose.y, pose.z);
+    }
     this.town.setGallows({
       open,
-      label: age < SHOW.puff ? `${show.name} is hanged` : '',
+      label: show.survives ? (over ? '' : snapped > 0 ? `${show.name} survives!` : `${show.name} is hanged`) : age < SHOW.puff ? `${show.name} is hanged` : '',
       rope: over ? GALLOWS_ROPE_REST : pose.rope,
       ring: over ? 0 : pose.ring,
       swing: over ? 0 : pose.swing,
       puff: pose.puff,
+      snapped: over ? 0 : Math.max(0, snapped),
     });
-    // They only become a ghost at the puff, not before the drop.
-    if (show.alive && age >= SHOW.puff) {
+    // They only become a ghost at the puff, not before the drop (and not at all if they survive).
+    if (show.alive && !show.survives && age >= SHOW.puff) {
       show.alive = false;
       const v = this.view;
       if (v) {
@@ -1933,8 +1951,20 @@ export class Engine {
       rope = beam - (feet + body.neck);
       hidden = fallT > fallFor * 0.8;
     }
-    const puffT = age - SHOW.puff;
-    if (puffT > 0) {
+    if (this.show?.survives && fallT > 0) {
+      // Spared: the drop jolts them, the rope snaps and the noose falls away, and they're left standing. Then a cheer.
+      feet = spot.y - 0.07 * Math.exp(-8 * fallT) * Math.abs(Math.sin(20 * fallT));
+      anim = fallT < SHOW.snap + 0.7 ? 'idle' : 'cheer';
+      hidden = false;
+      swing = 0;
+      if (fallT < SHOW.snap) {
+        rope = beam - (feet + body.neck);
+      } else {
+        rope = GALLOWS_ROPE_REST;
+        ring = 0;
+      }
+    } else if (age - SHOW.puff > 0) {
+      const puffT = age - SHOW.puff;
       puff = Math.min(1, puffT / 0.9);
       const r = ease(puffT / SHOW.rise);
       feet = bottom + (spot.y + 0.12 - bottom) * r;
