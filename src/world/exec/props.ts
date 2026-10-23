@@ -84,12 +84,12 @@ export function soldier(i: number): Soldier {
   // "BANG!" on a little flag, for the shot that never was.
   const flag = new THREE.Group();
   const stick = new Builder();
-  stick.add(G.cyl(6), '#e8e2d4', { pos: [0, 0.12, 0], scale: [0.008, 0.24, 0.008] });
+  stick.add(G.cyl(6), '#e8e2d4', { pos: [0, 0.2, 0], scale: [0.012, 0.4, 0.012] });
   flag.add(mesh(stick));
   const text = new TextSign({ w: 256, h: 128, bg: '#fffaf0', fg: '#d8402f', border: '#d8402f', size: 84, weight: 800 }, 'BANG!');
-  const board = signBoard(text, 0.26, 0.13, { lit: true });
+  const board = signBoard(text, 0.44, 0.22, { lit: true });
   // (Levelled, the barrel's frame has z pointing down: the flag hangs square to the squad's backs, text upright.)
-  board.mesh.position.set(0.13, 0.2, 0);
+  board.mesh.position.set(0.22, 0.34, 0);
   board.mesh.rotation.x = -Math.PI / 2;
   flag.add(board.mesh);
   flag.scale.setScalar(0.001);
