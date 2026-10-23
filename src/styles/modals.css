@@ -2350,6 +2350,23 @@
   margin-top: 6px;
 }
 
+/* A player's nomination, waiting on the Storyteller: the Slayer's prompt, in brass. */
+.nominate-prompt {
+  border-color: rgba(240, 212, 143, 0.6);
+}
+.nominate-prompt .eyebrow {
+  color: var(--brass-hi);
+}
+.nominate-modal .ask-seat:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.nominate-why {
+  margin: 14px 0 0;
+  text-align: center;
+  color: #ff9aa4;
+}
+
 /* The Storyteller's guided night: the next character to wake, at the top of the screen through the night (under any
    dialog, such as the wake screen it opens). */
 .night-guide {

@@ -18,6 +18,7 @@ import { joinNames } from '../lib/util';
 import { askForNotifications, notificationsSupported } from '../lib/notify';
 import { ScriptModal } from './ScriptPicker';
 import { SlayerModal } from './Slayer';
+import { NominateModal } from './Nominate';
 import { ReadLettersModal, SeatingModal, WriteLetterModal } from './Letters';
 import { AwardsModal } from './Awards';
 import { PigeonModal } from './Pigeon';
@@ -58,6 +59,8 @@ export function Modals() {
       return <DawnCheck />;
     case 'slayer':
       return <SlayerModal />;
+    case 'nominate':
+      return <NominateModal />;
     case 'recap':
       return <RecapModal />;
     case 'letter':

@@ -117,6 +117,12 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      smoke, then they walk on as a ghost. For someone who survives being executed (the Devil's
      Advocate's choice, the Fool, a Tea Lady's neighbour), **Execute, but they survive** in their seat
      menu plays the same hanging, but the trapdoor jams, the rope snaps and they're left standing.
+   - **Nominating**: by day, every living player has a **Nominate** button, in their menu and by their
+     stool at a meeting. They choose who (anyone, dead or alive, themselves included), once a day, and
+     nobody can be nominated twice in a day. You get a box: **Start the nomination** sets it up on the
+     clock and opens the grimoire to run the vote, or **Decline**. The player sees it waiting, can take
+     it back, and is told when you start it or don't (and why, when someone else's nomination of the
+     same player got there first).
    - **The end of the game**: when every Demon is dead (good) or only two players are left with the
      Demon among them (evil), you're asked whether the game is over; "Not yet" holds the question
      until something changes (a Scarlet Woman, a starpass). You can also call it either way in

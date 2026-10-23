@@ -49,6 +49,19 @@ export interface Nomination {
   secondsPerPlayer: number;
 }
 
+/** A player asking to nominate someone. The Storyteller runs nominations, so they start it (or don't). */
+export interface NominationRequest {
+  id: string;
+  /** Seat ids: who wants to nominate, and whom. */
+  by: string;
+  target: string;
+  day: number;
+  at: number;
+  status: 'pending' | 'started' | 'declined' | 'withdrawn';
+  /** Why it didn't go ahead, when another nomination got there first. */
+  note?: string;
+}
+
 export interface VoteRecord {
   id: string;
   day: number;
@@ -237,6 +250,8 @@ export interface GameState {
   nomination: Nomination | null;
   marked: { seatId: string; votes: number } | null;
   history: VoteRecord[];
+  /** Players asking to nominate today, oldest first. */
+  nomRequests?: NominationRequest[];
   townHall: TownHall | null;
   execution: Execution | null;
   /** The weather the Storyteller has called for. */
@@ -347,6 +362,8 @@ export interface PrivateState {
   pigeons?: { id: string; name: string; where: string; at: number }[];
   /** Everything kept under this player's name (or the name they're joining with), with their money and pets. */
   profile?: ProfileView | null;
+  /** This seat's own requests to nominate today, and what came of them. */
+  nomRequests?: NominationRequest[];
 }
 
 // ---------------------------------------------------------------- profiles, kept by the Storyteller
@@ -432,6 +449,8 @@ export type HostMessage =
   | { t: 'taken'; animal: string; by: string }
   /** Whether the letter just posted went in (it can't by night, or past the day's limit). */
   | { t: 'posted'; ok: boolean }
+  /** Whether the request to nominate just sent reached the Storyteller, or why not. */
+  | { t: 'nominated'; ok: boolean; why?: string }
   /** Whether the pigeon just sent took off (they only fly by day, and need a rest between flights). */
   | { t: 'pigeoned'; ok: boolean; why?: string }
   /** `at` is the ping's own time, sent back so the player can tell how long the round trip took. */
@@ -457,6 +476,9 @@ export type ClientMessage =
   | { t: 'give'; to: string; item: Item }
   /** Claim to be the Slayer and choose this seat. */
   | { t: 'slay'; seatId: string }
+  /** Ask the Storyteller to start a nomination of this seat, or take back a request still waiting. */
+  | { t: 'nominate'; seatId: string }
+  | { t: 'withdrawNomination'; id: string }
   /** Post a letter in someone's letterbox (by day), signed or not. */
   | { t: 'letter'; to: string; text: string; signed: boolean }
   /** Send a messenger pigeon to someone: "<name> wants to speak to you", and where the sender is. */

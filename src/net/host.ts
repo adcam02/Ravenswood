@@ -369,6 +369,14 @@ class HostLink {
       case 'slay':
         p.slay(pid, String(msg.seatId));
         break;
+      case 'nominate': {
+        const why = p.nominate(pid, String(msg.seatId ?? ''));
+        link.send({ t: 'nominated', ok: !why, why: why ?? undefined });
+        break;
+      }
+      case 'withdrawNomination':
+        p.withdrawNomination(pid, String(msg.id ?? ''));
+        break;
       case 'pigeon': {
         const why = p.pigeon(pid, String(msg.to ?? ''), String(msg.where ?? ''));
         link.send({ t: 'pigeoned', ok: !why, why: why ?? undefined });

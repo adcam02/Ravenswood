@@ -27,6 +27,7 @@ import { Toasts } from './components/Toasts';
 import { BluffBar } from './components/BluffBar';
 import { PickBanner } from './components/PickBanner';
 import { SlayerPrompt } from './components/Slayer';
+import { NominateDock, NominationPrompt } from './components/Nominate';
 import { NightGuide } from './components/NightGuide';
 import { GameOverLayer, WinPrompt } from './components/GameOver';
 import { MyCharacter, PlayerRail, VoteBar } from './components/PlayerBits';
@@ -180,6 +181,7 @@ function Storyteller() {
           <PickBanner />
           <NightGuide />
           <SlayerPrompt />
+          <NominationPrompt />
           <WinPrompt />
           <GameOverLayer />
           <Modals />
@@ -249,6 +251,7 @@ function Player({ room }: { room: string }) {
               <BellCall />
               <VoteBar />
               <MeetingSeat />
+              <NominateDock />
               <ActionPrompt />
               <div className="player-bottom">
                 <HandSlot />

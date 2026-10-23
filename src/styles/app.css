@@ -1053,6 +1053,11 @@ button.my-card:hover {
   color: #ffd6da;
   background: rgba(165, 26, 45, 0.36);
 }
+/* Nominating: brass, the day's big decision. */
+.rail-item.rail-nominate:not(:disabled) {
+  color: var(--brass-hi);
+  box-shadow: inset 0 0 0 1px rgba(240, 212, 143, 0.3);
+}
 
 .mode-player .town {
   right: 104px;
