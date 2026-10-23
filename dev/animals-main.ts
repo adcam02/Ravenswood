@@ -40,6 +40,8 @@ const camera = new THREE.PerspectiveCamera(40, W / H, 0.1, 200);
 /** Some views look straight on without perspective. */
 let orthoCam: THREE.OrthographicCamera | null = null;
 const rigs: { rig: Rig; anim: Anim; speed: number; spinning?: boolean }[] = [];
+/** A view that draws itself in pieces (the hat sheets) rather than as one picture. */
+let sheetDraw: (() => void) | null = null;
 
 const hatParam = q.get('hat') as HatId | null;
 /** ?wear=face:glasses,neck:scarf,back:cape puts the same dress-up on every animal. */
@@ -363,6 +365,93 @@ if (view === 'grid' || view === 'night') {
   });
   camera.position.set(0, 2.2, 3.2);
   camera.lookAt(0, 0.1, 0);
+} else if (view === 'hatsheet') {
+  // Contact sheets for fitting hats, each cell framed on one head: ?hat=tophat puts that hat on every animal,
+  // ?animal=fox puts every hat on that animal (a list of either narrows it). ?angle=game (three-quarter from above,
+  // as the town camera sees others), side, front, back (as you see yourself) or top; &anim=walk|sit|wave poses
+  // them (at &t=, default 1, heads turned straight ahead unless &natural), &ghost turns them ghostly, &cols= sets the
+  // columns. window.sheet({ animal, hat, angle, anim, t }) draws another on the same page, without building the
+  // animals again.
+  type Sheet = { animal?: string | null; hat?: string | null; angle?: string | null; anim?: string | null; t?: string | null; cols?: string | null };
+  const angles: Record<string, [number, number]> = { game: [0.62, 0.78], side: [Math.PI / 2, 0.1], front: [0, 0.14], back: [Math.PI + 0.5, 0.62], top: [0.3, 1.25] };
+  const built = new Map<AnimalId, Rig>();
+  const rigFor = (id: AnimalId) => {
+    let r = built.get(id);
+    if (!r) {
+      r = make(lookOf(id));
+      r.root.visible = false;
+      if (q.has('ghost')) r.setGhost(true);
+      if (lowParam) r.setDetail('low');
+      scene.add(r.root);
+      built.set(id, r);
+    }
+    return r;
+  };
+  const labels = document.createElement('div');
+  labels.style.cssText = 'position:absolute;left:0;top:0;font:12px sans-serif;color:#123;pointer-events:none';
+  document.body.appendChild(labels);
+  // Narrow, from well back, so it looks down at the same angle all over (as the town camera does from afar).
+  const cam = new THREE.PerspectiveCamera(8, 1, 0.05, 80);
+  const box = new THREE.Box3();
+  const v = new THREE.Vector3();
+  renderer.setScissorTest(true);
+  // Everyone stands at the middle, so the sun's shadows need only cover a little.
+  sun.shadow.mapSize.set(1024, 1024);
+  Object.assign(sun.shadow.camera, { left: -2.5, right: 2.5, top: 2.5, bottom: -2.5 });
+  sun.shadow.camera.updateProjectionMatrix();
+  const draw = (o: Sheet) => {
+    const ids = (o.animal?.split(',') ?? list) as AnimalId[];
+    const hats = (o.hat?.split(',') ?? HATS.map((h) => h.id)) as HatId[];
+    const anim = (o.anim ?? 'idle') as Anim;
+    const speed = anim === 'walk' ? 1.6 : anim === 'run' ? 4 : 0;
+    const t = Number(o.t ?? 1);
+    const [az, el] = angles[o.angle ?? 'game'];
+    const pairs = ids.flatMap((id) => hats.map((hat) => [id, hat] as const));
+    const cols = Number(o.cols ?? Math.ceil(Math.sqrt(pairs.length * (W / H))));
+    const rows = Math.ceil(pairs.length / cols);
+    const cw = W / cols;
+    const ch = H / rows;
+    cam.aspect = cw / ch;
+    cam.updateProjectionMatrix();
+    labels.replaceChildren();
+    renderer.setScissor(0, 0, W, H);
+    renderer.setClearColor('#5a6a78');
+    renderer.clear();
+    pairs.forEach(([id, hat], i) => {
+      const r = rigFor(id);
+      r.setHat(hat);
+      // Settled into the pose (the same moment for every cell).
+      for (let f = 0; f < 8; f++) r.update({ anim, speed, dt: 0.05, t });
+      // Looking straight ahead, so every cell is seen from the same side (&natural leaves the head as the pose has it).
+      if (!q.has('natural')) insideOf(r).neck.rotation.y = insideOf(r).neck.rotation.z = 0;
+      r.root.visible = true;
+      r.root.updateMatrixWorld(true);
+      // Framed on the head (its ellipsoid, in neck space) and the hat together.
+      const I = insideOf(r);
+      box.makeEmpty();
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) for (const sz of [-1, 1]) box.expandByPoint(v.set(I.shape.hc[0] + sx * I.shape.hr[0], I.shape.hc[1] + sy * I.shape.hr[1], I.shape.hc[2] + sz * I.shape.hr[2]).applyMatrix4(I.neck.matrixWorld));
+      const holder = (r as unknown as { hat: { holder: THREE.Object3D } | null }).hat?.holder;
+      if (holder) box.union(new THREE.Box3().setFromObject(holder));
+      const c = box.getCenter(new THREE.Vector3());
+      const d = ((box.getSize(v).length() / 2) * 1.08) / Math.sin(THREE.MathUtils.degToRad(cam.fov / 2));
+      const ry = r.root.rotation.y + az;
+      cam.position.set(c.x + Math.sin(ry) * Math.cos(el) * d, c.y + Math.sin(el) * d, c.z + Math.cos(ry) * Math.cos(el) * d);
+      cam.lookAt(c);
+      const x = (i % cols) * cw;
+      const y = H - (Math.floor(i / cols) + 1) * ch;
+      renderer.setViewport(x, y, cw, ch);
+      renderer.setScissor(x + 1, y + 1, cw - 2, ch - 2);
+      renderer.render(scene, cam);
+      r.root.visible = false;
+      const tag = document.createElement('div');
+      tag.textContent = ids.length > 1 && hats.length > 1 ? `${id} ${hat}` : ids.length > 1 ? id : hat;
+      tag.style.cssText = `position:absolute;left:${x + 4}px;top:${Math.floor(i / cols) * ch + 2}px`;
+      labels.appendChild(tag);
+    });
+  };
+  const first: Sheet = Object.fromEntries(['animal', 'hat', 'angle', 'anim', 't', 'cols'].map((k) => [k, q.get(k)]));
+  sheetDraw = () => draw(first);
+  (window as unknown as { sheet: (o: Sheet) => void }).sheet = draw;
 } else if (view === 'hats' && q.get('set') === 'jobs') {
   // The job hats, one each on ten different heads; then the awkward heads all in one of them (?hat=).
   const jobs: [AnimalId, HatId][] = [
@@ -550,10 +639,15 @@ function frame(now: number) {
     r.rig.update({ anim: r.anim, speed: r.speed, dt, t });
   }
   for (const p of pets) p.pet.update(dt, t, p.moving);
-  renderer.render(scene, orthoCam ?? camera);
+  // (A sheet is drawn just once: drawing every cell is slow.)
+  if (sheetDraw) {
+    if (frames === 10) sheetDraw();
+  } else renderer.render(scene, orthoCam ?? camera);
   frames++;
   W8.frame = frames;
-  if (frames === 12 && q.has('lite')) {
+  if (frames === 12 && sheetDraw) {
+    (window as unknown as { done: boolean }).done = true;
+  } else if (frames === 12 && q.has('lite')) {
     const tris: Record<string, number> = {};
     const faces: Record<string, unknown> = {};
     rigs.forEach((r, i) => {

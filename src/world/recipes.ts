@@ -1103,12 +1103,15 @@ const deer: Recipe = (k, c) => {
   const snout = snoutForm(k, { dy: -0.3, len: 0.11, ra: 0.075, rb: 0.052, drop: 0.045, squash: [1, 0.85, 1], thin: true });
   earForms(k, { x: 0.8, y: 0.3, w: 0.065, h: 0.17, d: 0.035, splay: 1.05, rake: 0.12, cup: 0.55, long: true });
   const hc = plus(k.joints.neck, headAt);
-  // Antlers: a beam up and out from the crown with a tine forward off it.
+  // Antlers: a beam up and out from the crown with a tine forward off it, each on a bone of its own so it can fold away
+  // under a hat.
   for (const side of [-1, 1]) {
+    const nm = side > 0 ? 'antlerL' : 'antlerR';
     const b: Vec3 = [side * 0.07, hc[1] + 0.12, hc[2] - 0.02];
     const m: Vec3 = [side * 0.12, hc[1] + 0.22, hc[2] - 0.04];
-    chain(k, 'neck', [b, m, [side * 0.17, hc[1] + 0.31, hc[2] - 0.07]], [0.027, 0.024, 0.021], `antler${side > 0 ? 'L' : 'R'}_`);
-    chain(k, 'neck', [m, [side * 0.13, hc[1] + 0.28, hc[2] + 0.04]], [0.024, 0.021], `antler${side > 0 ? 'L' : 'R'}T`);
+    bone(k, nm, 'neck', [b[0] - k.joints.neck[0], b[1] - k.joints.neck[1], b[2] - k.joints.neck[2]]);
+    chain(k, nm, [b, m, [side * 0.17, hc[1] + 0.31, hc[2] - 0.07]], [0.027, 0.024, 0.021], `${nm}_`);
+    chain(k, nm, [m, [side * 0.13, hc[1] + 0.28, hc[2] + 0.04]], [0.024, 0.021], `${nm}T`);
   }
   armForms(k, { len: 0.32, r0: 0.045, r1: 0.036, paw: [0.036, 0.032, 0.045], fwd: 0.3, out: 0.12 });
   legForms(k, { r0: 0.05, r1: 0.036, foot: [0.036, 0.032, 0.05] });

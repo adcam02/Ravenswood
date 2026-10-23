@@ -3,10 +3,11 @@ import { Builder, jitter, placeMatrix, rng, soft, wet, type Place, type Vec3 } f
 import type { HatId } from './types';
 
 /**
- * The hats players earn and wear. Each is modelled for a reference head (0.28 m across, 0.25 m tall) with
- * its origin at the top of that head, so the rig only has to place the origin on its own head and scale.
- * Everything is one vertex-coloured mesh, except the bits that glow on their own (the halo, the candle's flame, the
- * jack-o'-lantern's face, the robot's light strip and spark) and the bits that move (the propeller, the tassels).
+ * The hats players earn and wear. Each is modelled for a reference head about half a metre across, with its origin at
+ * the top of that head, and says how it's worn (its `sit`): fitHat, at the bottom, works out from that where it goes
+ * on any animal's head. Everything is one vertex-coloured mesh, except the bits that glow on their
+ * own (the halo, the candle's flame, the jack-o'-lantern's face, the robot's light strip and spark) and the bits that
+ * move (the propeller, the tassels).
  */
 
 export interface BuiltHat {
@@ -17,6 +18,8 @@ export interface BuiltHat {
   materials: THREE.Material[];
   /** How far the hat reaches above the head top, in reference metres (before the rig's scale). */
   top: number;
+  /** How it's worn (see HatSit). */
+  sit: HatSit;
   /** Gentle motion: the halo, the propeller, the candle flame, the tassels, the robot's spark and the lantern's flicker. */
   update?: (t: number) => void;
 }
@@ -65,11 +68,11 @@ function bentCone(b: Builder, colors: (i: number) => THREE.ColorRepresentation, 
   return [pos.x, pos.y, pos.z];
 }
 
-function finish(b: Builder, extra: Partial<BuiltHat> & { top: number }, material = soft()): BuiltHat {
+function finish(b: Builder, extra: Partial<BuiltHat> & { top: number; sit: HatSit }, material = soft()): BuiltHat {
   const group = new THREE.Group();
   const mesh = b.mesh(material, { cast: true, receive: false });
   group.add(mesh);
-  return { group, solid: [{ mesh, material }], materials: [material], ...extra, top: extra.top };
+  return { group, solid: [{ mesh, material }], materials: [material], ...extra, top: extra.top, sit: extra.sit };
 }
 
 // ---------------------------------------------------------------- the hats
@@ -93,7 +96,7 @@ function beanie(): BuiltHat {
     const a = (i / 5) * Math.PI * 2;
     b.add(sph(7, 5), cream, { pos: [Math.cos(a) * 0.04, 0.1 + (i % 2) * 0.02, -0.01 + Math.sin(a) * 0.04], scale: 0.045 });
   }
-  return finish(b, { top: 0.17 });
+  return finish(b, { top: 0.17, sit: { kind: 'snug', rim: [-0.17, 0.3] } });
 }
 
 function flowerCrown(): BuiltHat {
@@ -126,7 +129,7 @@ function flowerCrown(): BuiltHat {
     const lq = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.3, la, 0.6));
     b.add(sph(6, 4), leaf, new THREE.Matrix4().compose(new THREE.Vector3(Math.sin(la) * (R + 0.01), y + Math.cos(la) * Math.sin(tilt) * R * 0.9 + 0.005, Math.cos(la) * (R + 0.01)), lq, new THREE.Vector3(0.038, 0.012, 0.02)));
   }
-  return finish(b, { top: 0.04 });
+  return finish(b, { top: 0.04, sit: { kind: 'ring', rim: [-0.07, 0.215] } });
 }
 
 function partyHat(): BuiltHat {
@@ -146,7 +149,7 @@ function partyHat(): BuiltHat {
   for (let i = 0; i < 5; i++) b.add(sph(8, 6), '#fbf8f2', { pos: [Math.sin(i * 1.9) * 0.025, -0.03 + H + 0.02 + Math.cos(i * 1.3) * 0.02, Math.cos(i * 1.9) * 0.025], scale: 0.025 });
   // The elastic, a thin loop dropping down each side.
   for (const side of [-1, 1]) b.add(cyl(6), '#e8e0d0', { pos: [side * 0.13, -0.11, 0.02], rot: [0, 0, side * 0.12], scale: [0.004, 0.16, 0.004] });
-  return finish(b, { top: H + 0.03 });
+  return finish(b, { top: H + 0.03, sit: { kind: 'perch', rim: [-0.03, 0.12] } });
 }
 
 function wizardHat(): BuiltHat {
@@ -171,7 +174,7 @@ function wizardHat(): BuiltHat {
   }
   star.dispose();
   b.add(torus(0.28, 6, 18), '#f6d55c', { pos: [0.11, 0.03, 0.06], rot: [0, 1.0, 0.6], scale: [0.03, 0.03, 0.03] });
-  return finish(b, { top: 0.4 });
+  return finish(b, { top: 0.4, sit: { kind: 'brim', rim: [-0.03, 0.165] } });
 }
 
 function topHat(): BuiltHat {
@@ -186,7 +189,7 @@ function topHat(): BuiltHat {
   const bow: Vec3 = [0.1, 0.0, 0.09];
   for (const side of [-1, 1]) b.add(sph(10, 7), '#a8303a', { pos: [bow[0] + side * 0.022, bow[1], bow[2]], rot: [0, 0.8, side * 0.4], scale: [0.026, 0.017, 0.012] });
   b.add(sph(8, 6), '#8a2430', { pos: bow, scale: 0.012 });
-  return finish(b, { top: 0.22 });
+  return finish(b, { top: 0.22, sit: { kind: 'brim', rim: [-0.035, 0.13] } });
 }
 
 function crown(): BuiltHat {
@@ -210,7 +213,7 @@ function crown(): BuiltHat {
     const ja = a + Math.PI / 6;
     b.add(sph(8, 6), jewels[i % 3], { pos: [Math.sin(ja) * (R + 0.012), -0.015, Math.cos(ja) * (R + 0.012)], scale: [0.02, 0.022, 0.012], rot: [0, ja, 0] });
   }
-  return finish(b, { top: 0.13 });
+  return finish(b, { top: 0.13, sit: { kind: 'perch', rim: [-0.05, 0.17] } });
 }
 
 function witchHat(): BuiltHat {
@@ -233,7 +236,7 @@ function witchHat(): BuiltHat {
   ]) {
     b.add(new THREE.BoxGeometry(1, 1, 1), '#e8c26a', { pos: [x, y, bz], scale: [w, h, 0.012] });
   }
-  return finish(b, { top: 0.38 });
+  return finish(b, { top: 0.38, sit: { kind: 'brim', rim: [-0.02, 0.15] } });
 }
 
 function halo(): BuiltHat {
@@ -255,6 +258,7 @@ function halo(): BuiltHat {
     solid: [],
     materials: [ring, glowMat],
     top: 0.19,
+    sit: { kind: 'float', rim: [0, 0.17] },
     update: (t) => {
       holder.position.y = 0.13 + Math.sin(t * 2.1) * 0.018;
       holder.rotation.z = Math.sin(t * 1.3) * 0.06;
@@ -300,7 +304,7 @@ function lumberjack(): BuiltHat {
     const a = (i / 6) * Math.PI * 2;
     b.add(sph(7, 5), i % 2 ? red : black, { pos: [Math.cos(a) * 0.042, 0.1 + (i % 2) * 0.02, -0.01 + Math.sin(a) * 0.042], scale: 0.042 });
   }
-  return finish(b, { top: 0.17 });
+  return finish(b, { top: 0.17, sit: { kind: 'snug', rim: [-0.17, 0.3] } });
 }
 
 function souwester(): BuiltHat {
@@ -320,7 +324,7 @@ function souwester(): BuiltHat {
   brim.dispose();
   b.add(torus(0.25, 5, 40), seam, { pos: [0, -0.125, -0.03], rot: [Math.PI / 2, 0, 0], scale: [0.318, 0.318 * 1.18, 0.03] });
   for (const side of [-1, 1]) b.add(cyl(6), '#8a6a1a', { pos: [side * 0.19, -0.15, 0.02], rot: [0, 0, side * 0.1], scale: [0.006, 0.18, 0.006] });
-  return finish(b, { top: 0.11 });
+  return finish(b, { top: 0.11, sit: { kind: 'brim', rim: [-0.07, 0.2, 0.21] } });
 }
 
 function mitre(): BuiltHat {
@@ -349,7 +353,7 @@ function mitre(): BuiltHat {
     b.add(new THREE.BoxGeometry(1, 1, 1), white, { pos: [side * 0.07, -0.2, -0.13], rot: [0.1, 0, 0], scale: [0.05, 0.22, 0.01] });
     b.add(new THREE.BoxGeometry(1, 1, 1), gold, { pos: [side * 0.07, -0.31, -0.141], rot: [0.1, 0, 0], scale: [0.056, 0.025, 0.012] });
   }
-  return finish(b, { top: 0.36 });
+  return finish(b, { top: 0.36, sit: { kind: 'brim', rim: [-0.06, 0.175, 0.13] } });
 }
 
 function chef(): BuiltHat {
@@ -367,7 +371,7 @@ function chef(): BuiltHat {
     const a = (i / 7) * Math.PI * 2;
     b.add(sph(12, 8), i % 2 ? white : '#f6f2ea', { pos: [Math.sin(a) * 0.13, 0.16 + (i % 3) * 0.01, Math.cos(a) * 0.13], scale: [0.11, 0.09, 0.11] });
   }
-  return finish(b, { top: 0.25 });
+  return finish(b, { top: 0.25, sit: { kind: 'brim', rim: [-0.065, 0.17] } });
 }
 
 function bowler(): BuiltHat {
@@ -379,7 +383,7 @@ function bowler(): BuiltHat {
   b.add(torus(0.3, 6, 36), black, { pos: [0, -0.035, 0], rot: [Math.PI / 2, 0, 0], scale: [0.21, 0.22, 0.05] });
   b.add(cyl(30), '#4a3a32', { pos: [0, -0.012, 0], scale: [0.158, 0.035, 0.168] });
   for (const side of [-1, 1]) b.add(sph(10, 7), '#4a3a32', { pos: [-0.15 + side * 0.0, -0.01, 0.04 + side * 0.018], rot: [0.4, 0, 0], scale: [0.012, 0.014, 0.022] });
-  return finish(b, { top: 0.13 });
+  return finish(b, { top: 0.13, sit: { kind: 'brim', rim: [-0.04, 0.155, 0.165] } });
 }
 
 function sunhat(): BuiltHat {
@@ -404,7 +408,7 @@ function sunhat(): BuiltHat {
     b.add(sph(6, 4), '#f6c42c', { pos: [fx + Math.cos(a) * 0.035, 0.0 + Math.sin(a) * 0.035, fz], rot: [0, 0.8, a], scale: [0.026, 0.011, 0.008] });
   }
   b.add(sph(8, 6), '#6a4224', { pos: [fx, 0.0, fz + 0.005], scale: [0.022, 0.022, 0.012] });
-  return finish(b, { top: 0.1 });
+  return finish(b, { top: 0.1, sit: { kind: 'brim', rim: [-0.04, 0.165] } });
 }
 
 function headscarf(): BuiltHat {
@@ -429,7 +433,7 @@ function headscarf(): BuiltHat {
   const { p: knot } = onShell(R[0], R[1], R[2], Math.PI, 0.3, 0);
   b.add(sph(10, 8), blue, at(knot.clone().add(new THREE.Vector3(0, 0, -0.012)), undefined, new THREE.Vector3(0.042, 0.036, 0.034)));
   for (const side of [-1, 1]) b.add(sph(10, 8), blue, at(knot.clone().add(new THREE.Vector3(side * 0.045, -0.045, -0.02)), euler(0.25, 0, side * 0.55), new THREE.Vector3(0.026, 0.07, 0.02)));
-  return finish(b, { top: 0.08 });
+  return finish(b, { top: 0.08, sit: { kind: 'snug', rim: [-0.14, 0.3, 0.31] } });
 }
 
 function feathercap(): BuiltHat {
@@ -443,7 +447,7 @@ function feathercap(): BuiltHat {
   const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.9, 0, -0.35));
   b.add(sph(12, 6), '#d8343a', new THREE.Matrix4().compose(new THREE.Vector3(0.15, 0.07, -0.06), q, new THREE.Vector3(0.024, 0.2, 0.006)));
   b.add(cyl(5), '#f6efe0', new THREE.Matrix4().compose(new THREE.Vector3(0.15, 0.07, -0.06), q, new THREE.Vector3(0.004, 0.36, 0.004)));
-  return finish(b, { top: 0.2 });
+  return finish(b, { top: 0.2, sit: { kind: 'brim', rim: [-0.03, 0.17, 0.24] } });
 }
 
 function sailor(): BuiltHat {
@@ -462,7 +466,7 @@ function sailor(): BuiltHat {
   b.add(torus(0.25, 4, 14), '#e2b23a', { pos: [0, 0.0, az], scale: [0.018, 0.018, 0.02] });
   b.add(new THREE.BoxGeometry(1, 1, 1), '#e2b23a', { pos: [0, -0.025, az], scale: [0.007, 0.04, 0.006] });
   b.add(new THREE.BoxGeometry(1, 1, 1), '#e2b23a', { pos: [0, -0.045, az], scale: [0.034, 0.007, 0.006] });
-  return finish(b, { top: 0.08 });
+  return finish(b, { top: 0.08, sit: { kind: 'brim', rim: [-0.055, 0.17] } });
 }
 
 function leprechaun(): BuiltHat {
@@ -488,7 +492,7 @@ function leprechaun(): BuiltHat {
     b.add(sph(8, 6), '#4cc35a', { pos: [0.1 + Math.cos(a) * 0.022, 0.06 + Math.sin(a) * 0.022, 0.1], rot: [0, 0.8, 0], scale: [0.022, 0.022, 0.007] });
   }
   b.add(cyl(5), '#3a8a3a', { pos: [0.1, 0.03, 0.1], rot: [0, 0, 0.3], scale: [0.004, 0.04, 0.004] });
-  return finish(b, { top: 0.2 });
+  return finish(b, { top: 0.2, sit: { kind: 'brim', rim: [-0.035, 0.135] } });
 }
 
 function clockmaker(): BuiltHat {
@@ -535,7 +539,7 @@ function clockmaker(): BuiltHat {
   b.add(cyl(12), brass, { pos: [0, 0.14, 0], scale: [0.022, 0.026, 0.022] });
   b.add(cyl(12), '#e2c06a', { pos: [0, 0.155, 0], scale: [0.026, 0.008, 0.026] });
   b.add(torus(0.18, 6, 22), brass, { pos: [0, 0.185, 0], scale: [0.027, 0.027, 0.035] });
-  return finish(b, { top: 0.21 });
+  return finish(b, { top: 0.21, sit: { kind: 'brim', rim: [-0.035, 0.14] } });
 }
 
 // ---------------------------------------------------------------- the achievement hats, and the secret ones
@@ -585,7 +589,7 @@ function propeller(): BuiltHat {
   for (const side of [-1, 1]) {
     p.add(sph(12, 6), side < 0 ? panels[2] : panels[1], { pos: [side * 0.092, 0, 0], rot: [side * 0.4, 0, 0], scale: [0.085, 0.013, 0.036] });
   }
-  const built = finish(b, { top: 0.15 });
+  const built = finish(b, { top: 0.15, sit: { kind: 'snug', rim: [-0.12, 0.27, 0.28] } });
   const material = soft();
   const blades = p.mesh(material, { cast: true, receive: false });
   blades.position.set(0, 0.128, -0.01);
@@ -638,7 +642,7 @@ function reaper(): BuiltHat {
   const rim = new THREE.TorusGeometry(Math.sin(hole) * 0.965, 0.06, 6, 36).rotateX(Math.PI / 2).translate(0, Math.cos(hole) * 0.965, 0).applyQuaternion(tip);
   b.add(warp(rim, cowl), '#3d3648');
   rim.dispose();
-  return finish(b, { top: 0.15 });
+  return finish(b, { top: 0.15, sit: { kind: 'hood', rim: [-0.2, 0.31, 0.3], open: [0, -0.52, 0.85, 0.35] } });
 }
 
 function horns(): BuiltHat {
@@ -655,7 +659,7 @@ function horns(): BuiltHat {
     b.add(sph(12, 7), reds[0], { pos: [base[0], base[1] + 0.016, base[2]], scale: [0.06, 0.026, 0.06] });
     bentCone(b, (i) => reds[i], base, 0.053, 0.18, 6, 1.2, [0, 0, side], [side * 0.65, 1, 0.3]);
   }
-  return finish(b, { top: 0.12 }, wet());
+  return finish(b, { top: 0.12, sit: { kind: 'perch', rim: [-0.06, 0.16], among: true } }, wet());
 }
 
 function laurel(): BuiltHat {
@@ -700,7 +704,7 @@ function laurel(): BuiltHat {
     b.add(sph(8, 6), gold, { pos: [k.x + side * 0.03, k.y + 0.008, k.z], rot: [0, 0, side * 0.35], scale: [0.028, 0.017, 0.01] });
     b.add(new THREE.BoxGeometry(1, 1, 1), '#a82424', { pos: [k.x + side * 0.018, k.y - 0.042, k.z - 0.004], rot: [0.15, 0, side * 0.3], scale: [0.016, 0.066, 0.004] });
   }
-  return finish(b, { top: 0.04 });
+  return finish(b, { top: 0.04, sit: { kind: 'ring', rim: [-0.075, 0.222] } });
 }
 
 function tricorn(): BuiltHat {
@@ -762,7 +766,7 @@ function tricorn(): BuiltHat {
   b.add(sph(10, 8), bone, { pos: [0, 0.006, 0.008], scale: [0.024, 0.022, 0.012] }, F);
   b.add(sph(8, 6), bone, { pos: [0, -0.013, 0.008], scale: [0.014, 0.011, 0.01] }, F);
   for (const side of [-1, 1]) b.add(sph(6, 4), '#1a1618', { pos: [side * 0.009, 0.004, 0.018], scale: [0.0065, 0.0075, 0.004] }, F);
-  return finish(b, { top: 0.11 });
+  return finish(b, { top: 0.11, sit: { kind: 'brim', rim: [-0.04, 0.168, 0.172] } });
 }
 
 function toadstool(): BuiltHat {
@@ -804,7 +808,7 @@ function toadstool(): BuiltHat {
     b.add(spot, '#fbf8f2', new THREE.Matrix4().compose(p, new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n), new THREE.Vector3(s, s, s * 0.3)));
   }
   spot.dispose();
-  return finish(b, { top: 0.19 });
+  return finish(b, { top: 0.19, sit: { kind: 'brim', rim: [-0.12, 0.215] } });
 }
 
 function headband(): BuiltHat {
@@ -833,7 +837,7 @@ function headband(): BuiltHat {
     b.add(cyl(4), '#189e93', { pos: [Math.sin(a) * 0.262, -0.1, Math.cos(a) * 0.262], rot: [0, a, 0], scale: [0.006, 0.06, 0.006] }, tilt);
   }
   b.add(new THREE.CylinderGeometry(1, 1, 1, 40, 1, true), '#fbf8f2', { pos: [0, -0.1, 0], scale: [0.272, 0.024, 0.272] }, tilt);
-  return finish(b, { top: 0.0 });
+  return finish(b, { top: 0.0, sit: { kind: 'band', rim: [-0.14, 0.236] } });
 }
 
 function candle(): BuiltHat {
@@ -867,7 +871,7 @@ function candle(): BuiltHat {
   const d = new THREE.Vector3(Math.sin(0.5), 0, Math.cos(0.5));
   b.add(sph(8, 6), wax, { pos: [d.x * 0.041, 0.18, d.z * 0.041], rot: [0, 0.5, 0], scale: [0.013, 0.035, 0.009] });
   b.add(sph(8, 6), wax, { pos: [d.x * 0.045, 0.145, d.z * 0.045], scale: 0.013 });
-  const built = finish(b, { top: 0.36 });
+  const built = finish(b, { top: 0.36, sit: { kind: 'perch', rim: [-0.03, 0.12] } });
   // The flame: a pale yellow bulb with an orange tip, and a soft glow round it.
   const f = new Builder();
   const drop = new THREE.LatheGeometry(
@@ -928,7 +932,7 @@ function postie(): BuiltHat {
   b.add(new THREE.BoxGeometry(1, 1, 1), red, { pos: [0, 0, 0.006], scale: [0.028, 0.019, 0.004] }, F);
   b.add(new THREE.BoxGeometry(1, 1, 1), '#fbf8f2', { pos: [0, 0, 0.008], scale: [0.022, 0.013, 0.003] }, F);
   for (const side of [-1, 1]) b.add(new THREE.BoxGeometry(1, 1, 1), red, { pos: [side * 0.0055, 0.002, 0.0098], rot: [0, 0, side * 0.6], scale: [0.014, 0.0028, 0.002] }, F);
-  return finish(b, { top: 0.1 });
+  return finish(b, { top: 0.1, sit: { kind: 'brim', rim: [-0.0575, 0.19, 0.195] } });
 }
 
 function jester(): BuiltHat {
@@ -960,7 +964,7 @@ function jester(): BuiltHat {
     b.add(sph(9, 7), '#f4c94a', { pos: [end[0], end[1] - 0.04, end[2]], scale: 0.03 });
     b.add(torus(0.2, 3, 12), '#b8862a', { pos: [end[0], end[1] - 0.046, end[2]], rot: [Math.PI / 2, 0, 0], scale: [0.026, 0.026, 0.02] });
   }
-  return finish(b, { top: 0.14 });
+  return finish(b, { top: 0.14, sit: { kind: 'snug', rim: [-0.145, 0.287, 0.297] } });
 }
 
 // ---------------------------------------------------------------- the pop-culture hats
@@ -1059,7 +1063,7 @@ function fez(): BuiltHat {
   // The cord over the top and down the low side, where it hangs clear of the felt.
   const edge = new THREE.Vector3(0.088, H + 0.006, 0.075);
   b.add(cyl(6), ink, rod(new THREE.Vector3(0, H + 0.014, 0), edge, 0.0065), F);
-  const built = finish(b, { top: 0.2 });
+  const built = finish(b, { top: 0.2, sit: { kind: 'perch', rim: [-0.07, 0.152] } });
   const hang = edge.clone().add(new THREE.Vector3(0.006, 0, 0.006)).applyMatrix4(F);
   const tassel = hangTassel(built, hang.toArray(), ink, '#2c282e', 0.05, 0.085);
   built.update = (t) => swing(tassel, t);
@@ -1135,7 +1139,7 @@ function deerstalker(): BuiltHat {
     b.add(sph(10, 6), tweed[2], { pos: [side * 0.034, top.y + 0.008, top.z], rot: [0, 0, side * 0.45], scale: [0.038, 0.019, 0.017] });
     b.add(new THREE.BoxGeometry(1, 1, 1), tweed[2], { pos: [side * 0.012, top.y - 0.008, top.z + side * 0.03], rot: [side * 0.9, side * 0.4, 0], scale: [0.012, 0.004, 0.05] });
   }
-  return finish(b, { top: 0.12 });
+  return finish(b, { top: 0.12, sit: { kind: 'snug', rim: [-0.11, 0.262, 0.275] } });
 }
 
 function tinfoil(): BuiltHat {
@@ -1191,7 +1195,7 @@ function tinfoil(): BuiltHat {
   const group = new THREE.Group();
   const mesh = b.mesh(material, { cast: true, receive: false, crease: 0 });
   group.add(mesh);
-  return { group, solid: [{ mesh, material }], materials: [material], top: 0.36 };
+  return { group, solid: [{ mesh, material }], materials: [material], top: 0.36, sit: { kind: 'brim', rim: [-0.07, 0.198] } };
 }
 
 function trainer(): BuiltHat {
@@ -1231,7 +1235,7 @@ function trainer(): BuiltHat {
   const moon = disc(Math.PI / 2, Math.PI);
   b.add(moon, '#2fa84f', new THREE.Matrix4().compose(p.clone().addScaledVector(n, 0.006).addScaledVector(new THREE.Vector3(0, 1, 0).applyQuaternion(q), -0.012), q, new THREE.Vector3(0.046, 0.046, 0.01)));
   moon.dispose();
-  return finish(b, { top: 0.09 });
+  return finish(b, { top: 0.09, sit: { kind: 'snug', rim: [-0.12, 0.265, 0.278] } });
 }
 
 function madhatter(): BuiltHat {
@@ -1341,7 +1345,7 @@ function madhatter(): BuiltHat {
   ]) {
     b.add(new THREE.BoxGeometry(1, 1, 1), '#8a7e74', { pos: [0, y, 0.002], scale: [len, 0.0022, 0.002] }, K);
   }
-  return finish(b, { top: 0.44 });
+  return finish(b, { top: 0.44, sit: { kind: 'brim', rim: [-0.04, 0.128] } });
 }
 
 function cowboy(): BuiltHat {
@@ -1396,7 +1400,7 @@ function cowboy(): BuiltHat {
   const binding = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(edge, true), 64, 0.008, 4, true);
   b.add(binding, '#6e4426');
   binding.dispose();
-  return finish(b, { top: 0.17 });
+  return finish(b, { top: 0.17, sit: { kind: 'brim', rim: [-0.04, 0.148, 0.172] } });
 }
 
 function robot(): BuiltHat {
@@ -1431,7 +1435,7 @@ function robot(): BuiltHat {
     b.add(cyl(22), '#8c96a2', { pos: at.toArray(), rot: [0, 0, Math.PI / 2], scale: [0.058, 0.03, 0.058] });
     b.add(cyl(22), '#2a2e36', { pos: [at.x + side * 0.016, at.y, at.z], rot: [0, 0, Math.PI / 2], scale: [0.034, 0.004, 0.034] });
   }
-  const built = finish(b, { top: 0.1 }, new THREE.MeshPhongMaterial({ vertexColors: true, specular: '#ffffff', shininess: 90 }));
+  const built = finish(b, { top: 0.1, sit: { kind: 'snug', rim: [-0.17, 0.29, 0.3] } }, new THREE.MeshPhongMaterial({ vertexColors: true, specular: '#ffffff', shininess: 90 }));
   const mid = (visor[0] + visor[1]) / 2 - 0.02;
   const strip = new THREE.SphereGeometry(1, 24, 1, fr[0] + 0.12, fr[1] - 0.24, mid - 0.022, 0.044);
   const stripMat = new THREE.MeshBasicMaterial({ color: '#ff3c46' });
@@ -1499,7 +1503,7 @@ function trafficCone(): BuiltHat {
   b.add(slab, '#1f1f24');
   slab.dispose();
   b.add(cyl(28, 1, 1.12), '#2a2a30', { pos: [0, y0 + 0.02, 0], scale: [r0 + 0.012, 0.02, r0 + 0.012] });
-  return finish(b, { top: 0.4 });
+  return finish(b, { top: 0.4, sit: { kind: 'brim', rim: [-0.032, 0.15] } });
 }
 
 function mortarboard(): BuiltHat {
@@ -1518,7 +1522,7 @@ function mortarboard(): BuiltHat {
   const corner = (side / 2) * Math.SQRT2;
   const end = new THREE.Vector3(corner - 0.004, yb + 0.011, 0);
   b.add(cyl(6), gold, rod(new THREE.Vector3(0, yb + 0.016, 0), end, 0.006));
-  const built = finish(b, { top: 0.07 });
+  const built = finish(b, { top: 0.07, sit: { kind: 'snug', rim: [-0.1, 0.232, 0.242] } });
   const tassel = hangTassel(built, [corner + 0.006, yb + 0.008, 0], gold, '#d8a028', 0.05, 0.085);
   built.update = (t) => swing(tassel, t + 2, 0.8);
   return built;
@@ -1581,7 +1585,7 @@ function pumpkin(): BuiltHat {
   const tendril = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(curl), 24, 0.0045, 4, false);
   b.add(tendril, '#5aa040');
   tendril.dispose();
-  const built = finish(b, { top: 0.29 });
+  const built = finish(b, { top: 0.29, sit: { kind: 'perch', rim: [-0.04, 0.147] } });
   // The carving: shapes laid out in longitude and latitude on the front, each a dark cut rim round a glowing hole.
   const tris: [number, number][][] = [];
   const tri = (pts: [number, number][]) => {
@@ -1696,9 +1700,409 @@ export function buildHat(hat: HatId): BuiltHat | null {
   return make ? make() : null;
 }
 
-/** How a hat sits on one animal: where the head top is (neck space), how big, and any tilt. */
+// ---------------------------------------------------------------- fitting a hat to a head
+
+/**
+ * How a hat is worn. `rim` is where it meets the head, in the hat's own units: how high (from its origin, the top of
+ * the reference head) and how far out from the middle, side to side and front to back (if different).
+ * - snug: pulled down over the crown to just above the eyes and stretched to hug the head there (beanies, caps,
+ *   the headscarf, the helmet). Ears under it fold away inside.
+ * - band: round the head just above the eyes, stretched to hug it (the sweatband).
+ * - ring: round the top of the head as it was modelled, stretched to hug it (the wreaths), ears standing up inside.
+ * - brim: set down on the crown as far as its opening lets it, at the head's size. Ears under it fold away.
+ * - perch: a little thing set on the crown the same way, which would rather be made smaller to sit between the
+ *   ears than fold them away (a crown, a candle).
+ * - hood: drawn over the whole head, the face looking out through its opening (the reaper's cowl); `rim` is the
+ *   middle of it, and `open` the way its opening faces and how wide it is (the cosine of the angle out to its edge).
+ * - float: hovering over the head, clear of everything on it (the halo).
+ * Whatever the kind, it's then tipped back, lifted, moved back or made smaller, as little as it can be, until it
+ * keeps clear of the eyes (and of the town camera's view of them, from above), eye stalks, horns and antlers.
+ * `among` says it's worn among the ears, which stay up through it (the devil horns' band).
+ */
+export interface HatSit {
+  kind: 'snug' | 'band' | 'ring' | 'brim' | 'perch' | 'hood' | 'float';
+  rim: [number, number, number?];
+  among?: boolean;
+  open?: [number, number, number, number];
+}
+
+/**
+ * Part of a head (neck space): points on the skull itself (`head`), or on something standing off it, by the bone it
+ * moves with: an ear that can fold away under a hat, an eye, or anything else a hat has to keep clear of.
+ */
+export interface HatBit {
+  bone: string;
+  is: 'head' | 'fold' | 'eye' | 'solid';
+  pts: THREE.Vector3[];
+}
+
+/** A head, as a hat sees it (neck space). */
+export interface HatHead {
+  /** The skull as an ellipsoid (centre and radii): what hats sit on and hug. */
+  c: Vec3;
+  r: Vec3;
+  /** How big the hats that aren't stretched to fit are made (1 for the reference head). */
+  size: number;
+  /** One eye (the other is its mirror image across x = 0): its centre and radius. */
+  eye: { at: Vec3; r: number };
+  /** How high a snug hat's rim comes at the front, if not just above the eyes. */
+  brow?: number;
+  /** How far the head hangs forward (radians) when standing about, if it does. */
+  droop?: number;
+  bits: HatBit[];
+}
+
+/** A nudge for one head (or one hat on it): moved, resized, tipped back (radians), or left exactly where it's put. */
+export interface HatNudge {
+  dx?: number;
+  dy?: number;
+  dz?: number;
+  scale?: number;
+  tilt?: number;
+  fixed?: boolean;
+}
+
+/** Where a hat goes on one head (neck space), how big (stretched along its own axes), its tilt, and the bones it folds away. */
 export interface HatFit {
   pos: Vec3;
-  scale: number;
   rot: Vec3;
+  scale: Vec3;
+  fold: string[];
+}
+
+const NY = 130;
+const Y0 = -0.6;
+const DY = 0.01;
+const NS = 32;
+const NG = 60;
+const G0 = -0.6;
+const DG = 0.02;
+const sector = (x: number, z: number) => Math.floor(((Math.atan2(x, z) + Math.PI) / (Math.PI * 2)) * NS) % NS;
+
+/**
+ * A hat's shape, for fitting (hat units): at each height and each way round, how far out from the middle it reaches
+ * (and how far in, for a ring), and how high it reaches over each spot seen from above. Somewhere is inside the hat if
+ * the hat reaches out past it and also over it, which counts the inside of a crown or a beanie but not the gap under
+ * a dangling tassel. Each is spread a cell each way, so sampling gaps don't matter.
+ */
+class Outline {
+  private out = new Float32Array(NY * NS).fill(-1);
+  private in = new Float32Array(NY * NS).fill(9);
+  private over = new Float32Array(NG * NG).fill(-9);
+
+  constructor(group: THREE.Object3D) {
+    group.updateMatrixWorld(true);
+    const inv = group.matrixWorld.clone().invert();
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
+    const c = new THREE.Vector3();
+    const p = new THREE.Vector3();
+    const out = new Float32Array(NY * NS).fill(-1);
+    const inn = new Float32Array(NY * NS).fill(9);
+    const over = new Float32Array(NG * NG).fill(-9);
+    const mark = (p: THREE.Vector3) => {
+      const iy = Math.floor((p.y - Y0) / DY);
+      if (iy < 0 || iy >= NY) return;
+      const r = Math.hypot(p.x, p.z);
+      const j = iy * NS + sector(p.x, p.z);
+      if (r > out[j]) out[j] = r;
+      if (r < inn[j]) inn[j] = r;
+      const gx = Math.floor((p.x - G0) / DG);
+      const gz = Math.floor((p.z - G0) / DG);
+      if (gx >= 0 && gx < NG && gz >= 0 && gz < NG && p.y > over[gz * NG + gx]) over[gz * NG + gx] = p.y;
+    };
+    group.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh) return;
+      const toHat = m.matrixWorld.clone().premultiply(inv);
+      const pos = m.geometry.getAttribute('position') as THREE.BufferAttribute;
+      const ix = m.geometry.getIndex();
+      const n = ix ? ix.count : pos.count;
+      for (let i = 0; i + 2 < n; i += 3) {
+        a.fromBufferAttribute(pos, ix ? ix.getX(i) : i).applyMatrix4(toHat);
+        b.fromBufferAttribute(pos, ix ? ix.getX(i + 1) : i + 1).applyMatrix4(toHat).sub(a);
+        c.fromBufferAttribute(pos, ix ? ix.getX(i + 2) : i + 2).applyMatrix4(toHat).sub(a);
+        // Points all over the face, about a centimetre apart.
+        const k = Math.min(30, Math.ceil(Math.max(b.length(), c.length(), b.distanceTo(c)) / 0.012));
+        for (let u = 0; u <= k; u++) for (let v = 0; u + v <= k; v++) mark(p.copy(a).addScaledVector(b, u / k).addScaledVector(c, v / k));
+      }
+    });
+    for (let iy = 1; iy < NY - 1; iy++) {
+      for (let is = 0; is < NS; is++) {
+        let o = -1;
+        let i = 9;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let ds = -1; ds <= 1; ds++) {
+            const j = (iy + dy) * NS + ((is + ds + NS) % NS);
+            o = Math.max(o, out[j]);
+            i = Math.min(i, inn[j]);
+          }
+        }
+        this.out[iy * NS + is] = o;
+        this.in[iy * NS + is] = i;
+      }
+    }
+    for (let gz = 0; gz < NG; gz++) {
+      for (let gx = 0; gx < NG; gx++) {
+        let o = -9;
+        for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) if (gx + dx >= 0 && gx + dx < NG && gz + dz >= 0 && gz + dz < NG) o = Math.max(o, over[(gz + dz) * NG + gx + dx]);
+        this.over[gz * NG + gx] = o;
+      }
+    }
+  }
+
+  /** Where a point (hat units) is, across a ring-shaped hat: 0 if the hat isn't there at all, 1 in the hole in the middle, 2 in the stuff of it, 3 outside it. */
+  across(x: number, y: number, z: number): number {
+    const iy = Math.floor((y - Y0) / DY);
+    if (iy < 1 || iy >= NY - 1) return 0;
+    const j = iy * NS + sector(x, z);
+    if (this.out[j] < 0) return 0;
+    const r = Math.sqrt(x * x + z * z);
+    return r > this.out[j] + 0.004 ? 3 : r > this.in[j] - 0.004 ? 2 : 1;
+  }
+
+  /** How far out from the middle the hat reaches anywhere between two heights, the way round a point is (hat units). */
+  reach(x: number, z: number, y0: number, y1: number): number {
+    let r = -1;
+    const is = sector(x, z);
+    for (let iy = Math.max(0, Math.floor((y0 - Y0) / DY)); iy <= Math.min(NY - 1, Math.floor((y1 - Y0) / DY)); iy++) r = Math.max(r, this.out[iy * NS + is]);
+    return r;
+  }
+
+  /** Whether a point (hat units) is inside the hat, or in the stuff of it if it's a ring (not the hole in the middle). */
+  inside(x: number, y: number, z: number, ring = false): boolean {
+    const iy = Math.floor((y - Y0) / DY);
+    if (iy < 1 || iy >= NY - 1) return false;
+    const r = Math.sqrt(x * x + z * z);
+    const j = iy * NS + sector(x, z);
+    if (r > this.out[j] + 0.006) return false;
+    if (ring) return r > this.in[j] - 0.006;
+    const gx = Math.floor((x - G0) / DG);
+    const gz = Math.floor((z - G0) / DG);
+    return gx >= 0 && gx < NG && gz >= 0 && gz < NG && y < this.over[gz * NG + gx] + 0.006;
+  }
+}
+
+/** Hats' shapes for fitting, by what they're made by (they're all the same shape every time). */
+const outlines = new Map<string, Outline>();
+
+/**
+ * The town camera looks down on everyone from about this high (radians), from wherever it is round them, and
+ * indoors from higher still: how much it matters that a hat keeps out of the way of each.
+ */
+const CAMERA_PITCHES: [number, number][] = [
+  [0.78, 5],
+  [0.95, 2],
+];
+
+/**
+ * Works out where a hat goes on a head: first by its kind (see HatSit), then by trying it tipped further back,
+ * lifted (or, for a ring, lowered), moved back and made smaller, keeping whichever does least to keep clear of the
+ * eyes, the town camera's view of them and anything rigid standing off the head, without baring the top of the head
+ * it was covering. Ears it still covers fold away (a perched hat or a ring would rather move than fold them).
+ */
+export function fitHat(hat: HatId, built: BuiltHat, head: HatHead, nudge: HatNudge = {}): HatFit {
+  const { kind, rim } = built.sit;
+  const [ry0, rx0, rz0 = rx0] = rim;
+  const [cx, cy, cz] = head.c;
+  const [hx, hy, hz] = head.r;
+  const top = cy + hy;
+  let shape = outlines.get(hat);
+  if (!shape) outlines.set(hat, (shape = new Outline(built.group)));
+  const outline = shape;
+  const eye = head.eye;
+  // (Eyes up on top of the head, or on stalks, don't make a snug hat any shallower than this.)
+  const brow = head.brow ?? Math.min(eye.at[1] + eye.r * 0.9 + 0.012, top - hy * 0.4);
+  // The head's half-width and half-depth at a height.
+  const cut = (y: number): [number, number] => {
+    const t = THREE.MathUtils.clamp((y - cy) / hy, -0.95, 0.95);
+    const k = Math.sqrt(1 - t * t);
+    return [hx * k, hz * k];
+  };
+  const hugging = kind === 'snug' || kind === 'band' || kind === 'ring';
+  const ring = kind === 'ring' || kind === 'band' || kind === 'float';
+  // (A band is made tipped down at the front, which this sets level.)
+  const baseTilt = nudge.tilt ?? (kind === 'snug' || kind === 'band' ? 0.15 : kind === 'float' || kind === 'hood' ? 0 : 0.12);
+  const size = head.size * (nudge.scale ?? 1);
+  const shift = new THREE.Vector3(nudge.dx ?? 0, nudge.dy ?? 0, nudge.dz ?? 0);
+
+  let grow = 1;
+  /** Where it sits by its kind, made `k` times smaller (a ring `lift` higher, still hugging the head there). */
+  const base = (k: number, lift = 0): { pos: THREE.Vector3; scale: THREE.Vector3 } => {
+    if (hugging) {
+      // Round the head, a little loose, as far down as the brow at the front (a ring as far down as it was made).
+      let yc = kind === 'ring' ? Math.max(brow, top + ry0 * size) + lift : brow;
+      let sx = 1;
+      let sz = 1;
+      for (let i = 0; i < 3; i++) {
+        const [w, d] = cut(yc);
+        sx = ((w * 1.04 + 0.006) / rx0) * k;
+        sz = ((d * 1.04 + 0.006) / rz0) * k;
+        if (kind !== 'ring') yc = brow - rz0 * sz * Math.sin(baseTilt);
+      }
+      // Let out until the head (not just the ellipsoid it's roughly) fits inside.
+      sx *= grow;
+      sz *= grow;
+      const mean = (sx + sz) / 2;
+      // A snug hat's crown comes down over the top of the head; a band or a ring keeps its own height.
+      const sy = kind === 'snug' ? THREE.MathUtils.clamp((top + 0.006 - yc) / -ry0, mean * 0.8, mean * 1.25) : mean;
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-baseTilt, 0, 0));
+      return { pos: new THREE.Vector3(cx, yc, cz).sub(new THREE.Vector3(0, ry0 * sy, 0).applyQuaternion(q)).add(shift), scale: new THREE.Vector3(sx, sy, sz) };
+    }
+    if (kind === 'hood') {
+      // Its middle on the head's, a little bigger all round (and let out to cover the head).
+      const sx = ((hx * 1.08) / rx0) * k * grow;
+      const sz = ((hz * 1.08) / rz0) * k * grow;
+      const sy = (sx + sz) / 2;
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-baseTilt, 0, 0));
+      return { pos: new THREE.Vector3(cx, cy, cz).sub(new THREE.Vector3(0, ry0 * sy, 0).applyQuaternion(q)).add(shift), scale: new THREE.Vector3(sx, sy, sz) };
+    }
+    const s = size * k;
+    if (kind === 'float') return { pos: new THREE.Vector3(cx, top, cz).add(shift), scale: new THREE.Vector3(s, s, s) };
+    // Set down until its opening meets the head (whichever way across meets it first).
+    const sink = (q: number, r: number) => hy * (1 - Math.sqrt(1 - Math.min(0.98, (q * s) / r) ** 2));
+    const rimY = top - Math.min(sink(rx0, hx), sink(rz0, hz));
+    return { pos: new THREE.Vector3(cx, rimY - ry0 * s, cz).add(shift), scale: new THREE.Vector3(s, s, s) };
+  };
+
+  // (A crest, the robot's antenna, folds away under anything but a halo; ears only under a hat that covers them.)
+  const crests = head.bits.filter((b) => b.is === 'fold' && b.bone.startsWith('crest') && kind !== 'float').map((b) => b.bone);
+  // Ears stand up through a wreath or a band (or anything worn `among` them).
+  const fold = built.sit.among || kind === 'ring' || kind === 'band' ? [] : head.bits.filter((b) => b.is === 'fold' && !crests.includes(b.bone));
+  const skin = head.bits.filter((b) => b.is === 'head').flatMap((b) => b.pts);
+  const eyes = head.bits.filter((b) => b.is === 'eye').flatMap((b) => b.pts);
+  const solid = head.bits.filter((b) => b.is === 'solid');
+  // Looking at each eye from the town camera, from straight in front and from that eye's side, and from in front: from
+  // just over the top of the eye under a brim (so all of it shows, not just a sliver), from its middle under anything
+  // snug (whose rim is just above it anyway). A band round the brow is only kept off the eyes themselves.
+  // (Turned into the head's own space, for a head that hangs forward.)
+  const looks: [THREE.Vector3, THREE.Vector3, number][] = [];
+  const droop = new THREE.Matrix3().setFromMatrix4(new THREE.Matrix4().makeRotationX(-(head.droop ?? 0)));
+  for (const side of kind === 'band' ? [] : [1, -1]) {
+    const e = new THREE.Vector3(side * eye.at[0], eye.at[1] + (hugging ? eye.r * 0.3 : eye.r + 0.015), eye.at[2] + 0.01);
+    for (const [p, w] of CAMERA_PITCHES) for (const az of [0, side * 0.6]) looks.push([e, new THREE.Vector3(Math.sin(az) * Math.cos(p), Math.sin(p), Math.cos(az) * Math.cos(p)).applyMatrix3(droop), w]);
+    looks.push([e, new THREE.Vector3(0, 0.15, 1).normalize().applyMatrix3(droop), 5]);
+  }
+  const m = new THREE.Matrix4();
+  const inv = new THREE.Matrix4();
+  const lin = new THREE.Matrix3();
+  const h = new THREE.Vector3();
+  const d = new THREE.Vector3();
+  const q = new THREE.Quaternion();
+  const euler = new THREE.Euler();
+  const place = (pos: THREE.Vector3, scale: THREE.Vector3, tilt: number) => {
+    m.compose(pos, q.setFromEuler(euler.set(-tilt, 0, 0)), scale);
+    inv.copy(m).invert();
+    lin.setFromMatrix4(inv);
+  };
+  const isIn = (p: THREE.Vector3) => {
+    h.copy(p).applyMatrix4(inv);
+    return outline.inside(h.x, h.y, h.z, ring);
+  };
+  /**
+   * How much of the head shows through the hat: a hat that covers the head (all but a ring or a halo) should have
+   * all of it that's above its rim and within its reach there inside it, a hood all but the face; a ring should have
+   * it all through the hole in the middle.
+   */
+  const [fx, fy, fz, fw] = built.sit.open ?? [0, 0, 1, 1];
+  const face = Object.assign(new THREE.Vector3(fx, fy, fz).normalize(), { w: fw });
+  const bare = (worst = Infinity) => {
+    let n = 0;
+    if (kind === 'float') return 0;
+    for (const p of skin) {
+      h.copy(p).applyMatrix4(inv);
+      const shows = ring
+        ? outline.across(h.x, h.y, h.z) > 2
+        : kind === 'hood'
+          ? new THREE.Vector3(h.x, h.y - ry0, h.z).normalize().dot(face) < face.w && !outline.inside(h.x, h.y, h.z)
+          : h.y > ry0 + 0.02 && Math.hypot(h.x, h.z) < outline.reach(h.x, h.z, ry0 - 0.03, ry0 + 0.03) && !outline.inside(h.x, h.y, h.z);
+      if (shows && ++n > worst) return n;
+    }
+    return n;
+  };
+  const foldCost = kind === 'perch' || kind === 'ring' || kind === 'band' ? 25 : kind === 'float' ? 60 : 0.5;
+  /** What it costs to move it from where its kind puts it. */
+  const moved = (k: number, tilt: number, lift: number, back: number) => (tilt - baseTilt) * 5 + Math.abs(lift) * 70 + back * 50 + (1 - k) * (kind === 'perch' ? 7 : 25);
+  /** How badly it's in the way, given up on once it's worse than `worst`. */
+  const clash = (worst: number) => {
+    let cost = 0;
+    for (const p of eyes) if (isIn(p) && (cost += 12) > worst) return cost;
+    // Something rigid standing off the head (a horn, a stalk) can be hidden right inside the hat, or stand clear of
+    // it, but not go through it (even a thin brim).
+    for (const b of solid) {
+      let n = 0;
+      for (const p of b.pts) if (isIn(p)) n++;
+      if (n && n < b.pts.length && (cost += 8 + Math.min(n, b.pts.length - n)) > worst) return cost;
+    }
+    if ((cost += bare((worst - cost) / 1.5) * 1.5) > worst) return cost;
+    // Each look from an eye stops at the first bit of hat in the way.
+    for (const [e, dir, w] of looks) {
+      h.copy(e).applyMatrix4(inv);
+      d.copy(dir).applyMatrix3(lin);
+      for (let t = 0.02; t < 0.5; t += 0.012) {
+        if (outline.inside(h.x + d.x * t, h.y + d.y * t, h.z + d.z * t, ring)) {
+          if ((cost += w) > worst) return cost;
+          break;
+        }
+      }
+    }
+    // (Antlers only fold away under something that covers the head; anything else would rather fit between them.)
+    for (const f of fold) if (f.pts.some(isIn) && (cost += f.bone.startsWith('antler') && kind !== 'snug' && kind !== 'hood' ? 25 : foldCost) > worst) return cost;
+    return cost;
+  };
+  if (hugging || kind === 'hood') {
+    // Let out until none of the head shows through (nor any of a horn it mostly covers, or a hood any of), and a touch
+    // more.
+    const through = () => {
+      let n = bare();
+      for (const b of solid) {
+        const k = b.pts.filter(isIn).length;
+        if (k >= (kind === 'hood' ? 1 : b.pts.length / 2)) n += b.pts.length - k;
+      }
+      return n;
+    };
+    for (; grow < 1.3; grow += 0.025) {
+      const b = base(1);
+      place(b.pos, b.scale, baseTilt);
+      if (!through()) break;
+    }
+    grow = Math.min(1.3, grow + 0.025);
+  }
+  // Every way of moving it, cheapest first, until even moving it costs more than the best found.
+  const shrinks = kind === 'perch' ? [1, 0.9, 0.8, 0.7, 0.6, 0.5] : kind === 'ring' || kind === 'hood' ? [1] : kind === 'brim' ? [1, 0.92, 0.84, 0.76, 0.68] : [1, 0.92, 0.84, 0.76];
+  const lifts = kind === 'float' ? [0, 0.02, 0.04, 0.07, 0.1, 0.14, 0.19, 0.25] : kind === 'ring' ? [0, -0.01, -0.02, -0.03, 0.01, 0.02, 0.035, 0.05] : [0, 0.01, 0.02, 0.035, 0.05, 0.07];
+  const tilts = kind === 'float' ? [0] : [0, 0.1, 0.2, 0.3, 0.4];
+  const tries: { k: number; tilt: number; lift: number; back: number; cost: number }[] = [];
+  for (const k of shrinks) for (const t of tilts) for (const lift of lifts) for (const back of [0, 0.02, 0.04, 0.06]) tries.push({ k, tilt: baseTilt + t, lift, back, cost: moved(k, baseTilt + t, lift, back) });
+  tries.sort((a, b) => a.cost - b.cost);
+  const bases = new Map<string, { pos: THREE.Vector3; scale: THREE.Vector3 }>();
+  /** Puts it there (a ring is refitted where it's moved to), and says where that is. */
+  const at = (k: number, tilt: number, lift: number, back: number) => {
+    const key = kind === 'ring' ? `${k} ${lift}` : `${k}`;
+    let b = bases.get(key);
+    if (!b) bases.set(key, (b = kind === 'ring' ? base(k, lift) : base(k)));
+    const pos = new THREE.Vector3(b.pos.x, b.pos.y + (kind === 'ring' ? 0 : lift), b.pos.z - back);
+    place(pos, b.scale, tilt);
+    return { pos, scale: b.scale };
+  };
+  let best = tries[0];
+  let bestCost = Infinity;
+  if (nudge.fixed) bestCost = 0;
+  for (const t of tries) {
+    if (t.cost >= bestCost) break;
+    at(t.k, t.tilt, t.lift, t.back);
+    const cost = t.cost + clash(bestCost - t.cost);
+    if (cost < bestCost) {
+      best = t;
+      bestCost = cost;
+    }
+  }
+  (globalThis as unknown as { hatDebug?: unknown[] }).hatDebug?.push({ best, bestCost, grow, clashAt: (k: number, tilt: number, lift: number, back: number) => (at(k, tilt, lift, back), clash(1e9)), looks: looks.length });
+  const b = at(best.k, best.tilt, best.lift, best.back);
+  return {
+    pos: [b.pos.x, b.pos.y, b.pos.z],
+    rot: [-best.tilt, 0, 0],
+    scale: [b.scale.x, b.scale.y, b.scale.z],
+    fold: [...crests, ...fold.filter((f) => f.pts.some(isIn)).map((f) => f.bone)],
+  };
 }

@@ -2,12 +2,12 @@ import * as THREE from 'three';
 import { SMOOTH_LOOK, eyeMaterial, glow, shifting, soft, wet, type Shift, type Vec3 } from './build';
 import { buildBack, buildFace, buildNeck, type BackFit, type BuiltPiece, type FaceFit, type NeckFit } from './dressup';
 import { all, any, armForms, details, finishSculpt, region, sculptOf, sock, useSurface } from './forms';
-import { buildHat, type BuiltHat, type HatFit } from './hats';
+import { buildHat, fitHat, type BuiltHat, type HatBit, type HatFit, type HatHead, type HatNudge } from './hats';
 import { buildItem, disposeObject } from './items';
 import { Fold, lowDetail, seedOf, seeded, solid, tube } from './paper';
 import { ellipsoid, rod, type Probe } from './sculpt';
 import { DETAILS, RECIPES, profileOf } from './recipes';
-import { col, colorsFor, mix, newKit, onHead, type Kit, type Mannerism, type Part, type Profile, type Shape } from './species';
+import { col, colorsFor, mix, newKit, type Kit, type Mannerism, type Part, type Profile, type Shape } from './species';
 import { animalInfo, type Anim, type AnimalId, type BackId, type FaceId, type HatId, type Item, type ItemKind, type Look, type NeckId } from './types';
 
 export { buildPet, type Pet } from './pets';
@@ -529,7 +529,7 @@ class AnimalRig implements Rig {
   private lowKit?: () => Kit;
   private lowKey?: string;
   private hatFit?: HatPlace;
-  private hat: { id: HatId; built: BuiltHat; holder: THREE.Group } | null = null;
+  private hat: { id: HatId; built: BuiltHat; holder: THREE.Group; fold: string[] } | null = null;
   private baseHeadHeight = 1;
   private dressFit?: { face: FaceFit; neck: NeckFit; back: BackFit };
   private worn: Record<'face' | 'neck' | 'back', { id: string; piece: BuiltPiece } | null> = { face: null, neck: null, back: null };
@@ -776,18 +776,71 @@ class AnimalRig implements Rig {
     if (!hat) return;
     const built = buildHat(hat);
     if (!built) return;
-    const fit = this.hatFit.hats?.[hat] ?? this.hatFit;
+    // Worked out once for each animal and hat, from the head's shape and what stands off it.
+    const key = `${this.hatFit.id}:${hat}`;
+    let fit = fitted.get(key);
+    if (!fit) {
+      const place = this.hatFit;
+      // (A sleepy head hangs forward as it stands about.)
+      const droop = this.prof.head + (this.sleepy ? 0.2 : 0);
+      fit = fitHat(hat, built, { ...place.head, droop, bits: this.hatBits() }, { ...place.nudge, ...place.nudge.hats?.[hat] });
+      fitted.set(key, fit);
+    }
     const holder = new THREE.Group();
     holder.position.set(...fit.pos);
     holder.rotation.set(...fit.rot);
-    holder.scale.setScalar(fit.scale);
+    holder.scale.set(...fit.scale);
     holder.add(built.group);
     this.neck.add(holder);
-    this.hat = { id: hat, built, holder };
+    this.hat = { id: hat, built, holder, fold: fit.fold };
     this.applyHatGhost();
     // The name label and anything floating over the head have to clear the hat.
-    const top = this.sk.rest.get('neck')!.y + fit.pos[1] + built.top * fit.scale + (this.floats ? this.hover : 0);
+    const top = this.sk.rest.get('neck')!.y + fit.pos[1] + built.top * fit.scale[1] + (this.floats ? this.hover : 0);
     this.headHeight = Math.max(this.baseHeadHeight, top);
+  }
+
+  /**
+   * What stands off the head (neck space, at rest), for fitting hats round: the ears (and antennae and anything
+   * else that folds away under a hat), the eyes, eye stalks, and whatever else stands out of the skull above the eyes
+   * (horns, antlers, crests), a few dozen points of each.
+   */
+  private hatBits(): HatBit[] {
+    const place = this.hatFit!;
+    // (Always the close-up surface, whichever is showing.)
+    const pos = this.highGeo.getAttribute('position') as THREE.BufferAttribute;
+    const idx = this.highGeo.getAttribute('skinIndex') as THREE.BufferAttribute;
+    const [nx, ny, nz] = place.neckAt;
+    const { c, r } = place.head;
+    // (From the eyes up, or the middle of the head up if the eyes are higher than that, on stalks.)
+    const low = Math.min(place.head.eye.at[1] - place.head.eye.r, c[1]);
+    const bumps = place.nudge.bumps;
+    const groups = new Map<string, THREE.Vector3[]>();
+    for (let i = 0; i < pos.count; i++) {
+      const bone = this.sk.names[idx.getX(i)];
+      const is = hatBitOf(bone);
+      if (!is) continue;
+      const p = new THREE.Vector3(pos.getX(i) - nx, pos.getY(i) - ny, pos.getZ(i) - nz);
+      // On the head itself, from the eyes up: the skull (which a hat should cover, or fit round), and whatever
+      // stands out of it (which a hat has to keep clear of).
+      let group = bone;
+      if (bone === 'neck') {
+        if (p.y < low) continue;
+        const out = ((p.x - c[0]) / r[0]) ** 2 + ((p.y - c[1]) / r[1]) ** 2 + ((p.z - c[2]) / r[2]) ** 2 > 1.25;
+        if (out && bumps === 'none') continue;
+        group = out && bumps !== 'head' ? 'neck' : 'skull';
+      }
+      (groups.get(group) ?? groups.set(group, []).get(group)!).push(p);
+    }
+    const bits: HatBit[] = [];
+    for (const [bone, pts] of groups) {
+      const keep = bone === 'skull' ? 160 : 30;
+      const step = Math.max(1, Math.floor(pts.length / keep));
+      const some = pts.filter((_, i) => i % step === 0);
+      // What stands out of the skull, one piece at a time (a horn, an antler, a tuft).
+      if (bone === 'neck') for (const piece of clumps(pts, 0.03)) bits.push({ bone, is: 'solid', pts: piece.filter((_, i) => i % Math.max(1, Math.floor(piece.length / 30)) === 0) });
+      else bits.push({ bone, is: bone === 'skull' ? 'head' : hatBitOf(bone)!, pts: some });
+    }
+    return bits;
   }
 
   setDressUp(d: DressUp) {
@@ -1785,9 +1838,9 @@ class AnimalRig implements Rig {
     // under a cape or a backpack.
     const plates = this.bones.get('backPlates');
     if (plates && this.backCovered()) plates.scale.setScalar(0.001);
-    // Something standing up off the top of the head (the robot's antenna, the homunculus's sprout) folds away under a hat.
-    const crest = this.bones.get('crest');
-    if (crest && this.hat) crest.scale.setScalar(0.001);
+    // Ears, antennae and anything else standing up off the top of the head (the robot's antenna, the homunculus's
+    // sprout) fold away under a hat that covers them.
+    if (this.hat?.holder.visible) for (const name of this.hat.fold) this.bones.get(name)?.scale.setScalar(0.001);
     // A tendril only comes out when there's something to hold or a gesture to make.
     const grow = this.tendril ? Math.max(0.001, this.grow) : 1;
     if (this.tendril) this.armR.scale.multiplyScalar(grow);
@@ -1869,6 +1922,8 @@ class AnimalRig implements Rig {
     }
     if (this.drips && !this.ghost) this.updateDrips(dt);
     this.hat?.built.update?.(s.t + this.seed);
+    // Hats come off for bed.
+    if (this.hat) this.hat.holder.visible = s.anim !== 'sleep';
     const moving = s.anim === 'walk' || s.anim === 'run' ? Math.max(s.speed, s.anim === 'run' ? 4 : 1.6) : 0;
     this.lastSpeed = moving;
     this.lastT = s.t + this.seed;
@@ -2159,43 +2214,73 @@ function dressFit(id: AnimalId, k: Kit): { face: FaceFit; neck: NeckFit; back: B
 }
 
 /**
- * Where a hat goes on each animal. By default it sits on the crown, scaled to the head's width and tipped
- * back a touch; some heads need it nudged clear of ears, antlers, fins or eye stalks.
+ * Where a hat goes on each animal: worked out from the skull and what stands off it (see fitHat), so most heads need
+ * nothing here. Some heads aren't where the skull is (a mushroom's is its cap) or want a hat moved, resized or tipped,
+ * or a particular hat put somewhere else: `skull` replaces the ellipsoid hats fit, `brow` is how high a snug hat's
+ * rim comes at the front (instead of just above the eyes), `bumps` says what stands out of the skull is just more
+ * head ('head') or nothing a hat need keep clear of ('none'), rather than horns and antlers, and the rest moves it.
  */
-type HatNudge = { dy?: number; dz?: number; dx?: number; scale?: number; rot?: Vec3 };
-const HAT_NUDGE: Partial<Record<AnimalId, HatNudge & { hats?: Partial<Record<HatId, HatNudge>> }>> = {
-  snail: { dy: -0.01, dz: 0.0, scale: 0.85 },
-  // The frog's eyes sit right on top of its head: hats go a little higher and further back, and a size down, so
-  // the snug ones don't pull down over them.
-  frog: {
-    dy: 0.055,
-    dz: -0.035,
-    scale: 0.84,
-    // The snuggest hats, which come furthest down, sit higher and further back again.
-    hats: Object.fromEntries((['beanie', 'lumberjack', 'deerstalker', 'trainer', 'postie', 'sailor', 'propeller', 'souwester', 'headscarf'] as const).map((h) => [h, { dy: 0.095, dz: -0.07, scale: 0.8, rot: [-0.26, 0, 0] as Vec3 }])),
-  },
-  // The mushroom's head is its face: a hat goes up on the top of the big cap, and the reaper's hood (which would
-  // have the cap's rim cutting through it) is drawn right over the cap, tipped back with it.
-  fungi: { dy: 0.235, dz: -0.08, scale: 1.5, hats: { reaper: { dy: 0.37, dz: -0.16, scale: 1.8, rot: [-0.3, 0, 0] } } },
-  // Back a little, so the brim clears the eyes on their stalks.
-  prawn: { dy: 0.005, dz: -0.03 },
+type HatTweak = HatNudge & { skull?: { c: Vec3; r: Vec3 }; brow?: number; bumps?: 'head' | 'none'; hats?: Partial<Record<HatId, HatNudge>> };
+const HAT_NUDGE: Partial<Record<AnimalId, HatTweak>> = {
+  // The mushroom's head is its cap, and the squid's is the point of its mantle, above the fins.
+  fungi: { skull: { c: [0, 0.28, -0.04], r: [0.34, 0.21, 0.32] }, brow: 0.45 },
+  squid: { skull: { c: [0, 0.52, -0.055], r: [0.11, 0.16, 0.1] }, brow: 0.6 },
+  // A boxy head, whose corners stand out of the skull but are as much head as the rest; and spines a hat can sit
+  // among.
+  robot: { bumps: 'head' },
+  hedgehog: { bumps: 'none' },
+  // Eyes on stalks at the front of the head: hats go behind them.
+  snail: { dz: -0.04 },
+  crab: { dz: -0.04 },
 };
 
-/** Where hats sit on a head, and where particular hats sit instead, if any do. */
-type HatPlace = HatFit & { hats?: Partial<Record<HatId, HatFit>> };
+/** Where hats go on one animal: its head as hats see it (all but what stands off it, which the rig finds), and any nudges. */
+type HatPlace = { id: AnimalId; head: Omit<HatHead, 'bits'>; nudge: HatTweak; neckAt: Vec3 };
+
+/** Fits worked out so far, by animal and hat. */
+const fitted = new Map<string, HatFit>();
 
 function hatFit(id: AnimalId, k: Kit): HatPlace {
   const s = k.shape;
-  const top = onHead(k, 0, 0.995);
-  const fit = (n: HatNudge): HatFit => ({
-    pos: [s.hc[0] + (n.dx ?? 0), top.y - 0.01 + (n.dy ?? 0), s.hc[2] - 0.01 + (n.dz ?? 0)],
-    scale: THREE.MathUtils.clamp(s.hr[0] / 0.25, 0.55, 1.2) * (n.scale ?? 1),
-    rot: n.rot ?? [-0.12, 0, 0],
-  });
   const n = HAT_NUDGE[id] ?? {};
-  const hats: Partial<Record<HatId, HatFit>> = {};
-  for (const [hat, m] of Object.entries(n.hats ?? {})) hats[hat as HatId] = fit(m);
-  return { ...fit(n), hats };
+  const c = n.skull?.c ?? s.hc;
+  const r = n.skull?.r ?? s.hr;
+  const head = { c, r, size: THREE.MathUtils.clamp(r[0] / 0.25, 0.45, 1.2), eye: { at: [k.eyeX, k.eyeY, k.eyeZ] as Vec3, r: k.eyeR }, brow: n.brow };
+  return { id, head, nudge: n, neckAt: k.joints.neck };
+}
+
+/** Points split into clumps, each point within `gap` of another in its clump. */
+function clumps(pts: THREE.Vector3[], gap: number): THREE.Vector3[][] {
+  const cell = (p: THREE.Vector3) => `${Math.floor(p.x / gap)},${Math.floor(p.y / gap)},${Math.floor(p.z / gap)}`;
+  const at = new Map<string, number[]>();
+  pts.forEach((p, i) => (at.get(cell(p)) ?? at.set(cell(p), []).get(cell(p))!).push(i));
+  const seen = new Uint8Array(pts.length);
+  const out: THREE.Vector3[][] = [];
+  for (let i = 0; i < pts.length; i++) {
+    if (seen[i]) continue;
+    const clump: THREE.Vector3[] = [];
+    const todo = [i];
+    seen[i] = 1;
+    while (todo.length) {
+      const p = pts[todo.pop()!];
+      clump.push(p);
+      const [x, y, z] = cell(p).split(',').map(Number);
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (let dz = -1; dz <= 1; dz++) for (const j of at.get(`${x + dx},${y + dy},${z + dz}`) ?? []) if (!seen[j] && pts[j].distanceTo(p) < gap) {
+        seen[j] = 1;
+        todo.push(j);
+      }
+    }
+    out.push(clump);
+  }
+  return out;
+}
+
+/** Which bones a hat has to fold away (ears, antennae, antlers, crests), keep clear of (eyes), or fit round (stalks, horns); the rest it ignores. */
+function hatBitOf(bone: string): HatBit['is'] | null {
+  if (/^ear|^crest|^antler/.test(bone)) return 'fold';
+  if (/^eyes$|^blink/.test(bone)) return 'eye';
+  if (/^stalk|^turret|^neck$/.test(bone)) return 'solid';
+  return null;
 }
 
 /**
