@@ -318,6 +318,8 @@ const paths: Record<string, React.ReactNode> = {
       <path d="M19.4 9.8A8 8 0 1 0 19 15.5" />
     </>
   ),
+  download: <path d="M12 4v11M7 10.5l5 5 5-5M5 20h14" />,
+  upload: <path d="M12 16V5M7 9.5l5-5 5 5M5 20h14" />,
 };
 
 export type IconName = keyof typeof paths;

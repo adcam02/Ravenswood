@@ -2681,3 +2681,114 @@
   font-size: 14px;
   color: var(--cosy-ink-soft);
 }
+
+/* ---------------------------------------------------------------- money, beside the place name */
+.money-pill {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  padding: 3px 10px 3px 4px;
+  border-radius: 999px;
+  background: #fff3cf;
+  box-shadow: inset 0 0 0 1.5px #ecc96a;
+  color: #7a5208;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.money-pill b {
+  font-weight: 700;
+}
+.money-coin {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #fff8cf 0 14%, #f7cb4d 38%, #dc9d1e 100%);
+  box-shadow: inset 0 0 0 1.5px #c78914, 0 1px 0 rgba(120, 80, 10, 0.35);
+  animation: money-coin 0.7s var(--ease-spring);
+}
+@keyframes money-coin {
+  50% {
+    transform: scale(1.35) rotateY(180deg);
+  }
+  100% {
+    transform: rotateY(360deg);
+  }
+}
+/* "+$25 for the win": each change floats in under the money and fades again. */
+.money-pops {
+  position: absolute;
+  right: -6px;
+  top: calc(100% + 10px);
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+  pointer-events: none;
+}
+.money-pop {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #ffe7a8;
+  color: #6e4a06;
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+  box-shadow: 0 4px 0 rgba(90, 68, 52, 0.18), 0 8px 20px rgba(40, 30, 20, 0.2);
+  animation: money-pop 4.2s var(--ease-out) both;
+}
+.money-pop.out {
+  background: #ffe0dd;
+  color: #a3372f;
+}
+@keyframes money-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.7);
+  }
+  8% {
+    opacity: 1;
+    transform: translateY(0) scale(1.08);
+  }
+  14% {
+    transform: scale(1);
+  }
+  82% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@media (max-width: 760px) {
+  .money-pill {
+    font-size: 13px;
+    padding-right: 8px;
+  }
+  .money-pop {
+    font-size: 13.5px;
+  }
+}
+.victory-pay {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px auto 0;
+  padding: 5px 14px 5px 7px;
+  border-radius: 999px;
+  background: #fff3cf;
+  color: #6e4a06;
+  font-family: var(--cosy-font);
+  font-weight: 700;
+  font-size: 16px;
+  animation: money-pop-in 0.5s var(--ease-spring) 0.8s both;
+}
+@keyframes money-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}

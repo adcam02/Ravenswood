@@ -5,6 +5,7 @@ import { ui } from '../state/ui';
 import Peer, { type DataConnection } from 'peerjs';
 import { create } from 'zustand';
 import { st, toPrivate, toPublic, useHost } from '../state/host';
+import { profileFor, receiveProgress, startProfiles, useProfiles } from '../game/profiles';
 import type { ClientMessage, HostMessage } from '../state/types';
 import { local, receiveItem } from '../game/local';
 import { presence } from '../game/presence';
@@ -108,6 +109,8 @@ class HostLink {
     if (this.room === room) return;
     this.stop();
     this.room = room;
+    // Players' profiles are kept from here on (their money, hats and achievements, by name).
+    startProfiles();
     if (peerDisabled()) useHostNet.setState({ status: 'reconnecting', detail: 'Using the backup route only.' });
     else this.openPeer();
     this.openMesh();
@@ -392,6 +395,9 @@ class HostLink {
       case 'reply':
         p.reply(pid, msg.wakeId, { seatIds: msg.seatIds, roleIds: msg.roleIds, answer: msg.answer });
         break;
+      case 'progress':
+        receiveProgress(pid, msg.events);
+        break;
     }
   }
 
@@ -554,7 +560,7 @@ class HostLink {
         meta.sentPublic = pubJson;
         link.send({ t: 'state', s: pub, now: Date.now(), v: __BUILD__ });
       }
-      const priv = toPrivate(g, meta.playerId);
+      const priv = { ...toPrivate(g, meta.playerId), profile: profileFor(meta.playerId) };
       const privJson = JSON.stringify(priv);
       if (privJson !== meta.sentPrivate) {
         meta.sentPrivate = privJson;
@@ -570,5 +576,6 @@ export const hostLink = new HostLink();
 
 useHost.subscribe(() => hostLink.scheduleBroadcast());
 useHostNet.subscribe((s, prev) => s.online !== prev.online && hostLink.scheduleBroadcast());
+useProfiles.subscribe(() => hostLink.scheduleBroadcast());
 
 if (debugHooks()) Object.assign(window, { __host: useHost, __hostNet: useHostNet, __netStats: () => hostLink.stats() });

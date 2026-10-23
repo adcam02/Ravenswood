@@ -32,6 +32,8 @@ export type Modal =
   | { kind: 'pigeon' }
   /** A player changing their name, animal, hat or pet. */
   | { kind: 'customise' }
+  /** Storyteller: every player's money, achievements and hats, by name. */
+  | { kind: 'profiles' }
   | null;
 
 export type Pick =

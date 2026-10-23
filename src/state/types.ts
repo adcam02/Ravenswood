@@ -1,5 +1,5 @@
 import type { Alignment, Script } from '../data';
-import type { BakeKind, ClothKind, DrinkKind, FlowerKind, Item, Look, Pose, TownState, Weather } from '../world/types';
+import type { BakeKind, ClothKind, DrinkKind, FlowerKind, Item, Look, PetId, Pose, Progress, TownState, Weather } from '../world/types';
 
 export type Phase = 'night' | 'day';
 
@@ -345,7 +345,57 @@ export interface PrivateState {
   visit?: Visit | null;
   /** Pigeons that have come for this seat lately: who sent each, and where they said they were. */
   pigeons?: { id: string; name: string; where: string; at: number }[];
+  /** Everything kept under this player's name (or the name they're joining with), with their money and pets. */
+  profile?: ProfileView | null;
 }
+
+// ---------------------------------------------------------------- profiles, kept by the Storyteller
+
+/** What a player has earned, as numbers and lists: the hats come from these. */
+export interface ProgressSnapshot extends Progress {
+  /** Running counts toward achievements (fish caught, votes, letters…). */
+  tally: Record<string, number>;
+}
+
+/** Money in or out, with why, for the little "+$25 for the win" on the player's screen (`at` is the host's clock). */
+export interface PayLine {
+  id: string;
+  amount: number;
+  why: string;
+  at: number;
+}
+
+/** A player's profile as they're sent it. */
+export interface ProfileView extends ProgressSnapshot {
+  /** The name it's kept under (lower case), and as they last wrote it. */
+  key: string;
+  name: string;
+  coins: number;
+  pets: PetId[];
+  /** Money in and out lately, newest last. */
+  pay: PayLine[];
+  /** Achievements given on the Storyteller's side (not earned in the player's own browser), to make a moment of. */
+  news: { id: string; feat: string; at: number }[];
+  /** Which Storyteller's book of profiles this is. */
+  book: string;
+  /** The player's latest reports that are now counted. */
+  acks: string[];
+}
+
+/**
+ * One thing a player earned, reported to the Storyteller to keep under their name. `k` is its own key, so a report
+ * sent twice (after a reconnect, say) counts once.
+ */
+export type ProgressEvent =
+  | { k: string; e: 'feat'; id: string }
+  /** A job done perfectly, the first time. */
+  | { k: string; e: 'perfect'; job: string }
+  | { k: string; e: 'count'; kind: 'stars' | 'records' | 'ghosts' | 'nights' }
+  | { k: string; e: 'tally'; kind: string; by: number }
+  /** Any three-star job, which pays a little (up to a cap a day). */
+  | { k: string; e: 'top'; job: string }
+  /** What this browser had earned before the Storyteller kept it by name: merged in once (nobody loses anything). */
+  | { k: string; e: 'merge'; p: ProgressSnapshot };
 
 // ---------------------------------------------------------------- messages
 
@@ -412,4 +462,6 @@ export type ClientMessage =
   /** Something went wrong in this player's game, so the Storyteller knows. */
   | { t: 'oops'; message: string; where?: string; v?: string }
   /** `at`: when it was sent (for the round trip); `rtt`: the player's latest measure of it, in milliseconds. */
-  | { t: 'ping'; at?: number; rtt?: number };
+  | { t: 'ping'; at?: number; rtt?: number }
+  /** Things earned since the last report, for the Storyteller to keep under this player's name. */
+  | { t: 'progress'; events: ProgressEvent[] };

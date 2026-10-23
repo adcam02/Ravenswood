@@ -40,7 +40,8 @@ export function WriteLetterModal() {
     if (sent !== 'waiting' || posted.at < sentAt.current) return;
     setSent(posted.ok ? 'ok' : 'no');
     if (posted.ok) tally('letters', 1, `letter:${view.room}:${sentAt.current}`);
-  }, [posted.at, posted.ok, sent, view.room]);
+    if (posted.ok && !signed) earn('admirer');
+  }, [posted.at, posted.ok, sent, view.room, signed]);
   // No answer at all (an older Storyteller page): say it's gone anyway, after a moment.
   useEffect(() => {
     if (sent !== 'waiting') return;
