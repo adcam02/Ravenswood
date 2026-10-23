@@ -9,6 +9,8 @@ import { buildAnimal } from '../src/world/animals';
 import { BED } from '../src/world/town/layout';
 import { NightVisit, bendVictim } from '../src/world/visit';
 import { PigeonFlight } from '../src/world/pigeon';
+import { EXEC_CAM, ExecStage, execCamera } from '../src/world/exec/stage';
+import type { ExecMethod } from '../src/state/types';
 
 const q = new URLSearchParams(location.search);
 const num = (k: string, d: number) => (q.has(k) ? Number(q.get(k)) : d);
@@ -16,7 +18,7 @@ const zone = (q.get('zone') ?? 'town') as ZoneKind;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
+renderer.shadowMap.enabled = !q.has('noshadow');
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 // As in the game: the shadows are drawn only when the town says something changed.
 renderer.shadowMap.autoUpdate = false;
@@ -29,6 +31,7 @@ const t0 = performance.now();
 const town = createTown(scene, renderer);
 const buildMs = Math.round(performance.now() - t0);
 town.show(zone, q.has('night'));
+if (q.has('low')) town.setLowDetail(true);
 town.setTime(num('t', 0));
 if (q.has('day')) town.setDayProgress(num('day', 0.35));
 if (q.has('weather')) town.setWeather(q.get('weather') as Weather);
@@ -147,6 +150,52 @@ if (q.has('pigeon')) {
   town.groups[zone].add(perch.root);
   pigeon = new PigeonFlight(scene, () => {}, 2.2);
 }
+
+// ?exec=guillotine&et=3.2: an execution held at et seconds in, on a fox (or &animal=) at the gallows, seen from the
+// meeting camera; &spared for the lucky escape, &ry= to turn the camera round the gallows, &edist= to move it back.
+// window.execAt({ exec, et, animal, spared }) shows another without building the town again.
+let exec: ExecStage | null = null;
+let condemned: ReturnType<typeof buildAnimal> | null = null;
+function execAt(o: { exec: string; et: number; animal?: string; spared?: boolean; hat?: string; ry?: number; edist?: number }) {
+  exec?.dispose();
+  condemned?.root.removeFromParent();
+  condemned?.dispose();
+  renderer.localClippingEnabled = true;
+  const animal = (o.animal ?? 'fox') as never;
+  const colour = ANIMALS.find((a) => a.id === animal)?.colors[0] ?? '#e2793a';
+  const rig = buildAnimal({ animal, color: colour, hat: (o.hat as never) ?? null });
+  condemned = rig;
+  town.groups.town.add(rig.root);
+  const spot = town.gallowsSpot;
+  rig.root.position.set(spot.x, spot.y, spot.z);
+  rig.root.rotation.y = spot.ry;
+  const stage = new ExecStage(o.exec as Exclude<ExecMethod, 'hang'>, Boolean(o.spared), spot);
+  exec = stage;
+  town.groups.town.add(stage.group);
+  // The gallows' own noose is tied up out of the way.
+  town.setGallows({ open: 0, label: '', rope: 0.25 });
+  let ghost = false;
+  // Walked up to the moment in small steps, so everything that happens on the way happens.
+  for (let x = 0; ; x = Math.min(o.et, x + 1 / 30)) {
+    const pose = stage.update(x, rig, camera);
+    if (pose.ghost !== ghost) {
+      ghost = pose.ghost;
+      rig.setGhost(ghost);
+    }
+    rig.update({ anim: pose.anim, speed: 0, dt: 1 / 30, t: x });
+    rig.root.position.copy(pose.pos);
+    rig.root.quaternion.copy(pose.quat);
+    rig.root.scale.copy(pose.scale);
+    rig.root.visible = pose.visible;
+    rig.root.updateMatrixWorld(true);
+    if (x >= o.et) break;
+  }
+  const shot = execCamera(stage.framing(), innerWidth / innerHeight, o.et);
+  camera.position.copy(shot.pos).sub(shot.look).applyAxisAngle(new THREE.Vector3(0, 1, 0), o.ry ?? 0).multiplyScalar((o.edist ?? EXEC_CAM.dist) / EXEC_CAM.dist).add(shot.look);
+  camera.lookAt(shot.look);
+}
+(window as unknown as { execAt: typeof execAt }).execAt = execAt;
+if (q.has('exec')) execAt({ exec: q.get('exec')!, et: num('et', 2), animal: q.get('animal') ?? undefined, spared: q.has('spared'), hat: q.get('hat') ?? undefined, ry: num('ry', 0), edist: q.has('edist') ? num('edist', 8.5) : undefined });
 
 const clock = new THREE.Clock();
 let frames = 0;

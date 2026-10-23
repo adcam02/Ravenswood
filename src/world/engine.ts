@@ -6,9 +6,11 @@ import { local, setItem } from '../game/local';
 import { presence } from '../game/presence';
 import { SCORE_OF, type GameJob, type JobResults } from '../jobs/meta';
 import { rememberBest } from '../game/bests';
-import type { DayTimer, Execution, Nomination, TownAction, TownHall, Visit } from '../state/types';
+import type { DayTimer, ExecMethod, Execution, Nomination, TownAction, TownHall, Visit } from '../state/types';
 import { ambience } from '../lib/ambience';
-import { doorChime, drumroll, gavel, pigeonSound, ropeSnap, visitSound } from '../lib/audio';
+import { doorChime, drumroll, execSound, gavel, pigeonSound, ropeSnap, visitSound } from '../lib/audio';
+import { execMethod, showStartAt } from '../game/execution';
+import { EXEC_CAM, ExecStage, SOUL, execCamera, type ExecPose } from './exec/stage';
 import { NightVisit, VISIT, VISIT_NAMES, bendVictim, type VictimPose } from './visit';
 import { PIGEON, PigeonFlight } from './pigeon';
 import { ui, useUI } from '../state/ui';
@@ -56,11 +58,13 @@ const LOD_FAR = 20;
 const LOD_NEAR = 16;
 const TAG_FAR = 26;
 /**
- * The hanging, in seconds from the start: the noose comes down onto the neck, the drop, the puff of smoke
- * (the ghost floats up out of the trapdoor over `rise`), and the end. For someone who survives it, the rope snaps
- * `snap` seconds after the drop.
+ * The hanging, in seconds from the start: the noose comes down onto the neck, the drop, the puff of smoke (the
+ * empty noose is drawn back up over `rise`, as the ghost floats slowly up out of the trapdoor), and the end. For
+ * someone who survives it, the rope snaps `snap` seconds after the drop, and it's over at `spared`.
  */
-const SHOW = { lower: 0.9, drop: 1.6, puff: 3.3, rise: 0.6, end: 4.3, snap: 0.18 };
+const SHOW = { lower: 0.9, drop: 1.6, puff: 3.3, rise: 0.6, end: 3.3 + SOUL.rise + SOUL.pop + 0.5, spared: 4.3, snap: 0.18 };
+/** Still no method this long after the vote should have closed, something went astray: the show is called off. */
+const SHOW_WAIT_S = 20;
 /** Even with nothing changing, the shadow map is redrawn this often, just in case. */
 const SHADOW_SAFETY_S = 10;
 import {
@@ -318,8 +322,26 @@ export class Engine {
   private lastShowId = new Set<string>();
   private gavelled = false;
   private lastWakeId: string | null = null;
-  /** The gallows show in progress: who, and when it started on our clock. */
-  private show: { id: string; seatId: string; name: string; start: number; mine: boolean; released: boolean; alive: boolean; survives: boolean } | null = null;
+  /**
+   * The execution in progress: who, and when the show itself started on our clock (null while the town votes on how
+   * and the wheel spins). Ways other than the gallows are run by a stage, and `pose` is where it has them this frame.
+   */
+  private show: {
+    id: string;
+    seatId: string;
+    name: string;
+    start: number | null;
+    /** When to give up waiting for the method (on our clock). */
+    giveUp: number;
+    mine: boolean;
+    released: boolean;
+    alive: boolean;
+    survives: boolean;
+    method: ExecMethod | null;
+    stage: ExecStage | null;
+    pose: ExecPose | null;
+    drum: boolean;
+  } | null = null;
   /** The Storyteller hovering higher than usual, over someone's bed. */
   private hoverY = 0;
   /** The ground under us, eased, for walking up and down steps. */
@@ -349,6 +371,8 @@ export class Engine {
     // Filmic tone mapping keeps the bright cobbles and the dark rooms from clipping, for a richer picture.
     this.renderer.toneMapping = THREE.NeutralToneMapping;
     this.renderer.toneMappingExposure = 1.06;
+    // The guillotine cuts an animal in two with clipping planes.
+    this.renderer.localClippingEnabled = true;
     this.applyQuality();
     this.renderer.domElement.className = 'world-canvas';
     host.appendChild(this.renderer.domElement);
@@ -619,12 +643,27 @@ export class Engine {
       if (!meeting || i < 0) this.standUp();
       else if (this.stool !== `${i}/${v.seats.length}`) this.takeMeetingSeat();
     }
-    // An execution: everyone turns to watch.
+    // An execution: everyone turns to watch (while the town votes on how, the wheel spins, and the show plays).
     const ex = v.execution;
-    if (ex && ex.id !== this.show?.id && Date.now() - ex.at < 15000 && !this.lastShowId.has(ex.id)) {
+    if (ex && ex.id !== this.show?.id && this.freshExecution(ex) && !this.lastShowId.has(ex.id)) {
+      if (this.show) this.endShow();
       this.lastShowId.add(ex.id);
       const name = v.seats.find((s) => s.id === ex.seatId)?.name ?? 'Someone';
-      this.show = { id: ex.id, seatId: ex.seatId, name, start: this.clock.elapsedTime, mine: ex.seatId === v.mySeatId, released: false, alive: true, survives: Boolean(ex.survives) };
+      this.show = {
+        id: ex.id,
+        seatId: ex.seatId,
+        name,
+        start: null,
+        giveUp: this.clock.elapsedTime + SHOW_WAIT_S + Math.max(0, ((ex.vote?.until ?? 0) - Date.now()) / 1000),
+        mine: ex.seatId === v.mySeatId,
+        released: false,
+        alive: true,
+        survives: Boolean(ex.survives),
+        method: null,
+        stage: null,
+        pose: null,
+        drum: false,
+      };
       // (Popups wait from this moment, not from the next frame.)
       useHud.setState({ drama: true });
       // Everyone stops what they're doing to watch, but anyone on a meeting stool stays sat.
@@ -635,8 +674,22 @@ export class Engine {
         this.frozen = true;
         this.me?.setInfo(this.infoFor(ex.seatId, v));
       }
-      drumroll(SHOW.drop - 0.1);
-      ui.banner(`${name} is to be hanged`, 'The town has spoken');
+      // Without a vote (an older game, or a method chosen outright), straight to it.
+      if (!ex.vote && !ex.drawn) ui.banner(execMethod(ex.method ?? 'hang').sign(name), 'The town has spoken');
+    }
+    // The method is settled: the show starts once the wheel has landed on it, at the same moment on every screen.
+    const show = this.show;
+    if (show && !show.method && ex?.id === show.id && (ex.method || (!ex.vote && !ex.drawn))) {
+      const method = ex.method ?? 'hang';
+      show.method = method;
+      show.start = this.clock.elapsedTime + Math.max(-2, (showStartAt(ex) - Date.now()) / 1000);
+      if (method !== 'hang') {
+        show.stage = new ExecStage(method, show.survives, this.town.gallowsSpot, execSound);
+        this.town.groups.town.add(show.stage.group);
+      }
+    } else if (show && !show.method && (!ex || ex.id !== show.id)) {
+      // Called off before it was settled (night fell, say).
+      this.endShow();
     }
     // Waking someone at night takes the Storyteller to their bedside.
     if (v.mode === 'st' && v.lastWake && v.lastWake.id !== this.lastWakeId) {
@@ -1657,7 +1710,14 @@ export class Engine {
     me.ground = myGround;
     let myY = this.seated ? this.seated.y || myGround : this.hoverY + myGround;
     let dangle: { swing: number; scale: number; hidden: boolean } | null = null;
-    if (this.show?.mine) {
+    const staged = this.show?.mine ? this.stagePose() : null;
+    if (staged) {
+      local.x = staged.pos.x;
+      local.z = staged.pos.z;
+      myY = staged.pos.y;
+      anim = staged.anim;
+      local.anim = anim;
+    } else if (this.show?.mine) {
       const sp = this.showPose(this.showAge(t), this.bodyOf(me));
       local.x = sp.x;
       local.z = sp.z;
@@ -1677,6 +1737,7 @@ export class Engine {
     if (this.visit?.mine && this.victimPose) bendVictim(me.rig.root, this.victimPose);
     // Down in the dark under the gallows (or through the bed), their name tag goes too.
     me.setTagShown(!dangle?.hidden && !(this.visit?.mine && this.victimPose?.hidden));
+    if (staged) this.applyStagePose(me, staged);
 
     this.checkDoors(v, moving, dx, dz);
     this.checkStations(v);
@@ -1916,21 +1977,76 @@ export class Engine {
     }
   }
 
+  /** An execution worth showing: still being voted on, or its show not long started (a late arrival just finds them dead). */
+  private freshExecution(ex: Execution): boolean {
+    const now = Date.now();
+    if (!ex.method && ex.vote) return now < ex.vote.until + 4000 && now - ex.at < 20000;
+    return now - showStartAt(ex) < (ex.drawn ? 4000 : 12000);
+  }
+
+  /** Over (or called off): the condemned carries on, as a ghost or not, and whatever the show put up comes down. */
+  private endShow() {
+    const show = this.show;
+    if (!show) return;
+    this.show = null;
+    this.gavelled = false;
+    show.stage?.dispose();
+    const spot = this.town.gallowsSpot;
+    this.town.setGallows({ open: 0, label: '', rope: GALLOWS_ROPE_REST });
+    const av = show.mine ? this.me : this.others.get(show.seatId);
+    if (av) av.rig.root.rotation.set(0, av.rig.root.rotation.y, 0);
+    const v = this.view;
+    if (v) av?.setInfo(this.infoFor(show.seatId, v));
+    if (show.mine) {
+      this.frozen = false;
+      // Still in a meeting: back to their own stool, as a ghost. Otherwise they step off beside the gallows.
+      this.place('town', spot.x + 2.2, spot.z + 1.4, Math.PI, false);
+      if (v && (v.townHall || v.nomination) && this.meetingIndex() >= 0) this.takeMeetingSeat();
+    } else if (av) {
+      // Onlookers put them straight where their own screen has sent them, rather than sliding off the gallows.
+      av.placed = false;
+    }
+  }
+
   /**
-   * The gallows (timings in SHOW): a short drumroll while the noose comes down, the gavel and the drop, the
-   * rope taking the weight with a small bounce and a swing that dies away, then a puff and the ghost let go.
+   * The execution. While the town votes on how and the wheel spins, the condemned waits on the trapdoor. Then the
+   * gallows (timings in SHOW): a short drumroll while the noose comes down, the gavel and the drop, the rope taking
+   * the weight with a small bounce and a swing that dies away, then a puff and the ghost let go. Any other way is
+   * run by its stage (see exec/stage.ts), with the gallows' noose tied up out of the way.
    */
   private runShow(t: number) {
     const show = this.show;
     if (!show) return;
     const age = this.showAge(t);
-    const spot = this.town.gallowsSpot;
+    const av = show.mine ? this.me : this.others.get(show.seatId);
+    if (show.start === null || age < 0) {
+      // Something went astray (the vote never closed): called off rather than left standing there.
+      if (show.start === null && t > show.giveUp) this.endShow();
+      else this.town.setGallows({ open: 0, label: `${show.name} is to be executed`, rope: GALLOWS_ROPE_REST });
+      return;
+    }
+    if (show.stage) {
+      const stage = show.stage;
+      const pose = stage.update(age, av?.shown ? av.rig : null, this.camera);
+      show.pose = pose;
+      const sign = execMethod(show.method).sign(show.name);
+      const label = show.survives ? (age > stage.end - 1.8 ? `${show.name} survives!` : sign) : age < stage.soulAt ? sign : '';
+      this.town.setGallows({ open: 0, label: age > stage.end - 0.3 ? '' : label, rope: 0.25 });
+      if (show.alive && pose.ghost) this.becomeGhost(show);
+      if (age > (show.mine ? stage.end : stage.end + 0.8)) this.endShow();
+      return;
+    }
+    if (!show.drum) {
+      show.drum = true;
+      if (age < 0.5) drumroll(SHOW.drop - 0.1);
+    }
     if (age >= SHOW.drop && !this.gavelled) {
       this.gavelled = true;
       gavel();
     }
     // The trapdoor snaps open on the drop and swings shut once the ghost is up. For someone who survives it only
     // rattles: it jams, and the rope snaps instead.
+    const end = show.survives ? SHOW.spared : SHOW.end;
     const shut = SHOW.puff + SHOW.rise;
     const after = age - SHOW.drop;
     const open = show.survives
@@ -1942,9 +2058,8 @@ export class Engine {
         : age < shut
           ? Math.min(1, after / 0.1)
           : Math.max(0, 1 - (age - shut) / 0.3);
-    const av = show.mine ? this.me : this.others.get(show.seatId);
     const pose = this.showPose(age, this.bodyOf(av));
-    const over = age >= SHOW.end;
+    const over = age >= end;
     const snapped = show.survives ? after - SHOW.snap : 0;
     if (snapped > 0 && !show.released) {
       show.released = true;
@@ -1961,38 +2076,24 @@ export class Engine {
       snapped: over ? 0 : Math.max(0, snapped),
     });
     // They only become a ghost at the puff, not before the drop (and not at all if they survive).
-    if (show.alive && !show.survives && age >= SHOW.puff) {
-      show.alive = false;
-      const v = this.view;
-      if (v) {
-        if (show.mine) this.me?.setInfo(this.infoFor(show.seatId, v));
-        else this.others.get(show.seatId)?.setInfo(this.infoFor(show.seatId, v));
-      }
+    if (show.alive && !show.survives && age >= SHOW.puff) this.becomeGhost(show);
+    // (`released` is the rope snapping for one who survives, and the ghost's twinkle for one who doesn't.)
+    if (age >= SHOW.puff + SOUL.rise && !show.released && !show.survives) {
+      show.released = true;
+      execSound('twinkle');
     }
-    // Onlookers keep them hidden a moment longer, until the condemned's new spot has come over the network,
-    // then put the ghost straight there rather than popping up on the trapdoor and sliding off.
-    if (age > (show.mine ? SHOW.end : SHOW.end + 0.8)) {
-      if (show.mine) {
-        this.frozen = false;
-        const v = this.view;
-        // Still in a meeting: back to their own stool, as a ghost. Otherwise they step off beside the gallows.
-        if (v && (v.townHall || v.nomination) && this.meetingIndex() >= 0) {
-          this.place('town', spot.x + 2.2, spot.z + 1.4, Math.PI, false);
-          this.show = null;
-          this.gavelled = false;
-          this.takeMeetingSeat();
-          return;
-        }
-        this.place('town', spot.x + 2.2, spot.z + 1.4, Math.PI, false);
-      } else {
-        const gone = this.others.get(show.seatId);
-        if (gone) gone.placed = false;
-      }
-      this.show = null;
-      this.gavelled = false;
-    }
+    if (age > (show.mine ? end : end + 0.8)) this.endShow();
   }
 
+  /** From now on they're drawn as the ghost they are (until now they've been kept as they were). */
+  private becomeGhost(show: NonNullable<Engine['show']>) {
+    show.alive = false;
+    const v = this.view;
+    if (!v) return;
+    if (show.mine) this.me?.setInfo(this.infoFor(show.seatId, v));
+    else this.others.get(show.seatId)?.setInfo(this.infoFor(show.seatId, v));
+    if (show.method === 'hang') execSound('soul');
+  }
 
   /**
    * The hooded figure's visit. It plays for the player who was killed, tucked up in their own bed (with the camera
@@ -2081,8 +2182,10 @@ export class Engine {
 
   /** Tests can hold the show at a moment (`showFreeze`, in seconds) to look at it frame by frame. */
   showFreeze: number | null = null;
+  /** Seconds into the show itself (below 0 while the town votes and the wheel spins). */
   private showAge(t: number): number {
-    return this.showFreeze ?? (this.show ? t - this.show.start : 0);
+    if (!this.show || this.show.start === null) return -1;
+    return this.showFreeze ?? t - this.show.start;
   }
 
   /** How tall this animal is to the top of its head, and roughly where its neck is, from its feet. */
@@ -2114,6 +2217,8 @@ export class Engine {
     let anim: Anim = 'cry';
     let hidden = false;
     let puff = 0;
+    let sway = 0;
+    let scale = 1;
     // Where the feet end up: far enough down that the head is well below the boards, in the dark.
     const bottom = spot.y - 0.3 - body.top;
     const fallFor = Math.sqrt((2 * (spot.y - bottom)) / 9.8);
@@ -2142,11 +2247,16 @@ export class Engine {
         ring = 0;
       }
     } else if (age - SHOW.puff > 0) {
+      // The empty noose is drawn back up, as the ghost floats slowly up out of the trapdoor like a cartoon soul,
+      // swaying as it goes, high over the gallows; then a twinkle and it's gone.
       const puffT = age - SHOW.puff;
       puff = Math.min(1, puffT / 0.9);
       const r = ease(puffT / SHOW.rise);
-      feet = bottom + (spot.y + 0.12 - bottom) * r;
+      feet = bottom + (spot.y + 2.4 + body.top * 0.5 - bottom) * ease(puffT / SOUL.rise);
       swing *= 1 - r;
+      sway = Math.sin(puffT * 2.3) * 0.22 * Math.min(1, puffT / 0.8);
+      const pop = (puffT - SOUL.rise) / SOUL.pop;
+      if (pop > 0) scale = Math.max(0.001, 1 - ease(pop)) * (1 + 0.25 * Math.sin(Math.min(1, pop) * Math.PI));
       const hung = beam - (bottom + body.neck);
       rope = hung + (GALLOWS_ROPE_REST - hung) * r;
       ring = 1 - r;
@@ -2160,18 +2270,34 @@ export class Engine {
     const lx = -GALLOWS_KNOT + fx * c - fy * sn;
     const ly = beam + fx * sn + fy * c;
     return {
-      x: spot.x + Math.cos(spot.ry) * lx,
-      z: spot.z - Math.sin(spot.ry) * lx,
+      x: spot.x + Math.cos(spot.ry) * lx + Math.sin(spot.ry) * sway,
+      z: spot.z - Math.sin(spot.ry) * lx + Math.cos(spot.ry) * sway,
       y: ly,
       ry: spot.ry,
       anim,
       swing,
-      scale: 1,
+      scale,
       hidden,
       rope,
       ring,
       puff,
     };
+  }
+
+  /** Where the stage has the condemned this frame, once its show has begun (null on the gallows, or before). */
+  private stagePose(): ExecPose | null {
+    const show = this.show;
+    return show?.stage && show.pose && show.start !== null && this.showAge(this.clock.elapsedTime) >= 0 ? show.pose : null;
+  }
+
+  /** Puts the condemned exactly where (and how) the stage has them: turned any way at all, stretched, or not drawn. */
+  private applyStagePose(av: AvatarView, pose: ExecPose) {
+    const root = av.rig.root;
+    root.position.copy(pose.pos);
+    root.quaternion.copy(pose.quat);
+    root.scale.copy(pose.scale);
+    root.visible = pose.visible && av.shown;
+    av.setTagShown(pose.tag);
   }
 
   private updateOthers(dt: number, t: number, v: WorldView | null) {
@@ -2196,7 +2322,12 @@ export class Engine {
       const sitting = p.anim === 'sit' || p.anim === 'sleep';
       let anim: Anim = nom && nom.status !== 'done' && nom.votes.includes(key) ? 'hand' : p.anim;
       let dangle: { swing: number; scale: number; hidden: boolean } | null = null;
-      if (this.show && this.show.seatId === key && local.zone === 'town') {
+      const staged = this.show?.seatId === key && local.zone === 'town' ? this.stagePose() : null;
+      if (staged) {
+        av.setTarget(staged.pos.x, staged.pos.z, av.ry, staged.pos.y);
+        av.snap();
+        anim = staged.anim;
+      } else if (this.show && this.show.seatId === key && local.zone === 'town') {
         const sp = this.showPose(this.showAge(t), this.bodyOf(av));
         av.setTarget(sp.x, sp.z, sp.ry, sp.y);
         av.snap();
@@ -2226,6 +2357,7 @@ export class Engine {
         bendVictim(av.rig.root, jolt);
         if (jolt.hidden) av.setTagShown(false);
       }
+      if (staged) this.applyStagePose(av, staged);
     }
     for (const [key, av] of this.others) {
       if (!seen.has(key)) {
@@ -2309,9 +2441,14 @@ export class Engine {
     this.camTarget.z += (tz - this.camTarget.z) * k;
     const wantPos = new THREE.Vector3();
     const wantLook = new THREE.Vector3();
-    if (this.show && zoneKind(local.zone) === 'town') {
+    if (this.show?.stage && this.showAge(t) >= 0 && zoneKind(local.zone) === 'town') {
+      // The other ways: from nearly in front, between the posts, framed to take in the props.
+      const shot = execCamera(this.show.stage.framing(), this.camera.aspect, t);
+      wantPos.copy(shot.pos);
+      wantLook.copy(shot.look);
+    } else if (this.show && zoneKind(local.zone) === 'town') {
       const g = this.town.gallowsSpot;
-      wantPos.set(g.x + Math.sin(0.45) * 8.5, 6.4, g.z + Math.cos(0.45) * 8.5);
+      wantPos.set(g.x + Math.sin(EXEC_CAM.yaw) * EXEC_CAM.dist, g.y + 1.1 + EXEC_CAM.height, g.z + Math.cos(EXEC_CAM.yaw) * EXEC_CAM.dist);
       wantLook.set(g.x, g.y + 1.1, g.z);
     } else if (this.pinned()) {
       // On our stool at a town meeting: from behind our seat, looking down into the middle of the circle, far
