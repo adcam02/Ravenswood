@@ -30,6 +30,8 @@ export type Modal =
   | { kind: 'awards' }
   /** Sending a messenger pigeon to someone. */
   | { kind: 'pigeon' }
+  /** Storyteller: every player's money, achievements and hats, by name. */
+  | { kind: 'profiles' }
   | null;
 
 export type Pick =

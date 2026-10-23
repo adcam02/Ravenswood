@@ -21,7 +21,7 @@ import { BED, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, GRAVEYARD, MEETING_CENTRE, 
 import { nearPath } from './town/outdoor';
 import { Fireworks } from './fireworks';
 import { reportProblem } from '../lib/report';
-import { earn, notePerfect, tally } from '../game/progress';
+import { earn, notePerfect, noteTopJob, tally } from '../game/progress';
 
 /** Hats are a player's own: the Storyteller doesn't collect them. */
 const isPlayerView = (v: WorldView | null) => v?.mode === 'player';
@@ -1097,6 +1097,7 @@ export class Engine {
     // Different people, by name, across games.
     const to = this.view?.seats.find((s) => s.id === near.key)?.name;
     if (this.view?.mode === 'player' && to) tally('gifts', 1, `gift:${to.toLowerCase()}`);
+    if (this.view?.mode === 'player' && near.key === 'st') earn('teacher');
     // A tea party: drinks for three different people in one day.
     if (this.view?.mode === 'player' && DRINKS.has(item.k)) {
       const day = this.view.day;
@@ -1162,6 +1163,7 @@ export class Engine {
         setItem({ k: 'water' });
         this.sips = 0;
         this.me?.bubble('Fresh well water!', 2200);
+        if (this.view?.mode === 'player') tally('buckets');
       }, 1600);
     } else if (s.job === 'notice') {
       useHud.setState({ notice: true });
@@ -1238,6 +1240,7 @@ export class Engine {
           if (this.view?.mode === 'player') {
             tally('kinds', 1, `fishkind:${x.kind}`);
             if (x.kind === 'Old Boot') earn('boot');
+            if (x.tier === 'legendary') earn('legend');
           }
           if (x.tier === 'rare' || x.tier === 'legendary') this.me?.bubble(`${x.tier === 'legendary' ? '🌙 Legendary' : '✨ Rare'}: ${x.kind}, ${x.cm}cm!`, 5000);
           break;
@@ -1291,6 +1294,9 @@ export class Engine {
       // Doing a job perfectly earns its hat (all five logs split, three stars, a wish come true).
       const perfect = j.job === 'firewood' ? (r as JobResults['firewood']).logs >= 5 : ((r as { stars?: number }).stars ?? 0) >= 3;
       if (perfect && isPlayerView(this.view)) notePerfect(j.job);
+      // (Each one earns a little money too, and having a go at every job is an achievement.)
+      if (perfect && isPlayerView(this.view)) noteTopJob(j.job);
+      if (isPlayerView(this.view)) tally('jobs', 1, `job:${j.job}`);
       // Anything that beats the town's best is kept on the noticeboard for everyone.
       const score = SCORE_OF?.[j.job]?.(r as never) ?? 0;
       if (score > 0) {
@@ -1634,6 +1640,7 @@ export class Engine {
     lastRy: 0,
     danceSince: null as number | null,
     idleSince: null as number | null,
+    zone: '' as ZoneId,
   };
   private trackFeats(dt: number, t: number, v: WorldView, moving: boolean) {
     const f = this.feat;
@@ -1654,6 +1661,11 @@ export class Engine {
       f.places.clear();
     }
     const kind = zoneKind(local.zone);
+    // Each of the cottages in town, popped into (once each, ever).
+    if (local.zone !== f.zone) {
+      f.zone = local.zone;
+      if (cottageSlot(local.zone) !== null) tally('cottages', 1, local.zone);
+    }
     if (v.phase === 'day' && kind !== 'town' && kind !== 'house') {
       f.places.add(kind);
       if (f.places.size >= 4) earn('tourist');

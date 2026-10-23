@@ -21,6 +21,7 @@ import { SlayerModal } from './Slayer';
 import { ReadLettersModal, SeatingModal, WriteLetterModal } from './Letters';
 import { AwardsModal } from './Awards';
 import { PigeonModal } from './Pigeon';
+import { ProfilesModal } from './Profiles';
 import { EndGameSetting, RecapModal } from './GameOver';
 import { useProblems } from '../lib/report';
 import { ReminderToken, Token } from './Token';
@@ -70,6 +71,8 @@ export function Modals() {
       return <AwardsModal />;
     case 'pigeon':
       return <PigeonModal />;
+    case 'profiles':
+      return <ProfilesModal />;
   }
 }
 
@@ -432,6 +435,15 @@ function StorytellerSettings() {
           </button>
         </div>
         <EndGameSetting />
+        <div className="setting">
+          <div>
+            <strong>Players’ profiles</strong>
+            <span>Everyone’s money, achievements and hats, kept here by name</span>
+          </div>
+          <button className="btn" onClick={() => ui.open({ kind: 'profiles' })}>
+            <Icon name="trophy" /> Profiles
+          </button>
+        </div>
         <PlayerLines />
         <PlayerProblems />
         <div className="setting">

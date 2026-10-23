@@ -14,6 +14,7 @@ import { EMOTES, type Item } from '../../world/types';
 import { lazyPart } from '../../lib/lazy';
 import { CrashNote, Guard } from '../Guard';
 import { Icon } from '../Icon';
+import { MoneyPill } from './Money';
 // The minigames and the sheep load the first time they're needed, so the first visit downloads less.
 const JobGame = lazyPart(() => import('../../jobs').then((m) => m.JobGame));
 const SheepGame = lazyPart(() => import('./SheepGame').then((m) => m.SheepGame));
@@ -64,6 +65,7 @@ export function PlaceChip() {
           Slow connection
         </span>
       )}
+      {view.mode === 'player' && <MoneyPill />}
     </div>
   );
 }

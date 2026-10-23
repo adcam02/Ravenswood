@@ -9,6 +9,7 @@ import { useView, type SeatView, type View } from '../state/view';
 import { Icon } from './Icon';
 import { Modal } from './Modal';
 import { Token } from './Token';
+import { GamePay } from './town/Money';
 
 const TEAM = { good: 'Good', evil: 'Evil' } as const;
 
@@ -139,6 +140,7 @@ export function GameOverLayer() {
             <h1 className="victory-title">{TEAM[ended.winner]} wins!</h1>
             <p className="victory-reason">{ended.reason}</p>
             {iWon !== null && <p className="victory-you">{iWon ? 'Your team won. Well played!' : 'Your team lost this time.'}</p>}
+            {me && <GamePay since={ended.at} />}
             <div className="victory-team">
               {winners.map((s) => (
                 <div key={s.id} className="victory-seat">

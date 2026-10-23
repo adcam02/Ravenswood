@@ -1,11 +1,13 @@
 import { useState } from 'react';
+import { money, PAY } from '../game/profiles';
 import { useProgress } from '../game/progress';
 import { FEATS, HATS } from '../world/types';
 import { Modal } from './Modal';
 
 /**
  * Everything a player can earn: the hats (worn from the dress-up when joining) and the achievements, with how to get
- * the ones still to come. Secret ones stay a question mark until they're found. All of it is kept in this browser.
+ * the ones still to come. Secret ones stay a question mark until they're found. All of it (and their money) is kept by
+ * the Storyteller under the player's name, with a copy in this browser.
  */
 export function AwardsModal() {
   const progress = useProgress();
@@ -17,7 +19,7 @@ export function AwardsModal() {
   return (
     <Modal
       title="Awards"
-      eyebrow={`${gotFeats} of ${feats.length} achievements · ${gotHats} of ${hats.length} hats`}
+      eyebrow={`${gotFeats} of ${feats.length} achievements · ${gotHats} of ${hats.length} hats · ${money(progress.coins)}`}
       size="lg"
       className="awards-modal"
       head={
@@ -48,7 +50,10 @@ export function AwardsModal() {
           );
         })}
       </ul>
-      <p className="awards-note">Your name, your animal and everything you earn are kept in this browser, so they’re here next time you play.</p>
+      <p className="awards-note">
+        Everything you earn, and your money, is kept by your Storyteller under your name, so it’s yours on any device whenever they host. Each new
+        achievement is worth {money(PAY.feat)}, a secret one {money(PAY.secretFeat)}.
+      </p>
     </Modal>
   );
 }

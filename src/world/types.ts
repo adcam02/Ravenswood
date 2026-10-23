@@ -227,7 +227,7 @@ export type HatId =
   | 'mortarboard'
   | 'pumpkin';
 
-/** What a player has done across all their games, kept in their own browser. */
+/** What a player has done across all their games, kept by the Storyteller under their name. */
 export interface Progress {
   stars: number;
   records: number;
@@ -322,11 +322,32 @@ export type FeatId =
   | 'boot'
   | 'onemore'
   | 'afk'
-  | 'thriller';
+  | 'thriller'
+  // How a game goes, on any script.
+  | 'offhook'
+  | 'everyvote'
+  | 'suspect'
+  | 'lastone'
+  | 'ghostwin'
+  | 'gutfeel'
+  | 'lonevoice'
+  | 'firstgo'
+  | 'pickme'
+  // Around town.
+  | 'earlybird'
+  | 'allrounder'
+  | 'nosy'
+  | 'pigeons'
+  | 'bucket'
+  | 'admirer'
+  | 'legend'
+  | 'teacher'
+  | 'moneybags';
 
 /**
- * Things to do around Ravenswood, kept in the player's own browser with everything else they've earned. Secret ones
- * show as a question mark until they're found; some come with a hat.
+ * Things to do around Ravenswood, kept by the Storyteller under the player's name with everything else they've earned
+ * (and a copy in the player's own browser). Secret ones show as a question mark until they're found; some come with a
+ * hat. Each new one pays a little money too (see PAY in game/profiles.ts).
  */
 export const FEATS: { id: FeatId; name: string; icon: string; how: string; secret?: boolean; hat?: HatId }[] = [
   { id: 'goodwin', name: 'Hero of Ravenswood', icon: '🌿', how: 'Win a game on the good team', hat: 'laurel' },
@@ -365,6 +386,24 @@ export const FEATS: { id: FeatId; name: string; icon: string; how: string; secre
   { id: 'onemore', name: 'One more time', icon: '🪩', how: 'Dance for a whole minute without stopping', secret: true, hat: 'robot' },
   { id: 'afk', name: 'AFK', icon: '🚧', how: 'Stand perfectly still for five minutes', secret: true, hat: 'cone' },
   { id: 'thriller', name: 'Thriller', icon: '🧟', how: 'Dance among the graves as a ghost', secret: true, hat: 'pumpkin' },
+  { id: 'offhook', name: 'Off the hook', icon: '😮‍💨', how: 'Be nominated and not get enough votes' },
+  { id: 'everyvote', name: 'Every hand counts', icon: '🙋', how: 'Raise your hand in every vote of a day with three or more nominations' },
+  { id: 'suspect', name: 'Usual suspect', icon: '🕵️', how: 'Be nominated three days running' },
+  { id: 'lastone', name: 'Last one standing', icon: '🧍', how: 'Be the last of your team alive when a game ends' },
+  { id: 'ghostwin', name: 'From beyond the grave', icon: '⚰️', how: 'Win a game as a ghost' },
+  { id: 'gutfeel', name: 'Gut feeling', icon: '🎯', how: 'Nominate the Demon' },
+  { id: 'lonevoice', name: 'Lone voice', icon: '☝️', how: 'Be the only hand raised in a vote', secret: true },
+  { id: 'firstgo', name: 'First to go', icon: '🥀', how: 'Be the first to die in a game', secret: true },
+  { id: 'pickme', name: 'Pick me!', icon: '🙋‍♀️', how: 'Nominate yourself', secret: true },
+  { id: 'earlybird', name: 'Early bird', icon: '🐦', how: 'Be first to the square when the bell rings' },
+  { id: 'allrounder', name: 'Jack of all trades', icon: '🧰', how: 'Have a go at every job in town' },
+  { id: 'nosy', name: 'Nosy neighbour', icon: '🏘️', how: 'Pop into all five cottages' },
+  { id: 'pigeons', name: 'Pigeon fancier', icon: '🕊️', how: 'Send 5 messenger pigeons' },
+  { id: 'bucket', name: 'Thirsty work', icon: '🪣', how: 'Draw 10 buckets of water from the well' },
+  { id: 'admirer', name: 'Secret admirer', icon: '💘', how: 'Post a letter without signing it', secret: true },
+  { id: 'legend', name: 'Once in a blue moon', icon: '🌙', how: 'Catch a legendary fish', secret: true },
+  { id: 'teacher', name: 'Teacher’s pet', icon: '🍎', how: 'Give the Storyteller a present', secret: true },
+  { id: 'moneybags', name: 'Money bags', icon: '💰', how: 'Have $100 at once' },
 ];
 
 /** The weather the Storyteller can call for. */

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useHud } from '../game/hud';
 import { local } from '../game/local';
+import { tally } from '../game/progress';
 import { player, useClient, usePigeoned } from '../net/client';
 import { ui } from '../state/ui';
 import { useView } from '../state/view';
@@ -29,9 +30,10 @@ export function PigeonModal() {
     setWaiting(false);
     if (answer.ok) {
       ui.toast(`Your pigeon is off to find ${target?.label ?? 'them'}! 🕊️`, 'good');
+      tally('pigeons', 1, `pigeon:${view.room}:${sentAt.current}`);
       ui.close();
     } else setWhy(answer.why || 'The pigeon wouldn’t fly');
-  }, [answer.at, answer.ok, answer.why, waiting, target?.label]);
+  }, [answer.at, answer.ok, answer.why, waiting, target?.label, view.room]);
 
   const send = () => {
     if (!target) return;
