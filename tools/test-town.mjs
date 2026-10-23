@@ -17,8 +17,12 @@ const PEER = 9000;
 // BUILT=/some/folder tests a site already built there (to compare two versions) instead of building this one.
 const BUILD = process.env.BUILT || joinPath(tmpdir(), 'ravenswood-test-build');
 mkdirSync(OUT, { recursive: true });
-// Machines without a graphics card (like CI) render slowly, so the pages run small, in low graphics, at a capped frame rate.
-const FLAGS = `peer=127.0.0.1:${PEER}&debug&fx=low&fps=4`;
+// Machines without a graphics card (like CI) render slowly, so the pages run small, in low graphics, at a capped
+// frame rate, and only Abbey's page draws as it goes. The others (the Storyteller included) do everything else,
+// voice too, and draw a single frame when a screenshot is wanted.
+const FLAGS = `peer=127.0.0.1:${PEER}&debug&fx=low`;
+const DRAWN = '&fps=4';
+const UNDRAWN = '&fps=10&nodraw';
 
 const procs = [];
 function run(cmd, args) {
@@ -65,7 +69,7 @@ const browser = await chromium.launch({
 
 const errors = [];
 const results = [];
-async function open(name, path) {
+async function open(name, path, draw = false) {
   const ctx = await browser.newContext({ viewport: { width: 760, height: 480 }, permissions: ['microphone'] });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errors.push(`${name}: ${e.message}`));
@@ -79,7 +83,7 @@ async function open(name, path) {
     if (!first) console.log(`!! ${name} navigated again: ${f.url()}`);
     first = false;
   });
-  await page.goto(`http://localhost:${PORT}/${path}${path.includes('?') ? '&' : '?'}${FLAGS}`);
+  await page.goto(`http://localhost:${PORT}/${path}${path.includes('?') ? '&' : '?'}${FLAGS}${draw ? DRAWN : UNDRAWN}`);
   page.label = name;
   return page;
 }
@@ -106,7 +110,11 @@ async function until(page, fn, arg, ms = 30000, what = 'condition') {
     throw new Error(`timed out waiting for ${what} on ${page.label}`);
   }
 }
-const shot = (page, name) => page.screenshot({ path: `${OUT}/${name}.png` });
+async function shot(page, name) {
+  // A page that doesn't draw as it goes draws this one frame.
+  await page.evaluate(() => window.__engine?.draw()).catch(() => {});
+  await page.screenshot({ path: `${OUT}/${name}.png` });
+}
 
 // ---------------------------------------------------------------- the Storyteller opens a room
 
@@ -125,7 +133,7 @@ async function jsClick(page, selector, ms = 90000) {
 }
 
 async function join(name, animal, color) {
-  const p = await open(name, `?room=${room}`);
+  const p = await open(name, `?room=${room}`, name === 'Abbey');
   await p.waitForSelector('.join-name input', { timeout: 180000 });
   await sleep(600);
   // The town builds on the main thread while the join card is up, so give a busy page plenty of time.
@@ -134,7 +142,8 @@ async function join(name, animal, color) {
   await jsClick(p, '.join-name button');
   if (animal) {
     await p.waitForSelector('.join-animal', { timeout: 180000 });
-    await p.waitForSelector(`.join-tile[title="${animal}"] img`, { timeout: 180000 });
+    // Only a page that draws has pictures on the tiles.
+    await p.waitForSelector(`.join-tile[title="${animal}"]${name === 'Abbey' ? ' img' : ''}`, { timeout: 180000 });
     if (name === 'Abbey') {
       await shot(p, '01-animal-picker');
       const tiles = await p.$$eval('.join-tile', (els) => els.map((e) => e.getAttribute('title')));

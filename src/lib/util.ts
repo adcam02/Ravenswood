@@ -65,7 +65,10 @@ export function saveJSON(key: string, value: unknown): boolean {
 export const debugHooks = (): boolean => import.meta.env.DEV || new URLSearchParams(location.search).has('debug');
 
 /**
- * Tests only (?debug&bot): a stand-in player that does everything but draw (no 3D, no animal pictures), so a
- * machine without a graphics card can run a whole town of them.
+ * Tests only (?debug&bot): a stand-in player that does everything but draw (no 3D, no animal pictures) and talk,
+ * so a machine without a graphics card can run a whole town of them.
  */
 export const botMode = (): boolean => debugHooks() && new URLSearchParams(location.search).has('bot');
+
+/** Tests only: a page that doesn't draw, either a stand-in (?debug&bot) or one that still talks (?debug&nodraw). */
+export const drawless = (): boolean => botMode() || (debugHooks() && new URLSearchParams(location.search).has('nodraw'));

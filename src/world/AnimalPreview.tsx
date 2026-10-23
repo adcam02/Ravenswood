@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { animalThumbnail, buildAnimal, type Rig } from './animals';
 import type { Anim, Look } from './types';
-import { botMode } from '../lib/util';
+import { drawless } from '../lib/util';
 
 const LOW = new URLSearchParams(location.search).get('fx') === 'low';
 /** The preview only needs to look alive, so it draws at a gentle rate and leaves the rest of the page responsive. */
@@ -20,7 +20,7 @@ export function AnimalPreview({ look, size = 260, spin = true, anim = 'idle', cl
 
   useEffect(() => {
     const el = canvas.current;
-    if (!el || botMode()) return;
+    if (!el || drawless()) return;
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({ canvas: el, antialias: !LOW, alpha: true, powerPreference: 'low-power' });

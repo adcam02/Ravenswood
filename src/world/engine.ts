@@ -25,7 +25,7 @@ import { earn, notePerfect, tally } from '../game/progress';
 
 /** Hats are a player's own: the Storyteller doesn't collect them. */
 const isPlayerView = (v: WorldView | null) => v?.mode === 'player';
-import { botMode, loadJSON, saveJSON } from '../lib/util';
+import { drawless, loadJSON, saveJSON } from '../lib/util';
 import { steadyInterval } from '../lib/ticker';
 
 /** Town features that arrive with the effects pass: called only if the town has them. */
@@ -223,8 +223,8 @@ export type Quality = 'high' | 'low';
 const params = new URLSearchParams(location.search);
 /** ?fps=10 caps the frame rate, for tests on machines without a graphics card. */
 const FPS_CAP = Number(params.get('fps')) || 0;
-/** Test stand-ins skip drawing (see botMode). */
-const DRAW = !botMode();
+/** Test stand-ins skip drawing (see drawless). */
+const DRAW = !drawless();
 
 const isTyping = () => {
   const el = document.activeElement as HTMLElement | null;
@@ -1418,11 +1418,14 @@ export class Engine {
       const a = near || this.job ? 0 : Math.max(0, Math.min(1, (26 - d) / 10));
       s.el.style.opacity = a.toFixed(2);
     }
-    if (DRAW) {
-      this.renderer.render(this.scene, this.camera);
-      this.labels.render(this.scene, this.camera);
-    }
+    if (DRAW) this.draw();
     if (!useHud.getState().ready) useHud.setState({ ready: true });
+  }
+
+  /** Draws the frame. A test page that doesn't draw as it goes calls this once for a screenshot. */
+  draw() {
+    this.renderer.render(this.scene, this.camera);
+    this.labels.render(this.scene, this.camera);
   }
 
   /**
