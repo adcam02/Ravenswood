@@ -6,7 +6,7 @@ import { chromium } from 'playwright';
 
 const OUT = process.argv[2] || 'test-results/st';
 mkdirSync(OUT, { recursive: true });
-const PORT = 5193;
+const PORT = Number(process.env.PORT ?? 5193);
 const vite = spawn('npx', ['vite', '--port', String(PORT), '--strictPort'], { stdio: 'ignore' });
 const end = Date.now() + 30000;
 while (Date.now() < end) {

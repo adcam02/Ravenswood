@@ -12,8 +12,8 @@ import { chromium } from 'playwright';
 
 const OUT = process.env.OUT || 'test-results';
 const ONLY = (process.env.ONLY || '').split(',').filter(Boolean);
-const PORT = 5190;
-const PEER = 9000;
+const PORT = Number(process.env.PORT ?? 5190);
+const PEER = Number(process.env.PEER ?? 9000);
 // BUILT=/some/folder tests a site already built there (to compare two versions) instead of building this one.
 const BUILD = process.env.BUILT || joinPath(tmpdir(), 'ravenswood-test-build');
 mkdirSync(OUT, { recursive: true });
