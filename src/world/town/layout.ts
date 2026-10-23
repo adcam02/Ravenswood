@@ -317,7 +317,8 @@ export function makeStations(): Station[] {
   const st: Station[] = [];
   // Tavern.
   st.push({ id: 'bar', zone: 'tavern', x: -1.8, z: -4.3, r: 2.2, job: 'bartender', stand: { x: -1.8, z: -4.0, ry: 0 }, label: 'Pour a drink' });
-  st.push({ id: 'bar-front', zone: 'tavern', x: -1.8, z: -1.0, r: 3.0, job: 'takeDrink', stand: { x: -1.8, z: -1.75, ry: Math.PI }, label: 'Take a drink' });
+  // (Its spot is in the gap between two stools: right by one, the stool's "Sit" is the nearer.)
+  st.push({ id: 'bar-front', zone: 'tavern', x: -1.8, z: -1.0, r: 3.0, job: 'takeDrink', stand: { x: -0.9, z: -1.15, ry: Math.PI }, label: 'Take a drink' });
   BAR_STOOLS.forEach((s, i) =>
     st.push({ id: `stool-${i}`, zone: 'tavern', x: s.x, z: s.z, r: 0.9, job: 'sit', stand: { x: s.x, z: s.z, ry: Math.PI }, y: 0.78, label: 'Sit' }),
   );
