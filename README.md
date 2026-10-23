@@ -22,6 +22,15 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    the clock tower or anyone's house to talk privately. The clock tower has a door on every side (you
    come back out of the one you went in by), into the clock room: the dials glow from behind (showing the real time, backwards), the movement ticks once a
    second with its pendulum swinging, and the bell rope jumps whenever the bell rings.
+   - **The confession booth** stands in the church's front corner: two closets side by side with a
+     latticed grille between them. Step into either side (E at its curtain) to sit inside. Whoever is in
+     one side hears only whoever is in the other, and nobody outside hears them, even standing right by
+     the booth. One person to a side; walking off (or E again) steps you back out.
+   - **The post office**, beside the road just south of the meeting circle, has a letterbox for every
+     player with their name on it. Write a letter there by day (signed, or anonymous) and post it in
+     someone's letterbox; a little red flag goes up on it. It arrives that night, and they open it in bed
+     (a **Letters** button appears when they have some). Each player is only ever sent their own letters,
+     and an anonymous one never carries who wrote it. A few letters a day each.
 4. **Daytime jobs**, each a little minigame:
    - **Bartender** at the Raven's Rest: pour drinks onto the bar for anyone to pick up.
    - **Laundry** at the washhouse: scrub the mud out and hang it on the line.
@@ -51,6 +60,10 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    a real table it goes out as a Townsfolk that isn't in play (change which when handing out), the
    player only ever sees that Townsfolk, and your grimoire shows their Townsfolk token with an "Is the
    Drunk" reminder beside it (the Marionette works the same way).
+   - **Killed in the night**: when you kill a player at night, a hooded figure with glowing eyes comes in
+     at their bedroom door, glides to the bedside and does it one of four ways (a dagger, a pillow, a
+     poison vial or a scythe), then vanishes in a puff of smoke. Only that player sees it (and you, if
+     you're at their bedside); everyone else finds out at dawn as before.
    - **Night**: everyone is tucked up in bed in their own bedroom, fire out, moon and stars in the
      window, and nobody can get up until morning. Press E for a go at **counting sheep**: how many white
      sheep jumped the fence, from either side? Every jump counts as one; the odd goat or wolf slips
@@ -66,7 +79,9 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    - **Day**: everyone comes back outside. Deaths in the night are announced at dawn, and dead players
      become ghosts of their animal: they can still walk around and talk.
    - **Ring the bell** and a bell call pops up on every player's screen, wherever they are, and after a
-     moment they're sat on their own stool around the clock tower, in the same order as the grimoire.
+     moment they're sat on their own stool around the clock tower, in the same order as the grimoire,
+     with their camera pulled back behind their stool to look down into the middle of the circle, so
+     everyone can see everyone (scroll to pull it in or out a little).
      Once everyone is there the bell stops but the meeting carries on, everyone staying put on their
      own stool (they can still wave, cheer and so on from their seat), until you
      press **End meeting** (in the scene bar or under the bell) or night falls. If you reorder the
@@ -121,6 +136,16 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    for keeping time. A new hat pops up on screen with your animal wearing it and a
    **Wear it now** button. Hats are remembered in each player's own browser and chosen under the
    colours in the animal picker; locked ones say how to earn them.
+7. **Achievements.** 26 more things to do, with ten more hats: win on the good team (a laurel wreath)
+   or the evil team (devil horns), catch 10 fish (a pirate's tricorn), run a whole lap of the ring
+   road (a jogger's headband), talk with someone through the confession booth (a confessor's candle),
+   post 5 letters (a postie's cap), plus surviving to the end, being hanged, being nominated,
+   nominating, voting, using your ghost vote, a Slayer claim, talking for 10 minutes, visiting all
+   four public buildings in a day, gifts, snacks, wishes, fan mail and games played. Some are
+   secret, and stay a question mark until found (four of them come with a secret hat). The
+   **Awards** button lists them all. Popups for anything new wait at least eight seconds, and until
+   any hanging or night visit on screen is over, so they never cover the moment that earned them.
+   Everything (your name, animal, hats and achievements) is kept in your own browser.
 
 ### Controls
 

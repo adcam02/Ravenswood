@@ -131,7 +131,11 @@ function DressUp({ look, setLook }: { look: Look; setLook: (l: Look) => void }) 
   const [tab, setTab] = useState<DressTab>('hat');
   const items: { id: string; name: string; icon: string; locked?: string }[] =
     tab === 'hat'
-      ? HATS.map((h) => ({ id: h.id, name: h.name, icon: h.icon, locked: h.unlocked(progress) ? undefined : h.how }))
+      ? HATS.map((h) => {
+          const got = h.unlocked(progress);
+          // Secret hats keep their secret until they're found.
+          return got ? { id: h.id, name: h.name, icon: h.icon } : h.secret ? { id: h.id, name: 'A secret hat', icon: '❓', locked: 'Keep exploring Ravenswood…' } : { id: h.id, name: h.name, icon: h.icon, locked: h.how };
+        })
       : tab === 'face'
         ? FACES
         : tab === 'neck'
