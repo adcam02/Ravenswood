@@ -198,7 +198,18 @@ export type HatId =
   | 'headband'
   | 'candle'
   | 'postie'
-  | 'jester';
+  | 'jester'
+  // Pop-culture hats (how each is earned is still to come).
+  | 'fez'
+  | 'deerstalker'
+  | 'tinfoil'
+  | 'trainer'
+  | 'madhatter'
+  | 'cowboy'
+  | 'robot'
+  | 'cone'
+  | 'mortarboard'
+  | 'pumpkin';
 
 /** What a player has done across all their games, kept in their own browser. */
 export interface Progress {
@@ -245,6 +256,16 @@ export const HATS: { id: HatId; name: string; icon: string; how: string; unlocke
   { id: 'reaper', name: 'Reaper’s hood', icon: '💀', how: 'Have a visitor in the night', unlocked: (p) => got(p, 'visited'), secret: true },
   { id: 'toadstool', name: 'Toadstool cap', icon: '🍄', how: 'Find the fairy ring', unlocked: (p) => got(p, 'fairyring'), secret: true },
   { id: 'jester', name: 'Jester’s cap', icon: '🃏', how: 'Spin round and round and round', unlocked: (p) => got(p, 'dizzy'), secret: true },
+  { id: 'fez', name: 'Fez', icon: '⏳', how: 'Still to come', unlocked: () => false },
+  { id: 'deerstalker', name: 'Deerstalker', icon: '🔍', how: 'Still to come', unlocked: () => false },
+  { id: 'tinfoil', name: 'Tin foil hat', icon: '👽', how: 'Still to come', unlocked: () => false },
+  { id: 'trainer', name: 'Trainer’s cap', icon: '🧢', how: 'Still to come', unlocked: () => false },
+  { id: 'madhatter', name: 'Mad Hatter’s hat', icon: '🫖', how: 'Still to come', unlocked: () => false },
+  { id: 'cowboy', name: 'Cowboy hat', icon: '🤠', how: 'Still to come', unlocked: () => false },
+  { id: 'robot', name: 'Robot helmet', icon: '🤖', how: 'Still to come', unlocked: () => false },
+  { id: 'cone', name: 'Traffic cone', icon: '🚧', how: 'Still to come', unlocked: () => false },
+  { id: 'mortarboard', name: 'Mortarboard', icon: '🎓', how: 'Still to come', unlocked: () => false },
+  { id: 'pumpkin', name: 'Jack-o’-lantern', icon: '🎃', how: 'Still to come', unlocked: () => false },
 ];
 
 // ---------------------------------------------------------------- achievements

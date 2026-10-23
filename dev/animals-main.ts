@@ -399,6 +399,24 @@ if (view === 'grid' || view === 'night') {
   fresh.forEach(([id, hat], i) => place(make({ animal: id, color: ANIMALS.find((x) => x.id === id)!.colors[0], hat }), ((i % 5) - 2) * 1.5 + (i < 5 ? -0.375 : 0.375), 1.2 - Math.floor(i / 5) * 1.9, 'idle', 0, Number(q.get('ry') ?? 0.25)));
   camera.position.set(0, 3.0, 8.6);
   camera.lookAt(0, 0.5, 0.1);
+} else if (view === 'hats' && q.get('set') === 'pop') {
+  // The pop-culture hats, one each on ten different heads.
+  const pop: [AnimalId, HatId][] = [
+    ['fox', 'fez'],
+    ['bear', 'deerstalker'],
+    ['frog', 'tinfoil'],
+    ['penguin', 'trainer'],
+    ['capybara', 'pumpkin'],
+    ['deer', 'cowboy'],
+    ['wolf', 'robot'],
+    ['hedgehog', 'cone'],
+    ['octopus', 'mortarboard'],
+    ['raccoon', 'madhatter'],
+  ];
+  // The back row stands further back and wider apart, so each head shows between two in front.
+  pop.forEach(([id, hat], i) => place(make({ animal: id, color: ANIMALS.find((x) => x.id === id)!.colors[0], hat }), i < 5 ? (i - 2) * 1.5 - 0.75 : (i - 7) * 2, i < 5 ? 1.3 : -1.3, 'idle', 0, Number(q.get('ry') ?? 0.25)));
+  camera.position.set(0, 3.6, 8.8);
+  camera.lookAt(0, 0.4, -0.1);
 } else if (view === 'hats' && q.get('set') === 'close') {
   // One hat (?hat=) up close on one head (?animal=, default fox): from the front, three quarters, the side and behind.
   const id = (q.get('animal') ?? 'fox') as AnimalId;
