@@ -107,6 +107,7 @@ export function PlayerRail() {
     { key: 'notes', icon: 'notepad', label: 'Notepad', on: panel === 'notes', action: open('notes') },
     { key: 'journal', icon: 'scroll', label: 'Storyteller info', on: panel === 'journal', action: open('journal') },
     { key: 'history', icon: 'vote', label: 'Votes', on: panel === 'history', action: open('history') },
+    { key: 'pigeon', icon: 'bird', label: 'Pigeon', disabled: view.phase === 'night', action: () => ui.open({ kind: 'pigeon' }) },
     { key: 'awards', icon: 'trophy', label: 'Awards', action: () => ui.open({ kind: 'awards' }) },
     // Anyone can claim to be the Slayer, once a game, when the script has one.
     ...(slayer.show

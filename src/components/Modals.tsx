@@ -20,6 +20,7 @@ import { ScriptModal } from './ScriptPicker';
 import { SlayerModal } from './Slayer';
 import { ReadLettersModal, WriteLetterModal } from './Letters';
 import { AwardsModal } from './Awards';
+import { PigeonModal } from './Pigeon';
 import { EndGameSetting, RecapModal } from './GameOver';
 import { useProblems } from '../lib/report';
 import { ReminderToken, Token } from './Token';
@@ -65,6 +66,8 @@ export function Modals() {
       return <ReadLettersModal />;
     case 'awards':
       return <AwardsModal />;
+    case 'pigeon':
+      return <PigeonModal />;
   }
 }
 

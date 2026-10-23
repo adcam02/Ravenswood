@@ -42,6 +42,8 @@ interface Hud {
   drama: boolean;
   /** Killed in the night: the hooded figure's visit is playing, then the screen goes dark for a moment. */
   visit: 'playing' | 'dark' | null;
+  /** A messenger pigeon has just landed on our shoulder: who sent it and where they are. */
+  pigeon: { name: string; where: string; key: number } | null;
 }
 
 export const useHud = create<Hud>(() => ({
@@ -61,6 +63,7 @@ export const useHud = create<Hud>(() => ({
   sheep: null,
   drama: false,
   visit: null,
+  pigeon: null,
 }));
 
 /** Commands from the on-screen buttons to the 3D world. The world fills these in when it starts. */

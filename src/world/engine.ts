@@ -8,8 +8,9 @@ import { SCORE_OF, type GameJob, type JobResults } from '../jobs/meta';
 import { rememberBest } from '../game/bests';
 import type { DayTimer, Execution, Nomination, TownAction, TownHall, Visit } from '../state/types';
 import { ambience } from '../lib/ambience';
-import { drumroll, gavel, visitSound } from '../lib/audio';
+import { drumroll, gavel, pigeonSound, visitSound } from '../lib/audio';
 import { NightVisit, VISIT, type VictimPose } from './visit';
+import { PIGEON, PigeonFlight } from './pigeon';
 import { ui, useUI } from '../state/ui';
 import { earshot } from '../voice/earshot';
 import { useVoice, voice, type Listener } from '../voice/voice';
@@ -131,6 +132,9 @@ export interface WorldView {
   ended: { winner: 'good' | 'evil'; at: number } | null;
   /** Hooded-figure visits tonight: the player's own (if they've been killed), or all of them for the Storyteller. */
   visits: Visit[];
+  /** Messenger pigeons in the air lately (this browser's clock), and the notes from those that came for us. */
+  pigeons: { id: string; to: string; at: number }[];
+  pigeonNotes: { id: string; name: string; where: string; at: number }[];
 }
 
 /** What the world asks of the game around it. */
@@ -314,10 +318,13 @@ export class Engine {
   private visit: { id: string; seatId: string; zone: ZoneId; mine: boolean; scene: NightVisit; start: number } | null = null;
   private victimPose: VictimPose | null = null;
   private visitsSeen = new Set<string>(loadJSON<string[]>(VISITS_SEEN_KEY, []));
+  /** Messenger pigeons flying (or perched, or bursting) here, by id, with whose shoulder each is for. */
+  private pigeons = new Map<string, { flight: PigeonFlight; to: string; start: number; noted: boolean }>();
+  private pigeonsSeen = new Set<string>();
   /** The side of the confession booth we're sitting in, if we are. */
   private booth: Station | null = null;
-  /** How long we've been in the booth with someone on the other side, for the achievement. */
-  private boothTalk = 0;
+  /** Since when (on the clock) we've been in the booth with someone on the other side, for the achievement. */
+  private boothWith: number | null = null;
 
   constructor(
     private host: HTMLElement,
@@ -1030,7 +1037,7 @@ export class Engine {
    * In the booth: if two people stepped into the same side at once, the one who sorts later steps back out (both
    * pages decide the same way); and talking with someone on the other side for a while earns its achievement.
    */
-  private checkBooth(dt: number, v: WorldView) {
+  private checkBooth(t: number, v: WorldView) {
     const s = this.booth;
     if (!s) return;
     const myKey = v.mode === 'st' ? 'st' : (v.mySeatId ?? '');
@@ -1045,8 +1052,9 @@ export class Engine {
         }
       } else other = true;
     }
-    this.boothTalk = other ? this.boothTalk + dt : 0;
-    if (this.boothTalk > 20 && v.mode === 'player') earn('confess');
+    // (Real time on the clock, not frames, which a slow machine has few of.)
+    this.boothWith = other ? (this.boothWith ?? t) : null;
+    if (this.boothWith !== null && t - this.boothWith > 20 && v.mode === 'player') earn('confess');
   }
 
   private give() {
@@ -1131,7 +1139,7 @@ export class Engine {
       }
       this.stopEverything();
       this.booth = s;
-      this.boothTalk = 0;
+      this.boothWith = null;
       local.x = s.stand.x;
       local.z = s.stand.z;
       local.ry = s.stand.ry;
@@ -1380,6 +1388,7 @@ export class Engine {
 
     this.runShow(t);
     this.runVisit(t, v);
+    this.runPigeons(t, v);
     // Unlock popups wait while something everyone should watch is on screen.
     const drama = Boolean(this.show || this.visit);
     if (drama !== useHud.getState().drama) useHud.setState({ drama });
@@ -1561,17 +1570,19 @@ export class Engine {
 
     this.checkDoors(v, moving, dx, dz);
     this.checkStations(v);
-    this.checkBooth(dt, v);
+    this.checkBooth(t, v);
     if (v.mode === 'player') this.trackFeats(dt, t, v, moving);
   }
 
   /** For the achievements: talk, places visited today, a lap of the ring road, spinning, a ghost among the graves. */
-  private feat = { talk: 0, places: new Set<string>(), day: -1, lapAngle: 0, lapLast: null as number | null, still: 0, spin: [] as { t: number; d: number }[], lastRy: 0 };
+  private feat = { talk: 0, talkAt: 0, places: new Set<string>(), day: -1, lapAngle: 0, lapLast: null as number | null, still: 0, spin: [] as { t: number; d: number }[], lastRy: 0 };
   private trackFeats(dt: number, t: number, v: WorldView, moving: boolean) {
     const f = this.feat;
-    // Every ten seconds of talking counts.
+    // Every ten seconds of talking counts (real time between frames, however few frames there are).
+    const since = Math.min(1, Math.max(0, t - f.talkAt));
+    f.talkAt = t;
     if (local.speaking) {
-      f.talk += dt;
+      f.talk += since;
       if (f.talk >= 10) {
         f.talk -= 10;
         tally('talk', 10);
@@ -1821,6 +1832,47 @@ export class Engine {
     }
     this.victimPose = vis.scene.update(age);
     if (vis.mine && age > VISIT.dark && useHud.getState().visit !== 'dark') useHud.setState({ visit: 'dark' });
+  }
+
+  /**
+   * Messenger pigeons. Each new one (sent in the last few seconds) flies in to its person's shoulder wherever they
+   * are, if they're in sight here, sits a moment, and bursts into confetti. The one it came for also gets the note
+   * saying who sent it and where they are, as it lands.
+   */
+  private runPigeons(t: number, v: WorldView | null) {
+    if (!v) return;
+    const now = Date.now();
+    for (const p of v.pigeons) {
+      if (this.pigeonsSeen.has(p.id)) continue;
+      this.pigeonsSeen.add(p.id);
+      // Long gone by the time we heard (arriving late, or a reload): no pigeon now.
+      if (now - p.at > 6000 || this.pigeons.size > 12) continue;
+      this.pigeons.set(p.id, { flight: new PigeonFlight(this.scene, pigeonSound), to: p.to, start: t, noted: false });
+    }
+    for (const [id, p] of this.pigeons) {
+      const age = t - p.start;
+      const mine = p.to === v.mySeatId && v.mode === 'player';
+      const av = mine ? this.me : this.others.get(p.to);
+      let shoulder: THREE.Vector3 | null = null;
+      if (av && av.shown && (mine || this.others.get(p.to)?.shown)) {
+        const ry = av.rig.root.rotation.y;
+        // On the right shoulder, just below the top of the head.
+        shoulder = new THREE.Vector3(Math.cos(ry) * -0.24, av.rig.headHeight * 0.72, -Math.sin(ry) * -0.24).add(av.rig.root.position);
+      }
+      // (The note comes separately from the bird, so it may land a moment after it.)
+      if (mine && !p.noted && age >= PIGEON.land) {
+        const note = v.pigeonNotes.find((n) => n.id === id);
+        if (note) {
+          p.noted = true;
+          useHud.setState({ pigeon: { name: note.name, where: note.where, key: now } });
+        }
+      }
+      const live = p.flight.update(age, shoulder, av?.rig.root.rotation.y ?? 0);
+      if (!live) {
+        p.flight.dispose();
+        this.pigeons.delete(id);
+      }
+    }
   }
 
   /** Tests can hold the show at a moment (`showFreeze`, in seconds) to look at it frame by frame. */

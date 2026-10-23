@@ -26,6 +26,8 @@ export type Modal =
   | { kind: 'letters' }
   /** Hats and achievements: what's been earned, and what's still to find. */
   | { kind: 'awards' }
+  /** Sending a messenger pigeon to someone. */
+  | { kind: 'pigeon' }
   | null;
 
 export type Pick =

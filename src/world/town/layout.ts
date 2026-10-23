@@ -489,3 +489,40 @@ export const LINE_SLOT_X = (line: number, slot: number) => {
   const l = LINE_POS[line % LINE_POS.length];
   return { x: l.x0 + ((l.x1 - l.x0) * (slot + 0.5)) / LINE_SLOTS, z: l.z };
 };
+
+// ---------------------------------------------------------------- where someone is, in words
+
+/**
+ * Where a spot is, said the way a person would ("by the pond", "in the church"), for a messenger pigeon's note.
+ * Buildings by name; out in town, the nearest landmark. (The fairy ring stays a secret: it's just "the woods".)
+ */
+export function whereIs(zone: string, x: number, z: number): string {
+  if (zone === 'tavern') return 'in the Raven’s Rest';
+  if (zone === 'bakery') return 'in the bakery';
+  if (zone === 'church') return 'in the church';
+  if (zone === 'tower') return 'up in the clock tower';
+  if (zone.startsWith('cottage:')) return `in ${COTTAGE_NAMES[Number(zone.slice(8)) % COTTAGE_NAMES.length]}`;
+  if (zone.startsWith('house:')) return 'at home';
+  const near = (p: { x: number; z: number }, r: number) => Math.hypot(x - p.x, z - p.z) < r;
+  if (near(MEETING_CENTRE, DAIS.r1 + 1)) return 'at the meeting circle';
+  if (Math.hypot(x, z) < SQUARE_R) return 'in the town square';
+  if (pondContains(x, z, -2.5)) return 'by the pond';
+  if (near(POST, 3.2)) return 'at the post office';
+  if (near(GALLOWS, 3.5)) return 'by the gallows';
+  if (near(WELL, 3)) return 'at the well';
+  if (near(NOTICEBOARD, 2.5)) return 'at the noticeboard';
+  if (near(WOODPILE, 3)) return 'at the woodpile';
+  if (Math.abs(x - GRAVEYARD.x) < GRAVEYARD.hw + 2 && Math.abs(z - GRAVEYARD.z) < GRAVEYARD.hd + 2) return 'in the graveyard';
+  if (near(doorPoint(CHURCH, 3, churchFront), 6)) return 'outside the church';
+  if (near(doorPoint(TAVERN, 3), 7)) return 'outside the Raven’s Rest';
+  if (near(doorPoint(BAKERY, 3), 7)) return 'outside the bakery';
+  if (Math.abs(x - WASHHOUSE.x) < WASHHOUSE.w / 2 + 3 && Math.abs(z - WASHHOUSE.z) < WASHHOUSE.d / 2 + 3) return 'at the washhouse';
+  if (LINE_POS.some((l) => x > l.x0 - 1 && x < l.x1 + 1 && Math.abs(z - l.z) < 1.5)) return 'by the washing lines';
+  if (beds.some((b) => near(b, 3))) return 'by the flower beds';
+  const cottage = houseSlots.findIndex((h) => near(h, 6));
+  if (cottage >= 0) return `by ${COTTAGE_NAMES[cottage % COTTAGE_NAMES.length]}`;
+  const r = Math.hypot(x, z);
+  if (Math.abs(r - RING_ROAD_R) < 2) return 'on the ring road';
+  if (r > RING_ROAD_R + 2) return 'out in the woods';
+  return 'around town';
+}

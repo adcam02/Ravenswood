@@ -290,3 +290,77 @@ export function visitSound(name: string) {
     src.start(t);
   }
 }
+
+/** The messenger pigeon: a flurry of wingbeats, a soft coo, and the pop of confetti. */
+export function pigeonSound(name: string) {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.connect(c.destination);
+  if (name === 'flap') {
+    for (let i = 0; i < 7; i++) {
+      const src = noise(c, 0.08);
+      const f = c.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 700 + i * 30;
+      f.Q.value = 0.8;
+      const g = c.createGain();
+      const at = t + i * 0.11;
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.05, at + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.07);
+      src.connect(f).connect(g).connect(out);
+      src.start(at);
+    }
+  } else if (name === 'coo') {
+    // Two soft, throaty notes: "roo-coo".
+    [
+      [330, 0, 0.28],
+      [290, 0.3, 0.45],
+    ].forEach(([freq, delay, len]) => {
+      const osc = c.createOscillator();
+      osc.type = 'sine';
+      const wob = c.createOscillator();
+      const depth = c.createGain();
+      wob.frequency.value = 18;
+      depth.gain.value = 12;
+      wob.connect(depth).connect(osc.frequency);
+      osc.frequency.setValueAtTime(freq, t + delay);
+      osc.frequency.linearRampToValueAtTime(freq * 0.85, t + delay + len);
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t + delay);
+      g.gain.exponentialRampToValueAtTime(0.08, t + delay + 0.05);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + delay + len);
+      osc.connect(g).connect(out);
+      osc.start(t + delay);
+      wob.start(t + delay);
+      osc.stop(t + delay + len + 0.05);
+      wob.stop(t + delay + len + 0.05);
+    });
+  } else if (name === 'pop') {
+    const src = noise(c, 0.25);
+    const f = c.createBiquadFilter();
+    f.type = 'highpass';
+    f.frequency.value = 900;
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.16, t + 0.005);
+    out.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+    src.connect(f).connect(out);
+    src.start(t);
+    // And a little sparkle.
+    [1047, 1319, 1568].forEach((freq, i) => {
+      const s = c.createOscillator();
+      const g = c.createGain();
+      s.type = 'triangle';
+      s.frequency.value = freq;
+      const at = t + 0.03 + i * 0.06;
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.05, at + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
+      s.connect(g).connect(c.destination);
+      s.start(at);
+      s.stop(at + 0.55);
+    });
+  }
+}

@@ -70,6 +70,10 @@ export interface View {
   letters: LetterIn[];
   /** Hooded-figure visits tonight: the player's own, if they've been killed; every one, for the Storyteller. */
   visits: Visit[];
+  /** Messenger pigeons in the air lately, and whose shoulder each is for (in this browser's clock). */
+  pigeons: { id: string; to: string; at: number }[];
+  /** Player: the pigeons that came for them, with who sent each and where they were. */
+  pigeonNotes: { id: string; name: string; where: string; at: number }[];
 }
 
 const label = (name: string, i: number) => name || `Seat ${i + 1}`;
@@ -125,6 +129,8 @@ export function useStorytellerView(): View {
       deaths: g.deaths,
       letters: [],
       visits: g.nightDeaths.map((id) => visitFor(g, id)).filter((x): x is Visit => Boolean(x)),
+      pigeons: (g.pigeons ?? []).filter((p) => Date.now() - p.at < 60000).map(({ id, to, at }) => ({ id, to, at })),
+      pigeonNotes: [],
     }),
     [g, online, slow, hide],
   );
@@ -188,6 +194,8 @@ export function usePlayerView(): View | null {
       deaths: pub.deaths ?? [],
       letters: Array.isArray(priv?.letters) ? priv.letters : [],
       visits: priv?.visit ? [priv.visit] : [],
+      pigeons: (Array.isArray(pub.pigeons) ? pub.pigeons : []).map((p) => ({ ...p, at: p.at - (clockOffset ?? 0) })),
+      pigeonNotes: (Array.isArray(priv?.pigeons) ? priv.pigeons : []).map((p) => ({ ...p, at: p.at - (clockOffset ?? 0) })),
     };
   }, [pub, priv, clockOffset]);
 }

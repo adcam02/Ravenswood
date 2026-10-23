@@ -2719,3 +2719,23 @@
   font-size: 13px;
   text-align: center;
 }
+
+/* ---------------------------------------------------------------- the messenger pigeon */
+
+.pigeon-blurb {
+  margin: 0 0 14px;
+  color: var(--text-dim);
+}
+.pigeon-blurb strong {
+  color: var(--text);
+}
+.pigeon-why {
+  margin: 12px 0 0;
+  text-align: center;
+  color: var(--evil-hi);
+}
+.pigeon-go {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}

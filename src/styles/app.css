@@ -1243,12 +1243,14 @@ button.my-card:hover {
     flex-direction: row;
     gap: 0;
     max-height: none;
-    overflow: visible;
+    /* Too many buttons for a narrow screen: the bar scrolls sideways, each button keeping a size you can tap. */
+    overflow-x: auto;
+    overflow-y: hidden;
     padding: 4px 2px calc(4px + env(safe-area-inset-bottom));
     border-radius: 16px 16px 0 0;
   }
   .rail-item {
-    flex: 1;
+    flex: 1 0 58px;
     width: auto;
     padding: 7px 0 6px;
   }

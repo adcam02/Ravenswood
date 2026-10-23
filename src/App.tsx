@@ -64,6 +64,7 @@ import { useUI } from './state/ui';
 import { ModeContext, usePlayerView, useStorytellerView, ViewContext } from './state/view';
 import { Icon } from './components/Icon';
 import { BedLetters } from './components/Letters';
+import { PigeonNote } from './components/Pigeon';
 import { World } from './world/World';
 import { MiniGrimoire } from './components/town/MiniGrimoire';
 import { MiniMap } from './components/town/MiniMap';
@@ -258,6 +259,7 @@ function Player({ room }: { room: string }) {
               <SheepLayer />
               <BedLetters />
               <VisitCard />
+              <PigeonNote />
               <DayClock />
               <ProgressWatcher />
               <NoticeBoard />

@@ -2251,3 +2251,32 @@
     transform: translateY(8px);
   }
 }
+
+/* A messenger pigeon has landed: who wants a word, and where they are. */
+.pigeon-note {
+  position: fixed;
+  left: 50%;
+  top: 150px;
+  z-index: 74;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px 10px 12px;
+  text-align: left;
+  animation: new-feat-in 0.5s var(--ease-spring) both;
+}
+.pigeon-note-icon {
+  font-size: 34px;
+}
+.pigeon-note-text {
+  display: flex;
+  flex-direction: column;
+}
+.pigeon-note-text strong {
+  font-size: 17px;
+}
+.pigeon-note-text span {
+  font-size: 14px;
+  color: var(--cosy-ink-soft);
+}

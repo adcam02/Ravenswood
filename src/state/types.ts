@@ -181,6 +181,18 @@ export interface Letter {
 /** A letter as its reader gets it: who signed it (if anyone), never which seat wrote it. */
 export type LetterIn = Omit<Letter, 'from' | 'to'>;
 
+/** A messenger pigeon: someone wants to speak to `to`, and says where they are. */
+export interface Pigeon {
+  id: string;
+  /** Seat ids. */
+  from: string;
+  to: string;
+  /** The sender's name and where they were when they sent it ("by the pond"). */
+  name: string;
+  where: string;
+  at: number;
+}
+
 /** Killed in the night: the hooded figure's visit to their bedroom, which only they (and the Storyteller) see. */
 export interface Visit {
   id: string;
@@ -232,6 +244,8 @@ export interface GameState {
   nightDeaths: string[];
   /** Letters posted this game. */
   letters?: Letter[];
+  /** Messenger pigeons sent lately, newest last. */
+  pigeons?: Pigeon[];
   /** Slayer claims this game, oldest first. */
   slayer: SlayerShot[];
   /** Everyone who has died this game, in order. */
@@ -290,6 +304,8 @@ export interface PublicState {
   town: TownState;
   /** Slayer claims this game (without whether they were the real Slayer). */
   slayer?: SlayerShot[];
+  /** Pigeons in the air just now: whose shoulder each is heading for (not who sent it). */
+  pigeons?: { id: string; to: string; at: number }[];
   /** The game is over. */
   ended?: GameEnd | null;
   /** Every death this game, once it's over (for the recap). */
@@ -320,6 +336,8 @@ export interface PrivateState {
   letters?: LetterIn[];
   /** Killed tonight: the visit to play in their bedroom. */
   visit?: Visit | null;
+  /** Pigeons that have come for this seat lately: who sent each, and where they said they were. */
+  pigeons?: { id: string; name: string; where: string; at: number }[];
 }
 
 // ---------------------------------------------------------------- messages
@@ -355,6 +373,8 @@ export type HostMessage =
   | { t: 'taken'; animal: string; by: string }
   /** Whether the letter just posted went in (it can't by night, or past the day's limit). */
   | { t: 'posted'; ok: boolean }
+  /** Whether the pigeon just sent took off (they only fly by day, and need a rest between flights). */
+  | { t: 'pigeoned'; ok: boolean; why?: string }
   /** `at` is the ping's own time, sent back so the player can tell how long the round trip took. */
   | { t: 'pong'; at?: number }
   | { t: 'host' }
@@ -380,6 +400,8 @@ export type ClientMessage =
   | { t: 'slay'; seatId: string }
   /** Post a letter in someone's letterbox (by day), signed or not. */
   | { t: 'letter'; to: string; text: string; signed: boolean }
+  /** Send a messenger pigeon to someone: "<name> wants to speak to you", and where the sender is. */
+  | { t: 'pigeon'; to: string; where: string }
   /** Something went wrong in this player's game, so the Storyteller knows. */
   | { t: 'oops'; message: string; where?: string; v?: string }
   /** `at`: when it was sent (for the round trip); `rtt`: the player's latest measure of it, in milliseconds. */

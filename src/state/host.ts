@@ -31,6 +31,7 @@ import type {
   GrimoireSnapshot,
   Letter,
   Nomination,
+  Pigeon,
   Phase,
   PrivateState,
   PublicState,
@@ -87,6 +88,7 @@ function freshGame(prev?: GameState, keepPlayers = true): GameState {
     town: prev?.town ?? emptyTown(),
     nightDeaths: [],
     letters: [],
+    pigeons: [],
     slayer: [],
     deaths: [],
     ended: null,
@@ -107,6 +109,7 @@ function loadGame(): GameState | null {
   g.townHall ??= null;
   g.nightDeaths ??= [];
   g.letters ??= [];
+  g.pigeons ??= [];
   g.slayer ??= [];
   // A game saved before deaths were logged: those already dead are noted without a day.
   g.deaths ??= g.seats.filter((s) => s.dead).map((s) => ({ seatId: s.id, day: 0, phase: 'day' as const, how: 'other' as const, at: 0 }));
@@ -216,6 +219,7 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
     ),
     town: g.town,
     slayer: g.slayer.map(({ real: _, ...shot }) => shot),
+    pigeons: recentPigeons(g).map(({ id, to, at }) => ({ id, to, at })),
     ended: g.ended && { winner: g.ended.winner, reason: g.ended.reason, at: g.ended.at, day: g.ended.day, since: g.ended.since },
     // Night deaths stay secret until dawn, so the list only goes out once the game is over.
     deaths: g.ended ? g.deaths : undefined,
@@ -300,6 +304,9 @@ export function toPrivate(g: GameState, playerId: string): PrivateState {
     log: g.wakes.filter((w) => w.to.includes(seat.id)).map(forSeat),
     replies: g.replies.filter((r) => r.seatId === seat.id),
     letters: (g.letters ?? []).filter((l) => l.to === seat.id && l.night <= g.day).map(({ id, name, text, night, at }) => ({ id, name, text, night, at })),
+    pigeons: recentPigeons(g)
+      .filter((p) => p.to === seat.id)
+      .map(({ id, name, where, at }) => ({ id, name, where, at })),
     visit: visitFor(g, seat.id),
   };
 }
@@ -318,6 +325,12 @@ export function visitFor(g: GameState, seatId: string): Visit | null {
   for (const ch of seatId) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
   return { id: `${g.day}:${seatId}`, seatId, variant: h % VISIT_KINDS, at: death?.at ?? Date.now() };
 }
+
+/** Pigeons still worth showing: sent in the last minute. */
+const PIGEON_SHOWN_MS = 60000;
+/** How long a player's pigeon rests between flights. */
+export const PIGEON_REST_MS = 20000;
+const recentPigeons = (g: GameState): Pigeon[] => (g.pigeons ?? []).filter((p) => Date.now() - p.at < PIGEON_SHOWN_MS);
 
 /** A letter's longest, and how many a player can post in a day. */
 export const LETTER_MAX = 600;
@@ -1159,6 +1172,24 @@ export const st = {
         g.letters = [...(g.letters ?? []), letter].slice(-LETTERS_KEPT);
       });
       return true;
+    },
+    /**
+     * A messenger pigeon to another player, saying who wants to speak to them and where they are. By day only, to
+     * someone actually playing, and one every little while each. Returns why not, if it can't fly.
+     */
+    pigeon(playerId: string, to: string, where: string): string | null {
+      const g = hostGame();
+      const s = g.seats.find((x) => x.playerId === playerId);
+      const target = seatOf(g, to);
+      if (!s || !target || target.id === s.id || !target.playerId) return 'They aren’t here to find';
+      if (g.phase !== 'day' || g.ended) return 'Pigeons only fly by day';
+      const last = [...(g.pigeons ?? [])].reverse().find((p) => p.from === s.id);
+      if (last && Date.now() - last.at < PIGEON_REST_MS) return 'Your pigeon needs a little rest first';
+      const pigeon: Pigeon = { id: uid(), from: s.id, to: target.id, name: s.name || 'Someone', where: clip(where, 48) || 'around town', at: Date.now() };
+      update((g) => {
+        g.pigeons = [...(g.pigeons ?? []).filter((p) => Date.now() - p.at < PIGEON_SHOWN_MS * 5), pigeon].slice(-30);
+      });
+      return null;
     },
     /** Whatever a player did around town. Returns an item when it ends up in their paw. */
     town(playerId: string, action: TownAction): Item | null {
