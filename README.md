@@ -98,10 +98,14 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      the night order in the side panel.
    - **Day**: everyone comes back outside. Deaths in the night are announced at dawn, and dead players
      become ghosts of their animal: they can still walk around and talk.
-   - **Ring the bell** and a bell call pops up on every player's screen, wherever they are, and after a
-     moment they're sat on their own stool around the clock tower, in the same order as the grimoire,
-     with their camera pulled back behind their stool to look down into the middle of the circle, so
-     everyone can see everyone (scroll to pull it in or out a little).
+   - **Ring the bell** and a bell call pops up on every player's screen, wherever they are. Nobody is
+     pulled out of what they're doing: **Take my seat** goes straight to their own stool around the
+     clock tower, in the same order as the grimoire, or **I'll walk over** lets them finish up and sit
+     down on reaching their stool (ringed in gold until they do). Seated, their camera pulls back behind
+     their stool to look down into the middle of the circle, so everyone can see everyone (scroll to
+     pull it in or out a little). The count under the bell is of players sat on their own stool, and
+     **Seat everyone** there (or **Sit them on their stool** in a seat menu) brings anyone still missing
+     straight to their stool. Someone who reloads mid-meeting goes straight back to their stool.
      Once everyone is there the bell stops but the meeting carries on, everyone staying put on their
      own stool (they can still wave, cheer and so on from their seat), until you
      press **End meeting** (in the scene bar or under the bell) or night falls. If you reorder the

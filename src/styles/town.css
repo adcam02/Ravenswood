@@ -505,17 +505,52 @@
   display: flex;
   align-items: center;
   gap: 14px;
+  width: max-content;
+  max-width: calc(100vw - 24px);
   padding: 10px 12px 10px 16px;
   animation: bell-in 0.5s var(--ease-spring);
 }
-.bell-call div {
+.bell-text {
   display: grid;
+  gap: 1px;
 }
 .bell-call strong {
   font-size: 18px;
 }
 .bell-call span {
   color: var(--cosy-ink-soft);
+}
+.bell-call em {
+  max-width: 300px;
+  font-size: 13px;
+  font-style: normal;
+  color: var(--cosy-ink-soft);
+}
+.bell-actions {
+  display: grid;
+  gap: 6px;
+}
+/* Walking over: a small reminder, out of the way. */
+.bell-call.small {
+  gap: 10px;
+  padding: 5px 6px 5px 12px;
+  font-size: 14px;
+}
+.bell-call.small .bell-emoji {
+  font-size: 22px;
+}
+@media (max-width: 560px) {
+  .bell-call:not(.small) {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 8px;
+  }
+  .bell-call:not(.small) .bell-actions {
+    display: flex;
+  }
+  .bell-call.small > span:not(.bell-emoji) {
+    font-size: 13px;
+  }
 }
 .bell-emoji {
   font-size: 34px;

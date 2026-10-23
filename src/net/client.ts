@@ -313,6 +313,8 @@ class ClientLink {
       usePosted.setState({ ok: msg.ok === true, at: Date.now() });
     } else if (msg.t === 'summon') {
       if (typeof msg.zone === 'string' && Number.isFinite(msg.x) && Number.isFinite(msg.z)) game.summoned(msg.zone, msg.x, msg.z);
+    } else if (msg.t === 'seat') {
+      game.calledToStool();
     }
   }
 

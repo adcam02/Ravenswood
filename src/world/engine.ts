@@ -311,7 +311,6 @@ export class Engine {
   private lastFrameAt = 0;
   private nearStation: Station | null = null;
   private signs: { station: Station; el: HTMLDivElement; obj: CSS2DObject }[] = [];
-  private bellTimer: ReturnType<typeof setTimeout> | null = null;
   private wellTimer: ReturnType<typeof setTimeout> | null = null;
   private hearing = 0;
   private occluderRay = new THREE.Raycaster();
@@ -402,9 +401,14 @@ export class Engine {
     game.putAway = () => this.putAway();
     game.goTo = (key) => this.goTo(key);
     game.takeMeetingSeat = () => this.takeMeetingSeat();
-    game.goToSquare = () => this.goToSquare();
     game.jobDone = (r) => this.finishJob(r);
     game.jobCancel = () => this.finishJob(undefined);
+    game.calledToStool = () => {
+      const v = this.view;
+      if (!v || v.mode !== 'player' || !(v.townHall || v.nomination) || this.inBed || (this.seated && this.seated.y === STOOL_Y)) return;
+      this.takeMeetingSeat();
+      this.me?.bubble('The Storyteller sat you down', 2600);
+    };
     game.summoned = (zone, x, z) => {
       // Called over by the Storyteller: stand a step in front of them, facing them.
       this.stopEverything();
@@ -463,10 +467,9 @@ export class Engine {
     useHud.setState({ gfxLost: null });
     this.unsubUI?.();
     ambience.dispose();
-    if (this.bellTimer) clearTimeout(this.bellTimer);
     if (this.wellTimer) clearTimeout(this.wellTimer);
     for (const s of this.signs) s.el.remove();
-    for (const k of ['interact', 'sip', 'give', 'putAway', 'takeMeetingSeat', 'goToSquare', 'jobCancel'] as const) game[k] = () => {};
+    for (const k of ['interact', 'sip', 'give', 'putAway', 'takeMeetingSeat', 'calledToStool', 'jobCancel'] as const) game[k] = () => {};
     game.emote = game.goTo = game.jobDone = game.sheepDone = () => {};
     this.ro.disconnect();
     window.removeEventListener('keydown', this.onKeyDown);
@@ -539,11 +542,8 @@ export class Engine {
       this.town.bellRing();
       if (v.mode === 'player' && zoneKind(local.zone) === 'tower') earn('fez');
       ui.banner('The bell is ringing', 'Everyone to the town square');
-      // Players head to their stool on their own after a moment, so the circle matches the grimoire.
-      if (v.mode === 'player' && v.mySeatId && !this.inBed && !(this.seated && this.seated.y === STOOL_Y)) {
-        if (this.bellTimer) clearTimeout(this.bellTimer);
-        this.bellTimer = setTimeout(() => this.goToSquare(), 2500);
-      }
+      // Players answer it themselves (from the bell card, or by walking up to their stool), so nobody is pulled out
+      // of whatever they're in the middle of. The Storyteller can still seat anyone who doesn't come.
       // The Storyteller who rang it from inside a house comes out to the middle of the ring.
       if (v.mode === 'st' && this.me && zoneKind(local.zone) === 'house') this.place('town', MEETING_CENTRE.x, MEETING_CENTRE.z, Math.PI, true);
     }
@@ -551,10 +551,6 @@ export class Engine {
       this.weather = v.weather;
       (this.town as TownWorld & TownFx).setWeather?.(v.weather);
       ambience.setWeather(v.weather);
-    }
-    if (!v.townHall && !nom && this.bellTimer) {
-      clearTimeout(this.bellTimer);
-      this.bellTimer = null;
     }
     // What the meeting is about, on a sign over the tower.
     let label = '';
@@ -570,13 +566,15 @@ export class Engine {
       label = 'Town meeting';
     } else if (v.townHall) {
       const here = v.seats.filter((s) => v.townHall!.back.includes(s.id)).length;
-      label = `Everyone to the square · ${here} of ${v.seats.length} here`;
+      label = `Everyone to the square · ${here} of ${v.seats.length} seated`;
     }
     this.town.setGraves(v.seats.filter((s) => s.dead).map((s) => s.name));
     this.town.setPost(v.seats.map((s) => s.name), v.seats.map((s) => s.mail));
     this.town.setMeeting({
       n: v.seats.length,
       active: meeting,
+      // While the bell rings, a player's own stool glows until they're sat on it, so they can find it on foot.
+      mine: v.mode === 'player' && v.townHall && !v.townHall.gathered && !v.ended && v.mySeatId && !v.townHall.back.includes(v.mySeatId) ? seatIndex(v.mySeatId) : null,
       nominee: nom ? seatIndex(nom.nomineeId) : null,
       nominator: nom?.nominatorId ? seatIndex(nom.nominatorId) : null,
       hand: handOn ? seatIndex(handOn) : null,
@@ -693,7 +691,12 @@ export class Engine {
   /** Where you appear when you arrive: at home if it's night, otherwise near the square. */
   private spawn(v: WorldView) {
     if (v.mode === 'player' && v.started && v.phase === 'night' && v.mySeatId) this.goHome(false);
-    else {
+    else if (v.mode === 'player' && v.mySeatId && v.townHall && (v.ended || v.townHall.back.includes(v.mySeatId))) {
+      // Back from a reload in the middle of a meeting we'd already sat down at (or the end of the game): straight
+      // back onto our stool, rather than standing about by the square.
+      this.goToSquareSpawn(false);
+      this.sitOnStool();
+    } else {
       this.goToSquareSpawn(false);
     }
   }
@@ -1379,24 +1382,35 @@ export class Engine {
     const i = this.meetingIndex();
     // Not while they're on the gallows: they get their stool back once the show is over.
     if (!v || i < 0 || !this.me || this.show?.mine) return;
-    const spot = this.town.meetingSpot(i, v.seats.length);
-    const inTown = local.zone === 'town';
-    const sit = () => {
-      this.seated = { y: STOOL_Y, anim: 'sit' };
-      this.stool = `${i}/${v.seats.length}`;
-      this.me?.setTarget(spot.x, spot.z, spot.ry, STOOL_Y);
-      this.me?.snap();
-    };
     this.stopEverything();
-    if (inTown && Math.hypot(local.x, local.z) < this.town.meetingRadius * 1.4) {
-      local.x = spot.x;
-      local.z = spot.z;
-      local.ry = spot.ry;
-      sit();
-    } else {
-      this.place('town', spot.x, spot.z, spot.ry, true);
-      setTimeout(sit, 420);
+    if (local.zone === 'town' && Math.hypot(local.x, local.z) < this.town.meetingRadius * 1.4) this.sitOnStool();
+    else {
+      // From further off, through a fade, sitting down at the darkest moment: nothing (a key still held down, a
+      // click on the ground) gets a frame to move us off the stool between arriving and sitting.
+      const spot = this.town.meetingSpot(i, v.seats.length);
+      this.place('town', spot.x, spot.z, spot.ry, true, () => this.sitOnStool());
     }
+  }
+
+  /**
+   * Onto our own stool, worked out as the seats stand now (the Storyteller may have reordered them, or added one,
+   * since we set off). We're put exactly on it, not just shown there, and say we're sitting straight away: a tab in
+   * the background draws no frames to say so, and everyone else would see us standing in the stool.
+   */
+  private sitOnStool() {
+    const v = this.view;
+    const i = this.meetingIndex();
+    if (!v || i < 0 || this.show?.mine || local.zone !== 'town') return;
+    const spot = this.town.meetingSpot(i, v.seats.length);
+    local.x = spot.x;
+    local.z = spot.z;
+    local.ry = spot.ry;
+    local.anim = 'sit';
+    this.moveTarget = null;
+    this.seated = { y: STOOL_Y, anim: 'sit' };
+    this.stool = `${i}/${v.seats.length}`;
+    this.me?.setTarget(spot.x, spot.z, spot.ry, STOOL_Y);
+    this.me?.snap();
   }
 
   /**
@@ -1413,8 +1427,6 @@ export class Engine {
     if (v.mode !== 'player') return;
     const mine = v.seats.find((s) => s.id === v.mySeatId);
     const won = Boolean(mine) && mine!.evil === (winner === 'evil');
-    // A bell rung just before the end mustn't seat us again on top of this.
-    if (this.bellTimer) clearTimeout(this.bellTimer);
     // Out of the way of any move the dawn makes (out of bed, say), then up on the stool. The celebration is kept
     // apart from ordinary emotes, so being seated again (the seats reordered) doesn't end it.
     if (this.partyTimer) clearTimeout(this.partyTimer);
@@ -1423,14 +1435,6 @@ export class Engine {
       this.takeMeetingSeat();
       this.party = { anim: won ? 'dance' : 'cry', left: won ? 18 : 8 };
     }, 700);
-  }
-
-  private goToSquare() {
-    if (!this.me) return;
-    if (this.meetingIndex() >= 0) return this.takeMeetingSeat();
-    const s = this.town.spawn;
-    this.stopEverything();
-    this.place('town', s.x, s.z, s.ry, true);
   }
 
   // ---------------------------------------------------------------- every frame
@@ -1670,7 +1674,17 @@ export class Engine {
     this.checkDoors(v, moving, dx, dz);
     this.checkStations(v);
     this.checkBooth(t, v);
+    if (v.mode === 'player') this.checkStool(v);
     if (v.mode === 'player') this.trackFeats(dt, t, v, moving);
+  }
+
+  /** While the town meets, walking up to your own stool sits you down on it: the way to answer the bell on foot. */
+  private checkStool(v: WorldView) {
+    if (!v.townHall || v.ended || this.seated || this.job || this.show || this.frozen || local.zone !== 'town') return;
+    const i = this.meetingIndex();
+    if (i < 0) return;
+    const spot = this.town.meetingSpot(i, v.seats.length);
+    if (Math.hypot(spot.x - local.x, spot.z - local.z) < 0.8) this.takeMeetingSeat();
   }
 
   /** For the achievements: talk, places visited today, a lap of the ring road, spinning, a ghost among the graves. */
@@ -2181,7 +2195,10 @@ export class Engine {
         av.snap();
         anim = sp.anim;
         dangle = sp;
-      } else av.setTarget(p.x, p.z, p.ry, sitting ? this.seatHeight(p.zone, p.anim, p.x, p.z) : groundY(p.zone, p.x, p.z));
+      } else {
+        const y = sitting ? this.seatHeight(p.zone, p.anim, p.x, p.z) : this.upOnStool(p.zone, p.anim, p.x, p.z) ? STOOL_Y : groundY(p.zone, p.x, p.z);
+        av.setTarget(p.x, p.z, p.ry, y);
+      }
       av.ground = groundY(p.zone, p.x, p.z);
       // Only the Storyteller carries the book.
       av.setItem(key !== 'st' && p.item?.k === 'grimoire' ? null : p.item);
@@ -2222,6 +2239,20 @@ export class Engine {
       }
     }
     return groundY(zone, x, z);
+  }
+
+  /**
+   * At a meeting, someone right on a stool who isn't walking is up on it: waving, laughing or with a paw up for a
+   * vote they stay up there (as they see themselves), rather than sinking into the stool for everyone else.
+   */
+  private upOnStool(zone: ZoneId, anim: Anim, x: number, z: number): boolean {
+    const v = this.view;
+    if (anim === 'walk' || anim === 'run' || zoneKind(zone) !== 'town' || !v || !(v.nomination || v.townHall)) return false;
+    for (let i = 0; i < v.seats.length; i++) {
+      const spot = this.town.meetingSpot(i, v.seats.length);
+      if (Math.hypot(spot.x - x, spot.z - z) < 0.25) return true;
+    }
+    return false;
   }
 
   /** Anything standing between the camera and our animal turns see-through, so we're never hidden behind the church. */

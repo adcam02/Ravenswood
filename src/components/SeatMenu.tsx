@@ -142,6 +142,11 @@ export function SeatMenu({ seat, geo, pt }: { seat: SeatView; geo: Geometry; pt:
             Bring {seat.name || 'them'} to me
           </Item>
         )}
+        {view.townHall && presence.others.has(seat.id) && !view.townHall.back.includes(seat.id) && (
+          <Item icon="bell" onClick={() => (close(), hostLink.seatAtMeeting([seat.id]))}>
+            Sit {seat.name || 'them'} on their stool
+          </Item>
+        )}
         <Item icon="wake" onClick={() => ui.wake([seat.id])}>
           Wake {seat.name || 'this player'}
         </Item>

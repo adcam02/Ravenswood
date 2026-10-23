@@ -254,27 +254,49 @@ export function EmoteBar() {
   );
 }
 
-/** The bell is ringing: off to the square. */
+/**
+ * The bell is ringing: off to the square, now or in a moment. Nobody is taken anywhere without choosing it: "Take my
+ * seat" goes straight there, or they finish what they're doing and walk over, sitting down as they reach their own
+ * stool (ringed in gold). Choosing to walk tucks this away to a small reminder.
+ */
 export function BellCall() {
   const view = useView();
   const call = view.townHall;
   const seated = useHud((s) => s.meetingSeated);
   const sheep = useHud((s) => s.sheep);
+  const [walking, setWalking] = useState<string | null>(null);
   const me = view.seats.find((s) => s.isMe);
-  if (!call || call.gathered || !me || seated || sheep) return null;
-  const here = view.seats.filter((s) => call.back.includes(s.id)).length;
-  return (
-    <div className="bell-call cosy-panel" key={`${call.id}${call.ring}`}>
-      <span className="bell-emoji">🔔</span>
-      <div>
-        <strong>The bell is ringing!</strong>
-        <span>
-          Everyone to the square · {here} of {view.seats.length} there
-        </span>
+  if (!call || call.gathered || view.ended || !me || seated || sheep || call.back.includes(me.id)) return null;
+  const key = `${call.id}:${call.ring}`;
+  const players = view.seats.filter((s) => s.claimed);
+  const count = `${players.filter((s) => call.back.includes(s.id)).length} of ${players.length} sat down`;
+  if (walking === key) {
+    return (
+      <div className="bell-call small cosy-panel" key={`${key}:walking`} role="status">
+        <span className="bell-emoji">🔔</span>
+        <span>Meeting at the square · {count}</span>
+        <button className="cosy-btn small primary" onClick={game.takeMeetingSeat}>
+          Take my seat
+        </button>
       </div>
-      <button className="cosy-btn primary" onClick={game.goToSquare}>
-        Take my seat
-      </button>
+    );
+  }
+  return (
+    <div className="bell-call cosy-panel" key={key} role="alertdialog" aria-label="The bell is ringing">
+      <span className="bell-emoji">🔔</span>
+      <div className="bell-text">
+        <strong>The bell is ringing!</strong>
+        <span>Everyone to the square · {count}</span>
+        <em>Go now, or walk over when you’re ready: you sit down as you reach your stool (ringed in gold).</em>
+      </div>
+      <div className="bell-actions">
+        <button className="cosy-btn primary" onClick={game.takeMeetingSeat}>
+          Take my seat
+        </button>
+        <button className="cosy-btn" onClick={() => setWalking(key)}>
+          I’ll walk over
+        </button>
+      </div>
     </div>
   );
 }

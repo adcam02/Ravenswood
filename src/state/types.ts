@@ -128,7 +128,7 @@ export interface TownHall {
   at: number;
   /** Bumped by "ring again", which only alerts players who aren't back yet. */
   ring: number;
-  /** Seats whose player has reached the square. */
+  /** Seats whose player has sat down on their own stool. */
   back: string[];
   /**
    * Everyone has arrived (or the Storyteller stopped the bell): the bell stops, but the meeting goes on,
@@ -426,6 +426,8 @@ export type HostMessage =
   | { t: 'gift'; item: Item; from: string | null }
   /** The Storyteller calls this player over: they're brought to stand beside the Storyteller. */
   | { t: 'summon'; zone: string; x: number; z: number }
+  /** The Storyteller seats this player on their stool at the meeting (they hadn't answered the bell). */
+  | { t: 'seat' }
   /** That animal is already someone else's (or being chosen by them): pick another. */
   | { t: 'taken'; animal: string; by: string }
   /** Whether the letter just posted went in (it can't by night, or past the day's limit). */
