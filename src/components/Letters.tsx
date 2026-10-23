@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { earn, tally } from '../game/progress';
 import { useHud } from '../game/hud';
 import { loadJSON, saveJSON } from '../lib/util';
-import { player, usePosted } from '../net/client';
+import { player, useClient, usePosted } from '../net/client';
 import { LETTER_MAX } from '../state/host';
 import type { LetterIn } from '../state/types';
 import { ui } from '../state/ui';
@@ -31,6 +31,8 @@ export function WriteLetterModal() {
   const choices = view.seats.filter((s) => !s.isMe && (s.claimed || s.name));
   const target = view.seats.find((s) => s.id === to);
   const night = view.phase === 'night';
+  // A Storyteller on an older page doesn't know about letters yet.
+  const outdated = useClient((s) => s.hostOutdated);
 
   // The Storyteller's answer: it went in (and counts toward the postie's cap), or it didn't.
   useEffect(() => {
@@ -88,6 +90,8 @@ export function WriteLetterModal() {
         <p className="letter-blurb">Take a seat in town first.</p>
       ) : night ? (
         <p className="letter-blurb">The post office is shut for the night. Letters go in by day.</p>
+      ) : outdated ? (
+        <p className="letter-blurb">The Storyteller’s page is out of date, so the post isn’t running yet. Ask them to reload it.</p>
       ) : (
         <>
           <p className="letter-blurb">It goes in their letterbox now, and they can open it tonight when they’re in bed.</p>
