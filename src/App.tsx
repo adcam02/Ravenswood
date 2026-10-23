@@ -36,6 +36,7 @@ import { WorldSeatMenu } from './components/town/WorldSeatMenu';
 import { UpdateNotice } from './components/UpdateNotice';
 import { Landing } from './components/Landing';
 import { JoinFlow } from './components/town/JoinFlow';
+import { CasinoPanels } from './components/town/Casino';
 import {
   ActionPrompt,
   Announce,
@@ -174,6 +175,7 @@ function Storyteller() {
               <WorldSeatMenu />
               <JobLayer />
               <NoticeBoard />
+              <CasinoPanels />
             </>
           )}
           <SidePanel />
@@ -262,6 +264,7 @@ function Player({ room }: { room: string }) {
               <DayClock />
               <ProgressWatcher />
               <NoticeBoard />
+              <CasinoPanels />
               <HelpCard />
               <Modals />
               <WakeOverlay />

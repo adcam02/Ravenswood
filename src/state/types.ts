@@ -1,4 +1,5 @@
 import type { Alignment, Script } from '../data';
+import type { CasinoAction, CasinoView } from '../casino/types';
 import type { BakeKind, ClothKind, DrinkKind, FlowerKind, Item, Look, PetId, Pose, Progress, TownState, Weather } from '../world/types';
 
 export type Phase = 'night' | 'day';
@@ -347,6 +348,8 @@ export interface PrivateState {
   pigeons?: { id: string; name: string; where: string; at: number }[];
   /** Everything kept under this player's name (or the name they're joining with), with their money and pets. */
   profile?: ProfileView | null;
+  /** The casino's tables and shop, while they're in it (with only their own cards face up). */
+  casino?: CasinoView | null;
 }
 
 // ---------------------------------------------------------------- profiles, kept by the Storyteller
@@ -464,4 +467,6 @@ export type ClientMessage =
   /** `at`: when it was sent (for the round trip); `rtt`: the player's latest measure of it, in milliseconds. */
   | { t: 'ping'; at?: number; rtt?: number }
   /** Things earned since the last report, for the Storyteller to keep under this player's name. */
-  | { t: 'progress'; events: ProgressEvent[] };
+  | { t: 'progress'; events: ProgressEvent[] }
+  /** A bet, a card, a pet from the shop: everything at the casino. */
+  | { t: 'casino'; a: CasinoAction };

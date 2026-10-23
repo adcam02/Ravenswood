@@ -241,7 +241,9 @@ export function HandSlot() {
 export function EmoteBar() {
   const emote = useHud((s) => s.emote);
   const job = useHud((s) => s.job);
-  if (job) return null;
+  // (At a card table the table's own panel sits there.)
+  const atTable = useHud((s) => Boolean(s.casino && s.casino.kind !== 'shop'));
+  if (job || atTable) return null;
   return (
     <div className="emote-bar cosy-panel" role="toolbar" aria-label="Emotes">
       {EMOTES.map((e) => (

@@ -27,6 +27,9 @@ import { earn, hatBoost, notePerfect, noteTopJob, tally } from '../game/progress
 const isPlayerView = (v: WorldView | null) => v?.mode === 'player';
 import { drawless, loadJSON, saveJSON } from '../lib/util';
 import { steadyInterval } from '../lib/ticker';
+import { casino, casinoNow } from '../casino/client';
+import { TableCam } from './tablecam';
+import { CHAIR_Y, FELT_Y, bjSpot, pkAround } from './town/casinoLayout';
 
 /** Town features that arrive with the effects pass: called only if the town has them. */
 interface TownFx {
@@ -212,6 +215,9 @@ const SIGN_TEXT: Partial<Record<Station['job'], string>> = {
   clock: '🕰️ Keep time',
   confess: '🕯️ Confession booth',
   post: '✉️ Post office',
+  shop: '🐾 Pet shop',
+  blackjack: '🃏 Blackjack',
+  poker: '♠️ Texas hold’em',
 };
 
 const PLACE_NAMES: Record<Exclude<ZoneKind, 'house'>, string> = {
@@ -220,6 +226,7 @@ const PLACE_NAMES: Record<Exclude<ZoneKind, 'house'>, string> = {
   bakery: 'The Bakery',
   church: 'The Church',
   tower: 'The Clock Tower',
+  casino: 'The Lucky Raven',
 };
 
 /** Graphics quality: 'high' has shadows and crisp pixels; 'low' is for laptops that can't keep up. */
@@ -308,6 +315,10 @@ export class Engine {
   private slowFrames = 0;
   private lastFrameAt = 0;
   private nearStation: Station | null = null;
+  /** Sitting at a card table in the casino: the seat's-eye camera. */
+  private tableCam: TableCam | null = null;
+  private tableKind: 'blackjack' | 'poker' = 'poker';
+  private hidSelf = false;
   private signs: { station: Station; el: HTMLDivElement; obj: CSS2DObject }[] = [];
   private bellTimer: ReturnType<typeof setTimeout> | null = null;
   private wellTimer: ReturnType<typeof setTimeout> | null = null;
@@ -836,6 +847,8 @@ export class Engine {
       if (k === 'escape') useHud.setState({ notice: false });
       return;
     }
+    // At the pet shop or a card table, the panel has the keys (leaving the table is a button, so a stray Escape can't cash anyone out).
+    if (useHud.getState().casino) return;
     if (this.view?.paused || this.job) return;
     if (this.inBed) {
       if (k === 'e' || k === ' ' || k === 'enter') {
@@ -877,7 +890,7 @@ export class Engine {
 
   private onPointerDown = (e: PointerEvent) => {
     this.wakeAmbience();
-    if (e.button !== 0 || !this.me || this.view?.paused || this.job || this.inBed) return;
+    if (e.button !== 0 || !this.me || this.view?.paused || this.job || this.inBed || this.tableCam) return;
     // The Storyteller clicking a player opens their menu; anywhere else, a click walks there (not off a meeting stool).
     if (this.pinned()) return;
     const seat = this.view?.mode === 'st' ? this.avatarAt(e.clientX, e.clientY) : null;
@@ -1143,6 +1156,11 @@ export class Engine {
       if (local.item && SIPPABLE.has(local.item.k)) this.sip();
       return;
     }
+    if (s.job === 'shop') {
+      useHud.setState({ casino: { kind: 'shop' } });
+      return;
+    }
+    if (s.job === 'blackjack' || s.job === 'poker') return this.sitAtTable(s);
     const game_ = JOB_GAMES[s.job];
     if (game_) {
       this.standUp();
@@ -1218,6 +1236,57 @@ export class Engine {
         this.me.snap();
       }
     }
+  }
+
+  /** Sits down at a card table and brings the camera in to the seat's-eye view (see TableCam). */
+  private sitAtTable(s: Station) {
+    const v = this.view;
+    if (!this.me || !v) return;
+    const kind = s.job as 'blackjack' | 'poker';
+    const seat = Number(s.id.split('-')[1]);
+    if (v.mode !== 'player') {
+      this.me.bubble('The tables are for the players', 2200);
+      return;
+    }
+    const cv = casinoNow(v.mode);
+    const there = kind === 'blackjack' ? cv?.bj[seat] : cv?.pk.seats[seat];
+    if (there && !there.mine) {
+      this.me.bubble(`${there.name} is sitting there`, 2200);
+      return;
+    }
+    this.stopEverything();
+    local.x = s.stand.x;
+    local.z = s.stand.z;
+    local.ry = s.stand.ry;
+    this.seated = { y: s.y ?? CHAIR_Y, anim: 'sit' };
+    this.me.setTarget(local.x, local.z, local.ry, this.seated.y);
+    this.me.snap();
+    useHud.setState({ casino: { kind, seat } });
+    this.tableCam?.dispose();
+    this.tableKind = kind;
+    // The eyes: above the seat, a little in towards the table, at about the height of a sitting animal's head.
+    const ahead = 0.18;
+    const eyeY = this.seated.y + THREE.MathUtils.clamp(this.me.rig.headHeight * 0.75, 0.65, 1.05);
+    const eye = new THREE.Vector3(local.x + Math.sin(local.ry) * ahead, eyeY, local.z + Math.cos(local.ry) * ahead);
+    // Looking down past our own cards towards the middle of the table.
+    const at = kind === 'blackjack' ? bjSpot(seat, 0.8) : pkAround(seat, -0.8);
+    this.tableCam = new TableCam(this.renderer.domElement, eye, new THREE.Vector3(at.x, FELT_Y, at.z));
+  }
+
+  /** Keeps the card table, its panel and the camera together: closing the panel stands us up, and standing up closes it. */
+  private syncCasino(v: WorldView | null) {
+    const at = useHud.getState().casino;
+    const atTable = at && at.kind !== 'shop';
+    if (this.tableCam && (!atTable || !this.seated || zoneKind(local.zone) !== 'casino')) {
+      this.tableCam.dispose();
+      this.tableCam = null;
+      if (this.seated) this.standUp();
+      // However we got up, the seat is given up (the host finishes or folds a hand in play, and cashes out the chips).
+      if (v?.mode === 'player') casino(this.tableKind === 'blackjack' ? { k: 'bj', do: 'leave' } : { k: 'pk', do: 'leave' });
+      if (atTable) useHud.setState({ casino: null });
+    } else if (atTable && !this.tableCam) useHud.setState({ casino: null });
+    if (at?.kind === 'shop' && zoneKind(local.zone) !== 'casino') useHud.setState({ casino: null });
+    if (zoneKind(local.zone) === 'casino' && v && v.mode !== 'preview') this.town.setCasino(casinoNow(v.mode));
   }
 
   private finishJob(result: unknown) {
@@ -1459,6 +1528,7 @@ export class Engine {
     if (drama !== useHud.getState().drama) useHud.setState({ drama });
     if (this.me && v) this.moveMe(dt, t, v);
     this.updateOthers(dt, t, v);
+    this.syncCasino(v);
     this.updateCamera(dt, t);
     this.fadeOccluders(dt);
     this.town.follow(this.camTarget.x, this.camTarget.z);
@@ -1830,7 +1900,7 @@ export class Engine {
     }
     this.nearStation = best;
     let prompt: Prompt | null = null;
-    if (this.job) prompt = null;
+    if (this.job || useHud.getState().casino) prompt = null;
     else if (this.inBed) {
       const sheep = useHud.getState().sheep;
       prompt = sheep === 'offer' ? { label: 'Count the sheep', key: 'E' } : sheep === 'playing' ? null : { label: 'Fast asleep until morning', key: '', locked: true };
@@ -1845,6 +1915,15 @@ export class Engine {
         label = 'The shelf is empty';
         locked = true;
       } else if ((best.job === 'sit' || best.job === 'sleep') && this.seated) label = 'Get up';
+      else if (best.job === 'blackjack' || best.job === 'poker') {
+        const cv = v.mode === 'preview' ? null : casinoNow(v.mode);
+        const seat = Number(best.id.split('-')[1]);
+        const there = best.job === 'blackjack' ? cv?.bj[seat] : cv?.pk.seats[seat];
+        if (there && !there.mine) {
+          label = `${there.name}’s seat`;
+          locked = true;
+        }
+      }
       else if (best.job === 'confess') {
         const who = this.booth ? null : this.boothTaken(best);
         if (this.booth) label = 'Step out of the booth';
@@ -2255,6 +2334,8 @@ export class Engine {
       const b = BED;
       wantPos.set(b.x + 1.5, 2.6, b.z + 3.3);
       wantLook.set(b.x - 0.6, 0.9, b.z - 0.6);
+    } else if (this.tableCam) {
+      this.tableCam.shot(wantPos, wantLook);
     } else if (this.view?.reading && this.me) {
       // Over the Storyteller's shoulder, looking down into the open book.
       const root = this.me.rig.root;
@@ -2270,13 +2351,31 @@ export class Engine {
     // The near plane sits as far out as the shot allows: depth precision depends mostly on it, and a close
     // near plane makes faces a hair apart (trims on panelling, rugs on floors) shimmer. Only the
     // over-the-shoulder book shot needs to see things right in front of the lens.
-    const near = this.view?.reading ? 0.1 : 1.0;
+    const near = this.view?.reading || this.tableCam ? 0.1 : 1.0;
     if (this.camera.near !== near) {
       this.camera.near = near;
       this.camera.updateProjectionMatrix();
     }
+    // A wider view from a seat at the card table, so the felt and the people round it fit.
+    const fov = this.tableCam ? (this.camera.aspect < 0.8 ? 74 : 58) : this.camera.aspect < 0.8 ? 52 : 40;
+    if (this.camera.fov !== fov) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
+    // The table's panel covers the bottom of the screen, so the picture is shifted up to keep the felt in sight.
+    const lift = this.tableCam ? (this.camera.aspect < 0.8 ? 0.26 : 0.17) : 0;
+    if (lift !== (this.camera.view?.enabled ? this.camera.view.offsetY / Math.max(1, this.camera.view.fullHeight) : 0)) {
+      if (lift) this.camera.setViewOffset(1000, 1000, 0, lift * 1000, 1000, 1000);
+      else this.camera.clearViewOffset();
+    }
+    // Our own animal steps out of the way of the lens once the camera is close to the seat.
+    const hide = Boolean(this.tableCam && this.camPos.distanceTo(wantPos) < 0.9);
+    if (this.me && hide !== this.hidSelf) {
+      this.hidSelf = hide;
+      this.me.rig.root.visible = !hide;
+    }
     // Closing in on the book (or pulling back over the meeting) is a slow swoop; everything else follows closely.
-    let ease = this.view?.reading || this.pinned() ? 1 - Math.exp(-dt * 4) : this.show ? 1 - Math.exp(-dt * 6) : 1 - Math.exp(-dt * 9);
+    let ease = this.view?.reading || this.pinned() || this.tableCam ? 1 - Math.exp(-dt * 4) : this.show ? 1 - Math.exp(-dt * 6) : 1 - Math.exp(-dt * 9);
     if (!this.me && !this.view?.reading) ease = 1;
     this.camPos.lerp(wantPos, ease);
     this.camLook.lerp(wantLook, ease);

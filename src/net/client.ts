@@ -7,6 +7,7 @@ import { receiveItem } from '../game/local';
 import { game } from '../game/hud';
 import { presence } from '../game/presence';
 import type { Item, Look, Pose } from '../world/types';
+import type { CasinoAction } from '../casino/types';
 import { joinMesh, type Mesh } from './mesh';
 import { hostPeerId, linkAlive, peerDisabled, peerOptions, type LinkStatus } from './peer';
 import { reportTo } from '../lib/report';
@@ -379,6 +380,8 @@ export const player = {
   /** Post a letter in someone's letterbox. */
   letter: (to: string, text: string, signed: boolean) => clientLink.send({ t: 'letter', to, text, signed }),
   ack: (wakeId: string) => clientLink.send({ t: 'ack', wakeId }),
+  /** Anything at the casino: buying a pet, a bet, a card. */
+  casino: (a: CasinoAction) => clientLink.send({ t: 'casino', a }),
   reply: (wakeId: string, r: { seatIds?: string[]; roleIds?: string[]; answer?: boolean }) =>
     clientLink.send({ t: 'reply', wakeId, ...r }),
 };

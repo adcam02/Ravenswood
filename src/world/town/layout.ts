@@ -1,5 +1,7 @@
 import { BEDS, BED_SPOTS, BOOTH, BOOTH_SEATS, LINES, LINE_SLOTS, type Collider, type Door, type Spot, type Station, type ZoneKind } from '../types';
 import { local } from './kit';
+import { BJ_TABLE, BJ_DEALER, CASHIER, CASINO, CASINO_DOOR, CASINO_ROOM, CHAIR_Y, PK_DEALER, PK_TABLE, SHOP, SLOTS, bjSeat, pkSeat } from './casinoLayout';
+import { BJ_SEATS, PK_SEATS } from '../../casino/types';
 
 /**
  * Where everything in Ravenswood stands. Metres, y up, north is -z (away from the camera).
@@ -23,10 +25,10 @@ export const DAIS = { r: 4.35, r2: 4.63, r1: 4.91, top: 0.45, h2: 0.31, h1: 0.17
 export const MEETING_R = 14;
 export const HOUSE_R = 29;
 export const RING_ROAD_R = 25.5;
-/** A few cottages for scenery, in the gaps between the public buildings. Bedrooms are elsewhere. */
-export const HOUSES = 5;
-export const COTTAGE_ANGLES = [40, 68, 118, 296, 326];
-export const COTTAGE_NAMES = ['Bramble Cottage', 'Ferncroft', 'The Old Mill', 'Rose Cottage', 'Hollow Oak'];
+/** A few cottages for scenery, in the gaps between the public buildings. Bedrooms are elsewhere. (The casino stands at 296.) */
+export const HOUSES = 4;
+export const COTTAGE_ANGLES = [40, 68, 118, 326];
+export const COTTAGE_NAMES = ['Bramble Cottage', 'Ferncroft', 'The Old Mill', 'Hollow Oak'];
 /** The gallows, just to the side of the meeting circle, facing it. */
 export const GALLOWS = { x: 8.6, z: 6.2, ry: -Math.PI / 2 };
 /** The churchyard beside the church. */
@@ -209,6 +211,7 @@ export const ROOMS: Record<Exclude<ZoneKind, 'town'>, { hw: number; hd: number }
   church: { hw: 6, hd: 9 },
   tower: { hw: 5, hd: 5 },
   house: { hw: 5, hd: 4 },
+  casino: CASINO_ROOM,
 };
 
 /** Inside each room: where the exit is, and where you appear when you come in. */
@@ -218,6 +221,7 @@ export const ROOM_DOOR: Record<Exclude<ZoneKind, 'town'>, { exit: { x: number; z
   church: { exit: { x: 0, z: 8.3, r: 1.0 }, arrive: { x: 0, z: 6.8, ry: Math.PI } },
   tower: { exit: { x: 0, z: 4.3, r: 1.0 }, arrive: { x: 0, z: 2.8, ry: Math.PI } },
   house: { exit: { x: 0, z: 3.3, r: 0.9 }, arrive: { x: 0, z: 1.9, ry: Math.PI } },
+  casino: CASINO_DOOR,
 };
 
 export const BAR = { x0: -6.2, x1: 2.6, z: -2.6, depth: 0.9, h: 1.1 };
@@ -275,6 +279,7 @@ export function makeDoors(): Door[] {
     ['tavern', TAVERN, TAVERN.d / 2, 'The Raven’s Rest'],
     ['bakery', BAKERY, BAKERY.d / 2, 'Bakery'],
     ['church', CHURCH, churchFront, 'Church'],
+    ['casino', CASINO, CASINO.d / 2, 'The Lucky Raven'],
   ];
   for (const [kind, b, front, label] of pub) {
     const trigger = doorPoint(b, 0.55, front);
@@ -385,9 +390,19 @@ export function makeStations(): Station[] {
       st.push({ id: `bench-${i}-${k}`, zone: 'town', x: p.x, z: p.z, r: 0.8, job: 'sit', stand: { x: p.x, z: p.z, ry: b.ry }, y: 0.45, label: 'Sit' });
     }),
   );
+  // The casino: the pet shop's counter, and the seats at the card tables.
+  st.push({ id: 'shop', zone: 'casino', x: SHOP.x, z: SHOP.z + 1.2, r: 1.6, job: 'shop', stand: { x: SHOP.x, z: SHOP.z + 1.15, ry: Math.PI }, label: 'Visit the pet shop' });
+  for (let i = 0; i < BJ_SEATS; i++) {
+    const c = bjSeat(i);
+    st.push({ id: `bj-${i}`, zone: 'casino', x: c.x, z: c.z, r: 0.85, job: 'blackjack', stand: c, y: CHAIR_Y, label: 'Sit down for blackjack' });
+  }
+  for (let i = 0; i < PK_SEATS; i++) {
+    const c = pkSeat(i);
+    st.push({ id: `pk-${i}`, zone: 'casino', x: c.x, z: c.z, r: 0.85, job: 'poker', stand: c, y: CHAIR_Y, label: 'Sit down for poker' });
+  }
   // Activities are easy to step into: a generous area round each (the nearest wins where two overlap).
   // Seats and beds keep a small one, so walking past doesn't keep offering to sit.
-  for (const s of st) if (s.job !== 'sit' && s.job !== 'sleep') s.r = Math.min(3.2, Math.max(2.4, s.r * 1.6));
+  for (const s of st) if (s.job !== 'sit' && s.job !== 'sleep' && s.job !== 'blackjack' && s.job !== 'poker') s.r = Math.min(3.2, Math.max(2.4, s.r * 1.6));
   return st;
 }
 
@@ -412,6 +427,7 @@ export function townColliders(extra: Collider[]): Collider[] {
   c.push(box(TAVERN, TAVERN.w / 2 + 0.15, TAVERN.d / 2 + 0.15));
   c.push(box(BAKERY, BAKERY.w / 2 + 0.15, BAKERY.d / 2 + 0.15));
   for (const h of houseSlots) c.push(box(h, HOUSE_W / 2 + 0.2, HOUSE_D / 2 + 0.2));
+  c.push(box(CASINO, CASINO.w / 2 + 0.15, CASINO.d / 2 + 0.15));
   // The pond, as overlapping circles, leaving the dock clear.
   for (let x = POND.x - POND.rx; x <= POND.x + POND.rx; x += 1.6) {
     for (let z = POND.z - POND.rz; z <= POND.z + POND.rz; z += 1.6) {
@@ -482,6 +498,24 @@ export function roomColliders(kind: Exclude<ZoneKind, 'town'>): Collider[] {
     c.push(at(-2.4, -3.6, 0.95, 0.5));
     c.push(at(-4.65, -1.6, 0.35, 1.0));
     c.push(at(4.5, 1.6, 0.4, 0.4));
+  } else if (kind === 'casino') {
+    c.push(at(SHOP.x, SHOP.z, SHOP.w / 2, SHOP.d / 2));
+    c.push({ kind: 'circle', x: CASHIER.x, z: CASHIER.z, r: 0.35 });
+    // The half-moon table as a few circles along its curve, and the dealer behind it.
+    for (const a of [-1.1, -0.55, 0, 0.55, 1.1]) c.push({ kind: 'circle', x: BJ_TABLE.x + Math.sin(a) * 0.95, z: BJ_TABLE.z + Math.cos(a) * 0.95 - 0.1, r: 0.85 });
+    c.push(at(BJ_TABLE.x, BJ_DEALER.z, 1.0, 0.3));
+    // The oval poker table, the same way, and its dealer.
+    for (const k of [-1, -0.5, 0, 0.5, 1]) c.push({ kind: 'circle', x: PK_TABLE.x + k * (PK_TABLE.rx - PK_TABLE.rz * 0.8), z: PK_TABLE.z, r: PK_TABLE.rz * (1 - Math.abs(k) * 0.12) + 0.05 });
+    c.push({ kind: 'circle', x: PK_DEALER.x, z: PK_DEALER.z, r: 0.35 });
+    for (const sl of SLOTS) c.push(at(sl.x, sl.z, 0.4, 0.45));
+    // Potted palms in the corners.
+    for (const [x, z] of [
+      [-8.3, 5.9],
+      [8.3, 5.9],
+      [8.3, -6.3],
+      [-0.9, -6.3],
+    ])
+      c.push({ kind: 'circle', x, z, r: 0.45 });
   }
   return c;
 }
@@ -502,6 +536,7 @@ export function whereIs(zone: string, x: number, z: number): string {
   if (zone === 'bakery') return 'in the bakery';
   if (zone === 'church') return 'in the church';
   if (zone === 'tower') return 'up in the clock tower';
+  if (zone === 'casino') return 'in the Lucky Raven';
   if (zone.startsWith('cottage:')) return `in ${COTTAGE_NAMES[Number(zone.slice(8)) % COTTAGE_NAMES.length]}`;
   if (zone.startsWith('house:')) return 'at home';
   const near = (p: { x: number; z: number }, r: number) => Math.hypot(x - p.x, z - p.z) < r;
@@ -517,6 +552,7 @@ export function whereIs(zone: string, x: number, z: number): string {
   if (near(doorPoint(CHURCH, 3, churchFront), 6)) return 'outside the church';
   if (near(doorPoint(TAVERN, 3), 7)) return 'outside the Raven’s Rest';
   if (near(doorPoint(BAKERY, 3), 7)) return 'outside the bakery';
+  if (near(doorPoint(CASINO, 3), 7)) return 'outside the Lucky Raven';
   if (Math.abs(x - WASHHOUSE.x) < WASHHOUSE.w / 2 + 3 && Math.abs(z - WASHHOUSE.z) < WASHHOUSE.d / 2 + 3) return 'at the washhouse';
   if (LINE_POS.some((l) => x > l.x0 - 1 && x < l.x1 + 1 && Math.abs(z - l.z) < 1.5)) return 'by the washing lines';
   if (beds.some((b) => near(b, 3))) return 'by the flower beds';

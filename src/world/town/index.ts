@@ -40,6 +40,8 @@ import { makeSwingDoors } from './doors';
 import { postFront } from './post';
 import { addCloudShadow, beamUniforms, makeClouds, makeContactShadows, makeDust, makePuddles, type Footprint, type PuddleSpot } from './looks';
 import { signBoard, TextSign } from './sign';
+import { makeCasinoTables } from './casinoTables';
+import type { CasinoView } from '../../casino/types';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 
 /** How the gallows looks at a moment of the hanging. */
@@ -120,6 +122,8 @@ export interface TownWorld {
    * engine sets `renderer.shadowMap.autoUpdate = false` and `renderer.shadowMap.needsUpdate = true` on this.
    */
   consumeShadowDirty(): boolean;
+  /** The casino's tables: the cards and chips on them, as this player may see them. */
+  setCasino(view: CasinoView | null): void;
 }
 
 // ---------------------------------------------------------------- the day and the night
@@ -895,7 +899,11 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     church: interiors.rooms.church.group,
     tower: interiors.rooms.tower.group,
     house: interiors.rooms.house.group,
+    casino: interiors.rooms.casino.group,
   };
+  // The cards, chips and staff at the casino.
+  const casinoTables = makeCasinoTables();
+  interiors.rooms.casino.group.add(casinoTables.group);
   let zone: ZoneKind = 'town';
   let homeNight = false;
   let time = 0;
@@ -1059,6 +1067,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       church: roomColliders('church'),
       tower: roomColliders('tower'),
       house: roomColliders('house'),
+      casino: roomColliders('casino'),
     },
     bounds: {
       town: { kind: 'circle', r: TOWN_R - 0.4 },
@@ -1067,6 +1076,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       church: { kind: 'rect', hw: ROOMS.church.hw - 0.45, hd: ROOMS.church.hd - 0.45 },
       tower: { kind: 'rect', hw: ROOMS.tower.hw - 0.45, hd: ROOMS.tower.hd - 0.45 },
       house: { kind: 'rect', hw: ROOMS.house.hw - 0.45, hd: ROOMS.house.hd - 0.45 },
+      casino: { kind: 'rect', hw: ROOMS.casino.hw - 0.45, hd: ROOMS.casino.hd - 0.45 },
     },
     doors: makeDoors(),
     stations: makeStations(),
@@ -1272,6 +1282,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       const ringK = t < bellUntil ? (bellUntil - t) / (bellUntil - bellStart) : 0;
       const ring = Math.sin((t - bellStart) * 9) * ringK;
       if (zone === 'tower') turnClockwork(interiors.clockwork, ring);
+      if (zone === 'casino') casinoTables.update(dt, t);
       if (zone !== 'town') return;
       const dusk = smooth(time);
       clouds.update(dt, (1 - dusk) * (1 - rainK) * (1 - 0.7 * mistK), !lowDetail);
@@ -1416,6 +1427,10 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       const e = ((x - POND.x) / POND.rx) ** 2 + ((z - POND.z) / POND.rz) ** 2;
       if (e > 1.02) return;
       ripples.spawn(x, z, size, nowT);
+    },
+
+    setCasino(view) {
+      casinoTables.set(view);
     },
 
     consumeShadowDirty() {

@@ -34,6 +34,8 @@ interface Hud {
   hearing: number;
   /** The noticeboard is open. */
   notice: boolean;
+  /** At the casino: the pet shop open, or sitting at a card table (which seat). */
+  casino: { kind: 'shop' } | { kind: 'blackjack' | 'poker'; seat: number } | null;
   /** Sitting on your stool at the town meeting. */
   meetingSeated: boolean;
   /** Night in bed: the counting-sheep game is on offer, being played, or done for tonight. */
@@ -59,6 +61,7 @@ export const useHud = create<Hud>(() => ({
   canSip: false,
   hearing: 0,
   notice: false,
+  casino: null,
   meetingSeated: false,
   sheep: null,
   drama: false,

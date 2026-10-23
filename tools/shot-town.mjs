@@ -43,6 +43,14 @@ const ALL = {
   'bakery-front': 'x=16&z=0&t=0&dist=12&pitch=0.35&yaw=-1.57',
   'bakery-sign': 'x=15.5&z=4.6&t=0&dist=6&pitch=0.25&yaw=-0.5',
   'church-inside': 'zone=church&t=0',
+  // The Lucky Raven: its front by day and lit up at night, inside, and the tables from a seat.
+  'casino-front': 'x=-23.6&z=-11.4&t=0&dist=17&pitch=0.32&yaw=1.12',
+  'casino-night': 'x=-23.6&z=-11.4&t=1&dist=17&pitch=0.32&yaw=1.12',
+  'casino-inside': 'zone=casino&t=0&casino',
+  'casino-poker': 'zone=casino&x=-3.7&z=1.5&t=0&dist=7&pitch=0.75&casino',
+  'casino-bj': 'zone=casino&x=4.4&z=-3&t=0&dist=6&pitch=0.8&casino',
+  'casino-seat-pk': 'zone=casino&t=0&casino&seatcam=pk:5',
+  'casino-seat-bj': 'zone=casino&t=0&casino&seatcam=bj:2',
   // A messenger pigeon flying in to a fox by the pond, perched on its shoulder, and bursting into confetti.
   'pigeon-fly': 'x=2&z=20&t=0&dist=6&pitch=0.45&pigeon=1.3&frames=30',
   'pigeon-perch': 'x=2&z=20&t=0&dist=3.2&pitch=0.3&pigeon=3.6&frames=40',

@@ -135,7 +135,7 @@ export interface Look {
   pet?: PetId | null;
 }
 
-// ---------------------------------------------------------------- pets, free for everyone
+// ---------------------------------------------------------------- pets, bought at the casino (see casino/shop.ts)
 
 export type PetId = 'chick' | 'slime' | 'ghost' | 'mouse' | 'bee' | 'snail';
 
@@ -450,14 +450,14 @@ export interface Item {
 // ---------------------------------------------------------------- places
 
 /** Every place has its own coordinates. Interiors are centred on 0,0. */
-export type ZoneKind = 'town' | 'tavern' | 'bakery' | 'church' | 'tower' | 'house';
+export type ZoneKind = 'town' | 'tavern' | 'bakery' | 'church' | 'tower' | 'house' | 'casino';
 
 /** 'town', 'tavern', 'bakery', 'church', 'tower', 'house:<seatId>' for someone's bedroom, or 'cottage:<n>' for a cottage in town. */
 export type ZoneId = string;
 
 export function zoneKind(zone: ZoneId): ZoneKind {
   if (zone.startsWith('house:') || zone.startsWith('cottage:')) return 'house';
-  if (zone === 'tavern' || zone === 'bakery' || zone === 'church' || zone === 'tower') return zone;
+  if (zone === 'tavern' || zone === 'bakery' || zone === 'church' || zone === 'tower' || zone === 'casino') return zone;
   return 'town';
 }
 
@@ -525,7 +525,11 @@ export type JobId =
   | 'sleep'
   | 'sit'
   | 'well'
-  | 'notice';
+  | 'notice'
+  /** The casino: the pet shop's counter, and a seat at either card table. */
+  | 'shop'
+  | 'blackjack'
+  | 'poker';
 
 /** The town's best at each game: who, the score, and when. */
 export interface TownRecord {

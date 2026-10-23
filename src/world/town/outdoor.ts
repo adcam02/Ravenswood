@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { Builder, SMOOTH_DEG, matte, rng } from '../build';
+import { Builder, SMOOTH_DEG, matte, placeMatrix, rng } from '../build';
 import type { Collider } from '../types';
 import { G, Paint, frame, local, pick, shade, smoothMesh, type Layers } from './kit';
 import {
@@ -63,6 +63,7 @@ import {
   tuft,
 } from './props';
 import { TextSign, signBoard } from './sign';
+import { CASINO } from './casinoLayout';
 import { addSway, type GlowSpot } from './fx';
 import type { DoorSpot } from './doors';
 
@@ -330,6 +331,11 @@ export const PATHS: { seg: Seg; w: number }[] = (() => {
     const a = local(h.x, h.z, h.ry, 0, HOUSE_D / 2 + 0.2);
     const b = local(h.x, h.z, h.ry, 0, HOUSE_D / 2 + 3.4);
     add(a.x, a.z, b.x, b.z, 1.5);
+  }
+  {
+    const a = local(CASINO.x, CASINO.z, CASINO.ry, 0, CASINO.d / 2 + 0.2);
+    const b = local(CASINO.x, CASINO.z, CASINO.ry, 0, CASINO.d / 2 + 4.4);
+    add(a.x, a.z, b.x, b.z, 1.8);
   }
   return list;
 })();
@@ -1030,6 +1036,102 @@ function cottage(p: Paint, r: () => number, slot: number, smoke: (v: THREE.Vecto
 }
 
 /**
+ * The Lucky Raven: a storybook casino in berry red with gold trim, a tall curved front over the door to hold its
+ * lit sign (ringed with bulbs, a raven on a lucky horseshoe on top), a striped canopy, and a red carpet down the steps.
+ */
+function casinoFront(p: Paint, r: () => number) {
+  const W = CASINO.w;
+  const D = CASINO.d;
+  const wall = '#8a2f4a';
+  const cream = '#f3e3c3';
+  const gold = '#d8b04a';
+  const roof = '#2f4f6a';
+  p.block(STONE_DARK, W + 0.3, 0.35, D + 0.3, 0, 0, 0);
+  p.block(wall, W, 3.4, D, 0, 0.3, 0);
+  // Cream quoins up each corner, a gold band at the sills and a cornice under the eaves.
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (let k = 0; k < 6; k++) p.block(cream, k % 2 ? 0.34 : 0.26, 0.5, k % 2 ? 0.26 : 0.34, sx * (W / 2), 0.32 + k * 0.56, sz * (D / 2));
+  p.box(gold, W + 0.14, 0.08, D + 0.14, 0, 1.05, 0);
+  p.box(cream, W + 0.3, 0.16, D + 0.3, 0, 3.72, 0);
+  for (let x = -W / 2 + 0.3; x < W / 2; x += 0.42) for (const sz of [-1, 1]) p.box(gold, 0.12, 0.1, 0.14, x, 3.6, sz * (D / 2 + 0.1));
+  p.prism(wall, W, 2.0, D, 0, 3.8, 0);
+  p.roof(roof, W, D, 2.0, 3.8, 0.5, 0.2);
+  // Gold finials at the ridge ends.
+  for (const sx of [-1, 1]) p.sphere(gold, 0.14, 0.14, 0.14, sx * (W / 2 + 0.3), 5.95, 0);
+  const f = p.at(0, 0, D / 2 + 0.01);
+  // The tall front over the door, with a round top, to carry the sign.
+  f.box(wall, 5.0, 2.2, 0.3, 0, 4.7, 0.12);
+  f.geo(G.cyl(32), wall, placeMatrix({ pos: [0, 5.8, 0.12], rot: [Math.PI / 2, 0, 0], scale: [2.5, 0.3, 1.0] }));
+  f.box(cream, 5.2, 0.14, 0.36, 0, 3.66, 0.12);
+  for (let k = 0; k <= 24; k++) {
+    const a = (k / 24) * Math.PI;
+    f.sphere(gold, 0.06, 0.06, 0.06, Math.cos(a) * 2.53, 5.8 + Math.sin(a) * 1.03, 0.28, 8, 6);
+  }
+  for (const sx of [-1, 1]) f.box(gold, 0.08, 2.2, 0.08, sx * 2.52, 4.7, 0.28);
+  // A raven on a lucky horseshoe, up on top.
+  {
+    const t = f.at(0, 7.25, 0.12);
+    t.torus(gold, 0.42, 0.07, 0, 0, 0, 0, 0);
+    for (let k = 0; k < 6; k++) t.sphere('#a8843a', 0.03, 0.03, 0.03, Math.cos(-0.4 + k * 0.78) * 0.42, Math.sin(-0.4 + k * 0.78) * 0.42, 0.06, 6, 4);
+    t.sphere('#23222b', 0.24, 0.2, 0.32, 0, 0.62, 0);
+    t.sphere('#23222b', 0.15, 0.15, 0.15, 0, 0.82, 0.24);
+    t.cone('#d8b04a', 0.05, 0.16, 0, 0.8, 0.42, 6, 0);
+    t.box('#23222b', 0.06, 0.2, 0.34, 0, 0.6, -0.36, 0.9, 0, 0);
+    for (const sx of [-1, 1]) {
+      t.sphere('#f6efe0', 0.035, 0.035, 0.02, sx * 0.09, 0.86, 0.35, 6, 4);
+      t.box('#2a2a33', 0.04, 0.12, 0.04, sx * 0.08, 0.4, 0.05);
+    }
+  }
+  // Bulbs all round where the sign hangs.
+  const bulbs: [number, number][] = [];
+  for (let x = -2.1; x <= 2.11; x += 0.3) bulbs.push([x, 5.15], [x, 3.95]);
+  for (let y = 4.25; y < 5.0; y += 0.3) bulbs.push([-2.1, y], [2.1, y]);
+  bulbs.forEach(([x, y], i) => {
+    f.sphere('#fff1b0', 0.05, 0.05, 0.05, x, y, 0.3, 8, 6);
+    if (i % 3 === 0) glowAt(f, x, y, 0.35, 0.6, '#ffd27a');
+  });
+  // The door, under a striped canopy, up two steps on a red carpet.
+  archedDoor(f.at(0, 0.3, 0), 1.4, 2.25, '#2f6a4f', gold);
+  const stripes = 8;
+  for (let k = 0; k < stripes; k++) {
+    const x = -1.3 + (k + 0.5) * (2.6 / stripes);
+    f.box(k % 2 ? gold : '#b0283f', 2.6 / stripes + 0.01, 0.06, 1.5, x, 2.95, 0.7, 0.35);
+    f.cyl(k % 2 ? gold : '#b0283f', 2.6 / stripes / 2, 0.04, x, 2.62, 1.43, 12, Math.PI / 2);
+  }
+  for (const sx of [-1, 1]) {
+    f.post(gold, 0.04, 2.6, sx * 1.25, 0.3, 1.4, 8);
+    f.sphere(gold, 0.07, 0.07, 0.07, sx * 1.25, 2.95, 1.4);
+  }
+  f.block(STONE, 2.2, 0.15, 0.7, 0, 0, 0.45);
+  f.block(shade(STONE, 0.06), 1.9, 0.15, 0.4, 0, 0.15, 0.3);
+  f.box('#b0283f', 1.2, 0.02, 3.0, 0, 0.012, 2.2);
+  f.box('#b0283f', 1.2, 0.02, 0.5, 0, 0.31, 0.3);
+  for (const sx of [-1, 1]) f.box(gold, 0.05, 0.022, 3.0, sx * 0.58, 0.014, 2.2);
+  // Tall windows either side, glowing gold, with gold diamonds over them.
+  for (const x of [-2.9, 2.9]) {
+    wallWindow(f.at(x, 2.0, 0), 1.0, 1.6, gold, '#f2c879', true, null);
+    f.box(gold, 0.22, 0.22, 0.05, x, 3.15, 0.06, 0, 0, Math.PI / 4);
+    windowBox(f.at(x, 1.1, 0), r, 1.2);
+  }
+  for (const sx of [-1, 1]) {
+    const side = p.at(sx * (W / 2 + 0.01), 0, 0, (sx * Math.PI) / 2);
+    for (const z of [-1.6, 1.6]) wallWindow(side.at(z, 2.0, 0), 0.9, 1.3, gold, '#f2c879', true, null);
+  }
+  // Brass lamp posts at the foot of the steps, and clipped bay trees in pots.
+  for (const sx of [-1, 1]) {
+    const l = f.at(sx * 1.9, 0, 1.6);
+    l.post('#3a3a44', 0.06, 2.2, 0, 0, 0, 8);
+    l.cyl(gold, 0.1, 0.1, 0, 0.05, 0, 10);
+    l.glass.sphere('#fff1c8', 0.18, 0.18, 0.18, 0, 2.35, 0, 12, 8);
+    l.cone(gold, 0.16, 0.12, 0, 2.5, 0, 10);
+    glowAt(l, 0, 2.35, 0, 1.6, '#ffc46b');
+    const pot = f.at(sx * 0.95, 0, 1.0);
+    pot.taper(gold, 1.2, 0.18, 0.35, 0, 0, 0, 12);
+    pot.post('#6a4a32', 0.03, 0.6, 0, 0.35, 0, 6);
+    pot.blob('#3f7a42', 0.32, 0, 1.15, 0, 2);
+  }
+}
+
+/**
  * The washhouse: `shell` is the posts, beams and roof (which fade when they hide someone standing under
  * them); `props` is the floor, pump, tubs, basket and rack, which always stay solid.
  */
@@ -1508,6 +1610,7 @@ function blockers(): Blocker[] {
   for (const l of LINE_POS) for (let x = l.x0; x <= l.x1; x += 2) add(x, l.z, 2.2);
   add(POND.x, POND.z, 10.5);
   for (const h of houseSlots) add(h.x, h.z, 6);
+  add(CASINO.x, CASINO.z, 7.5);
   for (const bd of beds) add(bd.x, bd.z, 4);
   add(WELL.x, WELL.z, 3);
   add(WOODPILE.x, WOODPILE.z, 2.5);
@@ -1652,6 +1755,17 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     const post = local(h.x, h.z, h.ry, -1.75, HOUSE_D / 2 + 1.9);
     colliders.push({ kind: 'circle', x: post.x, z: post.z, r: 0.15 });
   });
+
+  // The casino, where Rose Cottage was.
+  casinoFront(solo(CASINO.x, CASINO.z, CASINO.ry), rng(777));
+  for (const sx of [-1.9, 1.9]) {
+    const c = local(CASINO.x, CASINO.z, CASINO.ry, sx, CASINO.d / 2 + 1.6);
+    colliders.push({ kind: 'circle', x: c.x, z: c.z, r: 0.2 });
+  }
+  for (const sx of [-1.25, 1.25]) {
+    const c = local(CASINO.x, CASINO.z, CASINO.ry, sx, CASINO.d / 2 + 1.4);
+    colliders.push({ kind: 'circle', x: c.x, z: c.z, r: 0.12 });
+  }
 
   // The town fence, with a gap for the road south.
   const fenceR = TOWN_R + 0.9;
@@ -1974,6 +2088,22 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   // (The bakery's hangs off its front corner, clear of the awning.)
   hang(['Bakery', 'fresh every morning'], BAKERY, BAKERY.w / 2 + 0.12, BAKERY.d / 2 + 1.0, 2.83, 1.5, 0.85, { bg: '#f6e7cf', fg: '#a0523a', border: '#a0523a' });
   {
+    // The casino's sign, ringed with its bulbs.
+    const sign = new TextSign({ w: 1024, h: 256, bg: '#1d1a24', fg: '#f6d77a', border: '#d8b04a', round: true }, ['The Lucky Raven']);
+    const { mesh, material } = signBoard(sign, 4.0, 1.0, { lit: true });
+    const p = local(CASINO.x, CASINO.z, CASINO.ry, 0, CASINO.d / 2 + 0.31);
+    mesh.position.set(p.x, 4.55, p.z);
+    mesh.rotation.y = CASINO.ry;
+    group.add(mesh);
+    signMaterials.push(material);
+    const suits = new TextSign({ w: 512, h: 128, bg: '#8a2f4a', fg: '#f6d77a', border: '#8a2f4a' }, ['♠ ♥ ♣ ♦']);
+    const s2 = signBoard(suits, 1.6, 0.4, { lit: true });
+    s2.mesh.position.set(p.x, 6.05, p.z);
+    s2.mesh.rotation.y = CASINO.ry;
+    group.add(s2.mesh);
+    signMaterials.push(s2.material);
+  }
+  {
     const sign = new TextSign({ w: 512, h: 128, bg: '#5a3d2a', fg: '#f6e3b0', border: '#c9a24f' }, ['Ravenswood Bluff']);
     const { mesh, material } = signBoard(sign, 3.6, 0.9, { lit: true });
     mesh.position.set(0, 2.25, GATE_Z);
@@ -1986,6 +2116,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     ...[...squareLamps, ...roadLamps, ...pathLamps].map((l) => ({ x: l.x, z: l.z, r: 3.4 })),
     ...houseSlots.map((h) => ({ ...local(h.x, h.z, h.ry, 0.85, HOUSE_D / 2 + 0.9), r: 2.2 })),
     ...[-1.4, 1.4].map((lx) => ({ ...local(TAVERN.x, TAVERN.z, TAVERN.ry, lx, TAVERN.d / 2 + 0.8), r: 2.4 })),
+    { ...local(CASINO.x, CASINO.z, CASINO.ry, 0, CASINO.d / 2 + 1.6), r: 3.2 },
     { x: 0, z: 0, r: 0 },
   ].filter((s) => s.r > 0);
   const pools = lightPools(poolSpots);
