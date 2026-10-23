@@ -1684,7 +1684,7 @@ export class Engine {
     const i = this.meetingIndex();
     if (i < 0) return;
     const spot = this.town.meetingSpot(i, v.seats.length);
-    if (Math.hypot(spot.x - local.x, spot.z - local.z) < 0.8) this.takeMeetingSeat();
+    if (Math.hypot(spot.x - local.x, spot.z - local.z) < 1) this.takeMeetingSeat();
   }
 
   /** For the achievements: talk, places visited today, a lap of the ring road, spinning, a ghost among the graves. */
