@@ -382,6 +382,33 @@ if (view === 'grid' || view === 'night') {
   (['snail', 'highland', 'octopus', 'shark', 'bat', 'jellyfish'] as AnimalId[]).forEach((id, i) => place(make({ animal: id, color: ANIMALS.find((x) => x.id === id)!.colors[0], hat: same }), (i - 2.5) * 1.4, -2.3, 'idle', 0, 0.3));
   camera.position.set(0, 3.4, 8.6);
   camera.lookAt(0, 0.6, -0.4);
+} else if (view === 'hats' && q.get('set') === 'new') {
+  // The newer hats, one each on ten different heads.
+  const fresh: [AnimalId, HatId][] = [
+    ['fox', 'propeller'],
+    ['cat', 'reaper'],
+    ['wolf', 'horns'],
+    ['bear', 'laurel'],
+    ['raccoon', 'tricorn'],
+    ['frog', 'toadstool'],
+    ['penguin', 'headband'],
+    ['owl', 'candle'],
+    ['deer', 'postie'],
+    ['bunny', 'jester'],
+  ];
+  fresh.forEach(([id, hat], i) => place(make({ animal: id, color: ANIMALS.find((x) => x.id === id)!.colors[0], hat }), ((i % 5) - 2) * 1.5 + (i < 5 ? -0.375 : 0.375), 1.2 - Math.floor(i / 5) * 1.9, 'idle', 0, Number(q.get('ry') ?? 0.25)));
+  camera.position.set(0, 3.0, 8.6);
+  camera.lookAt(0, 0.5, 0.1);
+} else if (view === 'hats' && q.get('set') === 'close') {
+  // One hat (?hat=) up close on one head (?animal=, default fox): from the front, three quarters, the side and behind.
+  const id = (q.get('animal') ?? 'fox') as AnimalId;
+  // &bare hides the even ones' bodies, to see what the hat does inside the head.
+  ([0, 0.8, Math.PI / 2, Math.PI] as number[]).forEach((ry, i) => {
+    const r = place(make(lookOf(id)), (i - 1.5) * 1.3, 0, 'idle', 0, ry);
+    if (q.has('bare') && i % 2 === 0) insideOf(r).mesh.visible = false;
+  });
+  camera.position.set(0, 1.9, 4.4);
+  camera.lookAt(0, 0.7, 0);
 } else if (view === 'hats') {
   // Front row: one hat each. Back rows: the awkward heads all wearing the same hat (?hat=, default crown).
   const each: [AnimalId, HatId][] = [
