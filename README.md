@@ -11,10 +11,13 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
 
 1. **The Storyteller opens the site** and chooses **Host a game**. The invite link is under the room
    code at the top left.
-2. **Players open the link**, type their name and pick an animal and colour (43 to choose from, from
-   wolf and fox to axolotl, snail, squid, a bat that flaps its wings, raven, wombat, jellyfish, gecko,
-   ferret, dugong, sea cucumber, ibis, crab, turtle and a kaiju with plates down its back). Aquatic animals are a little bit wet, and up close there are little touches: toes on the
-   paws, the bear's claws, the bunny's buck teeth, suckers down the octopus's tentacles. Each animal belongs to one player: animals someone
+2. **Players open the link**, type their name and pick an animal and colour (41 to choose from, from
+   wolf and fox to axolotl, snail, squid, a bat that flaps its wings, jellyfish, gecko, ferret, dugong,
+   sea cucumber, ibis, crab, turtle, a kaiju with plates down its back, a little robot, a homunculus, a
+   mushroom, a pudgy dragon, a bee that buzzes about, a chameleon that slowly shifts colour, a whale
+   shark and a prawn). Aquatic animals are a little bit wet, and up close there are little touches: toes
+   on the paws, the bear's claws, the deer's fawn spots, the frog's and gecko's spots, suckers down the
+   octopus's tentacles. Each animal belongs to one player: animals someone
    else has, or is looking at right now, are greyed out with their name, and if two people click the
    same one at the same moment the first gets it and the other is asked to pick again.
    Then they turn on their microphone (or just listen).
@@ -25,7 +28,9 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    - **The confession booth** stands in the church's front corner: two closets side by side with a
      latticed grille between them. Step into either side (E at its curtain) to sit inside. Whoever is in
      one side hears only whoever is in the other, and nobody outside hears them, even standing right by
-     the booth. One person to a side; walking off (or E again) steps you back out.
+     the booth. One person to a side; walking off (or E again) steps you back out. While someone sits on
+     each side, the booth's velvet curtains draw across both doorways, and they open again as soon as
+     either steps out.
    - **The post office**, beside the road just south of the meeting circle, has a letterbox for every
      player with their name on it. Write a letter there by day (signed, or anonymous) and post it in
      someone's letterbox; a little red flag goes up on it. It arrives that night, and they open it in bed
@@ -72,8 +77,12 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    - **Night**: everyone is tucked up in bed in their own bedroom, fire out, moon and stars in the
      window, and nobody can get up until morning. Press E for a go at **counting sheep**: how many white
      sheep jumped the fence, from either side? Every jump counts as one; the odd goat or wolf slips
-     through too, and they don't count. Get it right and you wear a **gold star** over your head all the next day. One go a night. The
-     Storyteller wakes players with the same tools as the Grimoire, and can float to a bedside to talk
+     through too, and they don't count. Get it right and you wear a **gold star** over your head all the next day. One go a night.
+     On the bedroom wall hangs a chart of **who sits where** round the circle, laid out as the
+     Storyteller's grimoire has it (first seat at the top, going clockwise; names only), and a **Who sits
+     where** button in bed opens it up close, so "clockwise" means the same to everyone before the first
+     meeting. A night card with the Clockwise or Anticlockwise sign (the Shugenja's) shows the same circle.
+     The Storyteller wakes players with the same tools as the Grimoire, and can float to a bedside to talk
      to its owner privately. The **night guide** at the top of the Storyteller's screen walks through
      the night order for just the characters in play: **Wake** opens the wake screen for whoever has
      the character, with their question ready ("Who do you want to poison?"), and **Next** (there or
@@ -95,7 +104,9 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      and the count, the red and blue hands on the cobbles sweep from stool to stool, and a big paw goes
      up over anyone voting. Executing the player on the block (mark them, then Kill) plays out at the
      gallows for the whole town: a drumroll, the gavel, the trapdoor drops, a short swing and a puff of
-     smoke, then they walk on as a ghost.
+     smoke, then they walk on as a ghost. For someone who survives being executed (the Devil's
+     Advocate's choice, the Fool, a Tea Lady's neighbour), **Execute, but they survive** in their seat
+     menu plays the same hanging, but the trapdoor jams, the rope snaps and they're left standing.
    - **The end of the game**: when every Demon is dead (good) or only two players are left with the
      Demon among them (evil), you're asked whether the game is over; "Not yet" holds the question
      until something changes (a Scarlet Woman, a starpass). You can also call it either way in
@@ -119,6 +130,14 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      way the real Slayer gets the No Ability reminder.
    - **The Spy** sees a snapshot of the grimoire when woken from the night order; add one to any wake
      with the book button in the wake screen.
+   - **Characters that change**: the night guide fills in each step for the characters in play,
+     including the Magician and the Lunatic in the evil team's first-night information, the Shugenja's
+     direction, and the Barber, Hatter, Imp and Fang Gu changing characters. After changing someone's
+     character, **Tell them they're the X** opens the wake screen ready to show them (a Barber swap
+     keeps each player's alignment). When a Demon dies at night that could hand on (the Imp, the Fang
+     Gu), the end-of-game question offers who takes over instead. The real Goblin's seat menu has
+     **Claimed to be the Goblin**, and a claimed Goblin who's executed that day suggests evil wins. The
+     Godfather's and Fang Gu's Outsider counts are allowed for in the bag.
    - **Waking someone at night** drifts you to their bedside; the player sees a dream bubble beside
      their bed and you're told when they've read it.
    - **Around town**: signs float over the things to do, the well gives water, the noticeboard has the
@@ -141,15 +160,19 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    for keeping time. A new hat pops up on screen with your animal wearing it and a
    **Wear it now** button. Hats are remembered in each player's own browser and chosen under the
    colours in the animal picker; locked ones say how to earn them.
-7. **Achievements.** 26 more things to do, with ten more hats: win on the good team (a laurel wreath)
+7. **Achievements.** 36 more things to do, with twenty more hats: win on the good team (a laurel wreath)
    or the evil team (devil horns), catch 10 fish (a pirate's tricorn), run a whole lap of the ring
    road (a jogger's headband), talk with someone through the confession booth (a confessor's candle),
    post 5 letters (a postie's cap), plus surviving to the end, being hanged, being nominated,
    nominating, voting, using your ghost vote, a Slayer claim, talking for 10 minutes, visiting all
-   four public buildings in a day, gifts, snacks, wishes, fan mail and games played. Some are
-   secret, and stay a question mark until found (four of them come with a secret hat). The
-   **Awards** button lists them all. Popups for anything new wait at least eight seconds, and until
-   any hanging or night visit on screen is over, so they never cover the moment that earned them.
+   four public buildings in a day, gifts, snacks, wishes, fan mail and games played. Then: guess three
+   characters right in your notepad by the end of a game (a deerstalker), catch eight kinds of fish (a
+   trainer's cap) and get three stars at six different jobs (a mortarboard), and plenty of secrets: a
+   fez, a tin foil hat, a Mad Hatter's hat, a cowboy hat, a robot helmet, a traffic cone and a
+   jack-o'-lantern, each for something a bit silly. Secret ones stay a question mark until found. The
+   **Awards** button lists them all. Anything new pops up straight away, but waits for a hanging, a
+   night visit, a vote or a banner on screen to finish; one earned by dying waits eight seconds more,
+   so you see it all.
    Everything (your name, animal, hats and achievements) is kept in your own browser.
 
 ### Controls
