@@ -514,6 +514,7 @@ export class Engine {
     const prev = this.view;
     this.view = v;
     const seatIndex = (id: string | null) => v.seats.findIndex((s) => s.id === id);
+    this.updateSeating();
 
     if (!prev || prev.town !== v.town) this.town.setTown(v.town, Date.now());
 
@@ -792,6 +793,16 @@ export class Engine {
       }
     }
     useHud.setState({ place });
+    this.updateSeating();
+  }
+
+  /** The bedrooms' seating chart: everyone in the grimoire's order, whoever's room it is marked. */
+  private updateSeating() {
+    const v = this.view;
+    if (!v) return;
+    const owner = houseOwner(local.zone);
+    // (The world's seats come in the grimoire's order.)
+    this.town.setSeating(v.seats.map((s) => ({ name: s.name, dead: s.dead, owner: s.id === owner })));
   }
 
   // ---------------------------------------------------------------- input

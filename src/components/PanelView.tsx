@@ -54,6 +54,46 @@ export function GrimoireSnapshotView({ snap, seatFor }: { snap: GrimoireSnapshot
   );
 }
 
+/**
+ * Everyone round the circle in the grimoire's order, the first seat at the top and going clockwise, names only (no
+ * characters or reminders): shown with a clockwise or anticlockwise sign, so the Shugenja knows which way round the
+ * Storyteller means. The same chart hangs on the bedroom wall.
+ */
+export function SeatingCircle({ seatFor, dir }: { seatFor?: string | null; dir: 'clockwise' | 'anticlockwise' }) {
+  const view = useView();
+  const seats = [...view.seats].sort((a, b) => a.index - b.index);
+  const n = seats.length;
+  const R = 100;
+  return (
+    <div className="seating" aria-label="Who sits where, as the Storyteller sees it">
+      <div className="seating-ring" style={{ width: R * 2 + 110, height: R * 2 + 56 }}>
+        {seats.map((s, i) => {
+          const a = (i / Math.max(1, n)) * Math.PI * 2 - Math.PI / 2;
+          return (
+            <span
+              key={s.id}
+              className={`seating-seat ${s.dead ? 'is-dead' : ''} ${s.id === seatFor ? 'is-me' : ''}`}
+              style={{ left: `calc(50% + ${Math.cos(a) * R}px)`, top: `calc(50% + ${Math.sin(a) * R}px)` }}
+            >
+              {s.label}
+              {s.id === seatFor && <small>you</small>}
+            </span>
+          );
+        })}
+        <svg className={`seating-arrow ${dir}`} viewBox="0 0 100 100" aria-hidden="true">
+          <defs>
+            <marker id="seating-head" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+              <path d="M0 0 L10 5 L0 10 z" />
+            </marker>
+          </defs>
+          <path d="M 50 16 A 34 34 0 1 1 20.6 67" markerEnd="url(#seating-head)" />
+        </svg>
+      </div>
+      <span className="seating-note">As the Storyteller sees it</span>
+    </div>
+  );
+}
+
 function X({ onClick, label }: { onClick: () => void; label: string }) {
   return (
     <button
@@ -193,6 +233,9 @@ export function PanelView({
                     </span>
                   ))}
                 </div>
+              )}
+              {p.signs.some((s) => s === 'clockwise' || s === 'anticlockwise') && (
+                <SeatingCircle seatFor={seatFor} dir={p.signs.includes('anticlockwise') ? 'anticlockwise' : 'clockwise'} />
               )}
               {p.text && (
                 <p className="panel-text">

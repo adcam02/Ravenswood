@@ -24,6 +24,8 @@ export type Modal =
   | { kind: 'letter' }
   /** Opening the letters that have come, in bed at night. */
   | { kind: 'letters' }
+  /** Who sits where round the circle, as the Storyteller sees it (from bed, like the chart on the wall). */
+  | { kind: 'seating' }
   /** Hats and achievements: what's been earned, and what's still to find. */
   | { kind: 'awards' }
   /** Sending a messenger pigeon to someone. */

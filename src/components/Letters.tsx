@@ -9,6 +9,7 @@ import { ui } from '../state/ui';
 import { useView } from '../state/view';
 import { Icon } from './Icon';
 import { Modal } from './Modal';
+import { SeatingCircle } from './PanelView';
 
 const READ_KEY = 'ravenswood:letters-read';
 const readIds = () => new Set(loadJSON<string[]>(READ_KEY, []));
@@ -176,7 +177,10 @@ export function ReadLettersModal() {
   );
 }
 
-/** Tucked up in bed with letters waiting: a button to open them (and the fan mail achievement for three in a night). */
+/**
+ * Tucked up in bed: a button to open any letters waiting (and the fan mail achievement for three in a night), and one
+ * for who sits where round the circle.
+ */
 export function BedLetters() {
   const view = useView();
   const place = useHud((s) => s.place);
@@ -191,11 +195,30 @@ export function BedLetters() {
     const t = setInterval(() => setRead(readIds()), 1500);
     return () => clearInterval(t);
   }, []);
-  if (view.mode !== 'player' || view.phase !== 'night' || place !== 'Your bedroom' || sheep === 'playing' || !view.letters.length) return null;
+  if (view.mode !== 'player' || view.phase !== 'night' || place !== 'Your bedroom' || sheep === 'playing') return null;
   const fresh = view.letters.filter((l) => !read.has(l.id)).length;
   return (
-    <button className={`bed-letters cosy-btn ${fresh ? 'primary' : ''}`} onClick={() => ui.open({ kind: 'letters' })}>
-      {fresh ? '💌' : '📭'} {fresh ? `${fresh} new ${fresh === 1 ? 'letter' : 'letters'}` : 'Your letters'}
-    </button>
+    <div className="bed-buttons">
+      {view.letters.length > 0 && (
+        <button className={`bed-letters cosy-btn ${fresh ? 'primary' : ''}`} onClick={() => ui.open({ kind: 'letters' })}>
+          {fresh ? '💌' : '📭'} {fresh ? `${fresh} new ${fresh === 1 ? 'letter' : 'letters'}` : 'Your letters'}
+        </button>
+      )}
+      <button className="cosy-btn" onClick={() => ui.open({ kind: 'seating' })}>
+        🪑 Who sits where
+      </button>
+    </div>
+  );
+}
+
+/** Who sits where round the circle, as the Storyteller sees it in the grimoire: the chart on the bedroom wall, up close. */
+export function SeatingModal() {
+  const view = useView();
+  const me = view.seats.find((s) => s.isMe);
+  return (
+    <Modal title="Who sits where" eyebrow="Round the circle" size="sm" className="seating-modal">
+      <SeatingCircle seatFor={me?.id ?? null} dir="clockwise" />
+      <p className="letter-blurb">The first seat is at the top. The arrow shows which way is clockwise.</p>
+    </Modal>
   );
 }

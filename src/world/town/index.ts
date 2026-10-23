@@ -5,6 +5,7 @@ import { BED_SPOTS, wrapAngle, type Collider, type Door, type Spot, type Station
 import { glowUniforms, makeBirds, makeGlows, makeMist, makeRain, makeRipples, makeSky, swayUniforms } from './fx';
 import { G, shade } from './kit';
 import { buildInteriors, turnClockwork, type Room } from './interiors';
+import type { SeatingEntry } from './seating';
 import {
   BED,
   BED_H,
@@ -82,6 +83,8 @@ export interface TownWorld {
   setHouses(list: ({ name: string; dead: boolean } | null)[]): void;
   /** The sign above the bed: "<name>'s home", or any lines you like. */
   setHomeOwner(name: string, lines?: string[]): void;
+  /** The seating chart in the bedrooms: everyone round the circle, in the grimoire's order. */
+  setSeating(seats: SeatingEntry[]): void;
   setTown(state: TownState, now: number): void;
   setMeeting(m: { n: number; nominee: number | null; nominator?: number | null; hand: number | null; active: boolean; votes: number[]; label?: string }): void;
   /** Gravestones for the dead, by seat name. */
@@ -1091,6 +1094,9 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       });
     },
 
+    setSeating(seats) {
+      interiors.seatingChart.set(seats);
+    },
     setHomeOwner(name, lines) {
       const key = lines ? lines.join('|') : name;
       if (key === ownerKey) return;

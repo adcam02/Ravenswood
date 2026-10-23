@@ -629,8 +629,8 @@
   .action-prompt {
     bottom: 160px;
   }
-  /* The letters button in bed stays above the bedside prompt. */
-  .bed-letters {
+  /* The letters and seating buttons in bed stay above the bedside prompt. */
+  .bed-buttons {
     bottom: 214px;
   }
   .help-card,
@@ -1306,6 +1306,79 @@
     opacity: 0;
     transform: translateY(14px) scale(0.96);
   }
+}
+
+/* ---------------------------------------------------------------- the seating circle (with the Shugenja's sign) */
+
+.seating {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+.seating-ring {
+  position: relative;
+}
+.seating-ring::before {
+  content: '';
+  position: absolute;
+  inset: 28px 55px;
+  border-radius: 50%;
+  border: 1px solid rgba(207, 167, 91, 0.35);
+}
+.seating-seat {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  max-width: 96px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(207, 167, 91, 0.3);
+  font-size: 12px;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+.seating-seat small {
+  font-size: 9.5px;
+  color: var(--brass-hi);
+}
+.seating-seat.is-me {
+  border-color: var(--brass-hi);
+  background: rgba(207, 167, 91, 0.2);
+  color: var(--brass-hi);
+}
+.seating-seat.is-dead {
+  color: var(--text-dim);
+  text-decoration: line-through;
+}
+.seating-arrow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 76px;
+  height: 76px;
+  transform: translate(-50%, -50%);
+  fill: none;
+  stroke: var(--brass-hi);
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+.seating-arrow marker path {
+  fill: var(--brass-hi);
+  stroke: none;
+}
+/* The same arrow, mirrored, for anticlockwise. */
+.seating-arrow.anticlockwise {
+  transform: translate(-50%, -50%) scaleX(-1);
+}
+.seating-note {
+  font-size: 11px;
+  color: var(--text-dim);
 }
 
 /* ---------------------------------------------------------------- the Spy's snapshot */

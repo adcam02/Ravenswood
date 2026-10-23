@@ -2643,12 +2643,15 @@
 .letter-env-icon {
   font-size: 34px;
 }
-.bed-letters {
+.bed-buttons {
   position: absolute;
   left: 50%;
   bottom: 160px;
   z-index: 16;
   transform: translateX(-50%);
+  display: flex;
+  gap: 10px;
+  white-space: nowrap;
 }
 
 /* ---------------------------------------------------------------- awards */

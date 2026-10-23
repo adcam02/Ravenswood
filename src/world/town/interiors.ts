@@ -27,6 +27,7 @@ import {
 import { IRON, WOOD, WOOD_DARK, WOOD_LIGHT, barrel, crate } from './props';
 import { makeGlows, type GlowSpot, type Glows } from './fx';
 import { beamGeometry, beamMaterial } from './looks';
+import { SeatingChart } from './seating';
 import { TextSign } from './sign';
 
 export type Room = Exclude<ZoneKind, 'town'>;
@@ -59,6 +60,8 @@ export interface Interiors {
   /** Glass that shows the sky outside: bright by day, dark at night. */
   glassMaterial: THREE.MeshBasicMaterial;
   ownerSign: TextSign;
+  /** Who sits where round the circle, framed on the bedroom's chimney breast. */
+  seatingChart: SeatingChart;
   /** The clock tower's moving parts. */
   clockwork: Clockwork;
   /** The confession booth's curtains, drawn while someone sits on each side. */
@@ -1112,7 +1115,7 @@ export function turnClockwork(c: Clockwork, ring: number) {
 
 // ---------------------------------------------------------------- home
 
-function home(p: Paint, glow: Builder, r: () => number, sign: TextSign): THREE.Object3D {
+function home(p: Paint, glow: Builder, r: () => number, sign: TextSign, chart: SeatingChart): THREE.Object3D {
   const { hw, hd } = ROOMS.house;
   shell(p, 'house', { floor: ['#b07a4f', '#a4704a', '#ba845a'], wall: '#f4e4cf', wainscot: '#c9a27a', trim: '#7a5236' }, r);
   // Wallpaper stripes.
@@ -1248,8 +1251,19 @@ function home(p: Paint, glow: Builder, r: () => number, sign: TextSign): THREE.O
   hoop.add(face, ring, hook);
   // Out in front of the picture rail (which stands 6 cm off the wall), so the rail doesn't cut across the name.
   hoop.position.set(BED.x, 2.3, -hd + 0.11);
+  // Who sits where round the circle, framed on the wall above the bedside table, where it's in view from the bed,
+  // and lit enough to read at night. Out in front of the picture rail, like the hoop.
+  const chartFrame = new THREE.Group();
+  const board = new THREE.Mesh(new THREE.BoxGeometry(1.06, 1.06, 0.04), new THREE.MeshLambertMaterial({ color: '#6a4228' }));
+  const paper = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.97, 0.97),
+    new THREE.MeshLambertMaterial({ map: chart.texture, emissive: '#ffffff', emissiveMap: chart.texture, emissiveIntensity: 0.45 }),
+  );
+  paper.position.z = 0.03;
+  chartFrame.add(board, paper);
+  chartFrame.position.set(4.36, 2.08, -hd + 0.11);
   const extra = new THREE.Group();
-  extra.add(hoop, nightWindow(0.5, 2.0, -hd + 0.093, 1.1, 1.0));
+  extra.add(hoop, chartFrame, nightWindow(0.5, 2.0, -hd + 0.093, 1.1, 1.0));
   return extra;
 }
 
@@ -1291,6 +1305,7 @@ export function buildInteriors(): Interiors {
   const glowMaterial = new THREE.MeshBasicMaterial({ vertexColors: true });
   const clockwork: Clockwork = { hands: [], gears: [], pendulum: new THREE.Group(), rope: new THREE.Group() };
   const ownerSign = new TextSign({ w: 512, h: 512, bg: '#fbf4e6', fg: '#b8506a', round: true, italic: false, size: 120 }, ['Home', 'sweet home']);
+  const seatingChart = new SeatingChart();
   const halos: Partial<Record<Room, Glows>> = {};
   const make = (room: Room, fill: (p: Paint, glow: Builder, r: () => number) => THREE.Object3D | void): THREE.Group => {
     const main = new Builder();
@@ -1361,7 +1376,7 @@ export function buildInteriors(): Interiors {
       ],
     },
     house: {
-      group: make('house', (p, glow, r) => home(p, glow, r, ownerSign)),
+      group: make('house', (p, glow, r) => home(p, glow, r, ownerSign, seatingChart)),
       hemi: { sky: '#fff0dc', ground: '#6a4a36', intensity: 1.15 },
       sun: { color: '#ffe8c8', intensity: 1.3, dir: [0.35, 1, 0.6] },
       lights: [
@@ -1384,5 +1399,5 @@ export function buildInteriors(): Interiors {
   for (const room of Object.keys(rooms) as Room[]) rooms[room].glows = halos[room];
   const curtains = boothCurtains();
   rooms.church.group.add(curtains.group);
-  return { rooms, glassMaterial, ownerSign, clockwork, boothCurtains: curtains };
+  return { rooms, glassMaterial, ownerSign, seatingChart, clockwork, boothCurtains: curtains };
 }
