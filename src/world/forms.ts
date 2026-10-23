@@ -645,9 +645,9 @@ export function finishSculpt(k: Kit, animal: string, coat: string) {
           }
         }
         // Kept under the triangle budget (a long-limbed animal cuts to more), by merging the flattest facets.
-        // (Less, the more crisp pieces are attached to it.)
+        // (Less, the more crisp pieces and sheets are attached to it.)
         const n = high!.tris.length / 3;
-        const cap = Math.max(2000, MAX_TRIS - [...k.parts].filter(([name]) => name.startsWith('piece:')).reduce((sum, [, p]) => sum + p.fold.faces, 0));
+        const cap = Math.max(2000, MAX_TRIS - [...k.parts].filter(([name]) => /^(piece|sheet|glass):/.test(name)).reduce((sum, [, p]) => sum + p.fold.faces, 0));
         if (n > cap * 1.03) high = decimate(high!, cap / n, step * 2.5);
         meshes.set(`${animal}:high`, high!);
       }
@@ -901,6 +901,63 @@ export function piece(k: Kit, o: PieceOpts) {
     }
   }
   (k.pieces ??= []).push({ name: o.name, bone: o.bone, root: rings[0].map(v3) });
+}
+
+export interface MembraneOpts {
+  bone: string;
+  /** A point inside the sheet that its faces fan out from, and its outline all the way round (model space). */
+  centre: THREE.Vector3;
+  rim: THREE.Vector3[];
+  /** Which way its top looks, and how far its middle bulges out that way (a cupped wing). */
+  up: THREE.Vector3;
+  cup?: number;
+  /** Its colour in the middle, and out at the edge. */
+  color: Color;
+  edge?: Color;
+  /** See-through (a bee's wings). */
+  glass?: boolean;
+}
+
+/**
+ * A thin crisp sheet (a wing's membrane) fanned out from a point inside it to its outline, fixed rigidly to one
+ * bone. It's faced on both sides, back to back, so it shows from either side; with a cup it shades round.
+ */
+export function membrane(k: Kit, o: MembraneOpts) {
+  const f = part(k, `${o.glass ? 'glass' : 'sheet'}:${o.bone}`, o.bone, { glass: o.glass });
+  const origin = boneAt(k, o.bone);
+  const up = o.up.clone().normalize();
+  // Rings out from the middle, so the cup and the colour can change across it (far off, a plain fan).
+  const rings = isLow() ? 1 : 3;
+  const mid = new THREE.Color(o.color);
+  const edge = new THREE.Color(o.edge ?? o.color);
+  const n = o.rim.length;
+  const at = (i: number, r: number) => o.centre.clone().lerp(o.rim[i % n], r).addScaledVector(up, (o.cup ?? 0) * (1 - r * r));
+  const tint = new THREE.Color();
+  const tri = (pts: [THREE.Vector3, number][], side: number) => {
+    const [a, b, c] = pts;
+    const nrm = new THREE.Vector3().subVectors(b[0], a[0]).cross(new THREE.Vector3().subVectors(c[0], a[0]));
+    if (nrm.lengthSq() < 1e-14) return;
+    for (const [p, r] of nrm.dot(up) * side < 0 ? [a, c, b] : [a, b, c]) {
+      f.pos.push(p.x - origin.x, p.y - origin.y, p.z - origin.z);
+      tint.copy(mid).lerp(edge, r * r);
+      f.col.push(tint.r, tint.g, tint.b);
+      f.along.push(-1);
+    }
+    audit.faces++;
+  };
+  for (const side of [1, -1]) {
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < rings; j++) {
+        const r0 = j / rings;
+        const r1 = (j + 1) / rings;
+        if (j === 0) tri([[o.centre.clone().addScaledVector(up, o.cup ?? 0), 0], [at(i, r1), r1], [at(i + 1, r1), r1]], side);
+        else {
+          tri([[at(i, r0), r0], [at(i + 1, r0), r0], [at(i + 1, r1), r1]], side);
+          tri([[at(i, r0), r0], [at(i + 1, r1), r1], [at(i, r1), r1]], side);
+        }
+      }
+    }
+  }
 }
 
 /**

@@ -47,6 +47,8 @@ export interface Part {
   chain?: string[];
   /** Drawn with the eye material (and squashed for blinks). */
   eyes?: boolean;
+  /** Drawn see-through (a bee's wings). */
+  glass?: boolean;
 }
 
 /** An extra bone beyond the standard ones, at a spot in its parent's space. */
@@ -133,6 +135,15 @@ export interface RecipeResult {
   jelly?: boolean;
   /** The right arm is a little tendril that only comes out to hold or gesture (the snail). */
   tendril?: boolean;
+  /**
+   * Little wings on its back, on bones of their own (wingL and wingR): a bee's buzz whenever it's up in the air,
+   * or a dragon's, folded until it flutters them (cheering, dancing, now and then while idling).
+   */
+  wings?: 'buzz' | 'flutter';
+  /** Its eyes are turrets (on bones turretL and turretR) that swivel about each on its own (the chameleon). */
+  swivel?: boolean;
+  /** Its skin slowly shifts colour, a shimmer travelling along it (the chameleon). */
+  shifts?: boolean;
 }
 
 export type Recipe = (k: Kit, c: Colors, coat: string) => RecipeResult;
@@ -167,6 +178,7 @@ export type Mannerism =
   | 'throat'
   | 'chill'
   | 'wingStretch'
+  | 'flutter'
   | 'lookAround';
 
 export interface Profile {
@@ -216,11 +228,11 @@ export const defaultJoints = (): Joints => ({
 });
 
 /** Adds (or finds) a part built in `space`'s coordinates and moving with `bone`. */
-export function part(k: Kit, name: string, space: string, opts: { bone?: string; chain?: string[]; eyes?: boolean } = {}): Fold {
+export function part(k: Kit, name: string, space: string, opts: { bone?: string; chain?: string[]; eyes?: boolean; glass?: boolean } = {}): Fold {
   const hit = k.parts.get(name);
   if (hit) return hit.fold;
   const fold = new Fold();
-  k.parts.set(name, { fold, space, bone: opts.bone ?? space, chain: opts.chain, eyes: opts.eyes });
+  k.parts.set(name, { fold, space, bone: opts.bone ?? space, chain: opts.chain, eyes: opts.eyes, glass: opts.glass });
   return fold;
 }
 

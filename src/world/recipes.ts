@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Vec3 } from './build';
-import { all, any, armForms, boneAt, type Details, beakForm, decal, earForms, earMarks, finForm, headForm, legForms, membraneWings, piece, region, sculptOf, snoutForm, sock as sockOf, suckerForms, surfaceHit, tailForm, tentacleForms, torso, unitOf, useSurface, whiskers, wingForms } from './forms';
+import { all, any, armForms, boneAt, type Details, beakForm, decal, earForms, earMarks, finForm, headForm, legForms, membrane, membraneWings, piece, region, sculptOf, snoutForm, sock as sockOf, suckerForms, surfaceHit, tailForm, tentacleForms, torso, unitOf, useSurface, whiskers, wingForms } from './forms';
 import { curve, isLow, pillar, solid, type Color, type Fold } from './paper';
 import { box, ellipsoid, pyramid, rod, spiral, type Probe } from './sculpt';
 import {
@@ -2593,6 +2593,367 @@ const fungi: Recipe = (k, c) => {
   return {};
 };
 
+/**
+ * Where to put things on a little wing on the back: a point `u` out along its leading edge, `v` across towards its
+ * trailing edge, and `lift` off its face.
+ */
+function wingPlane(root: THREE.Vector3, out: THREE.Vector3, trail: THREE.Vector3) {
+  const U = out.clone().normalize();
+  const V = trail.clone().addScaledVector(U, -trail.dot(U)).normalize();
+  // Which way its face looks: away from the body, out behind it.
+  const N = new THREE.Vector3().crossVectors(U, V);
+  if (N.z > 0) N.negate();
+  return { U, V, N, at: (u: number, v: number, lift = 0) => root.clone().addScaledVector(U, u).addScaledVector(V, v).addScaledVector(N, lift) };
+}
+
+const dragon: Recipe = (k, c) => {
+  const belly = mix(c.coat, '#f8e4a8', 0.66);
+  const seam = mix(belly, c.coat, 0.4);
+  const spike = mix(c.coat, '#f4c860', 0.55);
+  const horn = '#f3e6c8';
+  const web = mix(c.coat, '#f8dca0', 0.42);
+  // A round baby dragon, nearly all tummy: a big pale belly banded with scales, stubby arms and legs, a big round
+  // head with a short snout, little horns and fins for ears, small spikes from its crown down its back and tail, a
+  // spade on the end of its tail, and two little bat wings on its back, far too small to fly with (folded, until it
+  // flutters them).
+  k.joints.neck = [0, 0.56, 0.05];
+  k.joints.shoulder = [0.16, 0.44, 0.13];
+  k.joints.hip = [0.11, 0.17, -0.01];
+  k.joints.tail = [0, 0.2, -0.2];
+  torso(k, {
+    belly: [
+      [0, 0.3, -0.01],
+      [0.25, 0.26, 0.23],
+    ],
+    chest: [
+      [0, 0.47, 0.04],
+      [0.18, 0.13, 0.16],
+    ],
+    haunch: [
+      [0.13, 0.17, -0.03],
+      [0.1, 0.1, 0.13],
+    ],
+    melt: 0.2,
+  });
+  // (Things are held a little further out, clear of the big round tummy.)
+  k.front! += 0.035;
+  headForm(k, { r: [0.2, 0.175, 0.185], at: [0, 0.13, 0.05], melt: 0.14 });
+  const snout = snoutForm(k, { dy: -0.26, len: 0.08, ra: 0.11, rb: 0.085, drop: 0.02, squash: [1.15, 0.78, 1] });
+  earForms(k, { x: 0.8, y: 0.32, w: 0.04, h: 0.085, d: 0.024, splay: 1.2, rake: 0.25, notch: true });
+  armForms(k, { len: 0.16, r0: 0.05, r1: 0.044, paw: [0.046, 0.034, 0.048], fwd: 0.55, out: 0.32 });
+  legForms(k, { r0: 0.072, r1: 0.062, foot: [0.068, 0.034, 0.088] });
+  const path = tailPath(0.5, [0, -0.45, -1], [0.55, 0.3, 0], 0.11, [1, 0.8, 0.6, 0.45, 0.32, 0.24]);
+  tailForm(k, path);
+  useSurface(k);
+  eyes(k, { x: 0.42, y: 0.1, size: 1.15, wide: 1.1, slant: 0.12, color: '#1a1216' });
+  mouth(k, { w: 0.42, y: -0.42, curve: 0.1, r: 0.0065 });
+  k.nose = snout.nose;
+  const nk = new THREE.Vector3(...k.joints.neck);
+  // Two little nostrils on the end of the snout.
+  for (const side of [-1, 1]) {
+    const at = onSnout(k, [side * 0.032, snout.nose[1] - 0.004, snout.nose[2] - 0.01], 0.002);
+    solid(k.head, k.rnd, { base: 'ico1', r: [0.011, 0.008, 0.006], pos: at, rot: [-0.4, side * 0.4, 0], color: mix(c.coat, CHARCOAL, 0.65) });
+  }
+  // Two little horns curving back off the top of the head.
+  for (const side of [-1, 1]) {
+    const base = onHead(k, side * 0.4, 0.78, -0.012).add(nk);
+    const out = new THREE.Vector3(side * 0.3, 0.8, -0.5).normalize();
+    const back = new THREE.Vector3(0, -0.3, -1).normalize();
+    const pts = [base.clone().addScaledVector(out, -0.02), base.clone().addScaledVector(out, 0.035), base.clone().addScaledVector(out, 0.065).addScaledVector(back, 0.02), base.clone().addScaledVector(out, 0.078).addScaledVector(back, 0.058)];
+    piece(k, { bone: 'neck', pts, w: [0.024, 0.02, 0.013, 0], t: [0.024, 0.02, 0.013, 0], across: new THREE.Vector3(1, 0, 0), colors: [horn, horn, horn], name: `horn${side > 0 ? 'L' : 'R'}` });
+  }
+  // A row of small spikes down the middle, from the crown down the back of the head, down the back (on a bone of its
+  // own, so they fold away under a cape or a backpack) and along the top of the tail, smaller towards its end.
+  const row: { from: THREE.Vector3; dir: THREE.Vector3; along: THREE.Vector3; bone: string; size: number }[] = [];
+  const hc = nk.clone().add(new THREE.Vector3(...k.shape.hc));
+  for (const a of [1.0, 1.4, 1.8]) {
+    const dir = new THREE.Vector3(0, Math.cos(a), -Math.sin(a));
+    row.push({ from: hc, dir, along: new THREE.Vector3(0, -Math.sin(a), -Math.cos(a)), bone: 'neck', size: 0.8 });
+  }
+  bone(k, 'backPlates', 'body', [0, 0.4, -0.08]);
+  for (let y = 0.52; y > 0.28; y -= 0.07) {
+    const dir = new THREE.Vector3(0, 0.45 * (y - 0.28), -1).normalize();
+    row.push({ from: new THREE.Vector3(0, y, 0), dir, along: new THREE.Vector3(0, 1, 0.2).normalize(), bone: 'backPlates', size: 0.9 });
+  }
+  const j = new THREE.Vector3(...k.joints.tail);
+  const n = path.pts.length - 1;
+  const i1 = Math.max(1, Math.round(n / 3));
+  const i2 = Math.max(i1 + 1, Math.round((n * 2) / 3));
+  for (let i = 1; i < n - 1; i++) {
+    const a = new THREE.Vector3(...path.pts[i]).add(j);
+    const b = new THREE.Vector3(...path.pts[i + 1]).add(j);
+    const along = b.clone().sub(a).normalize();
+    const up = new THREE.Vector3(0, 1, 0).addScaledVector(along, -along.y).normalize();
+    row.push({ from: a, dir: up, along: along.negate(), bone: i < i1 ? 'tail' : i < i2 ? 'tail1' : 'tail2', size: 0.85 - (i / n) * 0.45 });
+  }
+  row.forEach((s, i) => {
+    const hit = surfaceHit(k, s.from, s.dir);
+    if (!hit) return;
+    const len = 0.075 * s.size;
+    const w = 0.032 * s.size;
+    // A little rounded point, leaning back.
+    const pts = [hit.p.clone().addScaledVector(s.dir, -0.014), hit.p.clone().addScaledVector(s.dir, len * 0.45), hit.p.clone().addScaledVector(s.dir, len).addScaledVector(s.along, len * 0.3)];
+    piece(k, { bone: s.bone, pts, w: [w, w * 0.8, 0], t: [0.012, 0.01, 0], across: s.along, colors: [spike, spike], name: `ridge${i}` });
+  });
+  // The spade on the end of the tail: flat, lying level, so it shows from above and behind.
+  {
+    const end = new THREE.Vector3(...path.pts[n]).add(j);
+    const d = end.clone().sub(new THREE.Vector3(...path.pts[n - 1]).add(j)).normalize();
+    const across = new THREE.Vector3(0, 1, 0).cross(d).normalize();
+    const pts = [-0.012, 0.012, 0.035, 0.058, 0.08, 0.105].map((x) => end.clone().addScaledVector(d, x));
+    piece(k, { bone: 'tail2', pts, w: [0.018, 0.04, 0.056, 0.05, 0.03, 0], t: [0.016, 0.014, 0.013, 0.012, 0.009, 0], across, colors: [spike, spike, spike, spike, spike], name: 'spade' });
+  }
+  // The wings: a little arm along the leading edge to a wrist with a claw, two fingers fanning out from it, and the
+  // membrane between, scalloped along its edge. Each on a bone of its own at the top of the back, standing up and
+  // out from it, facing back.
+  for (const side of [-1, 1]) {
+    const nm = side > 0 ? 'wingL' : 'wingR';
+    const hit = surfaceHit(k, new THREE.Vector3(side * 0.06, 0.47, 0), new THREE.Vector3(side * 0.45, 0.15, -1));
+    if (!hit) continue;
+    const nrm = hit.n.clone().normalize();
+    bone(k, nm, 'body', v3(hit.p.clone().addScaledVector(nrm, -0.02)));
+    const w = wingPlane(hit.p.clone().addScaledVector(nrm, -0.006), new THREE.Vector3(side * 0.5, 0.82, -0.22), new THREE.Vector3(side * 0.85, -0.5, -0.15));
+    const wrist = w.at(0.1, 0);
+    const tips = [w.at(0.175, 0.035), w.at(0.15, 0.1), w.at(0.085, 0.135)];
+    const rim = [w.at(0, 0), w.at(0.05, -0.004), wrist, tips[0], w.at(0.13, 0.062), tips[1], w.at(0.088, 0.09), tips[2], w.at(0.03, 0.082), w.at(-0.004, 0.06)];
+    membrane(k, { bone: nm, centre: w.at(0.07, 0.05), rim, up: w.N, cup: 0.008, color: web, edge: mix(web, c.coat, 0.45) });
+    const bones: [THREE.Vector3[], number][] = [
+      [[w.at(-0.012, 0), w.at(0.05, -0.002), wrist, tips[0]], 0.011],
+      [[wrist, w.at(0.13, 0.05), tips[1]], 0.007],
+      [[wrist, w.at(0.095, 0.07), tips[2]], 0.007],
+    ];
+    bones.forEach(([pts, r], i) => {
+      const last = pts.length - 1;
+      piece(k, { bone: nm, pts, w: pts.map((_, q) => (q === last ? 0 : r * (1 - (q / last) * 0.4))), t: pts.map((_, q) => (q === last ? 0 : r * 0.8)), across: w.N, colors: pts.slice(1).map(() => c.coat), name: `${nm}Bone${i}` });
+    });
+    piece(k, { bone: nm, pts: [wrist, wrist.clone().addScaledVector(w.U, 0.008).addScaledVector(w.V, -0.025)], w: [0.006, 0], t: [0.005, 0], across: w.N, colors: [horn], name: `${nm}Claw` });
+  }
+  // The belly scales: pale plates across the front, a darker line between each (none up in the crease under the chin).
+  const front = frontOval(k, ['belly', 'chest'], 0, 0.3, 0.165, 0.235);
+  const plate = 0.075;
+  k.marks = {
+    base: c.coat,
+    marks: [
+      {
+        color: seam,
+        f: all(front, (q) => {
+          const x = (q.p.y - 0.09) / plate;
+          return Math.abs(x - Math.round(x)) * plate - 0.013;
+        }, (q) => q.p.y - 0.43),
+      },
+      { color: belly, f: front },
+      { color: belly, f: all(region(k, 'muzzle'), (q) => q.p.y - snout.mid(q.p)) },
+    ],
+  };
+  return { wings: 'flutter' };
+};
+
+const bee: Recipe = (k, c, coat) => {
+  const black = '#2a2326';
+  // (On a dark coat the stripes are pale instead, so they still show.)
+  const stripe = luminance(coat) < 0.2 ? mix(c.coat, '#f6e6b8', 0.7) : black;
+  const fluff = mix(c.coat, '#fff6dc', 0.5);
+  // A fuzzy round bumblebee: a big round head with huge eyes and antennae with little balls on the ends, a fluffy
+  // collar, a round body striped black, a little stinger, tiny arms and legs, and two pairs of see-through wings on
+  // its back that buzz too fast to see. It's always up in the air, hovering.
+  k.joints.neck = [0, 0.47, 0.04];
+  k.joints.shoulder = [0.15, 0.4, 0.11];
+  k.joints.hip = [0.08, 0.15, 0];
+  k.joints.tail = [0, 0.16, -0.2];
+  torso(k, {
+    belly: [
+      [0, 0.27, -0.03],
+      [0.22, 0.22, 0.21],
+    ],
+    chest: [
+      [0, 0.42, 0.01],
+      [0.17, 0.1, 0.16],
+    ],
+    melt: 0.16,
+  });
+  // The fluffy collar: a ring of soft puffs round the neck.
+  const sc = sculptOf(k);
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    sc.add(ellipsoid('body', [Math.sin(a) * 0.15, 0.445 + (i % 2) * 0.012, 0.02 + Math.cos(a) * 0.145], [0.058, 0.048, 0.058], { k: 0.04, name: `fluff${i}` }));
+  }
+  // (Things are held a little further out, clear of the big round tummy.)
+  k.front! += 0.035;
+  headForm(k, { r: [0.205, 0.185, 0.185], at: [0, 0.15, 0.05], melt: 0.12 });
+  armForms(k, { len: 0.14, r0: 0.034, r1: 0.03, paw: [0.034, 0.028, 0.036], fwd: 0.5, out: 0.3 });
+  legForms(k, { r0: 0.028, r1: 0.024, foot: [0.031, 0.02, 0.04] });
+  useSurface(k);
+  eyes(k, { x: 0.42, y: 0.02, size: 1.45, wide: 1, slant: 0.05, color: '#1a1418' });
+  mouth(k, { w: 0.2, y: -0.5, curve: 0.1, r: 0.006 });
+  const nk = new THREE.Vector3(...k.joints.neck);
+  // Antennae on the ears' bones (so they twitch, perk up and droop as ears do), each a thin crisp stalk with a ball.
+  for (const side of [-1, 1]) {
+    const nm = side > 0 ? 'earL' : 'earR';
+    const base = onHead(k, side * 0.3, 0.86, -0.012);
+    bone(k, nm, 'neck', v3(base));
+    const b = base.clone().add(nk);
+    const pts = [b.clone().add(new THREE.Vector3(0, -0.012, 0)), b.clone().add(new THREE.Vector3(side * 0.018, 0.06, 0.004)), b.clone().add(new THREE.Vector3(side * 0.045, 0.115, 0.02)), b.clone().add(new THREE.Vector3(side * 0.07, 0.15, 0.05))];
+    piece(k, { bone: nm, pts, w: [0.009, 0.008, 0.007, 0.006], t: [0.009, 0.008, 0.007, 0.006], across: new THREE.Vector3(1, 0, 0), colors: [black, black, black], name: `antenna${side > 0 ? 'L' : 'R'}` });
+    solid(part(k, `knob${side > 0 ? 'L' : 'R'}`, nm), k.rnd, { base: 'ico2', r: 0.024, pos: v3(pts[3].clone().sub(boneAt(k, nm))), color: black });
+  }
+  // A little stinger out of the bottom of its back.
+  {
+    const hit = surfaceHit(k, new THREE.Vector3(0, 0.2, -0.05), new THREE.Vector3(0, -0.45, -1));
+    if (hit) {
+      const d = new THREE.Vector3(0, -0.35, -1).normalize();
+      const pts = [hit.p.clone().addScaledVector(d, -0.014), hit.p.clone().addScaledVector(d, 0.03), hit.p.clone().addScaledVector(d, 0.058)];
+      piece(k, { bone: 'tail', pts, w: [0.017, 0.009, 0], t: [0.017, 0.009, 0], across: new THREE.Vector3(1, 0, 0), colors: [black, black], name: 'stinger' });
+    }
+  }
+  // Two pairs of see-through wings, a big one in front and a smaller one behind, each side on a bone of its own at
+  // the top of the back.
+  for (const side of [-1, 1]) {
+    const nm = side > 0 ? 'wingL' : 'wingR';
+    const hit = surfaceHit(k, new THREE.Vector3(side * 0.04, 0.42, -0.02), new THREE.Vector3(side * 0.35, 0.3, -1));
+    if (!hit) continue;
+    const nrm = hit.n.clone().normalize();
+    bone(k, nm, 'body', v3(hit.p.clone().addScaledVector(nrm, -0.012)));
+    const root = hit.p.clone().addScaledVector(nrm, -0.004);
+    const pairs: [THREE.Vector3, number, number, number, number, number][] = [
+      // Which way it leaves the body (up and out, facing back), its middle along that and across it, its half-length
+      // and half-width, and how far behind the other it stands.
+      [new THREE.Vector3(side * 0.6, 0.78, -0.15), 0.115, 0.004, 0.115, 0.05, 0],
+      [new THREE.Vector3(side * 0.95, 0.15, -0.2), 0.08, 0.004, 0.08, 0.034, 0.01],
+    ];
+    for (const [out, cu, cv, ru, rv, lift] of pairs) {
+      const w = wingPlane(root, out, new THREE.Vector3(side * 0.4, -1, -0.1));
+      const rim: THREE.Vector3[] = [];
+      for (let i = 0; i < 14; i++) {
+        const a = (i / 14) * Math.PI * 2;
+        rim.push(w.at(cu + Math.cos(a) * ru, cv + Math.sin(a) * rv, lift));
+      }
+      membrane(k, { bone: nm, centre: w.at(cu, cv, lift), rim, up: w.N, cup: 0.004, color: '#f6fbff', edge: '#a9c0dc', glass: true });
+    }
+  }
+  // Bands round the body (far off, where the surface is cut coarsely, two broad ones), and dark little limbs.
+  const bands: [number, number][] = isLow()
+    ? [
+        [-1, 0.1],
+        [0.19, 0.29],
+      ]
+    : [
+        [-1, 0.09],
+        [0.15, 0.21],
+        [0.27, 0.33],
+      ];
+  k.marks = {
+    base: c.coat,
+    marks: [
+      { color: fluff, f: region(k, /^fluff/) },
+      { color: stripe, f: all(region(k, 'belly', 'chest'), (q) => Math.min(...bands.map(([a, b]) => Math.max(a - q.p.y, q.p.y - b)))) },
+      { color: black, f: region(k, /^arm/, /^fore/, /^leg/) },
+    ],
+  };
+  return { hover: 0.22, wings: 'buzz' };
+};
+
+const chameleon: Recipe = (k, c) => {
+  const pale = mix(c.coat, '#f6f2d6', 0.58);
+  const band = mix(c.coat, '#1e2a18', 0.28);
+  const stripe = mix(c.coat, '#fbf8e8', 0.72);
+  // A little chameleon standing up: a tall helmet crest (the casque) on the back of its head, eyes in round turrets
+  // that swivel about each on its own, a wide smile, mitten hands and feet for gripping branches, and its tail rolled
+  // up in a curl. Its skin slowly shifts colour, a shimmer running along it (see the rig).
+  k.joints.neck = [0, 0.5, 0.07];
+  k.joints.shoulder = [0.13, 0.41, 0.09];
+  k.joints.hip = [0.1, 0.16, -0.04];
+  k.joints.tail = [0, 0.2, -0.17];
+  torso(k, {
+    belly: [
+      [0, 0.29, -0.03],
+      [0.175, 0.215, 0.19],
+    ],
+    chest: [
+      [0, 0.42, 0.03],
+      [0.135, 0.12, 0.14],
+    ],
+    melt: 0.18,
+  });
+  const headAt: Vec3 = [0, 0.1, 0.07];
+  headForm(k, { r: [0.165, 0.15, 0.18], at: headAt, melt: 0.12 });
+  const snout = snoutForm(k, { dy: -0.18, len: 0.07, ra: 0.1, rb: 0.07, drop: 0.02, squash: [1, 0.85, 1] });
+  const sc = sculptOf(k);
+  const hc = plus(k.joints.neck, headAt);
+  // The casque: a helmet crest rising up and back from the back of the head, narrow side to side.
+  const casqueAt: Vec3 = [0, hc[1] + 0.06, hc[2] - 0.08];
+  sc.add(pyramid('neck', casqueAt, 0.06, 0.2, 0.085, { rot: [-0.5, 0, 0], k: 0.035, anchor: casqueAt, reach: 0.12, round: 0.045, name: 'casque' }));
+  armForms(k, { len: 0.18, r0: 0.04, r1: 0.034, paw: [0.046, 0.026, 0.046], fwd: 0.45, out: 0.32 });
+  legForms(k, { r0: 0.05, r1: 0.04, foot: [0.054, 0.028, 0.066] });
+  // The tail: straight back from the rump, then rolled down and under in a tightening curl (clear of itself, so the
+  // turns don't melt together), drifting a little to one side as it goes.
+  const pts: Vec3[] = [
+    [0, 0, 0.02],
+    [0, -0.004, -0.07],
+  ];
+  const radii = [0.062, 0.052];
+  const turn = 1.55 * Math.PI;
+  for (let i = 0; i <= 9; i++) {
+    const a = (i / 9) * turn;
+    const r = 0.1 * Math.exp(-0.18 * a);
+    pts.push([0.012 * (a / Math.PI), -0.1 + r * Math.cos(a), -0.16 - r * Math.sin(a)]);
+    radii.push(0.044 - 0.027 * (i / 9));
+  }
+  const tailAt = tailForm(k, { pts, radii });
+  useSurface(k);
+  mouth(k, { w: 0.5, y: -0.36, curve: 0.08, r: 0.006 });
+  k.nose = snout.nose;
+  // The turret eyes: a round dome out of each side of the head on a bone of its own (so it can swivel), with a
+  // gold-rimmed pupil at its tip, which closes (on a bone of its own) to blink.
+  const z = new THREE.Vector3(0, 0, 1);
+  let eyeAt = new THREE.Vector3();
+  for (const side of [-1, 1]) {
+    const nm = side > 0 ? 'L' : 'R';
+    const at = onHead(k, side * 0.6, 0.16);
+    const axis = headNormal(k, side * 0.6, 0.16).add(new THREE.Vector3(0, 0.12, 0.3)).normalize();
+    bone(k, `turret${nm}`, 'neck', v3(at.clone().addScaledVector(axis, -0.02)));
+    const q = new THREE.Quaternion().setFromUnitVectors(z, axis);
+    const one = new THREE.Vector3(1, 1, 1);
+    solid(part(k, `turret${nm}`, `turret${nm}`), k.rnd, {
+      base: 'ico2',
+      r: [0.064, 0.064, 0.054],
+      matrix: new THREE.Matrix4().compose(axis.clone().multiplyScalar(0.02), q, one),
+      bend: (v) => {
+        if (v.z > 0) {
+          v.x *= 1 - 0.2 * v.z;
+          v.y *= 1 - 0.2 * v.z;
+        }
+      },
+      color: c.coat,
+    });
+    const apex = axis.clone().multiplyScalar(0.074);
+    bone(k, `blink${nm}`, `turret${nm}`, v3(apex));
+    const eye = part(k, `eye${nm}`, `turret${nm}`, { bone: `blink${nm}`, eyes: true });
+    const m = new THREE.Matrix4().compose(apex.clone().addScaledVector(axis, -0.004), q, one);
+    solid(eye, k.rnd, { base: 'ico2', r: [0.03, 0.03, 0.01], matrix: inside(m, [0, 0, -0.004]), color: '#d8ac3a', tone: 0.05 });
+    solid(eye, k.rnd, { base: 'ico2', r: [0.021, 0.021, 0.012], matrix: m, color: INK, tone: 0.1 });
+    solid(eye, k.rnd, { base: 'ico1', r: [0.007, 0.007, 0.004], matrix: inside(m, [0.007, 0.008, 0.01]), color: '#fffdf8', tone: 0 });
+    eyeAt = at.clone().addScaledVector(axis, 0.05);
+  }
+  k.blink = ['blinkL', 'blinkR'];
+  k.eyeY = eyeAt.y;
+  k.eyeX = Math.abs(eyeAt.x);
+  k.eyeR = 0.04;
+  k.eyeZ = eyeAt.z + 0.02;
+  // Crisp pale spots in a loose row along each flank (they shift colour with the rest of the skin).
+  bodyDabs(k, 'body', [0, 0.3, -0.03], [[2.0, 0.35, 0.02], [1.7, 0.1, 0.022], [1.4, 0.45, 0.018], [1.1, 0.15, 0.022], [0.8, 0.42, 0.017]], stripe, 'spot');
+  k.marks = {
+    base: c.coat,
+    marks: [
+      // A paler front, and darker rings round the tail.
+      { color: pale, f: frontOval(k, ['belly', 'chest'], 0, 0.3, 0.12, 0.22) },
+      { color: band, f: all(region(k, /^tail\d/), (q) => 0.6 - Math.sin(tailAt(q.p) * Math.PI * 7)) },
+      // A pale line along the lips.
+      { color: pale, f: all(region(k, 'muzzle', 'head'), (q) => q.p.y - (snout.mid(q.p) - 0.01), (q) => -q.p.z + hc[2] + 0.05) },
+    ],
+  };
+  return { swivel: true, shifts: true };
+};
+
 export const RECIPES: Record<AnimalId, Recipe> = {
   raccoon,
   fox,
@@ -2630,6 +2991,9 @@ export const RECIPES: Record<AnimalId, Recipe> = {
   robot,
   homunculus,
   fungi,
+  dragon,
+  bee,
+  chameleon,
 };
 
 /** How each species carries itself. Anything left out is the plain default. */
@@ -2706,6 +3070,12 @@ const PROFILES: Partial<Record<AnimalId, Partial<Profile>>> = {
   homunculus: { lean: 0.04, head: -0.04, gait: 'trot', cadence: 1.4, stride: 0.75, sit: 'feet', idles: ['rubPaws', 'earTwitch', 'headTilt', 'lookAround'], tailSway: 0 },
   // Hops everywhere, sways a little, blinks slowly.
   fungi: { lean: 0, head: -0.02, gait: 'hop', cadence: 1.05, sit: 'feet', idles: ['sway', 'headTilt', 'slowBlink'], tailSway: 0 },
+  // Waddles about on its stubby legs, little arms up; flutters its tiny wings now and then, swishes its tail.
+  dragon: { lean: 0.03, head: -0.04, paws: 0.12, gait: 'waddle', cadence: 1.05, stride: 0.65, sit: 'feet', idles: ['flutter', 'tailSwish', 'lookAround', 'flutter'], tailSway: 0.2 },
+  // Always on the wing, buzzing about; rubs its little hands, twitches an antenna, looks about.
+  bee: { lean: 0.02, head: -0.03, gait: 'flap', cadence: 1.3, stride: 0.7, sit: 'settle', idles: ['rubPaws', 'earTwitch', 'lookAround'], tailSway: 0 },
+  // Slow and careful, rocking as it goes; sways, tilts its head, its eyes always roving.
+  chameleon: { lean: 0.04, head: -0.03, gait: 'amble', cadence: 0.6, stride: 0.75, sit: 'feet', idles: ['sway', 'headTilt', 'lookAround'], tailSway: 0.05 },
 };
 
 /** Finishing touches: toes on the feet, claws, buck teeth. */
@@ -2722,6 +3092,9 @@ export const DETAILS: Partial<Record<AnimalId, Details>> = {
   ferret: { toes: 2, paws: 2 },
   kaiju: { claws: 3 },
   homunculus: { toes: 3 },
+  dragon: { claws: 3 },
+  // Two bundles of toes on each foot and hand, for gripping.
+  chameleon: { toes: 1, paws: 1 },
 };
 
 export function profileOf(id: AnimalId): Profile {

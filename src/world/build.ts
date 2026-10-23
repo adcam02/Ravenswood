@@ -234,6 +234,75 @@ export const wet = (): THREE.Material =>
         ? new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.28, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.12 })
         : storybook(true);
 
+/** What turns a shifting skin's colour (the chameleon's), set each frame by its rig. */
+export interface Shift {
+  /** How far round the colour wheel the whole skin is turned (radians). */
+  hue: { value: number };
+  /** How far a shimmer travelling along the body turns it either side of that, and the time that moves it on. */
+  wave: { value: number };
+  time: { value: number };
+  /** How much colour a coat with little of its own (a grey or a white one) takes on as it shifts. */
+  tint: { value: number };
+}
+
+/**
+ * Makes a material a skin that shifts colour: every colour on it turned round the colour wheel (kept as light as
+ * it was), and a shimmer travelling along the body from head to tail, worked out in the model's own space so it
+ * moves with the body. It compiles to a program of its own, so no other animal's material is touched.
+ */
+export function shifting(mat: THREE.Material): Shift {
+  const u: Shift = { hue: { value: 0 }, wave: { value: 0 }, time: { value: 0 }, tint: { value: 0 } };
+  const before = mat.onBeforeCompile;
+  const key = mat.customProgramCacheKey.bind(mat);
+  mat.onBeforeCompile = (shader, renderer) => {
+    before.call(mat, shader, renderer);
+    shader.uniforms.uShiftHue = u.hue;
+    shader.uniforms.uShiftWave = u.wave;
+    shader.uniforms.uShiftTime = u.time;
+    shader.uniforms.uShiftTint = u.tint;
+    shader.vertexShader = `varying vec3 vShiftP;\n${shader.vertexShader}`.replace(
+      '#include <skinning_vertex>',
+      `#include <skinning_vertex>
+      vShiftP = transformed;`,
+    );
+    shader.fragmentShader = `uniform float uShiftHue;
+uniform float uShiftWave;
+uniform float uShiftTime;
+uniform float uShiftTint;
+varying vec3 vShiftP;
+// A colour turned about the grey axis: round the colour wheel, greys left as they are.
+vec3 shiftHue(vec3 c, float a) {
+  const vec3 k = vec3(0.57735);
+  float ca = cos(a);
+  return c * ca + cross(k, c) * sin(a) + k * dot(k, c) * (1.0 - ca);
+}
+${shader.fragmentShader}`.replace(
+      '#include <color_fragment>',
+      `#include <color_fragment>
+      {
+        const vec3 LUMA = vec3(0.2126, 0.7152, 0.0722);
+        // How far along the body: from the top of the head down and back to the tail.
+        float along = vShiftP.y * 0.8 + vShiftP.z * 0.6;
+        float wave = sin(along * 11.0 - uShiftTime * 1.5);
+        float turn = uShiftHue + uShiftWave * (wave + 0.35 * sin(along * 23.0 + vShiftP.x * 9.0 - uShiftTime * 2.5));
+        vec3 c0 = diffuseColor.rgb;
+        float l0 = dot(c0, LUMA);
+        vec3 c = max(shiftHue(c0, turn), 0.0);
+        c *= clamp(l0 / max(dot(c, LUMA), 1e-4), 0.8, 1.25);
+        // A coat with little colour of its own takes some on as it shifts, so a grey one changes too.
+        float chroma = max(c0.r, max(c0.g, c0.b)) - min(c0.r, min(c0.g, c0.b));
+        vec3 tinted = max(shiftHue(vec3(0.9, 0.45, 0.08), turn), 0.0);
+        tinted = min(tinted * l0 / max(dot(tinted, LUMA), 1e-4), 1.0);
+        c = mix(c, tinted, uShiftTint * 0.5 * (1.0 - smoothstep(0.02, 0.2, chroma)));
+        // A faint ripple of light going along with the shimmer.
+        diffuseColor.rgb = c * (1.0 + 0.15 * uShiftWave * sin(along * 11.0 - uShiftTime * 1.5 + 1.2));
+      }`,
+    );
+  };
+  mat.customProgramCacheKey = () => `${key()}|shift`;
+  return u;
+}
+
 /** Eyes: smooth and a little reflective, so the catchlights read as a shine (flat card with ?look=paper). */
 export const eyeMaterial = (): THREE.Material =>
   SMOOTH_LOOK ? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.22, metalness: 0.05 }) : card();

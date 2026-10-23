@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SMOOTH_LOOK, eyeMaterial, glow, soft, wet, type Vec3 } from './build';
+import { SMOOTH_LOOK, eyeMaterial, glow, shifting, soft, wet, type Shift, type Vec3 } from './build';
 import { buildBack, buildFace, buildNeck, type BackFit, type BuiltPiece, type FaceFit, type NeckFit } from './dressup';
 import { all, any, armForms, details, finishSculpt, region, sculptOf, sock, useSurface } from './forms';
 import { buildHat, type BuiltHat, type HatFit } from './hats';
@@ -7,7 +7,7 @@ import { buildItem, disposeObject } from './items';
 import { Fold, lowDetail, seedOf, seeded, solid, tube } from './paper';
 import { ellipsoid, rod, type Probe } from './sculpt';
 import { DETAILS, RECIPES, profileOf } from './recipes';
-import { col, colorsFor, mix, newKit, onHead, type Kit, type Mannerism, type Profile, type Shape } from './species';
+import { col, colorsFor, mix, newKit, onHead, type Kit, type Mannerism, type Part, type Profile, type Shape } from './species';
 import { animalInfo, type Anim, type AnimalId, type BackId, type FaceId, type HatId, type Item, type ItemKind, type Look, type NeckId } from './types';
 
 export { buildPet, type Pet } from './pets';
@@ -213,6 +213,7 @@ const CLIP_LEN: Record<Mannerism, number> = {
   throat: 2.0,
   chill: 4.5,
   wingStretch: 2.8,
+  flutter: 2.2,
   lookAround: 3.0,
 };
 
@@ -224,6 +225,19 @@ const envelope = (p: number) => {
 };
 
 const GHOST_EYES = new THREE.MeshBasicMaterial({ color: '#3a4a7a', transparent: true, opacity: 0.85 });
+
+/**
+ * Little wings on the back (on bones of their own) stand up and out from it, facing back. Each way of moving them:
+ * how they're turned shut and open (about the upright, then about the front-to-back axis, for the left wing), and how
+ * fast and far they beat (about the front-to-back axis, sweeping up and down). A bee's are made as they're held
+ * buzzing and fold back along its body to sleep; a dragon's are made folded and spread out a little to flutter.
+ */
+const WING_MOTION = {
+  buzz: { shut: [0.95, -0.5], open: [0, 0], rate: 70, beat: 0.5, ease: 6 },
+  flutter: { shut: [0, 0], open: [-0.4, -0.45], rate: 21, beat: 0.5, ease: 9 },
+} as const;
+/** Bones that move on their own rather than with the poses: forearms go with the arms, wings beat, turrets look about. */
+const OWN_MOTION = ['foreL', 'foreR', 'wingL', 'wingR', 'turretL', 'turretR'];
 
 // ---------------------------------------------------------------- skeleton and skin
 
@@ -260,7 +274,10 @@ function skeletonOf(k: Kit): Skel {
   return sk;
 }
 
-/** Puts every part into the model's space and ties each corner to its bone (or blends it along a chain). */
+/**
+ * Puts every part into the model's space and ties each corner to its bone (or blends it along a chain): the body,
+ * then the eyes (in their own material), then anything see-through (a bee's wings), if it has any.
+ */
 function skin(k: Kit, sk: Skel): THREE.BufferGeometry {
   const index = new Map(sk.names.map((n, i) => [n, i]));
   const pos: number[] = [];
@@ -268,10 +285,11 @@ function skin(k: Kit, sk: Skel): THREE.BufferGeometry {
   const si: number[] = [];
   const sw: number[] = [];
   const groups: [number, number][] = [];
-  for (const eyesPass of [false, true]) {
+  const pass = (p: Part) => (p.glass ? 2 : p.eyes ? 1 : 0);
+  for (const which of [0, 1, 2]) {
     const start = pos.length / 3;
     for (const p of k.parts.values()) {
-      if (Boolean(p.eyes) !== eyesPass || p.fold.empty) continue;
+      if (pass(p) !== which || p.fold.empty) continue;
       const o = sk.rest.get(p.space) ?? new THREE.Vector3();
       // A bone that starts turned (a sculpted arm) turns what's built in its space with it.
       const turn = k.bind?.[p.space] ? new THREE.Quaternion().setFromEuler(new THREE.Euler(...k.bind[p.space])) : null;
@@ -317,6 +335,7 @@ function skin(k: Kit, sk: Skel): THREE.BufferGeometry {
   g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
   g.addGroup(groups[0][0], groups[0][1], 0);
   g.addGroup(groups[1][0], groups[1][1], 1);
+  if (groups[2][1]) g.addGroup(groups[2][0], groups[2][1], 2);
   g.computeVertexNormals();
   if (SMOOTH_LOOK) smoothNormals(g);
   g.computeBoundingSphere();
@@ -383,6 +402,12 @@ interface RigParts {
   sleepy?: boolean;
   /** The right arm only comes out to hold or gesture. */
   tendril?: boolean;
+  /** Little wings on the back, on bones wingL and wingR: a bee's buzz, or a dragon's flutter now and then. */
+  wings?: 'buzz' | 'flutter';
+  /** Turret eyes on bones turretL and turretR, each looking about on its own (the chameleon). */
+  swivel?: boolean;
+  /** A skin that shifts colour over time (the chameleon's), set going each frame. */
+  shift?: Shift;
   /** Extra things that hang off the body (the Storyteller's lantern). */
   extras?: (body: THREE.Object3D, hand: THREE.Group, armL: THREE.Object3D) => void;
   eyeMaterial?: THREE.Material;
@@ -489,6 +514,15 @@ class AnimalRig implements Rig {
   private noLegs: boolean;
   private sleepy: boolean;
   private tendril: boolean;
+  /** Wings on the back: which way they move, their bones (and sides), how open they are and want to be, and the beat. */
+  private wings: { mode: 'buzz' | 'flutter'; bones: [THREE.Bone, number][]; open: number; want: number; phase: number } | null = null;
+  /** How much a mannerism has the wings fluttering. */
+  private flutter = 0;
+  /** Turret eyes: each one's bone and side, where it's looking (turned forward and up), where it's darting to, and when it next darts. */
+  private turrets: { bone: THREE.Bone; side: number; yaw: number; pitch: number; toYaw: number; toPitch: number; next: number }[] = [];
+  private shift: Shift | null;
+  /** See-through parts (a bee's wings), if it has any. */
+  private glassMaterial: THREE.Material | null = null;
   private owned: THREE.Material[] = [];
   private highGeo: THREE.BufferGeometry;
   private detail: 'high' | 'low' = 'high';
@@ -542,6 +576,7 @@ class AnimalRig implements Rig {
     this.noLegs = Boolean(p.noLegs);
     this.sleepy = Boolean(p.sleepy);
     this.tendril = Boolean(p.tendril);
+    this.shift = p.shift ?? null;
     this.material = p.material;
     this.eyeMaterial = p.eyeMaterial ?? p.material;
     this.hatFit = p.hatFit;
@@ -596,16 +631,33 @@ class AnimalRig implements Rig {
     this.foreL = this.bones.get('foreL') ?? null;
     this.foreR = this.bones.get('foreR') ?? null;
     this.elbow = this.foreR ? k.elbow ?? 0 : 0;
-    this.extra = this.sk.names.filter((n) => !STANDARD.includes(n) && n !== 'foreL' && n !== 'foreR');
+    this.extra = this.sk.names.filter((n) => !STANDARD.includes(n) && !OWN_MOTION.includes(n));
+    const wl = this.bones.get('wingL');
+    const wr = this.bones.get('wingR');
+    if (p.wings && wl && wr) this.wings = { mode: p.wings, bones: [[wl, 1], [wr, -1]], open: 0, want: 0, phase: 0 };
+    if (p.swivel) {
+      for (const [name, side] of [['turretL', 1], ['turretR', -1]] as const) {
+        const b = this.bones.get(name);
+        if (b) this.turrets.push({ bone: b, side, yaw: 0, pitch: 0, toYaw: 0, toPitch: 0, next: 0 });
+      }
+    }
     this.root.add(this.float);
     // The hand's placement is worked out each frame (see applyPose), so it stays level and full size.
     this.hand.matrixAutoUpdate = false;
     (this.foreR ?? this.armR).add(this.hand);
     this.hand.add(this.handTilt);
 
-    // One skinned mesh for the whole animal, eyes in their own material.
+    // One skinned mesh for the whole animal, eyes in their own material (and see-through parts in another).
     this.highGeo = skin(k, this.sk);
-    this.mesh = new THREE.SkinnedMesh(this.highGeo, [this.material, this.eyeMaterial]);
+    if (this.highGeo.groups.length > 2) {
+      const glass = soft();
+      glass.transparent = true;
+      glass.opacity = 0.5;
+      glass.depthWrite = false;
+      this.glassMaterial = glass;
+      this.owned.push(glass);
+    }
+    this.mesh = new THREE.SkinnedMesh(this.highGeo, this.skinMaterials());
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = false;
     this.float.add(this.mesh);
@@ -807,10 +859,16 @@ class AnimalRig implements Rig {
     }
   }
 
+  /** The skinned mesh's materials, for the body, the eyes and anything see-through: its own, or a ghost's. */
+  private skinMaterials(): THREE.Material[] {
+    const glass = this.glassMaterial ? [this.ghost ? this.ghostMaterial : this.glassMaterial] : [];
+    return this.ghost ? [this.ghostMaterial, GHOST_EYES, ...glass] : [this.material, this.eyeMaterial, ...glass];
+  }
+
   setGhost(on: boolean) {
     if (on === this.ghost) return;
     this.ghost = on;
-    this.mesh.material = on ? [this.ghostMaterial, GHOST_EYES] : [this.material, this.eyeMaterial];
+    this.mesh.material = this.skinMaterials();
     this.mesh.castShadow = !on;
     if (!this.noLegs && this.hasLegs) this.wisp.visible = on;
     this.wisp.material = on || !this.noLegs ? this.ghostMaterial : this.material;
@@ -1340,6 +1398,12 @@ class AnimalRig implements Rig {
       case 'throat':
         aux(A, 'throat')[6] = 1 + Math.max(0, sin(t * 9)) * 0.3 * e;
         break;
+      case 'flutter':
+        // The little wings on its back open and flutter (see beatWings), with a bounce and a look up.
+        this.flutter = Math.max(this.flutter, e);
+        P.by += Math.max(0, sin(p * Math.PI * 4)) * 0.018 * e;
+        P.hrx -= 0.1 * e;
+        break;
     }
   }
 
@@ -1352,6 +1416,7 @@ class AnimalRig implements Rig {
     const prof = this.prof;
     if (s.anim !== 'idle') this.clip = null;
     this.shut = 0;
+    this.flutter = 0;
     switch (s.anim) {
       case 'walk':
       case 'run':
@@ -1660,6 +1725,11 @@ class AnimalRig implements Rig {
       } else P.arz -= beat * amp * 0.15;
       P.by += Math.max(0, beat) * 0.02;
     }
+    if (this.wings) {
+      // A bee's wings buzz the whole time it's up in the air; a dragon's stay folded until it cheers or dances,
+      // or flutters them now and then.
+      this.wings.want = this.wings.mode === 'buzz' ? (s.anim === 'sleep' ? 0 : 1) : s.anim === 'cheer' || s.anim === 'dance' ? 1 : this.flutter;
+    }
     return { P, A };
   }
 
@@ -1698,9 +1768,9 @@ class AnimalRig implements Rig {
       b.position.set(rest.x + a[3], rest.y + a[4], rest.z + a[5]);
       b.scale.setScalar(a[6]);
     }
-    // Plates down a back (the kaiju's) fold away inside it under a cape or a backpack.
+    // Plates down a back (the kaiju's, the dragon's spikes) fold away inside it under a cape or a backpack.
     const plates = this.bones.get('backPlates');
-    if (plates && (this.worn.back?.id === 'cape' || this.worn.back?.id === 'backpack')) plates.scale.setScalar(0.001);
+    if (plates && this.backCovered()) plates.scale.setScalar(0.001);
     // Something standing up off the top of the head (the robot's antenna, the homunculus's sprout) folds away under a hat.
     const crest = this.bones.get('crest');
     if (crest && this.hat) crest.scale.setScalar(0.001);
@@ -1772,12 +1842,80 @@ class AnimalRig implements Rig {
     else if (this.sleepy && s.anim === 'idle') open = Math.min(open, 0.5);
     for (const b of this.blinkers) b.scale.y = open * b.scale.x;
 
+    if (this.wings) this.beatWings(dt);
+    if (this.turrets.length) this.swivel(s, dt);
+    if (this.shift) {
+      // Away from its own colour round the colour wheel one way and back, then the other way, slowly, the shimmer
+      // along it growing the further it has gone. (Time is wrapped where both shimmers come round again.)
+      const away = Math.sin((s.t / 32) * Math.PI * 2);
+      this.shift.hue.value = 1.6 * away;
+      this.shift.wave.value = 0.1 + 0.25 * Math.abs(away);
+      this.shift.time.value = s.t % (4 * Math.PI);
+      this.shift.tint.value = Math.abs(away);
+    }
     if (this.drips && !this.ghost) this.updateDrips(dt);
     this.hat?.built.update?.(s.t + this.seed);
     const moving = s.anim === 'walk' || s.anim === 'run' ? Math.max(s.speed, s.anim === 'run' ? 4 : 1.6) : 0;
     this.lastSpeed = moving;
     this.lastT = s.t + this.seed;
     for (const w of Object.values(this.worn)) w?.piece.update?.(s.t + this.seed, dt, moving);
+  }
+
+  /** Whether a cape or a backpack is on, which things on the back (plates, little wings) fold away under. */
+  private backCovered(): boolean {
+    return this.worn.back?.id === 'cape' || this.worn.back?.id === 'backpack';
+  }
+
+  /**
+   * Little wings on the back: swept back along it when shut, held out when open, and beating as they go (a bee's
+   * too fast to follow, a dragon's in a flutter). Set straight on the bones, as a buzz is too quick to blend.
+   */
+  private beatWings(dt: number) {
+    const w = this.wings!;
+    const m = WING_MOTION[w.mode];
+    w.open += (w.want - w.open) * (1 - Math.exp(-dt * m.ease));
+    w.phase = (w.phase + dt * m.rate) % (Math.PI * 2);
+    const flap = Math.sin(w.phase) * w.open * m.beat;
+    const y = m.shut[0] + (m.open[0] - m.shut[0]) * w.open;
+    const z = m.shut[1] + (m.open[1] - m.shut[1]) * w.open;
+    // (They fold away under a cape or a backpack, and when it's wearing a pair of wings instead.)
+    const back = this.worn.back?.id;
+    const hidden = this.backCovered() || back === 'wings' || back === 'butterfly';
+    for (const [b, side] of w.bones) {
+      b.rotation.set(0, side * y, side * (z + flap));
+      b.scale.setScalar(hidden ? 0.001 : 1);
+    }
+  }
+
+  /**
+   * Turret eyes: each darts to look somewhere of its own every so often, and now and then both look straight ahead
+   * together. Asleep, they settle.
+   */
+  private swivel(s: RigState, dt: number) {
+    const now = s.t;
+    for (const e of this.turrets) {
+      if (s.anim === 'sleep') {
+        e.toYaw = 0.2;
+        e.toPitch = 0;
+      } else if (now >= e.next || e.next - now > 6) {
+        if (Math.random() < 0.25) {
+          for (const f of this.turrets) {
+            f.toYaw = 0.55;
+            f.toPitch = -0.05;
+            f.next = now + 1.2 + Math.random() * 1.5;
+          }
+        } else {
+          e.toYaw = -0.45 + Math.random() * 1.05;
+          e.toPitch = -0.3 + Math.random() * 0.55;
+          e.next = now + 0.5 + Math.random() * 2.2;
+        }
+      }
+      const k = 1 - Math.exp(-dt * 16);
+      e.yaw += (e.toYaw - e.yaw) * k;
+      e.pitch += (e.toPitch - e.pitch) * k;
+      // (Turned about the upright to look forward or back, and about the front-to-back axis to look up or down.)
+      e.bone.rotation.set(0, -e.side * e.yaw, e.side * e.pitch);
+    }
   }
 
   /** The bones in a chain: this one and everything hanging off it. */
@@ -1923,10 +2061,14 @@ export function buildAnimal(look: Look): Rig {
   details(k, DETAILS[info.id] ?? {});
   finishSculpt(k, info.id, coat);
   const aquatic = res.aquatic ?? info.aquatic;
+  const material = aquatic ? wet() : soft();
   const rig = new AnimalRig({
     kit: k,
     profile: profileOf(info.id),
-    material: aquatic ? wet() : soft(),
+    material,
+    shift: res.shifts ? shifting(material) : undefined,
+    wings: res.wings,
+    swivel: res.swivel,
     eyeMaterial: eyeMaterial(),
     ghostColor: mix(coat, '#e6f0ff', 0.75),
     floats: Boolean(res.hover),
@@ -1959,8 +2101,9 @@ function torsoR(s: Shape, y: number) {
 }
 
 /**
- * Some bodies need their neck ring or back placed by hand: the snail's back is its shell, the kaiju's cape
- * stops short of the top of its great tail, and the robot is boxy.
+ * Some bodies need their neck ring or back placed by hand: the snail's back is its shell, the kaiju's cape stops
+ * short of the top of its great tail, the robot is boxy, and the plumpest necks (the dragon's, the bee's fluffy
+ * collar, the chameleon's) need a wider ring to show round them.
  */
 const DRESS_NUDGE: Partial<Record<AnimalId, { neck?: Partial<NeckFit>; back?: Partial<BackFit>; floating?: boolean }>> = {
   snail: { neck: { centre: [0, 0.23, 0.35], r: 0.095, tilt: 0.4 }, back: { centre: [0, 0.33, -0.06], r: 0.12, depth: 0.2, top: 0.55, bottom: 0.13, rim: [0.22, 0.19] }, floating: true },
@@ -1971,6 +2114,9 @@ const DRESS_NUDGE: Partial<Record<AnimalId, { neck?: Partial<NeckFit>; back?: Pa
   homunculus: { back: { r: 0.165, depth: 0.155 } },
   // The mushroom's stem is wide all the way up to its face.
   fungi: { neck: { centre: [0, 0.39, 0.015], r: 0.15, tilt: 0.1 }, back: { r: 0.235, depth: 0.2 } },
+  dragon: { neck: { centre: [0, 0.52, 0.03], r: 0.175 } },
+  bee: { neck: { centre: [0, 0.44, 0.02], r: 0.2 } },
+  chameleon: { neck: { centre: [0, 0.455, 0.03], r: 0.145 } },
 };
 
 function dressFit(id: AnimalId, k: Kit): { face: FaceFit; neck: NeckFit; back: BackFit } {
