@@ -9,7 +9,7 @@ import { rememberBest } from '../game/bests';
 import type { DayTimer, Execution, Nomination, TownAction, TownHall, Visit } from '../state/types';
 import { ambience } from '../lib/ambience';
 import { doorChime, drumroll, gavel, pigeonSound, ropeSnap, visitSound } from '../lib/audio';
-import { NightVisit, VISIT, type VictimPose } from './visit';
+import { NightVisit, VISIT, VISIT_NAMES, bendVictim, type VictimPose } from './visit';
 import { PIGEON, PigeonFlight } from './pigeon';
 import { ui, useUI } from '../state/ui';
 import { earshot } from '../voice/earshot';
@@ -1668,8 +1668,9 @@ export class Engine {
     me.rig.root.rotation.z = (dangle?.swing ?? 0) + (this.visit?.mine && this.victimPose ? this.victimPose.shake : 0);
     if (this.visit?.mine && this.victimPose) me.rig.root.position.y += this.victimPose.dy;
     me.rig.root.scale.setScalar(dangle?.scale ?? 1);
-    // Down in the dark under the gallows, their name tag goes too.
-    me.setTagShown(!dangle?.hidden);
+    if (this.visit?.mine && this.victimPose) bendVictim(me.rig.root, this.victimPose);
+    // Down in the dark under the gallows (or through the bed), their name tag goes too.
+    me.setTagShown(!dangle?.hidden && !(this.visit?.mine && this.victimPose?.hidden));
 
     this.checkDoors(v, moving, dx, dz);
     this.checkStations(v);
@@ -2001,7 +2002,7 @@ export class Engine {
         if ((mine && !this.inBed) || (!mine && v.mode !== 'st')) continue;
         this.visitsSeen.add(vis.id);
         saveJSON(VISITS_SEEN_KEY, [...this.visitsSeen].slice(-50));
-        const variant = Number.isFinite(vis.variant) ? Math.abs(Math.floor(vis.variant)) % 4 : 0;
+        const variant = Number.isFinite(vis.variant) ? Math.abs(Math.floor(vis.variant)) % VISIT_NAMES.length : 0;
         const scene = new NightVisit(this.town.groups.house, variant, visitSound);
         // Aimed at whoever is in the bed, however their animal lies.
         const victim = mine ? this.me : this.others.get(vis.seatId);
@@ -2215,6 +2216,10 @@ export class Engine {
       av.rig.root.rotation.z = (dangle?.swing ?? 0) + (jolt?.shake ?? 0);
       if (jolt) av.rig.root.position.y += jolt.dy;
       av.rig.root.scale.setScalar(dangle?.scale ?? 1);
+      if (jolt) {
+        bendVictim(av.rig.root, jolt);
+        if (jolt.hidden) av.setTagShown(false);
+      }
     }
     for (const [key, av] of this.others) {
       if (!seen.has(key)) {

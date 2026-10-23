@@ -47,7 +47,7 @@ const ALL = {
   'pigeon-fly': 'x=2&z=20&t=0&dist=6&pitch=0.45&pigeon=1.3&frames=30',
   'pigeon-perch': 'x=2&z=20&t=0&dist=3.2&pitch=0.3&pigeon=3.6&frames=40',
   'pigeon-burst': 'x=2&z=20&t=0&dist=4.5&pitch=0.35&pigeon=6.9&frames=60',
-  // The hooded figure's night visit, each way it goes, at the moment it strikes (and the glide in, from above).
+  // The hooded figure's night visit, the first four ways, at the moment each strikes (and the glide in, from above).
   'visit-in': 'zone=house&night&t=1&visit=0&vt=1.4&x=1&z=-0.5&dist=10&frames=30',
   'visit-dagger': 'zone=house&night&t=1&visit=0&vt=3.82&vcam&frames=40',
   'visit-pillow': 'zone=house&night&t=1&visit=1&vt=4.1&vcam&frames=40',
@@ -59,6 +59,25 @@ const ALL = {
   'visit-kaiju-asleep': 'zone=house&night&t=1&visit=0&vt=0.1&vcam&frames=40&animal=kaiju',
   'visit-kaiju-pillow': 'zone=house&night&t=1&visit=1&vt=4.1&vcam&frames=40&animal=kaiju',
   'visit-kaiju-scythe': 'zone=house&night&t=1&visit=3&vt=3.9&vcam&frames=40&animal=kaiju',
+  // The newer six, just before and at their big moment, over a ghostly sleeper (as it is in the game by then).
+  'visit-mallet': 'zone=house&night&t=1&visit=4&vt=3.68&vcam&ghost&frames=40',
+  'visit-mallet-stars': 'zone=house&night&t=1&visit=4&vt=4.95&vcam&ghost&frames=40',
+  'visit-jack': 'zone=house&night&t=1&visit=5&vt=3.3&vcam&ghost&frames=40',
+  'visit-jack-pop': 'zone=house&night&t=1&visit=5&vt=3.95&vcam&ghost&frames=40',
+  'visit-lightning': 'zone=house&night&t=1&visit=6&vt=3.4&vcam&ghost&frames=40',
+  'visit-lightning-bolt': 'zone=house&night&t=1&visit=6&vt=3.72&vcam&ghost&frames=40',
+  'visit-ravens': 'zone=house&night&t=1&visit=7&vt=3.6&vcam&ghost&frames=40',
+  'visit-ravens-whirl': 'zone=house&night&t=1&visit=7&vt=4.3&vcam&ghost&frames=40',
+  'visit-snuffer': 'zone=house&night&t=1&visit=8&vt=3.5&vcam&ghost&frames=40',
+  'visit-snuffer-down': 'zone=house&night&t=1&visit=8&vt=4.2&vcam&ghost&frames=40',
+  'visit-trapdoor': 'zone=house&night&t=1&visit=9&vt=3.3&vcam&ghost&frames=40',
+  'visit-trapdoor-drop': 'zone=house&night&t=1&visit=9&vt=4.05&vcam&ghost&frames=40',
+  // As the Storyteller sees them from the bedside, and on other animals.
+  'visit-ravens-st': 'zone=house&night&t=1&visit=7&vt=4.3&x=2&z=-1.2&dist=11&ghost&frames=40',
+  'visit-lightning-st': 'zone=house&night&t=1&visit=6&vt=3.72&x=2&z=-1.2&dist=11&ghost&frames=40',
+  'visit-kaiju-mallet': 'zone=house&night&t=1&visit=4&vt=4.3&vcam&ghost&frames=40&animal=kaiju',
+  'visit-octopus-snuffer': 'zone=house&night&t=1&visit=8&vt=3.5&vcam&ghost&frames=40&animal=octopus',
+  'visit-bat-trapdoor': 'zone=house&night&t=1&visit=9&vt=3.85&vcam&ghost&frames=40&animal=bat',
   // The confession booth in the front corner, as a player beside it sees it, and closer in.
   booth: 'zone=church&t=0&x=3.6&z=-6.2&dist=11',
   'booth-close': 'zone=church&t=0&x=4.3&z=-7.8&dist=5.5&pitch=0.55&yaw=-0.3',
