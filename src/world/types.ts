@@ -137,7 +137,11 @@ export interface Look {
 
 // ---------------------------------------------------------------- pets, free for everyone
 
-export type PetId = 'chick' | 'slime' | 'ghost' | 'mouse' | 'bee' | 'snail';
+export type PetId =
+  | 'chick' | 'slime' | 'ghost' | 'mouse' | 'bee' | 'snail'
+  // Fond storybook takes on pop culture favourites.
+  | 'zapmouse' | 'sage' | 'spirit' | 'soot' | 'rascal' | 'sprout' | 'henchling' | 'arcade'
+  | 'puffball' | 'cube' | 'creepling' | 'balldroid' | 'astrodroid' | 'tidybot' | 'dragon';
 
 export const PETS: { id: PetId; name: string; icon: string }[] = [
   { id: 'chick', name: 'Chick', icon: '🐤' },
@@ -146,6 +150,21 @@ export const PETS: { id: PetId; name: string; icon: string }[] = [
   { id: 'mouse', name: 'Mouse', icon: '🐭' },
   { id: 'bee', name: 'Bee', icon: '🐝' },
   { id: 'snail', name: 'Tiny snail', icon: '🐌' },
+  { id: 'zapmouse', name: 'Sparky', icon: '⚡' },
+  { id: 'sage', name: 'Little Sage', icon: '👽' },
+  { id: 'spirit', name: 'Forest Spirit', icon: '🍃' },
+  { id: 'soot', name: 'Soot Sprite', icon: '⚫' },
+  { id: 'rascal', name: 'Blue Rascal', icon: '🌺' },
+  { id: 'sprout', name: 'I Am Sprout', icon: '🌱' },
+  { id: 'henchling', name: 'Henchling', icon: '🍌' },
+  { id: 'arcade', name: 'Arcade Ghost', icon: '🕹️' },
+  { id: 'puffball', name: 'Puffball', icon: '🌸' },
+  { id: 'cube', name: 'Cuddle Cube', icon: '💟' },
+  { id: 'creepling', name: 'Creepling', icon: '🟩' },
+  { id: 'balldroid', name: 'Rolly Droid', icon: '🟠' },
+  { id: 'astrodroid', name: 'Astro Droid', icon: '🔵' },
+  { id: 'tidybot', name: 'Tidy Bot', icon: '🤖' },
+  { id: 'dragon', name: 'Gummy Dragon', icon: '🐉' },
 ];
 
 const pickFrom = <T extends string>(list: { id: T }[], v: unknown): T | null => (list.some((x) => x.id === v) ? (v as T) : null);
