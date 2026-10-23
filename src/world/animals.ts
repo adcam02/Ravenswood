@@ -1991,7 +1991,6 @@ function dressFit(id: AnimalId, k: Kit): { face: FaceFit; neck: NeckFit; back: B
  * back a touch; some heads need it nudged clear of ears, antlers, fins or eye stalks.
  */
 const HAT_NUDGE: Partial<Record<AnimalId, { dy?: number; dz?: number; dx?: number; scale?: number; rot?: Vec3 }>> = {
-  bunny: { dy: -0.01, dz: -0.01, scale: 0.95 },
   snail: { dy: -0.01, dz: 0.0, scale: 0.85 },
 };
 

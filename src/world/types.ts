@@ -10,12 +10,8 @@ export type AnimalId =
   | 'wolf'
   | 'fox'
   | 'bear'
-  | 'cat'
-  | 'dog'
   | 'raccoon'
   | 'deer'
-  | 'owl'
-  | 'koala'
   | 'hedgehog'
   | 'panda'
   | 'penguin'
@@ -31,15 +27,10 @@ export type AnimalId =
   | 'quokka'
   | 'sloth'
   | 'seal'
-  | 'puffin'
   | 'snail'
-  | 'fennec'
-  | 'chinchilla'
   | 'highland'
   | 'squid'
   | 'bat'
-  | 'raven'
-  | 'wombat'
   | 'jellyfish'
   | 'gecko'
   | 'ferret'
@@ -48,8 +39,7 @@ export type AnimalId =
   | 'ibis'
   | 'crab'
   | 'turtle'
-  | 'kaiju'
-  | 'bunny';
+  | 'kaiju';
 
 export interface AnimalInfo {
   id: AnimalId;
@@ -81,12 +71,8 @@ export const ANIMALS: AnimalInfo[] = [
   { id: 'wolf', name: 'Wolf', aquatic: false, colors: ['#8d929c', '#5d6069', '#d9d4cc'] },
   { id: 'fox', name: 'Fox', aquatic: false, colors: ['#e2793a', '#c2502c', '#f0e6da'] },
   { id: 'bear', name: 'Bear', aquatic: false, colors: ['#8a5a36', '#4d3528', '#f4efe6'] },
-  { id: 'cat', name: 'Cat', aquatic: false, colors: ['#e8a252', '#3d3f47', '#f4efe6'] },
-  { id: 'dog', name: 'Dog', aquatic: false, colors: ['#d9a560', '#8a5a36', '#f4efe6'] },
   { id: 'raccoon', name: 'Raccoon', aquatic: false, colors: ['#8a8c94', '#6b625a', '#b8b2aa'] },
   { id: 'deer', name: 'Deer', aquatic: false, colors: ['#c08552', '#9a6a44', '#e2c9a6'] },
-  { id: 'owl', name: 'Owl', aquatic: false, colors: ['#9b7653', '#d8c8b0', '#6d6f78'] },
-  { id: 'koala', name: 'Koala', aquatic: false, colors: ['#9ea3ab', '#7d828b', '#c9c4bd'] },
   { id: 'hedgehog', name: 'Hedgehog', aquatic: false, colors: ['#7a5a40', '#a88466', '#4a3a30'] },
   { id: 'panda', name: 'Panda', aquatic: false, colors: ['#f4efe6', '#e8d3a9', '#f2a7b8'] },
   { id: 'penguin', name: 'Penguin', aquatic: true, colors: ['#2e3340', '#3c5a8a', '#6d6f78'] },
@@ -102,15 +88,10 @@ export const ANIMALS: AnimalInfo[] = [
   { id: 'quokka', name: 'Quokka', aquatic: false, colors: ['#9a8a70', '#b8a080', '#6a5a48'] },
   { id: 'sloth', name: 'Sloth', aquatic: false, colors: ['#b89c7a', '#9a8268', '#d8c4a4'] },
   { id: 'seal', name: 'Seal', aquatic: true, colors: ['#8a9aa6', '#6a7682', '#e8e4dc'] },
-  { id: 'puffin', name: 'Puffin', aquatic: true, colors: ['#2e2e36', '#4a4a58', '#f4efe6'] },
   { id: 'snail', name: 'Snail', aquatic: false, colors: ['#c8853a', '#8a5ab0', '#5fae55', '#e0605a'] },
-  { id: 'fennec', name: 'Fennec Fox', aquatic: false, colors: ['#e3c89a', '#d4b07a', '#f4efe6'] },
-  { id: 'chinchilla', name: 'Chinchilla', aquatic: false, colors: ['#9aa0a8', '#6d6f78', '#e8d3a9'] },
   { id: 'highland', name: 'Highland Cow', aquatic: false, colors: ['#c47a3a', '#3d3f47', '#e8d3a9'] },
   { id: 'squid', name: 'Squid', aquatic: true, colors: ['#e07a6a', '#8a5ab0', '#3fa8a0', '#f2e2d8'] },
   { id: 'bat', name: 'Bat', aquatic: false, colors: ['#4a3f55', '#2e2a34', '#8a5a36', '#c9b8a0'] },
-  { id: 'raven', name: 'Raven', aquatic: false, colors: ['#2a2a32', '#1f2a44', '#5a3a2a', '#e8e6e0'] },
-  { id: 'wombat', name: 'Wombat', aquatic: false, colors: ['#8a7a68', '#5a4a3c', '#c9b8a0', '#a08a70'] },
   { id: 'jellyfish', name: 'Jellyfish', aquatic: true, colors: ['#f4a9c0', '#8ad0f0', '#b494dd', '#f6d55c'] },
   { id: 'gecko', name: 'Gecko', aquatic: false, colors: ['#f2c14e', '#6fbf5a', '#f08a3a', '#b494dd'] },
   { id: 'ferret', name: 'Ferret', aquatic: false, colors: ['#dcc49a', '#b88a5a', '#f4efe6', '#8a6a4a'] },
@@ -120,7 +101,6 @@ export const ANIMALS: AnimalInfo[] = [
   { id: 'crab', name: 'Crab', aquatic: true, colors: ['#e0563a', '#e8843a', '#4a6a8a', '#8a5a3a'] },
   { id: 'turtle', name: 'Turtle', aquatic: true, colors: ['#7a7a3a', '#8a6238', '#4f7a6a'] },
   { id: 'kaiju', name: 'Kaiju', aquatic: false, colors: ['#5d7a5a', '#4a4f55', '#3f7a7a', '#6a5a8a'] },
-  { id: 'bunny', name: 'Bunny', aquatic: false, colors: ['#f4efe6', '#c89b62', '#9aa0a8', '#f2a7b8'] },
 ];
 
 export const animalInfo = (id: AnimalId | string | null | undefined): AnimalInfo =>

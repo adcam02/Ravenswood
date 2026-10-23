@@ -170,21 +170,21 @@ async function join(name, animal, color) {
 const players = {};
 let pickerTiles = [];
 let takenTiles = [];
-await check('join: Abbey picks a fox, Colter a shark, Steele an owl', async () => {
+await check('join: Abbey picks a fox, Colter a shark, Steele a panda', async () => {
   players.abbey = await join('Abbey', 'Fox');
   players.colter = await join('Colter', 'Shark');
-  players.steele = await join('Steele', 'Owl', '#8fc1e8');
+  players.steele = await join('Steele', 'Panda', '#8fc1e8');
 });
 
-await check('join: the bunny is on offer like any other animal', async () => {
-  expect(pickerTiles.length >= 20, `only ${pickerTiles.length} animals offered`);
-  expect(pickerTiles.includes('Bunny'), 'no Bunny tile is offered');
+await check('join: every animal is on offer, the kaiju too', async () => {
+  expect(pickerTiles.length >= 30, `only ${pickerTiles.length} animals offered`);
+  expect(pickerTiles.includes('Kaiju'), 'no Kaiju tile is offered');
 });
 
 await check('join: Jarrod picks from the animals like everyone else', async () => {
-  players.jarrod = await join('Jarrod', 'Bunny');
+  players.jarrod = await join('Jarrod', 'Kaiju');
   const look = await st.evaluate(() => window.__host.getState().g.seats.find((s) => s.name.toLowerCase() === 'jarrod')?.look);
-  expect(look?.animal === 'bunny', `Jarrod is a ${look?.animal}`);
+  expect(look?.animal === 'kaiju', `Jarrod is a ${look?.animal}`);
 });
 
 await check('join: an animal someone has is greyed out for everyone else', async () => {
@@ -223,7 +223,7 @@ await check('join: each animal belongs to one player, even when two pick it at o
 await check('join: the host records everyone’s animals', async () => {
   const seats = await st.evaluate(() => window.__host.getState().g.seats.map((s) => [s.name, s.look?.animal, s.look?.color]));
   const by = Object.fromEntries(seats.map(([n, a, c]) => [n, [a, c]]));
-  expect(by.Abbey?.[0] === 'fox' && by.Colter?.[0] === 'shark' && by.Steele?.[0] === 'owl', JSON.stringify(seats));
+  expect(by.Abbey?.[0] === 'fox' && by.Colter?.[0] === 'shark' && by.Steele?.[0] === 'panda', JSON.stringify(seats));
   expect(by.Steele?.[1] === '#8fc1e8', `Steele's colour is ${by.Steele?.[1]}`);
 });
 

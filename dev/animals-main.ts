@@ -204,7 +204,7 @@ if (view === 'grid' || view === 'night') {
   camera.lookAt(0, 0, 1.4);
 } else if (view === 'game') {
   // About what the game camera sees: a small crowd, about 12m away, looking down at 40 degrees.
-  const pick = (q.get('animal')?.split(',') ?? ['wolf', 'bunny', 'shark', 'fox', 'octopus', 'penguin', 'bat', 'deer', 'squid', 'axolotl']) as AnimalId[];
+  const pick = (q.get('animal')?.split(',') ?? ['wolf', 'kaiju', 'shark', 'fox', 'octopus', 'penguin', 'bat', 'deer', 'squid', 'axolotl']) as AnimalId[];
   pick.forEach((id, i) => {
     const a = (i / pick.length) * Math.PI * 2;
     const r = place(make({ animal: id, color: ANIMALS.find((x) => x.id === id)!.colors[0] }), Math.cos(a) * 3.2, Math.sin(a) * 2.4, i % 3 === 0 ? 'walk' : i % 3 === 1 ? 'idle' : 'wave', i % 3 === 0 ? 1.6 : 0, -a + Math.PI / 2);
@@ -367,12 +367,12 @@ if (view === 'grid' || view === 'night') {
   // The job hats, one each on ten different heads; then the awkward heads all in one of them (?hat=).
   const jobs: [AnimalId, HatId][] = [
     ['fox', 'lumberjack'],
-    ['cat', 'souwester'],
+    ['hedgehog', 'souwester'],
     ['bear', 'mitre'],
     ['wolf', 'chef'],
     ['penguin', 'bowler'],
-    ['bunny', 'sunhat'],
-    ['owl', 'headscarf'],
+    ['panda', 'sunhat'],
+    ['otter', 'headscarf'],
     ['deer', 'feathercap'],
     ['frog', 'sailor'],
     ['raccoon', 'leprechaun'],
@@ -386,15 +386,15 @@ if (view === 'grid' || view === 'night') {
   // The newer hats, one each on ten different heads.
   const fresh: [AnimalId, HatId][] = [
     ['fox', 'propeller'],
-    ['cat', 'reaper'],
+    ['frog', 'reaper'],
     ['wolf', 'horns'],
     ['bear', 'laurel'],
     ['raccoon', 'tricorn'],
     ['frog', 'toadstool'],
     ['penguin', 'headband'],
-    ['owl', 'candle'],
+    ['capybara', 'candle'],
     ['deer', 'postie'],
-    ['bunny', 'jester'],
+    ['quokka', 'jester'],
   ];
   fresh.forEach(([id, hat], i) => place(make({ animal: id, color: ANIMALS.find((x) => x.id === id)!.colors[0], hat }), ((i % 5) - 2) * 1.5 + (i < 5 ? -0.375 : 0.375), 1.2 - Math.floor(i / 5) * 1.9, 'idle', 0, Number(q.get('ry') ?? 0.25)));
   camera.position.set(0, 3.0, 8.6);
@@ -413,20 +413,20 @@ if (view === 'grid' || view === 'night') {
   // Front row: one hat each. Back rows: the awkward heads all wearing the same hat (?hat=, default crown).
   const each: [AnimalId, HatId][] = [
     ['fox', 'beanie'],
-    ['cat', 'flower'],
+    ['redpanda', 'flower'],
     ['wolf', 'party'],
-    ['owl', 'wizard'],
+    ['sloth', 'wizard'],
     ['bear', 'tophat'],
     ['penguin', 'crown'],
     ['axolotl', 'halo'],
-    ['raven', 'witch'],
+    ['ibis', 'witch'],
   ];
   each.forEach(([id, hat], i) => {
     const r = place(make({ animal: id, color: ANIMALS.find((x) => x.id === id)!.colors[0], hat }), (i - 3.5) * 1.2, 1.6, 'idle', 0, 0.25);
     if (q.has('ghost') && i % 2) r.setGhost(true);
   });
   const same = (hatParam ?? 'crown') as HatId;
-  const awkward: AnimalId[] = ['bunny', 'snail', 'deer', 'highland', 'squid', 'jellyfish', 'octopus', 'frog', 'shark', 'hedgehog', 'fennec', 'bat'];
+  const awkward: AnimalId[] = ['kaiju', 'snail', 'deer', 'highland', 'squid', 'jellyfish', 'octopus', 'frog', 'shark', 'hedgehog', 'crab', 'bat'];
   awkward.forEach((id, i) => {
     place(make({ animal: id, color: ANIMALS.find((x) => x.id === id)!.colors[0], hat: same }), ((i % 6) - 2.5) * 1.35, -0.3 - Math.floor(i / 6) * 1.7, 'idle', 0, 0.3);
   });
@@ -437,11 +437,11 @@ if (view === 'grid' || view === 'night') {
   // (?face=, ?neck=, ?back= pick it; by default each head tries a different face piece).
   const outfits: [AnimalId, Partial<Look>][] = [
     ['fox', { face: 'glasses', neck: 'scarf', back: 'backpack', pet: 'chick' }],
-    ['cat', { face: 'hearts', neck: 'bowtie', back: 'butterfly', pet: 'slime' }],
+    ['otter', { face: 'hearts', neck: 'bowtie', back: 'butterfly', pet: 'slime' }],
     ['wolf', { face: 'shades', neck: 'bandana', back: 'cape', pet: 'ghost' }],
     ['bear', { face: 'monocle', neck: 'pearls', back: 'satchel', pet: 'mouse', hat: 'tophat' }],
     ['penguin', { face: 'moustache', neck: 'bell', back: 'wings', pet: 'bee' }],
-    ['raven', { face: 'mask', neck: 'lei', back: 'balloon', pet: 'snail' }],
+    ['ibis', { face: 'mask', neck: 'lei', back: 'balloon', pet: 'snail' }],
   ];
   const moving = q.has('moving');
   outfits.forEach(([id, extra], i) => {
@@ -455,7 +455,7 @@ if (view === 'grid' || view === 'night') {
     scene.add(pet.root);
     pets.push({ pet, moving });
   });
-  const heads: AnimalId[] = ['fox', 'owl', 'snail', 'squid', 'jellyfish', 'highland', 'bunny', 'bat'];
+  const heads: AnimalId[] = ['fox', 'penguin', 'snail', 'squid', 'jellyfish', 'highland', 'kaiju', 'bat'];
   const face = q.get('face') as FaceId | null;
   const neck = q.get('neck') as NeckId | null;
   const back = q.get('back') as BackId | null;
@@ -476,7 +476,7 @@ if (view === 'grid' || view === 'night') {
   camera.position.set(0, 1.1, 3.4);
   camera.lookAt(0, 0.2, 0);
 } else if (view === 'ghosts') {
-  ['fox', 'bunny', 'octopus', 'owl', 'shark'].forEach((id, i) => {
+  ['fox', 'kaiju', 'octopus', 'penguin', 'shark'].forEach((id, i) => {
     const r = place(make({ animal: id as AnimalId, color: ANIMALS.find((x) => x.id === id)!.colors[0] }), i * 1.4 - 2.8, 0, i === 2 ? 'wave' : 'idle');
     r.setGhost(true);
   });
