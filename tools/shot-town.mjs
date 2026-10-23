@@ -37,6 +37,14 @@ const ALL = {
   'tavern-inside': 'zone=tavern&t=0',
   'bakery-inside': 'zone=bakery&t=0',
   'church-inside': 'zone=church&t=0',
+  // The hooded figure's night visit, each way it goes, at the moment it strikes (and the glide in, from above).
+  'visit-in': 'zone=house&night&t=1&visit=0&vt=1.4&x=1&z=-0.5&dist=10&frames=30',
+  'visit-dagger': 'zone=house&night&t=1&visit=0&vt=3.82&vcam&frames=40',
+  'visit-pillow': 'zone=house&night&t=1&visit=1&vt=4.1&vcam&frames=40',
+  'visit-poison': 'zone=house&night&t=1&visit=2&vt=4.2&vcam&frames=40',
+  'visit-scythe': 'zone=house&night&t=1&visit=3&vt=3.3&vcam&frames=40',
+  'visit-scythe-hit': 'zone=house&night&t=1&visit=3&vt=3.9&vcam&frames=40',
+  'visit-out': 'zone=house&night&t=1&visit=2&vt=5.9&vcam&frames=40',
   // The confession booth in the front corner, as a player beside it sees it, and closer in.
   booth: 'zone=church&t=0&x=3.6&z=-6.2&dist=11',
   'booth-close': 'zone=church&t=0&x=4.3&z=-7.8&dist=5.5&pitch=0.55&yaw=-0.3',

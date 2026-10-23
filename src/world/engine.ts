@@ -6,16 +6,17 @@ import { local, setItem } from '../game/local';
 import { presence } from '../game/presence';
 import { SCORE_OF, type GameJob, type JobResults } from '../jobs/meta';
 import { rememberBest } from '../game/bests';
-import type { DayTimer, Execution, Nomination, TownAction, TownHall } from '../state/types';
+import type { DayTimer, Execution, Nomination, TownAction, TownHall, Visit } from '../state/types';
 import { ambience } from '../lib/ambience';
-import { drumroll, gavel } from '../lib/audio';
+import { drumroll, gavel, visitSound } from '../lib/audio';
+import { NightVisit, VISIT, type VictimPose } from './visit';
 import { ui, useUI } from '../state/ui';
 import { earshot } from '../voice/earshot';
 import { useVoice, voice, type Listener } from '../voice/voice';
 import { AvatarView, type AvatarInfo } from './avatar';
 import { resolve, turnToward } from './collide';
 import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWorld } from './town';
-import { COTTAGE_NAMES, DAIS, DOCK, MEETING_CENTRE, SQUARE_R, STOOL_R, groundAt } from './town/layout';
+import { BED, COTTAGE_NAMES, DAIS, DOCK, MEETING_CENTRE, SQUARE_R, STOOL_R, groundAt } from './town/layout';
 import { nearPath } from './town/outdoor';
 import { Fireworks } from './fireworks';
 import { reportProblem } from '../lib/report';
@@ -23,7 +24,7 @@ import { earn, notePerfect } from '../game/progress';
 
 /** Hats are a player's own: the Storyteller doesn't collect them. */
 const isPlayerView = (v: WorldView | null) => v?.mode === 'player';
-import { botMode } from '../lib/util';
+import { botMode, loadJSON, saveJSON } from '../lib/util';
 import { steadyInterval } from '../lib/ticker';
 
 /** Town features that arrive with the effects pass: called only if the town has them. */
@@ -126,6 +127,8 @@ export interface WorldView {
   slayer: { id: string; by: string; target: string; result: string }[];
   /** The game is over, and which team won. */
   ended: { winner: 'good' | 'evil'; at: number } | null;
+  /** Hooded-figure visits tonight: the player's own (if they've been killed), or all of them for the Storyteller. */
+  visits: Visit[];
 }
 
 /** What the world asks of the game around it. */
@@ -171,6 +174,9 @@ const JOB_LOOK: Record<GameJob, { anim: Anim; item: Item | null }> = {
   coin: { anim: 'wave', item: null },
   clock: { anim: 'work', item: null },
 };
+
+/** Night visits already seen on this screen, so a reload doesn't play one again. */
+const VISITS_SEEN_KEY = 'ravenswood:visits-seen';
 
 const EMOTE_TIME: Partial<Record<Anim, number>> = { wave: 2.4, cheer: 2.6, laugh: 2.6, cry: 3.2, dance: 8, drink: 1.6 };
 const SIPPABLE = new Set(['ale', 'cider', 'milk', 'cocoa', 'loaf', 'pie', 'bun', 'water', 'wine']);
@@ -302,6 +308,10 @@ export class Engine {
   private nearDoor: { door: Door; locked: string | null } | null = null;
   /** The clock tower door we last went in by, to come back out of it. */
   private towerDoor: Door | null = null;
+  /** The hooded figure's visit playing in this bedroom, and how the one in bed is jolted by it this frame. */
+  private visit: { id: string; seatId: string; zone: ZoneId; mine: boolean; scene: NightVisit; start: number } | null = null;
+  private victimPose: VictimPose | null = null;
+  private visitsSeen = new Set<string>(loadJSON<string[]>(VISITS_SEEN_KEY, []));
   /** The side of the confession booth we're sitting in, if we are. */
   private booth: Station | null = null;
   /** How long we've been in the booth with someone on the other side, for the achievement. */
@@ -1357,8 +1367,9 @@ export class Engine {
     }
 
     this.runShow(t);
+    this.runVisit(t, v);
     // Unlock popups wait while something everyone should watch is on screen.
-    const drama = Boolean(this.show);
+    const drama = Boolean(this.show || this.visit);
     if (drama !== useHud.getState().drama) useHud.setState({ drama });
     if (this.me && v) this.moveMe(dt, t, v);
     this.updateOthers(dt, t, v);
@@ -1530,7 +1541,8 @@ export class Engine {
     me.setItem(local.item);
     me.setVisible(true);
     me.update(dt, t, anim, local.speaking, false);
-    me.rig.root.rotation.z = dangle?.swing ?? 0;
+    me.rig.root.rotation.z = (dangle?.swing ?? 0) + (this.visit?.mine && this.victimPose ? this.victimPose.shake : 0);
+    if (this.visit?.mine && this.victimPose) me.rig.root.position.y += this.victimPose.dy;
     me.rig.root.scale.setScalar(dangle?.scale ?? 1);
     // Down in the dark under the gallows, their name tag goes too.
     me.setTagShown(!dangle?.hidden);
@@ -1703,6 +1715,50 @@ export class Engine {
   }
 
 
+  /**
+   * The hooded figure's visit. It plays for the player who was killed, tucked up in their own bed (with the camera
+   * pulled back to watch it), or for the Storyteller if they're at that bedside; once only, on each screen. It stops
+   * if whoever is watching leaves the room (dawn, say).
+   */
+  private runVisit(t: number, v: WorldView | null) {
+    if (!this.visit && v && v.phase === 'night' && this.me) {
+      for (const vis of v.visits) {
+        const zone = houseZone(vis.seatId);
+        if (this.visitsSeen.has(vis.id) || local.zone !== zone) continue;
+        const mine = v.mode === 'player' && vis.seatId === v.mySeatId;
+        if ((mine && !this.inBed) || (!mine && v.mode !== 'st')) continue;
+        this.visitsSeen.add(vis.id);
+        saveJSON(VISITS_SEEN_KEY, [...this.visitsSeen].slice(-50));
+        const variant = Number.isFinite(vis.variant) ? Math.abs(Math.floor(vis.variant)) % 4 : 0;
+        const scene = new NightVisit(this.town.groups.house, variant, visitSound);
+        // Aimed at whoever is in the bed, however their animal lies.
+        const victim = mine ? this.me : this.others.get(vis.seatId);
+        if (victim) scene.aim(new THREE.Box3().setFromObject(victim.rig.root).translate(this.town.groups.house.position.clone().negate()));
+        this.visit = { id: vis.id, seatId: vis.seatId, zone, mine, scene, start: t };
+        if (mine) useHud.setState({ sheep: 'done', visit: 'playing' });
+        break;
+      }
+    }
+    const vis = this.visit;
+    if (!vis) {
+      this.victimPose = null;
+      return;
+    }
+    const age = t - vis.start;
+    if (local.zone !== vis.zone || age > VISIT.end) {
+      vis.scene.dispose();
+      this.visit = null;
+      this.victimPose = null;
+      if (vis.mine) {
+        useHud.setState({ visit: null });
+        earn('visited');
+      }
+      return;
+    }
+    this.victimPose = vis.scene.update(age);
+    if (vis.mine && age > VISIT.dark && useHud.getState().visit !== 'dark') useHud.setState({ visit: 'dark' });
+  }
+
   /** Tests can hold the show at a moment (`showFreeze`, in seconds) to look at it frame by frame. */
   showFreeze: number | null = null;
   private showAge(t: number): number {
@@ -1824,7 +1880,9 @@ export class Engine {
       else if (far < LOD_NEAR) av.setDetail('high');
       av.setTagShown(!dangle?.hidden && (v?.mode === 'st' || key === 'st' || far < TAG_FAR || p.speaking));
       av.update(dt, t, anim, p.speaking, true);
-      av.rig.root.rotation.z = dangle?.swing ?? 0;
+      const jolt = this.visit && !this.visit.mine && this.visit.seatId === key ? this.victimPose : null;
+      av.rig.root.rotation.z = (dangle?.swing ?? 0) + (jolt?.shake ?? 0);
+      if (jolt) av.rig.root.position.y += jolt.dy;
       av.rig.root.scale.setScalar(dangle?.scale ?? 1);
     }
     for (const [key, av] of this.others) {
@@ -1904,6 +1962,11 @@ export class Engine {
       const shot = this.meetingShot();
       wantPos.copy(shot.pos);
       wantLook.copy(shot.look);
+    } else if (this.visit?.mine) {
+      // The night visit: a low shot from the foot of the room, the bed and the bedside in view.
+      const b = BED;
+      wantPos.set(b.x + 1.5, 2.6, b.z + 3.3);
+      wantLook.set(b.x - 0.6, 0.9, b.z - 0.6);
     } else if (this.view?.reading && this.me) {
       // Over the Storyteller's shoulder, looking down into the open book.
       const root = this.me.rig.root;

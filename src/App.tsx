@@ -51,6 +51,7 @@ import {
   NoticeBoard,
   PlaceChip,
   SheepLayer,
+  VisitCard,
   VoiceDock,
   WorldFailed,
   GraphicsLost,
@@ -256,6 +257,7 @@ function Player({ room }: { room: string }) {
               <JobLayer />
               <SheepLayer />
               <BedLetters />
+              <VisitCard />
               <DayClock />
               <ProgressWatcher />
               <NoticeBoard />

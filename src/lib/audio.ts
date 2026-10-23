@@ -195,3 +195,98 @@ export function fanfare(good: boolean) {
   const peal = good ? [784, 659.3, 587.3, 523.3, 392] : [261.6, 233.1, 196, 174.6, 130.8];
   for (let round = 0; round < 3; round++) peal.forEach((f, i) => bell(f, 3, 0.07, after + round * 1.6 + i * 0.3));
 }
+
+/** A burst of filtered noise, for whooshes and the like. */
+function noise(c: AudioContext, seconds: number): AudioBufferSourceNode {
+  const buf = c.createBuffer(1, Math.ceil(c.sampleRate * seconds), c.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  return src;
+}
+
+/** The night visit's sounds: a door creaking open, a rush of cloak, the moment itself, a gasp, and a puff. */
+export function visitSound(name: string) {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.connect(c.destination);
+  if (name === 'creak') {
+    // A wobbling, scraping squeak that bends down.
+    const osc = c.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(420, t);
+    osc.frequency.linearRampToValueAtTime(260, t + 0.9);
+    const wob = c.createOscillator();
+    const depth = c.createGain();
+    wob.frequency.value = 23;
+    depth.gain.value = 40;
+    wob.connect(depth).connect(osc.frequency);
+    const band = c.createBiquadFilter();
+    band.type = 'bandpass';
+    band.frequency.value = 900;
+    band.Q.value = 4;
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.06, t + 0.08);
+    out.gain.exponentialRampToValueAtTime(0.0001, t + 1.0);
+    osc.connect(band).connect(out);
+    osc.start(t);
+    wob.start(t);
+    osc.stop(t + 1.05);
+    wob.stop(t + 1.05);
+  } else if (name === 'whoosh' || name === 'vanish') {
+    const src = noise(c, 1.2);
+    const f = c.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 1.2;
+    f.frequency.setValueAtTime(name === 'vanish' ? 1800 : 300, t);
+    f.frequency.exponentialRampToValueAtTime(name === 'vanish' ? 200 : 1400, t + 0.9);
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.12, t + 0.25);
+    out.gain.exponentialRampToValueAtTime(0.0001, t + 1.1);
+    src.connect(f).connect(out);
+    src.start(t);
+  } else if (name === 'strike') {
+    // A low thump with a sting on top.
+    const osc = c.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(160, t);
+    osc.frequency.exponentialRampToValueAtTime(40, t + 0.4);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.4, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    osc.connect(g).connect(out);
+    osc.start(t);
+    osc.stop(t + 0.55);
+    for (const [freq, delay] of [
+      [622, 0],
+      [659, 0.02],
+    ]) {
+      const s = c.createOscillator();
+      const sg = c.createGain();
+      s.type = 'triangle';
+      s.frequency.value = freq;
+      sg.gain.setValueAtTime(0.0001, t + delay);
+      sg.gain.exponentialRampToValueAtTime(0.07, t + delay + 0.01);
+      sg.gain.exponentialRampToValueAtTime(0.0001, t + delay + 1.4);
+      s.connect(sg).connect(out);
+      s.start(t + delay);
+      s.stop(t + delay + 1.45);
+    }
+  } else if (name === 'gasp') {
+    const src = noise(c, 0.6);
+    const f = c.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.setValueAtTime(1200, t);
+    f.frequency.linearRampToValueAtTime(700, t + 0.45);
+    f.Q.value = 3;
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.exponentialRampToValueAtTime(0.09, t + 0.05);
+    out.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    src.connect(f).connect(out);
+    src.start(t);
+  }
+}

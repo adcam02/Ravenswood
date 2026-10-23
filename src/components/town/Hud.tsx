@@ -305,6 +305,21 @@ export function SheepLayer() {
   );
 }
 
+/** Killed in the night: after the hooded figure has been, the room goes dark for a moment with a word about it. */
+export function VisitCard() {
+  const visit = useHud((s) => s.visit);
+  if (visit !== 'dark') return null;
+  return (
+    <div className="visit-card" role="status">
+      <div>
+        <span aria-hidden="true">🕯️</span>
+        <strong>You were killed in the night</strong>
+        <em>The rest of the town finds out at dawn.</em>
+      </div>
+    </div>
+  );
+}
+
 export function Fade() {
   const fading = useHud((s) => s.fading);
   return (

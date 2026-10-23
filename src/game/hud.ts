@@ -40,6 +40,8 @@ interface Hud {
   sheep: 'offer' | 'playing' | 'done' | null;
   /** Something everyone should be watching is on screen (a hanging, a visit in the night): popups wait. */
   drama: boolean;
+  /** Killed in the night: the hooded figure's visit is playing, then the screen goes dark for a moment. */
+  visit: 'playing' | 'dark' | null;
 }
 
 export const useHud = create<Hud>(() => ({
@@ -58,6 +60,7 @@ export const useHud = create<Hud>(() => ({
   meetingSeated: false,
   sheep: null,
   drama: false,
+  visit: null,
 }));
 
 /** Commands from the on-screen buttons to the 3D world. The world fills these in when it starts. */

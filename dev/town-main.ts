@@ -5,6 +5,9 @@ import * as THREE from 'three';
 import { createTown } from '../src/world/town';
 import { swayUniforms } from '../src/world/town/fx';
 import { emptyTown, type Weather, type ZoneKind } from '../src/world/types';
+import { buildAnimal } from '../src/world/animals';
+import { BED } from '../src/world/town/layout';
+import { NightVisit } from '../src/world/visit';
 
 const q = new URLSearchParams(location.search);
 const num = (k: string, d: number) => (q.has(k) ? Number(q.get(k)) : d);
@@ -77,6 +80,21 @@ if (q.has('meeting')) town.setMeeting({ n: 8, nominee: 2, nominator: 6, hand: 4,
 if (q.has('bell')) town.bellRing();
 if (q.has('gallows')) town.setGallows({ open: num('gallows', 1), label: 'Steele is executed', ring: num('ring', 0), rope: num('rope', 0.97), swing: num('swing', 0), puff: num('puff', 0) });
 
+// ?visit=0..3&vt=4.2: the hooded figure's night visit, held at vt seconds in, with a fox asleep in the bed (and
+// ?vcam to look from where the game's camera does).
+let visit: NightVisit | null = null;
+let sleeper: ReturnType<typeof buildAnimal> | null = null;
+if (q.has('visit')) {
+  visit = new NightVisit(town.groups.house, num('visit', 0));
+  sleeper = buildAnimal({ animal: (q.get('animal') ?? 'fox') as never, color: '#e2793a' });
+  sleeper.root.position.set(BED.x, BED.top, BED.z + 0.25);
+  town.groups.house.add(sleeper.root);
+  if (q.has('vcam')) {
+    camera.position.set(BED.x + 1.5, 2.6, BED.z + 3.3);
+    camera.lookAt(BED.x - 0.6, 0.9, BED.z - 0.6);
+  }
+}
+
 const clock = new THREE.Clock();
 let frames = 0;
 let shadowRenders = 0;
@@ -86,6 +104,16 @@ function loop() {
   // Weather fades over two seconds, so let it arrive at once here.
   const dt = frames < 3 && q.has('weather') ? 2.5 : clock.getDelta();
   town.update(dt, clock.elapsedTime + num('skip', 0));
+  if (visit && sleeper) {
+    // Walked up to the moment in small steps, so the puffs and drops along the way are where they'd be.
+    const vt = num('vt', 3);
+    const at = Math.min(vt, (frames / Math.max(1, settle - 1)) * vt);
+    sleeper.update({ anim: 'sleep', speed: 0, dt: 0.016, t: at });
+    if (frames === 3) visit.aim(new THREE.Box3().setFromObject(sleeper.root));
+    const pose = visit.update(at);
+    sleeper.root.position.y = BED.top + pose.dy;
+    sleeper.root.rotation.z = pose.shake;
+  }
   if (q.has('sway')) swayUniforms.uSway.value = num('sway', 4);
   if (q.has('ripple') && frames === 2) for (let i = 0; i < 4; i++) town.ripple(6.5 + (i - 1.5) * 1.6, 17.8 + (i % 2) * 1.2, 1);
   // ?dust: someone running along x from the focus, kicking up a puff each frame.

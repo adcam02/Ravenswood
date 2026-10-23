@@ -2209,3 +2209,45 @@
   font-size: 13px;
   color: var(--cosy-ink-soft);
 }
+
+/* Killed in the night: the room goes dark for a moment after the hooded figure's visit. */
+.visit-card {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at center, rgba(8, 6, 14, 0.72), rgba(4, 3, 8, 0.94));
+  animation: visit-dark 1.2s ease-out both;
+  pointer-events: none;
+}
+.visit-card > div {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  color: #f1e8d4;
+  text-align: center;
+  animation: visit-words 1.6s 0.5s ease-out both;
+}
+.visit-card span {
+  font-size: 44px;
+}
+.visit-card strong {
+  font-size: 26px;
+  letter-spacing: 0.02em;
+}
+.visit-card em {
+  font-style: normal;
+  color: #b5ab95;
+}
+@keyframes visit-dark {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes visit-words {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
