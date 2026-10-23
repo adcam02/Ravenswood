@@ -14,10 +14,10 @@ export interface DoorSpot {
 const OPEN_S = 0.45;
 const HOLD_S = 1.2;
 const SHUT_S = 0.5;
-/** How far it swings, in radians. */
-const WIDE = 1.45;
-/** Just proud of the closed door's ironwork and knobs. */
-const FACE = 0.19;
+/** How far it swings, in radians: not quite flat to the wall, so it still reads as a door from the front. */
+const WIDE = 1.2;
+/** Just proud of the closed door's ironwork, ring handles and knobs. */
+const FACE = 0.24;
 
 const ease = (t: number) => t * t * (3 - 2 * t);
 
@@ -52,12 +52,25 @@ export function makeSwingDoors(spots: DoorSpot[]) {
     hinge.position.set(-s.w / 2, 0, FACE);
     const leafGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: false, curveSegments: 12 });
     const leaf = new THREE.Mesh(leafGeo, new THREE.MeshLambertMaterial({ color: s.color }));
-    // A dark band where the planks meet the frame, and a ring of a handle.
-    const edge = new THREE.Mesh(new THREE.BoxGeometry(0.03, s.h, 0.09), new THREE.MeshLambertMaterial({ color: new THREE.Color(s.color).multiplyScalar(0.6) }));
-    edge.position.set(s.w - 0.015, s.h / 2, 0.04);
+    hinge.add(leaf);
+    // Grooves between the planks on both faces, two iron straps across the front, and a brass knob.
+    const groove = new THREE.MeshLambertMaterial({ color: new THREE.Color(s.color).multiplyScalar(0.62) });
+    for (let k = 1; k < 4; k++) {
+      const x = (k * s.w) / 4;
+      const top = s.h + (s.arched ? Math.sqrt(Math.max(0, (s.w / 2) ** 2 - (x - s.w / 2) ** 2)) : 0);
+      const g = new THREE.Mesh(new THREE.BoxGeometry(0.025, top - 0.04, 0.1), groove);
+      g.position.set(x, top / 2, 0.04);
+      hinge.add(g);
+    }
+    const iron = new THREE.MeshLambertMaterial({ color: '#3a3a40' });
+    for (const y of [s.h * 0.28, s.h * 0.72]) {
+      const strap = new THREE.Mesh(new THREE.BoxGeometry(s.w * 0.86, 0.07, 0.02), iron);
+      strap.position.set(s.w * 0.45, y, 0.09);
+      hinge.add(strap);
+    }
     const knob = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), new THREE.MeshLambertMaterial({ color: '#e8c35a' }));
     knob.position.set(s.w * 0.82, s.h * 0.5, 0.12);
-    hinge.add(leaf, edge, knob);
+    hinge.add(knob);
     root.add(gap, hinge);
     group.add(root);
     const at = new THREE.Vector3().setFromMatrixPosition(s.m);
