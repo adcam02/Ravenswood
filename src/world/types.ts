@@ -57,8 +57,6 @@ export interface AnimalInfo {
   aquatic: boolean;
   /** Colour choices for the main coat, natural ones first. The first is the default. */
   colors: string[];
-  /** Only one person may be this animal (the bunny is Jarrod's). */
-  reservedFor?: string;
 }
 
 /** Colours offered for every animal after its natural ones. */
@@ -120,7 +118,7 @@ export const ANIMALS: AnimalInfo[] = [
   { id: 'ibis', name: 'Ibis', aquatic: false, colors: ['#f2efe8', '#e6dccb', '#d8c8ae'] },
   { id: 'crab', name: 'Crab', aquatic: true, colors: ['#e0563a', '#e8843a', '#4a6a8a', '#8a5a3a'] },
   { id: 'turtle', name: 'Turtle', aquatic: true, colors: ['#7a7a3a', '#8a6238', '#4f7a6a'] },
-  { id: 'bunny', name: 'Bunny', aquatic: false, colors: ['#f4efe6', '#c89b62', '#9aa0a8', '#f2a7b8'], reservedFor: 'jarrod' },
+  { id: 'bunny', name: 'Bunny', aquatic: false, colors: ['#f4efe6', '#c89b62', '#9aa0a8', '#f2a7b8'] },
 ];
 
 export const animalInfo = (id: AnimalId | string | null | undefined): AnimalInfo =>
@@ -246,21 +244,9 @@ export const HATS: { id: HatId; name: string; icon: string; how: string; unlocke
 /** The weather the Storyteller can call for. */
 export type Weather = 'clear' | 'mist' | 'rain';
 
-/** Jarrod is always the bunny, and nobody else can be. */
-export function isJarrod(name: string): boolean {
-  return name.trim().toLowerCase() === 'jarrod';
-}
-
-/**
- * A valid look for this name. Jarrod is always the bunny, unless another Jarrod already has it
- * (`bunnyFree` false), in which case he picks like everyone else.
- */
-export function fixLook(name: string, look: Partial<Look> | null | undefined, bunnyFree = true): Look {
-  if (isJarrod(name) && bunnyFree) {
-    const color = look?.animal === 'bunny' && look.color ? look.color : animalInfo('bunny').colors[0];
-    return { animal: 'bunny', color, hat: fixHat(look?.hat), ...fixDressUp(look) };
-  }
-  const info = ANIMALS.find((a) => a.id === look?.animal && !a.reservedFor) ?? ANIMALS[0];
+/** A valid look: a known animal and colour, and only known hats and dress-up. */
+export function fixLook(look: Partial<Look> | null | undefined): Look {
+  const info = ANIMALS.find((a) => a.id === look?.animal) ?? ANIMALS[0];
   const color = /^#[0-9a-f]{6}$/i.test(look?.color ?? '') ? look!.color! : info.colors[0];
   return { animal: info.id, color, hat: fixHat(look?.hat), ...fixDressUp(look) };
 }

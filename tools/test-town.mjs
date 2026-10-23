@@ -162,23 +162,13 @@ await check('join: Abbey picks a fox, Colter a shark, Steele an owl', async () =
   players.steele = await join('Steele', 'Owl', '#8fc1e8');
 });
 
-await check('join: the bunny is not on offer to anyone but Jarrod', async () => {
+await check('join: the bunny is on offer like any other animal', async () => {
   expect(pickerTiles.length >= 20, `only ${pickerTiles.length} animals offered`);
-  expect(!pickerTiles.includes('Bunny'), 'a Bunny tile is offered');
+  expect(pickerTiles.includes('Bunny'), 'no Bunny tile is offered');
 });
 
-await check('join: Jarrod skips the picker and is the bunny', async () => {
-  const p = await open('Jarrod', `?room=${room}`);
-  await p.waitForSelector('.join-name input', { timeout: 180000 });
-  await p.fill('.join-name input', 'jarrod', { timeout: 180000 });
-  await sleep(400);
-  await jsClick(p, '.join-name button');
-  await p.waitForSelector('.join-mic', { timeout: 120000 });
-  expect(!(await p.$('.join-animal')), 'Jarrod saw the animal picker');
-  await shot(p, '02-jarrod-mic');
-  await jsClick(p, '.join-mic .cosy-btn.primary');
-  await p.waitForSelector('.place-chip', { timeout: 60000 });
-  players.jarrod = p;
+await check('join: Jarrod picks from the animals like everyone else', async () => {
+  players.jarrod = await join('Jarrod', 'Bunny');
   const look = await st.evaluate(() => window.__host.getState().g.seats.find((s) => s.name.toLowerCase() === 'jarrod')?.look);
   expect(look?.animal === 'bunny', `Jarrod is a ${look?.animal}`);
 });

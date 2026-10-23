@@ -16,7 +16,6 @@ import {
   COUNTER_SPOTS,
   emptyTown,
   fixLook,
-  isJarrod,
   LINE_SLOTS,
   LINES,
   SHELF_SLOTS,
@@ -562,12 +561,6 @@ export const st = {
       const s = seatOf(g, id);
       if (!s) return;
       s.name = name.trim().slice(0, 24);
-      // Renaming someone Jarrod gives them the bunny only if no other player has it.
-      if (s.look) {
-        const pid = s.playerId ?? `seat:${s.id}`;
-        const next = fixLook(s.name, s.look, !animalTakenBy(g, 'bunny', pid));
-        if (!animalTakenBy(g, next.animal, pid)) s.look = next;
-      }
     });
   },
   swapSeats(a: string, b: string) {
@@ -1052,7 +1045,7 @@ export const st = {
       const clean = name.trim().slice(0, 24);
       if (!clean) return null;
       const g0 = hostGame();
-      const fixed = fixLook(clean, look, !animalTakenBy(g0, 'bunny', playerId));
+      const fixed = fixLook(look);
       const by = animalTakenBy(g0, fixed.animal, playerId);
       update((g) => {
         let seat = g.seats.find((s) => s.playerId === playerId);
@@ -1077,7 +1070,6 @@ export const st = {
       if (animal !== null) {
         const info = ANIMALS.find((a) => a.id === animal);
         if (!info) return null;
-        if (info.reservedFor && !(isJarrod(name) && info.id === 'bunny')) return { taken: animal, by: 'Jarrod' };
         const by = animalTakenBy(g0, animal, playerId);
         if (by) return { taken: animal, by };
       }
@@ -1103,11 +1095,6 @@ export const st = {
         const s = g.seats.find((x) => x.playerId === playerId);
         if (!s) return;
         if (name.trim()) s.name = name.trim().slice(0, 24);
-        // A new Jarrod gets the bunny only if nobody else has it; any clash and they keep what they had.
-        if (s.look) {
-          const next = fixLook(s.name, s.look, !animalTakenBy(g, 'bunny', playerId));
-          if (!animalTakenBy(g, next.animal, playerId)) s.look = next;
-        }
       });
     },
     vote(playerId: string, up: boolean) {

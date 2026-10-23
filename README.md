@@ -16,7 +16,7 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    ferret, dugong, sea cucumber, ibis, crab and turtle). Aquatic animals are a little bit wet, and up close there are little touches: toes on the
    paws, the bear's claws, the bunny's buck teeth, suckers down the octopus's tentacles. Each animal belongs to one player: animals someone
    else has, or is looking at right now, are greyed out with their name, and if two people click the
-   same one at the same moment the first gets it and the other is asked to pick again. Anyone named Jarrod is the bunny, skips the picker, and nobody else can be the bunny.
+   same one at the same moment the first gets it and the other is asked to pick again.
    Then they turn on their microphone (or just listen).
 3. **Wander around town.** Talk to whoever is near you. Step into the tavern, the bakery, the church,
    the clock tower or anyone's house to talk privately. The clock tower has a door on every side (you

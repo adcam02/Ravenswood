@@ -6,7 +6,7 @@ import { player, useClient, useTaken } from '../../net/client';
 import { useVoice, voice } from '../../voice/voice';
 import { AnimalPreview } from '../../world/AnimalPreview';
 import { animalThumbnail } from '../../world/animals';
-import { ANIMALS, animalInfo, BACKS, EXTRA_COLORS, FACES, fixLook, HATS, isJarrod, NECKS, PETS, type AnimalId, type Look } from '../../world/types';
+import { ANIMALS, animalInfo, BACKS, EXTRA_COLORS, FACES, fixLook, HATS, NECKS, PETS, type AnimalId, type Look } from '../../world/types';
 import { useProgress } from '../../game/progress';
 
 type Step = 'name' | 'animal' | 'mic';
@@ -41,16 +41,13 @@ function save(key: string, value: unknown) {
   }
 }
 
-/** Arriving in Ravenswood: your name, then your animal (unless you're Jarrod), then your microphone. */
+/** Arriving in Ravenswood: your name, then your animal, then your microphone. */
 export function JoinFlow({ room, current }: { room: string; current: { name: string; look: Look | null } | null }) {
   const reopen = useJoin((s) => s.reopen);
   const [step, setStep] = useState<Step>(reopen && current ? 'animal' : 'name');
   const [name, setName] = useState(current?.name || saved<string>(NAME_KEY, ''));
   const others = useOthersAnimals();
-  const bunnyFree = !others.has('bunny');
-  const [look, setLook] = useState<Look>(() => fixLook(name, current?.look ?? saved<Look | null>(LOOK_KEY, null), bunnyFree));
-  // Jarrod skips the picker and is the bunny, unless another Jarrod got here first.
-  const jarrod = isJarrod(name) && bunnyFree;
+  const [look, setLook] = useState<Look>(() => fixLook(current?.look ?? saved<Look | null>(LOOK_KEY, null)));
   const [note, setNote] = useState<string | null>(null);
 
   // The host said our animal is someone else's: back to the picker, which moves us to a free one.
@@ -68,7 +65,7 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
     const clean = name.trim();
     save(NAME_KEY, clean);
     save(LOOK_KEY, l);
-    player.join(clean, fixLook(clean, l, bunnyFree));
+    player.join(clean, fixLook(l));
     askForNotifications();
     useJoin.setState({ reopen: false });
   };
@@ -76,16 +73,8 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
   const afterName = () => {
     if (!name.trim()) return;
     voice.unlock();
-    if (isJarrod(name) && bunnyFree) {
-      // Jarrod skips the picker: the bunny is his.
-      const l = fixLook(name, look, true);
-      setLook(l);
-      holdAnimal(name, l.animal);
-      setStep(reopen ? 'animal' : 'mic');
-    } else {
-      setLook((l) => fixLook(name, l, bunnyFree));
-      setStep('animal');
-    }
+    setLook((l) => fixLook(l));
+    setStep('animal');
   };
 
   return (
@@ -107,7 +96,7 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
           </button>
         </form>
       )}
-      {step === 'animal' && !jarrod && (
+      {step === 'animal' && (
         <AnimalPicker
           name={name}
           look={look}
@@ -122,17 +111,7 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
           }}
         />
       )}
-      {step === 'animal' && jarrod && (
-        <div className="join-card cosy-panel join-bunny">
-          <AnimalPreview look={look} size={220} spin anim="wave" />
-          <h1>Jarrod, you’re the bunny!</h1>
-          <p>Nobody else gets to be the bunny. It’s yours.</p>
-          <button className="cosy-btn primary big" onClick={() => finish(look)}>
-            Hop in
-          </button>
-        </div>
-      )}
-      {step === 'mic' && <MicStep name={name} look={look} jarrod={jarrod} onBack={() => setStep(jarrod ? 'name' : 'animal')} onDone={() => finish(look)} />}
+      {step === 'mic' && <MicStep name={name} look={look} onBack={() => setStep('animal')} onDone={() => finish(look)} />}
     </div>
   );
 }
@@ -227,7 +206,7 @@ function AnimalPicker({
   onBack: () => void;
   onDone: () => void;
 }) {
-  const choices = useMemo(() => ANIMALS.filter((a) => !a.reservedFor), []);
+  const choices = ANIMALS;
   const theirs = (id: string) => others.get(id);
   // Hold whatever we're looking at; if it's someone else's, move to the first free animal.
   useEffect(() => {
@@ -374,7 +353,7 @@ function AnimalTile({ id, on, owner, onPick }: { id: AnimalId; on: boolean; owne
   );
 }
 
-function MicStep({ name, look, jarrod, onBack, onDone }: { name: string; look: Look; jarrod: boolean; onBack: () => void; onDone: () => void }) {
+function MicStep({ name, look, onBack, onDone }: { name: string; look: Look; onBack: () => void; onDone: () => void }) {
   const mic = useVoice((s) => s.mic);
   const [level, setLevel] = useState(0);
   useEffect(() => {
@@ -385,7 +364,6 @@ function MicStep({ name, look, jarrod, onBack, onDone }: { name: string; look: L
   return (
     <div className="join-card cosy-panel join-mic">
       <AnimalPreview look={look} size={180} spin={false} anim={level ? 'laugh' : 'wave'} />
-      {jarrod && <span className="join-eyebrow">Hello Jarrod! The bunny is yours, and only yours.</span>}
       <h1>Can everyone hear you?</h1>
       <p>Ravenswood has proximity chat: people close to you hear you, people far away don’t, and buildings are private. Headphones stop echo.</p>
       {mic === 'on' ? (

@@ -795,7 +795,6 @@
   justify-content: center;
   flex-wrap: wrap;
 }
-.join-bunny,
 .join-mic {
   width: min(520px, 100%);
 }
