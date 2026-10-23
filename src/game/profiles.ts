@@ -12,6 +12,8 @@
  *   debit(who, amount, why)   takes money if they have that much, and says whether it did (nothing changes if not).
  *   grantPet(who, pet)        gives them a pet to keep; false if they already had it.
  *   profileOf(who)            their profile as it stands (read only), or null if there's no such name.
+ *   addTally(who, kind, by)   adds to one of their running counts (the pet pit's wins, say).
+ *   topTally(kind, n)         the n names with the most of a count, most first.
  * `who` is { name } (any spelling), { seat } (a seat id) or { player } (the playerId a message came from).
  * On a player's side, useMoney() and useMyPets() in game/progress.ts are their own money and pets.
  */
@@ -317,6 +319,24 @@ export function grantPet(who: Who, pet: PetId): boolean {
 export function profileOf(who: Who): Readonly<Profile> | null {
   const name = nameOf(who);
   return name ? (useProfiles.getState().profiles[nameKey(name)] ?? null) : null;
+}
+
+/** Adds to one of a player's running counts (kept here, so it's the Storyteller's word). False if there's nobody. */
+export function addTally(who: Who, kind: string, by = 1): boolean {
+  const name = nameOf(who);
+  if (!name || !/^[a-z]{1,16}$/.test(kind)) return false;
+  ensure(name);
+  change(name, (p) => void (p.tally = { ...p.tally, [kind]: (p.tally[kind] ?? 0) + by }));
+  return true;
+}
+
+/** The names with the most of a running count, most first (nobody with none). */
+export function topTally(kind: string, n: number): { name: string; count: number }[] {
+  return Object.values(useProfiles.getState().profiles)
+    .map((p) => ({ name: p.name, count: p.tally[kind] ?? 0 }))
+    .filter((x) => x.count > 0)
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
+    .slice(0, n);
 }
 
 // ---------------------------------------------------------------- from players, and to them

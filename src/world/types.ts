@@ -321,7 +321,9 @@ export type FeatId =
   | 'admirer'
   | 'legend'
   | 'teacher'
-  | 'moneybags';
+  | 'moneybags'
+  | 'pitwin'
+  | 'pitchamp';
 
 /**
  * Things to do around Ravenswood, kept by the Storyteller under the player's name with everything else they've earned
@@ -383,6 +385,8 @@ export const FEATS: { id: FeatId; name: string; icon: string; how: string; secre
   { id: 'legend', name: 'Once in a blue moon', icon: '🌙', how: 'Catch a legendary fish', secret: true },
   { id: 'teacher', name: 'Teacher’s pet', icon: '🍎', how: 'Give the Storyteller a present', secret: true },
   { id: 'moneybags', name: 'Money bags', icon: '💰', how: 'Have $100 at once' },
+  { id: 'pitwin', name: 'Top dog', icon: '🥊', how: 'Win a pet fight in the tavern’s cellar' },
+  { id: 'pitchamp', name: 'Champion of the pit', icon: '🏆', how: 'Win 5 pet fights' },
 ];
 
 /** The weather the Storyteller can call for. */
@@ -450,14 +454,14 @@ export interface Item {
 // ---------------------------------------------------------------- places
 
 /** Every place has its own coordinates. Interiors are centred on 0,0. */
-export type ZoneKind = 'town' | 'tavern' | 'bakery' | 'church' | 'tower' | 'house';
+export type ZoneKind = 'town' | 'tavern' | 'bakery' | 'church' | 'tower' | 'cellar' | 'house';
 
-/** 'town', 'tavern', 'bakery', 'church', 'tower', 'house:<seatId>' for someone's bedroom, or 'cottage:<n>' for a cottage in town. */
+/** 'town', 'tavern', 'bakery', 'church', 'tower', 'cellar' (under the tavern), 'house:<seatId>' for someone's bedroom, or 'cottage:<n>' for a cottage in town. */
 export type ZoneId = string;
 
 export function zoneKind(zone: ZoneId): ZoneKind {
   if (zone.startsWith('house:') || zone.startsWith('cottage:')) return 'house';
-  if (zone === 'tavern' || zone === 'bakery' || zone === 'church' || zone === 'tower') return zone;
+  if (zone === 'tavern' || zone === 'bakery' || zone === 'church' || zone === 'tower' || zone === 'cellar') return zone;
   return 'town';
 }
 

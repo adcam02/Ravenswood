@@ -6,6 +6,7 @@ import Peer, { type DataConnection } from 'peerjs';
 import { create } from 'zustand';
 import { st, toPrivate, toPublic, useHost } from '../state/host';
 import { profileFor, receiveProgress, startProfiles, useProfiles } from '../game/profiles';
+import { pit } from '../game/pit';
 import type { ClientMessage, HostMessage } from '../state/types';
 import { local, receiveItem } from '../game/local';
 import { presence } from '../game/presence';
@@ -124,6 +125,8 @@ class HostLink {
         this.sendWorld();
         // About once a second, see whether the day's timer has run out.
         if (++this.ticks % 10 === 0) st.checkDayTimer();
+        // The pet pit's rounds keep time a little more finely.
+        if (this.ticks % 2 === 0) pit.tick();
       } catch (e) {
         console.error(e);
       }
@@ -405,6 +408,9 @@ class HostLink {
         break;
       case 'progress':
         receiveProgress(pid, msg.events);
+        break;
+      case 'pit':
+        pit.fromPlayer(pid, msg.a);
         break;
     }
   }

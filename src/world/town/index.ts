@@ -901,6 +901,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     bakery: interiors.rooms.bakery.group,
     church: interiors.rooms.church.group,
     tower: interiors.rooms.tower.group,
+    cellar: interiors.rooms.cellar.group,
     house: interiors.rooms.house.group,
   };
   let zone: ZoneKind = 'town';
@@ -1065,6 +1066,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       bakery: roomColliders('bakery'),
       church: roomColliders('church'),
       tower: roomColliders('tower'),
+      cellar: roomColliders('cellar'),
       house: roomColliders('house'),
     },
     bounds: {
@@ -1073,6 +1075,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       bakery: { kind: 'rect', hw: ROOMS.bakery.hw - 0.45, hd: ROOMS.bakery.hd - 0.45 },
       church: { kind: 'rect', hw: ROOMS.church.hw - 0.45, hd: ROOMS.church.hd - 0.45 },
       tower: { kind: 'rect', hw: ROOMS.tower.hw - 0.45, hd: ROOMS.tower.hd - 0.45 },
+      cellar: { kind: 'rect', hw: ROOMS.cellar.hw - 0.45, hd: ROOMS.cellar.hd - 0.45 },
       house: { kind: 'rect', hw: ROOMS.house.hw - 0.45, hd: ROOMS.house.hd - 0.45 },
     },
     doors: makeDoors(),

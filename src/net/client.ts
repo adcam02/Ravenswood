@@ -2,7 +2,7 @@ import Peer, { type DataConnection } from 'peerjs';
 import { create } from 'zustand';
 import { setCustomRoles } from '../data';
 import { loadJSON, saveJSON, uid, debugHooks } from '../lib/util';
-import type { ClientMessage, HostMessage, PrivateState, PublicState, TownAction } from '../state/types';
+import type { ClientMessage, HostMessage, PitAction, PrivateState, PublicState, TownAction } from '../state/types';
 import { receiveItem } from '../game/local';
 import { game } from '../game/hud';
 import { presence } from '../game/presence';
@@ -391,4 +391,6 @@ export const player = {
   ack: (wakeId: string) => clientLink.send({ t: 'ack', wakeId }),
   reply: (wakeId: string, r: { seatIds?: string[]; roleIds?: string[]; answer?: boolean }) =>
     clientLink.send({ t: 'reply', wakeId, ...r }),
+  /** Challenge someone in the pet pit, answer a challenge, or pick a move in a fight. */
+  pit: (a: PitAction) => clientLink.send({ t: 'pit', a }),
 };

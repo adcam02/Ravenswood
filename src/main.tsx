@@ -18,6 +18,7 @@ import './styles/modals.css';
 import './styles/cosy.css';
 import './styles/town.css';
 import './styles/jobs.css';
+import './styles/pit.css';
 import { App } from './App';
 import { Guard } from './components/Guard';
 import { preloadParts } from './lib/lazy';

@@ -421,3 +421,74 @@ export function pigeonSound(name: string) {
     });
   }
 }
+
+/**
+ * The pet pit's sounds: the ring's bell, a lunge, a hit, a block's clang, a charge winding up, a knockout and a
+ * win. Small and bouncy, for small animals.
+ */
+export function pitSound(name: 'bell' | 'whoosh' | 'hit' | 'block' | 'charge' | 'ko' | 'win', volume = 1) {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.value = volume;
+  out.connect(c.destination);
+  const tone = (type: OscillatorType, from: number, to: number, at: number, len: number, vol: number) => {
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(from, t + at);
+    osc.frequency.exponentialRampToValueAtTime(to, t + at + len);
+    g.gain.setValueAtTime(0.0001, t + at);
+    g.gain.exponentialRampToValueAtTime(vol, t + at + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + at + len);
+    osc.connect(g).connect(out);
+    osc.start(t + at);
+    osc.stop(t + at + len + 0.02);
+  };
+  const hiss = (at: number, len: number, freq: number, vol: number, q = 1) => {
+    const src = noise(c, len);
+    const f = c.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = freq;
+    f.Q.value = q;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t + at);
+    g.gain.exponentialRampToValueAtTime(vol, t + at + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + at + len);
+    src.connect(f).connect(g).connect(out);
+    src.start(t + at);
+  };
+  if (name === 'bell') {
+    // The ring's bell: two quick dings on a little boxing bell.
+    bell(1046.5, 1.4, 0.07 * volume);
+    bell(1046.5, 1.6, 0.07 * volume, 0.18);
+  } else if (name === 'whoosh') hiss(0, 0.22, 1400, 0.12, 0.8);
+  else if (name === 'hit') {
+    // A soft bonk: a low thump with a squeaky top.
+    tone('sine', 180, 60, 0, 0.18, 0.5);
+    hiss(0, 0.08, 2200, 0.18);
+    tone('triangle', 900, 1500, 0.01, 0.07, 0.08);
+  } else if (name === 'block') {
+    // Clang: a few bright partials ringing off a little shield.
+    for (const [f, v] of [
+      [1240, 0.16],
+      [1910, 0.09],
+      [2730, 0.06],
+    ])
+      tone('sine', f, f * 0.98, 0, 0.5, v);
+    hiss(0, 0.05, 4000, 0.15);
+  } else if (name === 'charge') {
+    // Winding up: a rising shimmer.
+    tone('triangle', 300, 1200, 0, 0.55, 0.1);
+    tone('sine', 600, 2400, 0.05, 0.5, 0.05);
+    hiss(0.1, 0.4, 3000, 0.04, 2);
+  } else if (name === 'ko') {
+    // A falling boing and a thud.
+    tone('square', 520, 90, 0, 0.6, 0.06);
+    tone('sine', 140, 50, 0.55, 0.3, 0.45);
+  } else if (name === 'win') {
+    // Ta-da: up a major triad.
+    [523.3, 659.3, 784, 1046.5].forEach((f, i) => tone('triangle', f, f, i * 0.11, i === 3 ? 0.6 : 0.16, 0.12));
+  }
+}

@@ -1,0 +1,440 @@
+/* ---------------------------------------------------------------- the pet pit in the tavern's cellar */
+
+.pit-top {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  z-index: 16;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(520px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.pit-top > * {
+  pointer-events: auto;
+}
+.mode-st .pit-top {
+  top: 124px;
+}
+
+.pit-score {
+  width: 100%;
+  padding: 8px 12px 9px;
+  border-radius: 18px;
+  background: rgba(46, 52, 48, 0.92);
+  border-color: #6e4a30;
+  color: #f4efe2;
+}
+.pit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.pit-side {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pit-side.side-1 {
+  align-items: flex-end;
+  text-align: right;
+}
+.pit-who {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  font-size: 15px;
+}
+.side-1 .pit-who {
+  flex-direction: row-reverse;
+}
+.pit-who b {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pit-side.is-me .pit-who b {
+  color: #ffd98a;
+}
+.pit-pet {
+  font-size: 18px;
+  line-height: 1;
+}
+.pit-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.side-1 .pit-stats {
+  flex-direction: row-reverse;
+}
+.pit-hearts {
+  display: inline-flex;
+  gap: 1px;
+  font-size: 19px;
+  line-height: 1;
+}
+.pit-heart {
+  color: rgba(255, 255, 255, 0.2);
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+.pit-heart.on {
+  color: #ff6b6b;
+  text-shadow: 0 1px 0 #a8323a;
+}
+.pit-charges {
+  font-size: 13px;
+  letter-spacing: -2px;
+  filter: drop-shadow(0 0 4px rgba(255, 220, 90, 0.8));
+}
+.pit-mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 64px;
+}
+.pit-round {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #e6d3a8;
+}
+.pit-clock {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 3px solid #e6d3a8;
+  font-weight: 600;
+  font-size: 15px;
+}
+.pit-clock.is-low {
+  border-color: #ff6b6b;
+  color: #ff9a9a;
+  animation: pit-pulse 0.5s ease-in-out infinite alternate;
+}
+@keyframes pit-pulse {
+  to {
+    transform: scale(1.12);
+  }
+}
+.pit-line {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed rgba(244, 239, 226, 0.25);
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.3;
+}
+
+/* The lobby: who's here, and challenges. */
+.pit-lobby {
+  width: min(340px, 100%);
+  padding: 0;
+  border-radius: 18px;
+  overflow: hidden;
+}
+.pit-lobby-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 14px;
+  border: 0;
+  background: var(--cosy-bg-2);
+  font: inherit;
+  font-weight: 600;
+  color: var(--cosy-ink);
+  cursor: pointer;
+}
+.pit-lobby-head > :first-child {
+  flex: 1;
+  text-align: left;
+}
+.pit-badge-count {
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--cosy-red);
+  color: #fff;
+  font-size: 12px;
+}
+.pit-lobby-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.pit-challenge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: var(--cosy-bg-2);
+}
+.pit-challenge.is-in {
+  background: #ffe7c7;
+  border: 2px solid var(--cosy-accent);
+  animation: pit-nudge 1.2s ease-in-out infinite;
+}
+@keyframes pit-nudge {
+  50% {
+    transform: translateY(-2px);
+  }
+}
+.pit-challenge-btns {
+  display: flex;
+  gap: 6px;
+}
+.pit-people {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pit-people li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pit-person {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pit-note {
+  margin: 0;
+  font-size: 14px;
+  color: var(--cosy-ink-soft);
+}
+.pit-note.small {
+  font-size: 12px;
+}
+.pit-link {
+  border: 0;
+  padding: 0;
+  background: none;
+  font: inherit;
+  color: var(--cosy-accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* A fighter's three buttons. */
+.pit-moves {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  z-index: 18;
+  transform: translateX(-50%);
+  width: min(460px, calc(100vw - 24px));
+  padding: 10px 10px 12px;
+  border-radius: 20px;
+}
+.pit-timer {
+  height: 6px;
+  margin: 0 4px 10px;
+  border-radius: 999px;
+  background: var(--cosy-bg-2);
+  overflow: hidden;
+}
+.pit-timer span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--cosy-red), var(--cosy-gold));
+  transition: width 0.1s linear;
+}
+.pit-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.pit-move {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 4px 9px;
+  border: 3px solid var(--cosy-line);
+  border-radius: 16px;
+  background: #fff;
+  font: inherit;
+  color: var(--cosy-ink);
+  cursor: pointer;
+  box-shadow: 0 4px 0 rgba(90, 68, 52, 0.18);
+  transition: transform 0.1s ease;
+}
+.pit-move:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+.pit-move:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 rgba(90, 68, 52, 0.18);
+}
+.pit-move.is-attack {
+  border-color: #f0a29a;
+  background: #fff1ef;
+}
+.pit-move.is-block {
+  border-color: #9cc8ec;
+  background: #eef7ff;
+}
+.pit-move.is-charge {
+  border-color: #f2d27a;
+  background: #fff9e6;
+}
+.pit-move:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: grayscale(0.7);
+}
+.pit-move-icon {
+  font-size: 30px;
+  line-height: 1.1;
+}
+.pit-move-name {
+  font-weight: 600;
+  font-size: 17px;
+}
+.pit-move small {
+  font-size: 11.5px;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--cosy-ink-soft);
+}
+.pit-picked {
+  margin: 4px 0 2px;
+  text-align: center;
+  font-size: 16px;
+}
+
+/* Over the pets in the ring. */
+.pit-badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 250, 238, 0.94);
+  border: 2px solid rgba(90, 68, 52, 0.2);
+  font-family: var(--cosy-font);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cosy-ink);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateY(-4px);
+}
+.pit-badge.is-empty {
+  display: none;
+}
+.pit-badge small {
+  font-weight: 500;
+  opacity: 0.7;
+}
+.pit-badge.is-thinking {
+  opacity: 0.75;
+}
+.pit-badge.is-ready {
+  background: #e6f6e3;
+  border-color: #8cc98a;
+}
+.pit-badge.is-attack {
+  background: #ffe9e6;
+  border-color: #f0a29a;
+}
+.pit-badge.is-block {
+  background: #e6f2ff;
+  border-color: #9cc8ec;
+}
+.pit-badge.is-charge {
+  background: #fff6d6;
+  border-color: #f2d27a;
+}
+.pit-badge.is-win {
+  background: #ffe9a8;
+  border-color: #d9a43a;
+}
+.pit-badge.is-ko {
+  background: #ece7e2;
+}
+.pit-pop {
+  font-family: var(--cosy-font);
+  font-weight: 700;
+  font-size: 20px;
+  color: #ff4f5e;
+  text-shadow: 0 2px 0 #fff, 0 0 6px rgba(255, 255, 255, 0.8);
+  pointer-events: none;
+  white-space: nowrap;
+  animation: pit-pop 1.3s ease-out forwards;
+}
+.pit-pop.is-block {
+  color: #3d8be3;
+  font-size: 17px;
+}
+@keyframes pit-pop {
+  0% {
+    opacity: 0;
+    margin-top: 10px;
+    scale: 0.6;
+  }
+  15% {
+    opacity: 1;
+    scale: 1.2;
+  }
+  30% {
+    scale: 1;
+  }
+  100% {
+    opacity: 0;
+    margin-top: -46px;
+  }
+}
+
+@media (max-width: 760px) {
+  .pit-top {
+    top: 58px;
+    width: calc(100vw - 24px);
+  }
+  .pit-who {
+    font-size: 13px;
+  }
+  .pit-hearts {
+    font-size: 15px;
+  }
+  .pit-line {
+    font-size: 12.5px;
+  }
+  .pit-moves {
+    bottom: 10px;
+    z-index: 20;
+  }
+  .pit-move-icon {
+    font-size: 24px;
+  }
+  .pit-move small {
+    font-size: 10.5px;
+  }
+}

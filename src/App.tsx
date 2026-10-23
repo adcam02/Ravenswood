@@ -69,6 +69,7 @@ import { PigeonNote } from './components/Pigeon';
 import { World } from './world/World';
 import { MiniGrimoire } from './components/town/MiniGrimoire';
 import { MiniMap } from './components/town/MiniMap';
+import { PitPanel } from './components/town/PitFight';
 
 type Route = { kind: 'landing' } | { kind: 'st' } | { kind: 'player'; room: string };
 
@@ -175,6 +176,7 @@ function Storyteller() {
               <WorldSeatMenu />
               <JobLayer />
               <NoticeBoard />
+              <PitPanel />
             </>
           )}
           <SidePanel />
@@ -263,6 +265,7 @@ function Player({ room }: { room: string }) {
               <VisitCard />
               <PigeonNote />
               <DayClock />
+              <PitPanel />
               <ProgressWatcher />
               <NoticeBoard />
               <HelpCard />

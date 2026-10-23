@@ -3,9 +3,10 @@ import { defaultAlignment, getRole, type Alignment, type Script } from '../data'
 import { useClient } from '../net/client';
 import { useHostNet } from '../net/host';
 import { isTraveller, seatAlignment, useHost, visitFor } from './host';
-import type { AwakeState, DayTimer, DeathRecord, Execution, GameEnd, LetterIn, Nomination, NominationRequest, Phase, Reminder, SlayerShot, TownHall, Visit, VoteRecord } from './types';
+import type { AwakeState, DayTimer, DeathRecord, Execution, GameEnd, LetterIn, Nomination, NominationRequest, Phase, Reminder, SlayerShot, TownHall, Visit, VoteRecord, PitState } from './types';
 import type { Look, TownState, Weather } from '../world/types';
 import { useUI } from './ui';
+import { pitPublic } from '../game/pitRules';
 
 export type Mode = 'st' | 'player';
 export const ModeContext = createContext<Mode>('player');
@@ -76,6 +77,18 @@ export interface View {
   pigeons: { id: string; to: string; at: number }[];
   /** Player: the pigeons that came for them, with who sent each and where they were. */
   pigeonNotes: { id: string; name: string; where: string; at: number }[];
+  /** The pet pit in the tavern's cellar (times in this browser's clock), or null before it's opened. */
+  pit: PitState | null;
+}
+
+/** The pit with its times moved onto this browser's clock. */
+function pitHere(p: PitState | undefined, offset: number): PitState | null {
+  if (!p) return null;
+  return {
+    fight: p.fight && { ...p.fight, until: p.fight.until - offset, at: p.fight.at - offset },
+    challenges: p.challenges.map((c) => ({ ...c, at: c.at - offset })),
+    board: p.board,
+  };
 }
 
 const label = (name: string, i: number) => name || `Seat ${i + 1}`;
@@ -134,6 +147,7 @@ export function useStorytellerView(): View {
       visits: g.nightDeaths.map((id) => visitFor(g, id)).filter((x): x is Visit => Boolean(x)),
       pigeons: (g.pigeons ?? []).filter((p) => Date.now() - p.at < 60000).map(({ id, to, at }) => ({ id, to, at })),
       pigeonNotes: [],
+      pit: pitHere(g.pit && pitPublic(g.pit), 0),
     }),
     [g, online, slow, hide],
   );
@@ -200,6 +214,7 @@ export function usePlayerView(): View | null {
       visits: priv?.visit ? [priv.visit] : [],
       pigeons: (Array.isArray(pub.pigeons) ? pub.pigeons : []).map((p) => ({ ...p, at: p.at - (clockOffset ?? 0) })),
       pigeonNotes: (Array.isArray(priv?.pigeons) ? priv.pigeons : []).map((p) => ({ ...p, at: p.at - (clockOffset ?? 0) })),
+      pit: pitHere(pub.pit, clockOffset ?? 0),
     };
   }, [pub, priv, clockOffset]);
 }
