@@ -133,7 +133,7 @@ export function DayClock() {
 /**
  * Hats and achievements just earned, waiting their turn on screen (a town record and a perfect job can land
  * together). Each waits at least this long, and for whatever is happening to finish (a hanging, a visit in the
- * night), so it never covers the moment that earned it.
+ * night, a vote), so it never covers the moment that earned it, or the vote button.
  */
 const SHOW_AFTER_MS = 8000;
 type Unlock = { kind: 'hat'; id: HatId; at: number } | { kind: 'feat'; id: FeatId; at: number };
@@ -156,6 +156,8 @@ export function ProgressWatcher() {
   }, []);
   const next = useUnlocks((s) => s.list[0]);
   const drama = useHud((s) => s.drama);
+  // (One already up steps aside when a vote opens, and comes back after.)
+  const voting = Boolean(view.nomination && view.nomination.status !== 'done');
   const [, tick] = useState(0);
   const wait = next ? next.at + SHOW_AFTER_MS - Date.now() : 0;
   useEffect(() => {
@@ -163,7 +165,7 @@ export function ProgressWatcher() {
     const t = setTimeout(() => tick((n) => n + 1), wait + 50);
     return () => clearTimeout(t);
   }, [next, wait]);
-  if (!next || wait > 0 || drama) return null;
+  if (!next || wait > 0 || drama || voting) return null;
   return next.kind === 'hat' ? <NewHat id={next.id} /> : <NewFeat id={next.id} />;
 }
 
