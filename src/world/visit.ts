@@ -752,6 +752,8 @@ class JackInTheBox extends Deed {
     const carried = this.ahead(t, 0.2, 0.95, 0.42);
     const held = this.ahead(t, 0.05, 0, 0);
     held.lerp(s.head, 0.6);
+    // (Clear of the side of a wide sleeper.)
+    held.x = Math.max(BED.x - BED.w / 2 - 0.05, Math.min(held.x, s.box.min.x - 0.2));
     held.y = Math.max(s.head.y - 0.1, COVERS + 0.25) + 0.95 * this.gone(t);
     const out = span(t, 2.3, 2.9);
     const at = carried.clone().lerp(held, out);
