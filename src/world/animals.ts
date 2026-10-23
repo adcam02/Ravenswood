@@ -392,7 +392,6 @@ interface RigParts {
   ghostColor: THREE.Color;
   floats: boolean;
   tentacles: boolean;
-  aquatic: boolean;
   noLegs?: boolean;
   /** How high a floating rig hovers. */
   hover?: number;
@@ -483,10 +482,6 @@ class AnimalRig implements Rig {
   private eyeMaterial: THREE.Material;
   private ghostMaterial: THREE.MeshStandardMaterial;
   private wisp: THREE.Mesh;
-  private drips: THREE.InstancedMesh | null = null;
-  private dripState: { x: number; y: number; z: number; v: number; wait: number }[] = [];
-  /** Where drips can start: on the body's outside, on faces looking out and a little down. */
-  private dripSpots: THREE.Vector3[] = [];
   private item: THREE.Object3D | null = null;
   private itemKey = '';
   private hold: Hold | null = null;
@@ -713,17 +708,6 @@ class AnimalRig implements Rig {
     }
     this.body.add(this.wisp);
 
-    if (p.aquatic && !p.hover) {
-      const dripMat = new THREE.MeshStandardMaterial({ color: '#a8d8ff', transparent: true, opacity: 0.75, roughness: 0.1, flatShading: true });
-      this.owned.push(dripMat);
-      const dg = new THREE.IcosahedronGeometry(1, 0);
-      dg.scale(0.018, 0.028, 0.018);
-      this.drips = new THREE.InstancedMesh(dg, dripMat, 4);
-      this.dripSpots = dripSpots(this.mesh.geometry);
-      this.drips.frustumCulled = false;
-      for (let i = 0; i < 4; i++) this.dripState.push({ x: 0, y: -1, z: 0, v: 0, wait: Math.random() * 2.5 });
-      this.root.add(this.drips);
-    }
     p.extras?.(this.body, this.handTilt, this.armL);
 
     // (The sculpted Storyteller's robe is empty underneath: no wisp.)
@@ -872,7 +856,6 @@ class AnimalRig implements Rig {
     this.mesh.castShadow = !on;
     if (!this.noLegs && this.hasLegs) this.wisp.visible = on;
     this.wisp.material = on || !this.noLegs ? this.ghostMaterial : this.material;
-    if (this.drips) this.drips.visible = !on;
     this.item?.traverse((o) => (o.castShadow = !on));
     this.applyHatGhost();
   }
@@ -1867,7 +1850,6 @@ class AnimalRig implements Rig {
       this.shift.time.value = s.t % (4 * Math.PI);
       this.shift.tint.value = Math.abs(away);
     }
-    if (this.drips && !this.ghost) this.updateDrips(dt);
     this.hat?.built.update?.(s.t + this.seed);
     const moving = s.anim === 'walk' || s.anim === 'run' ? Math.max(s.speed, s.anim === 'run' ? 4 : 1.6) : 0;
     this.lastSpeed = moving;
@@ -2020,35 +2002,6 @@ class AnimalRig implements Rig {
     }
   }
 
-  private updateDrips(dt: number) {
-    const m = new THREE.Matrix4();
-    this.dripState.forEach((d, i) => {
-      if (d.wait > 0) {
-        d.wait -= dt;
-        if (d.wait <= 0) {
-          // Start a new drip somewhere on the outside of the body (falling clear of it).
-          const s = this.dripSpots[Math.floor(Math.random() * this.dripSpots.length)];
-          if (s) {
-            d.x = s.x;
-            d.z = s.z;
-            d.y = s.y + this.body.position.y;
-          } else d.y = -1;
-          d.v = 0;
-        }
-        m.makeScale(0, 0, 0);
-      } else {
-        d.v += 9.8 * dt;
-        d.y -= d.v * dt;
-        if (d.y <= 0.01) {
-          d.wait = 0.6 + Math.random() * 2.4;
-          m.makeScale(0, 0, 0);
-        } else m.makeTranslation(d.x, d.y, d.z);
-      }
-      this.drips!.setMatrixAt(i, m);
-    });
-    this.drips!.instanceMatrix.needsUpdate = true;
-  }
-
   dispose() {
     this.setItem(null);
     this.setHat(null);
@@ -2058,9 +2011,8 @@ class AnimalRig implements Rig {
     this.highGeo.dispose();
     this.mesh.skeleton.dispose();
     this.wisp.geometry.dispose();
-    this.drips?.geometry.dispose();
     this.root.traverse((o) => {
-      if (o !== this.mesh && o !== this.wisp && o !== this.drips && (o as THREE.Mesh).isMesh) (o as THREE.Mesh).geometry.dispose();
+      if (o !== this.mesh && o !== this.wisp && (o as THREE.Mesh).isMesh) (o as THREE.Mesh).geometry.dispose();
     });
     for (const m of this.owned) m.dispose();
     this.root.removeFromParent();
@@ -2089,7 +2041,6 @@ export function buildAnimal(look: Look): Rig {
     hover: res.hover,
     flaps: res.flaps,
     tentacles: res.legs === 'tentacles',
-    aquatic,
     sleepy: res.sleepy,
     tendril: res.tendril,
     hatFit: hatFit(info.id, k),
@@ -2198,35 +2149,6 @@ function hatFit(id: AnimalId, k: Kit): HatPlace {
   return { ...fit(n), hats };
 }
 
-/**
- * Places on a body's outside a drip can fall cleanly from: faces looking out sideways and a little down, out at
- * the widest part of the body at their height (so nothing below is in the way).
- */
-function dripSpots(g: THREE.BufferGeometry): THREE.Vector3[] {
-  const p = g.getAttribute('position');
-  const ix = g.getIndex();
-  const n = g.groups[0]?.count ?? (ix ? ix.count : p.count);
-  const at = (i: number) => new THREE.Vector3().fromBufferAttribute(p, ix ? ix.getX(i) : i);
-  const spots: THREE.Vector3[] = [];
-  const e1 = new THREE.Vector3();
-  const e2 = new THREE.Vector3();
-  for (let t = 0; t + 2 < n; t += 3) {
-    const a = at(t);
-    const b = at(t + 1);
-    const c = at(t + 2);
-    const nrm = e1.subVectors(b, a).cross(e2.subVectors(c, a)).normalize();
-    const side = Math.hypot(nrm.x, nrm.z);
-    const m = a.add(b).add(c).multiplyScalar(1 / 3);
-    if (nrm.y > -0.15 || nrm.y < -0.6 || side < 0.6 || m.y < 0.15 || m.y > 0.7) continue;
-    spots.push(m.addScaledVector(nrm, 0.012));
-  }
-  // Only the outermost of them: drips start from the body's widest reach, not tucked under an arm.
-  const r = (v: THREE.Vector3) => Math.hypot(v.x, v.z);
-  const far = spots.map(r).sort((x, y) => y - x)[Math.floor(spots.length * 0.25)] ?? 0;
-  return spots.filter((v) => r(v) >= far);
-}
-
-
 // ---------------------------------------------------------------- the Storyteller
 
 const ROBE = '#3b2a5a';
@@ -2292,7 +2214,6 @@ export function buildStoryteller(): Rig {
     ghostColor: col('#cbbcf0'),
     floats: true,
     tentacles: false,
-    aquatic: false,
     noLegs: true,
     extras: (_body, _hand, armL) => {
       // The lantern hangs from the left sleeve, so the right paw is free for anything else.
