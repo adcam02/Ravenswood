@@ -535,40 +535,59 @@ const penguin: Recipe = (k, c) => {
   const white = '#f2efe6';
   const orange = '#e8892e';
   const gold = '#f2c14e';
-  // Tall and upright, a white front, flippers at its sides and big orange feet.
+  const flipper = mix(c.coat, '#121419', 0.22);
+  // Tall and upright like a little skittle: a round tummy bulging in front, a smooth back, flat paddle flippers
+  // hanging close at its sides, a stubby tail propping it up behind and big flat orange feet. The white front wraps
+  // a long way round its sides under a dark coat and hood, and a golden patch curls down each side of its neck.
   k.joints.neck = [0, 0.6, 0.03];
-  k.joints.shoulder = [0.2, 0.5, 0];
-  k.joints.hip = [0.08, 0.12, 0.02];
-  k.joints.tail = [0, 0.13, -0.17];
+  k.joints.shoulder = [0.185, 0.5, 0];
+  k.joints.hip = [0.085, 0.12, 0.03];
+  k.joints.tail = [0, 0.14, -0.15];
   torso(k, {
     belly: [
-      [0, 0.32, 0],
-      [0.23, 0.31, 0.2],
+      [0, 0.31, 0.02],
+      [0.225, 0.3, 0.2],
     ],
     chest: [
       [0, 0.5, 0.02],
-      [0.19, 0.16, 0.17],
+      [0.185, 0.16, 0.165],
     ],
     melt: 0.18,
   });
   headForm(k, { r: [0.2, 0.19, 0.19], at: [0, 0.13, 0.02], melt: 0.14 });
   const beakTip = beakForm(k, { dy: -0.08, len: 0.1, w: 0.03, h: 0.028, drop: 0.25 });
-  wingForms(k, { len: 0.34, w: 0.075, d: 0.025, taper: 0.8, fwd: 0.05, out: 0.2 });
-  legForms(k, { r0: 0.05, r1: 0.04, foot: [0.055, 0.025, 0.085], fwd: 0.06 });
-  finForm(k, 'tail', k.joints.tail, { len: 0.1, w: 0.07, d: 0.022, rot: [-(Math.PI / 2 + 0.6), 0, 0], name: 'tailFan' });
+  wingForms(k, { len: 0.32, w: 0.08, d: 0.027, taper: 0.75, fwd: -0.06, out: 0.26 });
+  legForms(k, { r0: 0.05, r1: 0.04, foot: [0.068, 0.024, 0.09], fwd: 0.07 });
+  // The tail: a short stiff wedge of feathers sloping down behind.
+  sculptOf(k).add(ellipsoid('tail', plus(k.joints.tail, [0, -0.05, -0.03]), [0.05, 0.024, 0.052], { rot: [-0.95, 0, 0], k: 0.05, anchor: k.joints.tail, reach: 0.12, name: 'tailFan' }));
   useSurface(k);
   // White rings round its eyes.
   eyes(k, { x: 0.38, y: 0.14, size: 0.9, wide: 1, slant: 0, color: '#141018', ring: white, ringSize: 1.55 });
   k.nose = beakTip;
   const head = unitOf(k, 'head');
+  const n = k.joints.neck;
+  // How far round from the front the white reaches at each height (radians), up from the feet to the chin.
+  const reach = [1.05, 1.3, 1.32, 1.2, 1.0, 0.9];
+  const front = (q: Probe) => Math.atan2(Math.abs(q.p.x), q.p.z + 0.02) - sample(reach, THREE.MathUtils.clamp(q.p.y / 0.66, 0, 1));
+  // A golden comma on each side of the neck: broad behind the eye, curling down and forward to the white front.
+  const comma = (q: Probe) => {
+    if (Math.abs(q.p.x) < 0.1) return 1;
+    const s = segDist(q.p.z, q.p.y, n[2] + 0.01, n[1] + 0.1, n[2] + 0.09, n[1] - 0.02);
+    return s.d - (0.045 - 0.025 * s.t);
+  };
+  // The hood comes down the sides of the face, leaving a white bib up under the beak.
+  const bib = (q: Probe) => {
+    const u = head(q);
+    return u.y + 0.1 + 0.42 * Math.abs(u.x);
+  };
   k.marks = {
     base: c.coat,
     marks: [
       { color: orange, f: region(k, 'beak', /^leg/) },
-      // Golden patches on the sides of the neck, and a white front from the chin down.
-      { color: gold, f: all(region(k, 'head'), (q) => 0.78 - Math.abs(head(q).x), (q) => Math.abs(head(q).y + 0.35) - 0.25, (q) => head(q).z + 0.2 - 0.4) },
-      { color: white, f: all(region(k, 'head'), (q) => head(q).y + 0.3, (q) => 0.2 - head(q).z) },
-      { color: white, f: frontOval(k, ['belly', 'chest'], 0, 0.38, 0.17, 0.4) },
+      { color: flipper, f: region(k, 'armL', 'armLPaw', 'armR', 'armRPaw') },
+      { color: gold, f: comma },
+      // The white front, up to under the beak, its edge running smoothly round the sides.
+      { color: white, f: all(region(k, 'head', 'belly', 'chest'), front, bib) },
     ],
   };
   return { aquatic: true };
@@ -1759,49 +1778,59 @@ const ferret: Recipe = (k, c) => {
 };
 
 const dugong: Recipe = (k, c) => {
-  const belly = mix(c.coat, '#efe4d8', 0.5);
-  const dark = mix(c.coat, CHARCOAL, 0.3);
-  // A gentle sea cow: a big soft teardrop standing on its tail fluke, little flippers, a small round head with
-  // tiny eyes, and the great drooping muzzle with its bristly lip, made for grazing seagrass.
-  k.joints.neck = [0, 0.56, 0.06];
-  k.joints.shoulder = [0.19, 0.42, 0.07];
+  const belly = mix(c.coat, '#f4ebe0', 0.5);
+  const dark = mix(c.coat, CHARCOAL, 0.25);
+  // A gentle, smiley sea cow: a big soft round teardrop standing on its tail fluke, little round flippers, a round
+  // head with big kind eyes and rosy cheeks, and a soft round muzzle like a big button nose, with a bristly top lip
+  // and a happy smile under it.
+  k.joints.neck = [0, 0.55, 0.06];
+  k.joints.shoulder = [0.2, 0.42, 0.07];
   k.joints.hip = [0.07, 0.1, -0.05];
   k.joints.tail = [0, 0.12, -0.2];
   torso(k, {
     belly: [
       [0, 0.3, -0.02],
-      [0.24, 0.29, 0.22],
+      [0.255, 0.29, 0.235],
     ],
     chest: [
       [0, 0.47, 0.03],
-      [0.19, 0.15, 0.18],
+      [0.2, 0.15, 0.19],
     ],
     melt: 0.2,
   });
-  headForm(k, { r: [0.155, 0.14, 0.15], at: [0, 0.13, 0.04], melt: 0.16 });
-  const snout = snoutForm(k, { dy: -0.18, len: 0.1, ra: 0.12, rb: 0.115, drop: 0.12, squash: [1.25, 0.95, 1] });
-  // The broad flat-fronted disc at the end of the muzzle, facing down and forward: the dugong's big droopy lip.
+  headForm(k, { r: [0.19, 0.17, 0.175], at: [0, 0.14, 0.04], melt: 0.18 });
+  const snout = snoutForm(k, { dy: -0.3, len: 0.06, ra: 0.095, rb: 0.09, drop: 0.06, squash: [1.12, 0.92, 1] });
+  // The soft round pad at the end of the muzzle, facing forward and a little down: the dugong's big bristly lip.
   const n = k.joints.neck;
   const tip = plus(n, snout.nose);
-  sculptOf(k).add(ellipsoid('neck', [tip[0], tip[1] - 0.07, tip[2] - 0.03], [0.125, 0.085, 0.07], { rot: [0.55, 0, 0], k: 0.04, name: 'lip' }));
-  wingForms(k, { len: 0.24, w: 0.085, d: 0.03, taper: 0.8, fwd: 0.2, out: 0.35 });
+  const lipAt: Vec3 = [tip[0], tip[1] - 0.04, tip[2] - 0.035];
+  sculptOf(k).add(ellipsoid('neck', lipAt, [0.092, 0.068, 0.064], { rot: [0.4, 0, 0], k: 0.04, name: 'lip' }));
+  wingForms(k, { len: 0.22, w: 0.085, d: 0.036, taper: 0.85, fwd: 0.25, out: 0.4 });
   // The tail fluke, as two flat lobes splayed out behind: what it stands and shuffles on.
   legForms(k, { r0: 0.06, r1: 0.055, foot: [0.12, 0.024, 0.08], fwd: -0.08 });
   useSurface(k);
-  eyes(k, { x: 0.5, y: 0.3, size: 0.62, wide: 1, slant: 0, color: '#120e10' });
-  nose(k, mix(c.coat, '#2a2224', 0.7), onSnout(k, [snout.nose[0], snout.nose[1] + 0.03, snout.nose[2] - 0.02]), 0.03, 0.014);
+  eyes(k, { x: 0.46, y: 0.24, size: 1.2, wide: 1, slant: -0.06, color: '#120e10', blush: false });
+  // Rosy cheeks either side of the muzzle, under the eyes.
+  for (const side of [-1, 1]) {
+    const at = onHead(k, side * 0.6, -0.12).add(new THREE.Vector3(...n));
+    (k.blush ??= []).push({ at: v3(at), n: v3(headNormal(k, side * 0.6, -0.12)), r: 0.05 });
+  }
   // Two crescent nostrils up on top of the end of the muzzle.
   for (const side of [-1, 1]) {
-    decal(k, { bone: 'neck', from: new THREE.Vector3(...plus(n, snout.nose)).add(new THREE.Vector3(0, -0.05, -0.05)), dir: new THREE.Vector3(side * 0.45, 1, 0.55), r: 0.011, stretch: 1.7, along: new THREE.Vector3(1, 0, -0.4 * side), color: mix(c.coat, '#2a2224', 0.65), sides: 8, name: `nostril${side > 0 ? 'L' : 'R'}` });
+    decal(k, { bone: 'neck', from: new THREE.Vector3(...tip).add(new THREE.Vector3(0, -0.04, -0.05)), dir: new THREE.Vector3(side * 0.45, 1, 0.6), r: 0.011, stretch: 1.7, along: new THREE.Vector3(1, 0, -0.4 * side), color: mix(c.coat, '#2a2224', 0.65), sides: 8, name: `nostril${side > 0 ? 'L' : 'R'}` });
   }
-  whiskers(k, c.coat, { len: 0.05, sweep: 0.05, drop: 0.04, color: mix(c.coat, '#f2ece2', 0.6) });
-  mouth(k, { w: 0.16, y: -0.62, curve: 0.05, r: 0.006 });
+  k.nose = v3(new THREE.Vector3(...snout.nose).add(new THREE.Vector3(0, -0.02, 0.01)));
+  whiskers(k, c.coat, { len: 0.04, sweep: 0.05, drop: 0.035, color: mix(c.coat, '#f2ece2', 0.6) });
+  // A happy smile across the bottom of the lip.
+  const lip = new THREE.Vector3(...lipAt);
+  const smile = [-1, -0.6, -0.2, 0.2, 0.6, 1].map((t) => surfaceHit(k, lip, new THREE.Vector3(t * 0.75, -0.62 + 0.3 * t * t, 1))?.p);
+  if (smile.every(Boolean)) decalLine(k, { bone: 'neck', pts: smile as THREE.Vector3[], w: 0.0055, color: '#2a2224' });
   k.marks = {
     base: c.coat,
     marks: [
-      { color: mix(belly, c.coat, 0.4), f: region(k, 'lip') },
-      { color: belly, f: frontOval(k, ['belly', 'chest'], 0, 0.3, 0.17, 0.25) },
-      { color: dark, f: region(k, 'armLPaw', 'armRPaw') },
+      { color: mix(belly, c.coat, 0.35), f: region(k, 'lip') },
+      { color: belly, f: frontOval(k, ['belly', 'chest'], 0, 0.3, 0.18, 0.27) },
+      { color: mix(c.coat, CHARCOAL, 0.12), f: region(k, 'armL', 'armR', 'armLPaw', 'armRPaw') },
       { color: dark, f: region(k, /^leg/) },
     ],
   };
@@ -3402,6 +3431,7 @@ const PROFILES: Partial<Record<AnimalId, Partial<Profile>>> = {
 /** Finishing touches: toes on the feet, claws, buck teeth. */
 export const DETAILS: Partial<Record<AnimalId, Details>> = {
   fox: { toes: 2, paws: 2 },
+  penguin: { toes: 2 },
   wolf: { toes: 2, paws: 2 },
   redpanda: { toes: 2, paws: 2 },
   quokka: { toes: 2 },
