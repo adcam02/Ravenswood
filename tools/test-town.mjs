@@ -812,7 +812,17 @@ await check('game: an execution plays out at the gallows for everyone', async ()
     window.__st.st.markSeat(id);
     window.__st.st.toggleDead(id);
   }, id);
-  await until(players.abbey, () => Boolean(window.__engine.show), null, 15000, 'the show to start for Abbey');
+  try {
+    await until(players.abbey, () => Boolean(window.__engine.show), null, 15000, 'the show to start for Abbey');
+  } catch (e) {
+    // What the host did, and what reached Abbey.
+    const host = await st.evaluate((id) => {
+      const g = window.__host.getState().g;
+      return { phase: g.phase, execution: g.execution, marked: g.marked, nomination: g.nomination?.status ?? null, townHall: Boolean(g.townHall), dead: g.seats.find((s) => s.id === id)?.dead };
+    }, id);
+    const seen = await players.abbey.evaluate(() => ({ execution: window.__client.getState().pub?.execution ?? null, now: Date.now(), status: window.__client.getState().status }));
+    throw new Error(`${e.message}; host ${JSON.stringify(host)}; Abbey has ${JSON.stringify(seen)}`);
+  }
   await until(players.steele, () => Boolean(window.__engine.show?.mine), null, 15000, 'the show to start for Steele');
   // Hold the show at set moments on both screens, so even a slow machine shows every beat.
   const viewers = [players.abbey, players.steele];
