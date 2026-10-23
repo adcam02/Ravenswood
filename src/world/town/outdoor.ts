@@ -880,12 +880,6 @@ function bakery(p: Paint, r: () => number, smoke: (v: THREE.Vector3) => void) {
   p.box('#b98a63', W + 0.3, 0.14, D + 0.3, 0, 3.62, 0);
   for (let x = -W / 2 + 0.3; x < W / 2; x += 0.45) for (const sz of [-1, 1]) p.box(shade('#b98a63', -0.08), 0.16, 0.12, 0.16, x, 3.5, sz * (D / 2 + 0.1));
   p.prism(wall, W, 2.4, D, 0, 3.7, 0);
-  // Barge boards on the gables with a scalloped edge.
-  for (const sx of [-1, 1]) {
-    const g = p.at(sx * (W / 2 + 0.05), 0, 0, (sx * Math.PI) / 2);
-    g.box('#b98a63', 0.1, 0.16, Math.hypot(2.4, D / 2) + 0.4, 0, 3.7 + 1.2, D / 4 + 0.1, Math.atan2(2.4, D / 2), 0, 0);
-    g.box('#b98a63', 0.1, 0.16, Math.hypot(2.4, D / 2) + 0.4, 0, 3.7 + 1.2, -D / 4 - 0.1, -Math.atan2(2.4, D / 2), 0, 0);
-  }
   p.roof(roof, W, D, 2.4, 3.7, 0.5, 0.2);
   chimney(p, '#a0523a', 0.9, 3.0, -2.8, 4.0, -1.8, 1);
   smoke(new THREE.Vector3(-2.8, 7.4, -1.8));
