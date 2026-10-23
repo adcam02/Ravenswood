@@ -86,12 +86,12 @@ if (q.has('curtains')) town.setBoothCurtains(true);
 if (q.has('gallows')) town.setGallows({ open: num('gallows', 1), label: 'Steele is executed', ring: num('ring', 0), rope: num('rope', 0.97), swing: num('swing', 0), puff: num('puff', 0) });
 
 // ?visit=0..3&vt=4.2: the hooded figure's night visit, held at vt seconds in, with a fox asleep in the bed (and
-// ?vcam to look from where the game's camera does).
+// ?vcam to look from where the game's camera does; ?animal= and ?hat= change who's asleep and what they wear).
 let visit: NightVisit | null = null;
 let sleeper: ReturnType<typeof buildAnimal> | null = null;
 if (q.has('visit')) {
   visit = new NightVisit(town.groups.house, num('visit', 0));
-  sleeper = buildAnimal({ animal: (q.get('animal') ?? 'fox') as never, color: '#e2793a' });
+  sleeper = buildAnimal({ animal: (q.get('animal') ?? 'fox') as never, color: '#e2793a', hat: (q.get('hat') ?? null) as never });
   sleeper.root.position.set(BED.x, BED.top, BED.z + 0.25);
   town.groups.house.add(sleeper.root);
   if (q.has('vcam')) {
