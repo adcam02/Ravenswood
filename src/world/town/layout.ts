@@ -1,4 +1,4 @@
-import { BEDS, BED_SPOTS, LINES, LINE_SLOTS, type Collider, type Door, type Spot, type Station, type ZoneKind } from '../types';
+import { BEDS, BED_SPOTS, BOOTH, BOOTH_SEATS, LINES, LINE_SLOTS, type Collider, type Door, type Spot, type Station, type ZoneKind } from '../types';
 import { local } from './kit';
 
 /**
@@ -330,6 +330,10 @@ export function makeStations(): Station[] {
       st.push({ id: `pew-${row}-${k}`, zone: 'church', x, z, r: 0.8, job: 'sit', stand: { x, z, ry: Math.PI }, y: 0.46, label: 'Sit' }),
     ),
   );
+  // The confession booth: step in at the front of either side, to sit inside (and again to come out).
+  BOOTH_SEATS.forEach((seat, i) =>
+    st.push({ id: `booth-${i}`, zone: 'church', x: seat.x, z: BOOTH.z1 - 0.05, r: 1.0, job: 'confess', stand: seat, y: 0.48, label: 'Step into the confession booth' }),
+  );
   // The clock tower: a stool at the clockmaker's bench and a bench along the wall.
   st.push({ id: 'tower-stool', zone: 'tower', x: WORK_STOOL.x, z: WORK_STOOL.z, r: 0.9, job: 'sit', stand: WORK_STOOL, y: 0.62, label: 'Sit' });
   [0.45, 1.35].forEach((z, i) =>
@@ -441,6 +445,7 @@ export function roomColliders(kind: Exclude<ZoneKind, 'town'>): Collider[] {
     c.push(at(0, -7.7, 1.4, 0.65));
     for (const z of PEW_ROWS) for (const sx of [-1, 1]) c.push(at(sx * PEW_X, z + 0.1, PEW_LEN / 2, 0.38));
     for (const sx of [-1, 1]) c.push({ kind: 'circle', x: sx * 2.2, z: -7.4, r: 0.25 });
+    c.push(at((BOOTH.x0 + BOOTH.x1) / 2, (BOOTH.z0 + BOOTH.z1) / 2, (BOOTH.x1 - BOOTH.x0) / 2, (BOOTH.z1 - BOOTH.z0) / 2));
   } else if (kind === 'tower') {
     c.push(at(MOVEMENT.x, MOVEMENT.z, MOVEMENT.hw + 0.15, MOVEMENT.hd + 0.2));
     // The rod from the movement to the back dial runs at head height, so nobody walks through it.

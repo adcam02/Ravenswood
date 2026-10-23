@@ -32,6 +32,9 @@ const SLOW_MS = 800;
 /** Nothing at all from the Storyteller for this long, on an open line, counts as slow too. */
 const QUIET_MS = 8000;
 
+/** The host's answer to the last letter posted: whether it went in, and when it came. */
+export const usePosted = create<{ ok: boolean | null; at: number }>(() => ({ ok: null, at: 0 }));
+
 /** The host's last "that animal is taken" answer, for the picker to react to. */
 export const useTaken = create<{ animal: string | null; by: string; at: number }>(() => ({ animal: null, by: '', at: 0 }));
 
@@ -301,6 +304,8 @@ class ClientLink {
       // That animal's someone else's: the player picks again, so stop asking for this one.
       this.pendingJoin = null;
       if (typeof msg.animal === 'string') useTaken.setState({ animal: msg.animal, by: String(msg.by ?? 'Someone'), at: Date.now() });
+    } else if (msg.t === 'posted') {
+      usePosted.setState({ ok: msg.ok === true, at: Date.now() });
     } else if (msg.t === 'summon') {
       if (typeof msg.zone === 'string' && Number.isFinite(msg.x) && Number.isFinite(msg.z)) game.summoned(msg.zone, msg.x, msg.z);
     }
@@ -341,7 +346,7 @@ class ClientLink {
 }
 
 /** Actions worth holding for a moment while reconnecting; positions and pings just go stale. */
-const OUTBOX = new Set<ClientMessage['t']>(['vote', 'slay', 'reply', 'ack', 'town', 'give', 'rename', 'sleep', 'hold']);
+const OUTBOX = new Set<ClientMessage['t']>(['vote', 'slay', 'reply', 'ack', 'town', 'give', 'rename', 'sleep', 'hold', 'letter']);
 /** Long enough for a reconnect, short enough that an old vote can't land on a later nomination. */
 const OUTBOX_MS = 20000;
 
@@ -364,6 +369,8 @@ export const player = {
   vote: (up: boolean) => clientLink.send({ t: 'vote', up }),
   /** Claim to be the Slayer and choose this seat. */
   slay: (seatId: string) => clientLink.send({ t: 'slay', seatId }),
+  /** Post a letter in someone's letterbox. */
+  letter: (to: string, text: string, signed: boolean) => clientLink.send({ t: 'letter', to, text, signed }),
   ack: (wakeId: string) => clientLink.send({ t: 'ack', wakeId }),
   reply: (wakeId: string, r: { seatIds?: string[]; roleIds?: string[]; answer?: boolean }) =>
     clientLink.send({ t: 'reply', wakeId, ...r }),

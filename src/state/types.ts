@@ -164,6 +164,33 @@ export interface DeathRecord {
   at: number;
 }
 
+/** A letter posted in someone's letterbox by day, for them to open in bed that night. */
+export interface Letter {
+  id: string;
+  /** Seat ids: who wrote it, and whose letterbox it went in. */
+  from: string;
+  to: string;
+  /** Signed with the writer's name, or null for an anonymous letter. */
+  name: string | null;
+  text: string;
+  /** The night it arrives on: posted on day N, it can be opened in bed from night N + 1. */
+  night: number;
+  at: number;
+}
+
+/** A letter as its reader gets it: who signed it (if anyone), never which seat wrote it. */
+export type LetterIn = Omit<Letter, 'from' | 'to'>;
+
+/** Killed in the night: the hooded figure's visit to their bedroom, which only they (and the Storyteller) see. */
+export interface Visit {
+  id: string;
+  seatId: string;
+  /** Which of the ways it happens. */
+  variant: number;
+  /** When the Storyteller marked the death (host clock). */
+  at: number;
+}
+
 /** The game is over: who won, and why. */
 export interface GameEnd {
   winner: 'good' | 'evil';
@@ -203,6 +230,8 @@ export interface GameState {
   town: TownState;
   /** Seats killed during this night. Players don't see these deaths until the day begins. */
   nightDeaths: string[];
+  /** Letters posted this game. */
+  letters?: Letter[];
   /** Slayer claims this game, oldest first. */
   slayer: SlayerShot[];
   /** Everyone who has died this game, in order. */
@@ -236,6 +265,8 @@ export interface PublicSeat {
   look: Look | null;
   /** The day number they wear a gold star. */
   star?: number | null;
+  /** Letters are waiting in their letterbox (the little flag is up). */
+  mail?: boolean;
 }
 
 export interface PublicState {
@@ -285,6 +316,10 @@ export interface PrivateState {
   log: WakeMessage[];
   /** Replies this seat has sent. */
   replies: WakeReply[];
+  /** Letters that have arrived for this seat (from the first night after they were posted). */
+  letters?: LetterIn[];
+  /** Killed tonight: the visit to play in their bedroom. */
+  visit?: Visit | null;
 }
 
 // ---------------------------------------------------------------- messages
@@ -318,6 +353,8 @@ export type HostMessage =
   | { t: 'summon'; zone: string; x: number; z: number }
   /** That animal is already someone else's (or being chosen by them): pick another. */
   | { t: 'taken'; animal: string; by: string }
+  /** Whether the letter just posted went in (it can't by night, or past the day's limit). */
+  | { t: 'posted'; ok: boolean }
   /** `at` is the ping's own time, sent back so the player can tell how long the round trip took. */
   | { t: 'pong'; at?: number }
   | { t: 'host' }
@@ -341,6 +378,8 @@ export type ClientMessage =
   | { t: 'give'; to: string; item: Item }
   /** Claim to be the Slayer and choose this seat. */
   | { t: 'slay'; seatId: string }
+  /** Post a letter in someone's letterbox (by day), signed or not. */
+  | { t: 'letter'; to: string; text: string; signed: boolean }
   /** Something went wrong in this player's game, so the Storyteller knows. */
   | { t: 'oops'; message: string; where?: string; v?: string }
   /** `at`: when it was sent (for the round trip); `rtt`: the player's latest measure of it, in milliseconds. */

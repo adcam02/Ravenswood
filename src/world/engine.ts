@@ -19,7 +19,7 @@ import { COTTAGE_NAMES, DAIS, DOCK, MEETING_CENTRE, SQUARE_R, STOOL_R, groundAt 
 import { nearPath } from './town/outdoor';
 import { Fireworks } from './fireworks';
 import { reportProblem } from '../lib/report';
-import { notePerfect } from '../game/progress';
+import { earn, notePerfect } from '../game/progress';
 
 /** Hats are a player's own: the Storyteller doesn't collect them. */
 const isPlayerView = (v: WorldView | null) => v?.mode === 'player';
@@ -61,10 +61,12 @@ const SHOW = { lower: 0.9, drop: 1.6, puff: 3.3, rise: 0.6, end: 4.3 };
 /** Even with nothing changing, the shadow map is redrawn this often, just in case. */
 const SHADOW_SAFETY_S = 10;
 import {
+  BOOTH,
   cottageSlot,
   cottageZone,
   houseOwner,
   houseZone,
+  inBooth,
   zoneKind,
   type Anim,
   type Collider,
@@ -189,6 +191,7 @@ const SIGN_TEXT: Partial<Record<Station['job'], string>> = {
   firewood: '🪓 Chop firewood',
   skimming: '🪨 Skim stones',
   clock: '🕰️ Keep time',
+  confess: '🕯️ Confession booth',
 };
 
 const PLACE_NAMES: Record<Exclude<ZoneKind, 'house'>, string> = {
@@ -296,6 +299,10 @@ export class Engine {
   private nearDoor: { door: Door; locked: string | null } | null = null;
   /** The clock tower door we last went in by, to come back out of it. */
   private towerDoor: Door | null = null;
+  /** The side of the confession booth we're sitting in, if we are. */
+  private booth: Station | null = null;
+  /** How long we've been in the booth with someone on the other side, for the achievement. */
+  private boothTalk = 0;
 
   constructor(
     private host: HTMLElement,
@@ -703,6 +710,7 @@ export class Engine {
   private place(zone: ZoneId, x: number, z: number, ry: number, fade: boolean, then?: () => void) {
     const go = () => {
       this.hoverY = 0;
+      this.booth = null;
       local.zone = zone;
       local.x = x;
       local.z = z;
@@ -890,6 +898,7 @@ export class Engine {
   // ---------------------------------------------------------------- doing things
 
   private stopEverything() {
+    if (this.booth) this.leaveBooth();
     if (this.job) {
       useHud.setState({ job: null });
       setItem(this.job.prevItem);
@@ -973,6 +982,52 @@ export class Engine {
     return best;
   }
 
+  /** Whoever (else) is sitting in this side of the confession booth, by name. */
+  private boothTaken(s: Station): string | null {
+    for (const [key, p] of presence.others) {
+      if (p.zone !== 'church' || Math.hypot(p.x - s.stand.x, p.z - s.stand.z) > 0.5) continue;
+      return key === 'st' ? 'The Storyteller' : this.view?.seats.find((x) => x.id === key)?.name || 'Someone';
+    }
+    return null;
+  }
+
+  /** Out through the curtain, to stand in front of the side we were in. */
+  private leaveBooth() {
+    const s = this.booth;
+    this.booth = null;
+    if (!s) return;
+    this.seated = null;
+    local.x = s.stand.x;
+    local.z = BOOTH.z1 + 0.55;
+    local.ry = 0;
+    this.me?.setTarget(local.x, local.z, local.ry, 0);
+    this.me?.snap();
+    useHud.setState({ place: PLACE_NAMES.church });
+  }
+
+  /**
+   * In the booth: if two people stepped into the same side at once, the one who sorts later steps back out (both
+   * pages decide the same way); and talking with someone on the other side for a while earns its achievement.
+   */
+  private checkBooth(dt: number, v: WorldView) {
+    const s = this.booth;
+    if (!s) return;
+    const myKey = v.mode === 'st' ? 'st' : (v.mySeatId ?? '');
+    let other = false;
+    for (const [key, p] of presence.others) {
+      if (!inBooth(p.zone, p.x, p.z)) continue;
+      if (Math.hypot(p.x - s.stand.x, p.z - s.stand.z) < 0.5) {
+        if (key < myKey) {
+          this.leaveBooth();
+          this.me?.bubble('Someone got there first', 2200);
+          return;
+        }
+      } else other = true;
+    }
+    this.boothTalk = other ? this.boothTalk + dt : 0;
+    if (this.boothTalk > 20 && v.mode === 'player') earn('confess');
+  }
+
   private give() {
     const item = local.item;
     const near = this.nearestOther(2.6);
@@ -1040,6 +1095,24 @@ export class Engine {
       }, 1600);
     } else if (s.job === 'notice') {
       useHud.setState({ notice: true });
+    } else if (s.job === 'confess') {
+      if (this.booth) return this.leaveBooth();
+      const who = this.boothTaken(s);
+      if (who) {
+        this.me.bubble(`${who} is in that side`, 2200);
+        return;
+      }
+      this.stopEverything();
+      this.booth = s;
+      this.boothTalk = 0;
+      local.x = s.stand.x;
+      local.z = s.stand.z;
+      local.ry = s.stand.ry;
+      this.seated = { y: s.y ?? 0.48, anim: 'sit' };
+      this.me.setTarget(local.x, local.z, local.ry, this.seated.y);
+      this.me.snap();
+      this.me.bubble('In here, only the other side can hear you', 3200);
+      useHud.setState({ place: 'The Confession Booth' });
     } else if (s.job === 'sit' || s.job === 'sleep') {
       if (this.seated) return this.standUp();
       local.x = s.stand.x;
@@ -1359,6 +1432,12 @@ export class Engine {
         dz = tz / d;
       }
     }
+    // Walking off from inside the confession booth: out through the curtain first.
+    if ((dx !== 0 || dz !== 0) && this.booth) {
+      this.leaveBooth();
+      dx = dz = 0;
+      this.moveTarget = null;
+    }
     const moving = dx !== 0 || dz !== 0;
     if (moving) {
       this.hoverY = 0;
@@ -1448,6 +1527,7 @@ export class Engine {
 
     this.checkDoors(v, moving, dx, dz);
     this.checkStations(v);
+    this.checkBooth(dt, v);
   }
 
   private doorTarget(door: Door, v: WorldView): { zone: ZoneId; x: number; z: number; ry: number } | { locked: string } {
@@ -1531,6 +1611,14 @@ export class Engine {
         label = 'The shelf is empty';
         locked = true;
       } else if ((best.job === 'sit' || best.job === 'sleep') && this.seated) label = 'Get up';
+      else if (best.job === 'confess') {
+        const who = this.booth ? null : this.boothTaken(best);
+        if (this.booth) label = 'Step out of the booth';
+        else if (who) {
+          label = `${who} is in that side`;
+          locked = true;
+        }
+      }
       prompt = { label, key: locked ? '' : 'E', locked };
     } else if (local.item && SIPPABLE.has(local.item.k)) {
       prompt = { label: ['ale', 'cider', 'milk', 'cocoa'].includes(local.item.k) ? 'Have a sip' : 'Have a bite', key: 'E' };
@@ -1742,7 +1830,7 @@ export class Engine {
     const kind = zoneKind(zone);
     const want = anim === 'sleep' ? 'sleep' : 'sit';
     for (const s of this.town.stations) {
-      if (s.zone === kind && s.job === want && Math.hypot(s.stand.x - x, s.stand.z - z) < 0.6) return s.y ?? 0.45;
+      if (s.zone === kind && (s.job === want || (want === 'sit' && s.job === 'confess')) && Math.hypot(s.stand.x - x, s.stand.z - z) < 0.6) return s.y ?? 0.45;
     }
     const v = this.view;
     if (kind === 'town' && v && (v.nomination || v.townHall)) {

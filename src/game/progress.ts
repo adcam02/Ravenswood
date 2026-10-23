@@ -1,13 +1,22 @@
 import { useEffect } from 'react';
 import { create } from 'zustand';
 import type { View } from '../state/view';
-import { HATS, type HatId, type Progress } from '../world/types';
+import { FEATS, HATS, type FeatId, type HatId, type Progress } from '../world/types';
 
 const KEY = 'ravenswood:progress';
 
 interface Stored extends Progress {
   /** Things already counted, so a reload doesn't count them twice. Oldest drop off. */
   seen: string[];
+  /** Running counts toward achievements. */
+  tally: Partial<Record<TallyKey, number>>;
+}
+
+function tallyOf(raw: unknown): Stored['tally'] {
+  const out: Stored['tally'] = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [k, v] of Object.entries(raw)) if (Number.isFinite(Number(v))) out[k as TallyKey] = Number(v);
+  return out;
 }
 
 function load(): Stored {
@@ -21,9 +30,10 @@ function load(): Stored {
       perfect: Array.isArray(raw?.perfect) ? raw!.perfect!.filter((x): x is string => typeof x === 'string').slice(0, 40) : [],
       feats: Array.isArray(raw?.feats) ? raw!.feats!.filter((x): x is string => typeof x === 'string').slice(0, 80) : [],
       seen: Array.isArray(raw?.seen) ? raw!.seen!.slice(-400) : [],
+      tally: tallyOf(raw?.tally),
     };
   } catch {
-    return { stars: 0, records: 0, ghosts: 0, nights: 0, perfect: [], feats: [], seen: [] };
+    return { stars: 0, records: 0, ghosts: 0, nights: 0, perfect: [], feats: [], seen: [], tally: {} };
   }
 }
 
@@ -43,6 +53,37 @@ export function notePerfect(job: string) {
   save(s, { ...s, perfect: [...s.perfect, job] });
 }
 
+/** An achievement, the first time (its hat, if it has one, unlocks with it). */
+export function earn(feat: FeatId) {
+  const s = useProgress.getState();
+  if (s.feats.includes(feat) || !FEATS.some((f) => f.id === feat)) return;
+  save(s, { ...s, feats: [...s.feats, feat] });
+  onFeat?.(feat);
+}
+
+/** Running counts toward achievements, and the count each needs. */
+export type TallyKey = 'fish' | 'wishes' | 'snacks' | 'votes' | 'letters' | 'games' | 'talk' | 'gifts';
+const GOALS: Record<TallyKey, [number, FeatId]> = {
+  fish: [10, 'angler'],
+  wishes: [10, 'lucky'],
+  snacks: [20, 'peckish'],
+  votes: [10, 'voter'],
+  letters: [5, 'postie'],
+  games: [5, 'regular'],
+  talk: [600, 'chatterbox'],
+  gifts: [5, 'generous'],
+};
+
+/** Adds to a count (once per `key`, if one is given, so a reload doesn't count it twice). */
+export function tally(kind: TallyKey, by = 1, key?: string) {
+  const s = useProgress.getState();
+  if (key && s.seen.includes(key)) return;
+  const n = (s.tally[kind] ?? 0) + by;
+  save(s, { ...s, tally: { ...s.tally, [kind]: n }, seen: key ? [...s.seen, key].slice(-400) : s.seen });
+  const [goal, feat] = GOALS[kind];
+  if (n >= goal) earn(feat);
+}
+
 function save(s: Stored, next: Stored) {
   const before = HATS.filter((h) => h.unlocked(s)).map((h) => h.id);
   useProgress.setState(next);
@@ -59,6 +100,12 @@ let onUnlock: ((hat: HatId) => void) | null = null;
 /** Called when something new is unlocked (to say so on screen). */
 export function whenHatUnlocked(fn: (hat: HatId) => void) {
   onUnlock = fn;
+}
+
+let onFeat: ((feat: FeatId) => void) | null = null;
+/** Called when an achievement is earned (to say so on screen). */
+export function whenFeat(fn: (feat: FeatId) => void) {
+  onFeat = fn;
 }
 
 export function hatUnlocked(hat: HatId | null | undefined): boolean {

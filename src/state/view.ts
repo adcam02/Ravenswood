@@ -2,8 +2,8 @@ import { createContext, useContext, useMemo } from 'react';
 import { defaultAlignment, getRole, type Alignment, type Script } from '../data';
 import { useClient } from '../net/client';
 import { useHostNet } from '../net/host';
-import { isTraveller, seatAlignment, useHost } from './host';
-import type { AwakeState, DayTimer, DeathRecord, Execution, GameEnd, Nomination, Phase, Reminder, SlayerShot, TownHall, VoteRecord } from './types';
+import { isTraveller, seatAlignment, useHost, visitFor } from './host';
+import type { AwakeState, DayTimer, DeathRecord, Execution, GameEnd, LetterIn, Nomination, Phase, Reminder, SlayerShot, TownHall, Visit, VoteRecord } from './types';
 import type { Look, TownState, Weather } from '../world/types';
 import { useUI } from './ui';
 
@@ -36,6 +36,8 @@ export interface SeatView {
   look: Look | null;
   /** Wearing a gold star today, for counting the sheep right last night. */
   star: boolean;
+  /** Letters are waiting in their letterbox. */
+  mail: boolean;
 }
 
 export interface View {
@@ -64,6 +66,10 @@ export interface View {
   ended: GameEnd | null;
   /** Every death this game (players get these once it's over). */
   deaths: DeathRecord[];
+  /** Player: the letters that have arrived for them. */
+  letters: LetterIn[];
+  /** Hooded-figure visits tonight: the player's own, if they've been killed; every one, for the Storyteller. */
+  visits: Visit[];
 }
 
 const label = (name: string, i: number) => name || `Seat ${i + 1}`;
@@ -100,6 +106,7 @@ export function useStorytellerView(): View {
         diesAtDawn: g.phase === 'night' && g.nightDeaths.includes(s.id),
         look: s.look,
         star: s.star != null && s.star === g.day,
+        mail: (g.letters ?? []).some((l) => l.to === s.id && l.night > g.day),
       })),
       fabled: g.fabled,
       nomination: g.nomination,
@@ -116,6 +123,8 @@ export function useStorytellerView(): View {
       slayer: g.slayer,
       ended: g.ended,
       deaths: g.deaths,
+      letters: [],
+      visits: g.nightDeaths.map((id) => visitFor(g, id)).filter((x): x is Visit => Boolean(x)),
     }),
     [g, online, slow, hide],
   );
@@ -159,6 +168,7 @@ export function usePlayerView(): View | null {
           diesAtDawn: false,
           look: s.look ?? null,
           star: s.star != null && s.star === pub.day,
+          mail: Boolean(s.mail),
         };
       }),
       fabled: pub.fabled,
@@ -176,6 +186,8 @@ export function usePlayerView(): View | null {
       slayer: pub.slayer ?? [],
       ended: pub.ended ?? null,
       deaths: pub.deaths ?? [],
+      letters: Array.isArray(priv?.letters) ? priv.letters : [],
+      visits: priv?.visit ? [priv.visit] : [],
     };
   }, [pub, priv, clockOffset]);
 }

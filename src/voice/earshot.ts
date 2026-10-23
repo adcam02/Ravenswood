@@ -1,4 +1,4 @@
-import { zoneKind, type PoseState } from '../world/types';
+import { inBooth, zoneKind, type PoseState } from '../world/types';
 
 /** Full volume this close, in metres. */
 const NEAR = 3;
@@ -21,6 +21,10 @@ const atMeeting = (p: PoseState, r: number) => p.zone === 'town' && Math.hypot(p
 export function earshot(me: PoseState, other: PoseState, otherIsStoryteller: boolean, ctx: EarshotContext): number {
   if (otherIsStoryteller && ctx.announce) return 1;
   if (me.zone !== other.zone) return 0;
+  // The confession booth: the two inside hear each other clearly, and nobody else, either way.
+  const booth = inBooth(me.zone, me.x, me.z);
+  if (booth !== inBooth(other.zone, other.x, other.z)) return 0;
+  if (booth) return 1;
   const d = Math.hypot(me.x - other.x, me.z - other.z);
   if (zoneKind(me.zone) !== 'town') {
     // Rooms are small and cosy: everyone inside can hear, a little quieter across the room.

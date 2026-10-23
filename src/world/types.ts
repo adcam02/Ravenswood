@@ -404,6 +404,15 @@ export function zoneKind(zone: ZoneId): ZoneKind {
   return 'town';
 }
 
+/**
+ * The confession booth in the church's front right corner: two closets side by side with a grille between them,
+ * a seat in each. Whoever sits in one hears only whoever sits in the other, and nobody outside hears either.
+ */
+export const BOOTH = { x0: 2.85, x1: 5.85, z0: -8.87, z1: -7.37 };
+export const BOOTH_SEATS: Spot[] = [0, 1].map((i) => ({ x: BOOTH.x0 + 0.75 + i * 1.5, z: -8.12, ry: 0 }));
+export const inBooth = (zone: ZoneId, x: number, z: number): boolean =>
+  zone === 'church' && x > BOOTH.x0 && x < BOOTH.x1 && z > BOOTH.z0 && z < BOOTH.z1;
+
 export const houseZone = (seatId: string): ZoneId => `house:${seatId}`;
 export const cottageZone = (slot: number): ZoneId => `cottage:${slot}`;
 export const cottageSlot = (zone: ZoneId): number | null => (zone.startsWith('cottage:') ? Number(zone.slice(8)) : null);
@@ -450,6 +459,10 @@ export type JobId =
   | 'skimming'
   | 'coin'
   | 'clock'
+  /** Step into one side of the confession booth (or back out). */
+  | 'confess'
+  /** Write a letter and post it in someone's letterbox. */
+  | 'post'
   | 'takeDrink'
   | 'takeBread'
   | 'sleep'

@@ -37,6 +37,9 @@ const ALL = {
   'tavern-inside': 'zone=tavern&t=0',
   'bakery-inside': 'zone=bakery&t=0',
   'church-inside': 'zone=church&t=0',
+  // The confession booth in the front corner, as a player beside it sees it, and closer in.
+  booth: 'zone=church&t=0&x=3.6&z=-6.2&dist=11',
+  'booth-close': 'zone=church&t=0&x=4.3&z=-7.8&dist=5.5&pitch=0.55&yaw=-0.3',
   'house-inside': 'zone=house&t=0',
   'tower-inside': 'zone=tower&t=0&dist=13',
   'tower-inside-close': 'zone=tower&t=0&x=0&z=-1.5&dist=8',

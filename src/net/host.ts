@@ -366,6 +366,9 @@ class HostLink {
       case 'slay':
         p.slay(pid, String(msg.seatId));
         break;
+      case 'letter':
+        link.send({ t: 'posted', ok: p.letter(pid, String(msg.to ?? ''), String(msg.text ?? ''), msg.signed === true) });
+        break;
       case 'oops': {
         // A handful per connection at most: a broken page mustn't bury the Storyteller in notes.
         meta.oops = (meta.oops ?? 0) + 1;

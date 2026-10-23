@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Builder, matte, rng } from '../build';
-import type { ZoneKind } from '../types';
+import { BOOTH, BOOTH_SEATS, type ZoneKind } from '../types';
 import { Paint, pick, shade, smoothMesh } from './kit';
 import {
   BACK_DIAL,
@@ -566,6 +566,7 @@ function church(p: Paint, glow: Builder, r: () => number): THREE.Object3D {
   }
   for (let k = 0; k < 7; k++) p.post('#c9a24f', 0.1, 1.6 + Math.sin((k / 6) * Math.PI) * 1.1, -4.6 + k * 0.24, 0.2, -hd + 0.25, 8);
   p.block(WOOD_DARK, 2.0, 0.2, 0.5, -3.9, 0, -hd + 0.3);
+  confessional(p, glow);
   // Pews, in two columns, facing the altar.
   for (const z of PEW_ROWS) {
     for (const sx of [-1, 1]) {
@@ -607,6 +608,90 @@ function church(p: Paint, glow: Builder, r: () => number): THREE.Object3D {
     }
   }
   return sunbeams;
+}
+
+/**
+ * The confession booth in the front corner: two closets in dark polished wood side by side, open at the top so the
+ * camera can see who's inside, with half doors and red velvet curtains drawn back at the front, a seat in each, and
+ * a latticed grille in the wall between them.
+ */
+function confessional(p: Paint, glow: Builder) {
+  const wood = '#5a3a26';
+  const trim = '#45291a';
+  const panel = shade(wood, 0.07);
+  const velvet = '#7a1f2e';
+  const gold = '#c9a24f';
+  const { x0, x1, z0, z1 } = BOOTH;
+  const cx = (x0 + x1) / 2;
+  const cz = (z0 + z1) / 2;
+  const w = x1 - x0;
+  const d = z1 - z0;
+  const base = 0.08;
+  const top = 2.3;
+  const mid = BOOTH_SEATS[0].x + (BOOTH_SEATS[1].x - BOOTH_SEATS[0].x) / 2;
+  // The plinth it stands on, and the back against the wall.
+  p.block(trim, w + 0.1, base, d + 0.06, cx, 0, cz);
+  p.box(wood, w, top - base, 0.07, cx, base + (top - base) / 2, z0 + 0.035);
+  // The two outer walls, with a raised panel on the outside of each.
+  for (const x of [x0 + 0.04, x1 - 0.04]) {
+    p.box(wood, 0.08, top - base, d, x, base + (top - base) / 2, cz);
+    p.box(panel, 0.1, 0.9, d - 0.4, x, 0.75, cz);
+    p.box(panel, 0.1, 0.7, d - 0.4, x, 1.7, cz);
+  }
+  // The wall between the two sides: solid below and above, a latticed grille at head height between.
+  const gy0 = 1.0;
+  const gy1 = 1.62;
+  const gz0 = cz - 0.36;
+  const gz1 = cz + 0.36;
+  p.box(wood, 0.07, gy0 - base, d, mid, base + (gy0 - base) / 2, cz);
+  p.box(wood, 0.07, top - gy1, d, mid, gy1 + (top - gy1) / 2, cz);
+  p.box(wood, 0.07, gy1 - gy0, gz0 - z0, mid, (gy0 + gy1) / 2, (z0 + gz0) / 2);
+  p.box(wood, 0.07, gy1 - gy0, z1 - gz1, mid, (gy0 + gy1) / 2, (gz1 + z1) / 2);
+  p.box(gold, 0.09, 0.04, gz1 - gz0 + 0.08, mid, gy0, cz);
+  p.box(gold, 0.09, 0.04, gz1 - gz0 + 0.08, mid, gy1, cz);
+  for (const z of [gz0, gz1]) p.box(gold, 0.09, gy1 - gy0, 0.04, mid, (gy0 + gy1) / 2, z);
+  for (let z = gz0 + 0.09; z < gz1 - 0.04; z += 0.09) p.box(trim, 0.03, gy1 - gy0, 0.018, mid, (gy0 + gy1) / 2, z);
+  for (let y = gy0 + 0.09; y < gy1 - 0.04; y += 0.09) p.box(trim, 0.026, 0.018, gz1 - gz0, mid, y, cz);
+  // Posts at the front corners and in the middle (their tops hidden in the cornice), each with a turned finial.
+  for (const x of [x0 + 0.04, mid, x1 - 0.04]) {
+    p.box(trim, 0.14, top - base, 0.14, x, base + (top - base) / 2, z1 - 0.04);
+    p.post(gold, 0.05, 0.06, x, top + 0.08, z1 - 0.04, 10);
+    p.sphere(trim, 0.07, 0.07, 0.07, x, top + 0.19, z1 - 0.04, 10, 7);
+  }
+  // A moulded cornice all round the top (the pieces butt up rather than overlap, so their tops can't flicker), and
+  // a rounded crest on the back with a little gold cross.
+  p.box(trim, w + 0.16, 0.12, 0.16, cx, top + 0.02, z1 - 0.04);
+  p.box(trim, w + 0.16, 0.12, 0.16, cx, top + 0.02, z0 + 0.04);
+  for (const x of [x0 + 0.04, x1 - 0.04]) p.box(trim, 0.16, 0.12, d - 0.24, x, top + 0.02, cz);
+  p.box(trim, 0.12, 0.1, d - 0.24, mid, top + 0.02, cz);
+  p.cyl(wood, 0.55, 0.06, cx, top + 0.08, z0 + 0.03, 20, Math.PI / 2);
+  p.torus(gold, 0.55, 0.025, cx, top + 0.08, z0 + 0.08, 0, 0);
+  p.box(gold, 0.05, 0.36, 0.04, cx, top + 0.3, z0 + 0.09);
+  p.box(gold, 0.22, 0.05, 0.04, cx, top + 0.38, z0 + 0.09);
+  // Each side: a half door with two raised panels and a brass knob, the curtains drawn back, and a seat inside.
+  for (const seat of BOOTH_SEATS) {
+    const left = seat.x < mid ? x0 + 0.11 : mid + 0.04;
+    const right = seat.x < mid ? mid - 0.04 : x1 - 0.11;
+    const dx = (left + right) / 2;
+    const dw = right - left;
+    p.box(wood, dw, 0.86, 0.06, dx, base + 0.43, z1 - 0.06);
+    for (const k of [-1, 1]) p.box(panel, dw / 2 - 0.16, 0.56, 0.02, dx + k * (dw / 4), base + 0.43, z1 - 0.025);
+    p.box(trim, dw, 0.06, 0.09, dx, base + 0.88, z1 - 0.06);
+    p.sphere(gold, 0.035, 0.035, 0.035, dx + dw / 2 - 0.12, base + 0.6, z1 - 0.01, 8, 6);
+    // The curtain rail and the velvet, bunched at each side with a gold tie.
+    p.cyl(gold, 0.018, dw, dx, top - 0.12, z1 - 0.12, 8, 0, 0, Math.PI / 2);
+    for (const k of [-1, 1]) {
+      const fx = dx + k * (dw / 2 - 0.13);
+      for (let f = 0; f < 3; f++) p.cyl(shade(velvet, (f - 1) * 0.05), 0.055, top - 0.2 - base - 0.9, fx + (f - 1) * 0.06 * k, base + 0.9 + (top - 0.2 - base - 0.9) / 2, z1 - 0.13 - f * 0.02, 8);
+      p.torus(gold, 0.09, 0.018, fx, 1.35, z1 - 0.13, Math.PI / 2, 0);
+    }
+    // A bench at the back with a red cushion, where whoever is inside sits facing out.
+    p.block(shade(wood, 0.04), dw - 0.1, 0.36, 0.52, dx, base, seat.z - 0.06);
+    p.box(velvet, dw - 0.2, 0.05, 0.44, dx, base + 0.385, seat.z - 0.06);
+  }
+  // A candle on a bracket on the open side, for the dim corner.
+  p.box(gold, 0.14, 0.03, 0.04, x0 - 0.07, 1.86, z1 - 0.25);
+  candle(p, glow, x0 - 0.12, 1.875, z1 - 0.25, 0.16);
 }
 
 // ---------------------------------------------------------------- the clock tower

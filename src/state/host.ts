@@ -29,12 +29,14 @@ import type {
   GameEnd,
   GameState,
   GrimoireSnapshot,
+  Letter,
   Nomination,
   Phase,
   PrivateState,
   PublicState,
   Seat,
   TownAction,
+  Visit,
   WakeMessage,
   WakePanel,
 } from './types';
@@ -84,6 +86,7 @@ function freshGame(prev?: GameState, keepPlayers = true): GameState {
     dayTimer: null,
     town: prev?.town ?? emptyTown(),
     nightDeaths: [],
+    letters: [],
     slayer: [],
     deaths: [],
     ended: null,
@@ -103,6 +106,7 @@ function loadGame(): GameState | null {
   }
   g.townHall ??= null;
   g.nightDeaths ??= [];
+  g.letters ??= [];
   g.slayer ??= [];
   // A game saved before deaths were logged: those already dead are noted without a day.
   g.deaths ??= g.seats.filter((s) => s.dead).map((s) => ({ seatId: s.id, day: 0, phase: 'day' as const, how: 'other' as const, at: 0 }));
@@ -192,6 +196,7 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
         alignment: g.grimoireRevealed ? seatAlignment(s) : null,
         look: s.look,
         star: s.star ?? null,
+        mail: (g.letters ?? []).some((l) => l.to === s.id && l.night > g.day) || undefined,
       };
     }),
     fabled: g.fabled,
@@ -294,8 +299,31 @@ export function toPrivate(g: GameState, playerId: string): PrivateState {
     wakeSeen: awake?.seen ?? false,
     log: g.wakes.filter((w) => w.to.includes(seat.id)).map(forSeat),
     replies: g.replies.filter((r) => r.seatId === seat.id),
+    letters: (g.letters ?? []).filter((l) => l.to === seat.id && l.night <= g.day).map(({ id, name, text, night, at }) => ({ id, name, text, night, at })),
+    visit: visitFor(g, seat.id),
   };
 }
+
+/** How many ways the hooded figure has of doing it (see the town's night visits). */
+export const VISIT_KINDS = 4;
+
+/**
+ * Killed tonight: the hooded figure's visit to their bedroom. Which way it goes is picked from the seat and the
+ * night, so it stays the same however often it's worked out.
+ */
+export function visitFor(g: GameState, seatId: string): Visit | null {
+  if (g.phase !== 'night' || g.ended || !g.nightDeaths.includes(seatId)) return null;
+  const death = [...g.deaths].reverse().find((d) => d.seatId === seatId && d.phase === 'night');
+  let h = g.day * 7;
+  for (const ch of seatId) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return { id: `${g.day}:${seatId}`, seatId, variant: h % VISIT_KINDS, at: death?.at ?? Date.now() };
+}
+
+/** A letter's longest, and how many a player can post in a day. */
+export const LETTER_MAX = 600;
+export const LETTERS_PER_DAY = 8;
+/** The oldest go once a game has this many. */
+const LETTERS_KEPT = 300;
 
 function votingOrder(seats: Seat[], nomineeId: string): string[] {
   const i = seats.findIndex((s) => s.id === nomineeId);
@@ -1114,6 +1142,23 @@ export const st = {
       const id = uid();
       const real = s.roleId === 'slayer';
       update((g) => void g.slayer.push({ id, by: s.id, target: target.id, at: Date.now(), result: 'pending', real, day: g.day }));
+    },
+    /**
+     * A letter posted in someone's letterbox. By day only, to another seat, a few a day each, and kept short; it
+     * arrives that night. Unsigned letters keep the writer's seat with the game (the Storyteller's) but never send it on.
+     */
+    letter(playerId: string, to: string, text: string, signed: boolean): boolean {
+      const g = hostGame();
+      const s = g.seats.find((x) => x.playerId === playerId);
+      const clean = text.replace(/\r/g, '').trim().slice(0, LETTER_MAX);
+      if (!s || !clean || to === s.id || !seatOf(g, to) || g.phase !== 'day' || g.ended) return false;
+      const today = (g.letters ?? []).filter((l) => l.from === s.id && l.night === g.day + 1).length;
+      if (today >= LETTERS_PER_DAY) return false;
+      const letter: Letter = { id: uid(), from: s.id, to, name: signed ? s.name || 'Someone' : null, text: clean, night: g.day + 1, at: Date.now() };
+      update((g) => {
+        g.letters = [...(g.letters ?? []), letter].slice(-LETTERS_KEPT);
+      });
+      return true;
     },
     /** Whatever a player did around town. Returns an item when it ends up in their paw. */
     town(playerId: string, action: TownAction): Item | null {
