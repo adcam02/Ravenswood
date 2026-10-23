@@ -162,8 +162,6 @@ export function useProgressTracker(view: View | null) {
     const accused = new Set((history ?? []).filter((r) => r.nominatorId === meNow.id).map((r) => r.nomineeId));
     if (nom?.nominatorId === meNow.id) accused.add(nom.nomineeId);
     if (accused.size >= 3) earn('conspiracy');
-    // (Months count from nought: 9 is October.)
-    if (new Date().getMonth() === 9) earn('spooky');
     if (ended) {
       tally('games', 1, `game:${room}:${ended.at}`);
       // Our notepad's guesses against who everyone really was, now it's all out in the open.

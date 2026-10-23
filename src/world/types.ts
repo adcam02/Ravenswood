@@ -281,7 +281,7 @@ export const HATS: { id: HatId; name: string; icon: string; how: string; unlocke
   { id: 'robot', name: 'Robot helmet', icon: '🤖', how: 'Dance for a whole minute without stopping', unlocked: (p) => got(p, 'onemore'), secret: true },
   { id: 'cone', name: 'Traffic cone', icon: '🚧', how: 'Stand perfectly still for five minutes', unlocked: (p) => got(p, 'afk'), secret: true },
   { id: 'mortarboard', name: 'Mortarboard', icon: '🎓', how: 'Get three stars at six different jobs', unlocked: (p) => p.perfect.length >= 6 },
-  { id: 'pumpkin', name: 'Jack-o’-lantern', icon: '🎃', how: 'Play in October', unlocked: (p) => got(p, 'spooky'), secret: true },
+  { id: 'pumpkin', name: 'Jack-o’-lantern', icon: '🎃', how: 'Dance among the graves as a ghost', unlocked: (p) => got(p, 'thriller'), secret: true },
 ];
 
 // ---------------------------------------------------------------- achievements
@@ -322,7 +322,7 @@ export type FeatId =
   | 'boot'
   | 'onemore'
   | 'afk'
-  | 'spooky';
+  | 'thriller';
 
 /**
  * Things to do around Ravenswood, kept in the player's own browser with everything else they've earned. Secret ones
@@ -364,7 +364,7 @@ export const FEATS: { id: FeatId; name: string; icon: string; how: string; secre
   { id: 'boot', name: 'There’s a snake in my boot!', icon: '🥾', how: 'Fish up an old boot', secret: true, hat: 'cowboy' },
   { id: 'onemore', name: 'One more time', icon: '🪩', how: 'Dance for a whole minute without stopping', secret: true, hat: 'robot' },
   { id: 'afk', name: 'AFK', icon: '🚧', how: 'Stand perfectly still for five minutes', secret: true, hat: 'cone' },
-  { id: 'spooky', name: 'Spooky season', icon: '🎃', how: 'Play in October', secret: true, hat: 'pumpkin' },
+  { id: 'thriller', name: 'Thriller', icon: '🧟', how: 'Dance among the graves as a ghost', secret: true, hat: 'pumpkin' },
 ];
 
 /** The weather the Storyteller can call for. */

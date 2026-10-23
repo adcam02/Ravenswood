@@ -170,10 +170,10 @@ async function join(name, animal, color) {
 const players = {};
 let pickerTiles = [];
 let takenTiles = [];
-await check('join: Abbey picks a fox, Colter a shark, Steele a panda', async () => {
+await check('join: Abbey picks a fox, Colter a shark, Steele a penguin', async () => {
   players.abbey = await join('Abbey', 'Fox');
   players.colter = await join('Colter', 'Shark');
-  players.steele = await join('Steele', 'Panda', '#8fc1e8');
+  players.steele = await join('Steele', 'Penguin', '#8fc1e8');
 });
 
 await check('join: every animal is on offer, the kaiju too', async () => {
@@ -223,7 +223,7 @@ await check('join: each animal belongs to one player, even when two pick it at o
 await check('join: the host records everyone’s animals', async () => {
   const seats = await st.evaluate(() => window.__host.getState().g.seats.map((s) => [s.name, s.look?.animal, s.look?.color]));
   const by = Object.fromEntries(seats.map(([n, a, c]) => [n, [a, c]]));
-  expect(by.Abbey?.[0] === 'fox' && by.Colter?.[0] === 'shark' && by.Steele?.[0] === 'panda', JSON.stringify(seats));
+  expect(by.Abbey?.[0] === 'fox' && by.Colter?.[0] === 'shark' && by.Steele?.[0] === 'penguin', JSON.stringify(seats));
   expect(by.Steele?.[1] === '#8fc1e8', `Steele's colour is ${by.Steele?.[1]}`);
 });
 
@@ -336,7 +336,8 @@ await check('booth: the confession booth is private, one to a side', async () =>
   expect(sides.length === 2, `${sides.length} sides to the booth`);
   const step = async (p, side) => {
     await place(p, 'church', side.x, side.z + 0.55, Math.PI);
-    await sleep(500);
+    // (A page only notices the booth's side on its next frame.)
+    await until(p, () => window.__engine.nearStation?.job === 'confess', null, 30000, 'the booth prompt');
     await p.evaluate(() => window.__game.interact());
   };
   const inside = (p) => p.evaluate(() => window.__local.zone === 'church' && window.__local.z < -7.37 && window.__local.x > 2.85);

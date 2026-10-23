@@ -1688,9 +1688,12 @@ export class Engine {
     if (kind === 'town') {
       // The fairy ring, out among the trees.
       if (Math.hypot(local.x - FAIRY_RING.x, local.z - FAIRY_RING.z) < FAIRY_RING.r * 0.75) earn('fairyring');
-      // A ghost wandering among the graves.
+      // A ghost wandering among the graves, and one dancing there.
       const me = v.seats.find((s) => s.id === v.mySeatId);
-      if (me?.dead && Math.abs(local.x - GRAVEYARD.x) < GRAVEYARD.hw + 1 && Math.abs(local.z - GRAVEYARD.z) < GRAVEYARD.hd + 1) earn('haunting');
+      if (me?.dead && Math.abs(local.x - GRAVEYARD.x) < GRAVEYARD.hw + 1 && Math.abs(local.z - GRAVEYARD.z) < GRAVEYARD.hd + 1) {
+        earn('haunting');
+        if (dancing) earn('thriller');
+      }
     }
   }
 
