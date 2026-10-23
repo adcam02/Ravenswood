@@ -17,7 +17,7 @@ import { useVoice, voice, type Listener } from '../voice/voice';
 import { AvatarView, type AvatarInfo } from './avatar';
 import { resolve, turnToward } from './collide';
 import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWorld } from './town';
-import { BED, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, GRAVEYARD, MEETING_CENTRE, RING_ROAD_R, SQUARE_R, STOOL_R, groundAt } from './town/layout';
+import { BED, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, GRAVEYARD, MEETING_CENTRE, RING_ROAD_R, SQUARE_R, STOOL_R, TOWER, groundAt } from './town/layout';
 import { nearPath } from './town/outdoor';
 import { Fireworks } from './fireworks';
 import { reportProblem } from '../lib/report';
@@ -223,6 +223,9 @@ export type Quality = 'high' | 'low';
 const params = new URLSearchParams(location.search);
 /** ?fps=10 caps the frame rate, for tests on machines without a graphics card. */
 const FPS_CAP = Number(params.get('fps')) || 0;
+/** How far round (radians, either way) from the clock tower's side of the meeting circle the meeting shot keeps. */
+const TOWER_CLEAR = 1.1;
+
 /** Test stand-ins skip drawing (see drawless). */
 const DRAW = !drawless();
 
@@ -2127,7 +2130,12 @@ export class Engine {
    */
   private meetingShot(): { pos: THREE.Vector3; look: THREE.Vector3 } {
     const c = MEETING_CENTRE;
-    const out = Math.atan2(local.x - c.x, local.z - c.z);
+    let out = Math.atan2(local.x - c.x, local.z - c.z);
+    // Never from over the clock tower just beyond the circle (it would fill the screen, faded or not): from a stool
+    // on that side, the shot swings round to beside it.
+    const tower = Math.atan2(TOWER.x - c.x, TOWER.z - c.z);
+    const off = Math.atan2(Math.sin(out - tower), Math.cos(out - tower));
+    if (Math.abs(off) < TOWER_CLEAR) out = tower + (off < 0 ? -TOWER_CLEAR : TOWER_CLEAR);
     const zoom = THREE.MathUtils.clamp(this.dist / 14, 0.8, 1.6);
     const key = `${out.toFixed(2)}:${this.camera.aspect.toFixed(2)}:${this.camera.fov}:${zoom.toFixed(2)}`;
     if (this.meetCam?.key === key) return this.meetCam;

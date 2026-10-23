@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { create } from 'zustand';
 import { useProgressTracker, whenFeat, whenHatUnlocked } from '../../game/progress';
 import { useHud } from '../../game/hud';
@@ -133,11 +133,12 @@ export function DayClock() {
 
 /**
  * Hats and achievements just earned, waiting their turn on screen (a town record and a perfect job can land
- * together). Each waits at least this long, and for whatever is happening to finish (a hanging, a visit in the
- * night, a vote, the dawn's "Day 3" title), so it never covers the moment that earned it, or the vote button.
+ * together). They show straight away unless something is happening (a hanging, a visit in the night, a vote, the
+ * dawn's "Day 3" title), so they never cover it or the vote button. One earned by dying (hanged, or killed in the
+ * night) also waits this long, so its player sees the whole thing first.
  */
-const SHOW_AFTER_MS = 8000;
-type Unlock = { kind: 'hat'; id: HatId; at: number } | { kind: 'feat'; id: FeatId; at: number };
+const DEATH_WAIT_MS = 8000;
+type Unlock = ({ kind: 'hat'; id: HatId } | { kind: 'feat'; id: FeatId }) & { at: number; hold: number };
 const useUnlocks = create<{ list: Unlock[] }>(() => ({ list: [] }));
 const queue = (u: Unlock) => useUnlocks.setState((s) => (s.list.some((x) => x.kind === u.kind && x.id === u.id) ? s : { list: [...s.list, u] }));
 const dismiss = () => useUnlocks.setState((s) => ({ list: s.list.slice(1) }));
@@ -145,11 +146,18 @@ const dismiss = () => useUnlocks.setState((s) => ({ list: s.list.slice(1) }));
 /** Players: remembers stars, records, nights and ghostly walks, and makes a moment of each new hat and achievement. */
 export function ProgressWatcher() {
   const view = useView();
+  // When we died, noted as we render (before the tracker below hands out what dying earned).
+  const me = view.seats.find((s) => s.isMe);
+  const wasDead = useRef<boolean | null>(null);
+  const diedAt = useRef(0);
+  if (me && wasDead.current === false && me.dead) diedAt.current = Date.now();
+  if (me) wasDead.current = Boolean(me.dead);
   useProgressTracker(view);
   useEffect(() => {
-    whenHatUnlocked((id) => queue({ kind: 'hat', id, at: Date.now() }));
+    const hold = () => (Date.now() - diedAt.current < 5000 ? DEATH_WAIT_MS : 0);
+    whenHatUnlocked((id) => queue({ kind: 'hat', id, at: Date.now(), hold: hold() }));
     // An achievement that comes with a hat is shown as the hat.
-    whenFeat((id) => !FEATS.find((f) => f.id === id)?.hat && queue({ kind: 'feat', id, at: Date.now() }));
+    whenFeat((id) => !FEATS.find((f) => f.id === id)?.hat && queue({ kind: 'feat', id, at: Date.now(), hold: hold() }));
     return () => {
       whenHatUnlocked(() => {});
       whenFeat(() => {});
@@ -161,7 +169,7 @@ export function ProgressWatcher() {
   const voting = Boolean(view.nomination && view.nomination.status !== 'done');
   const banner = useUI((s) => Boolean(s.banner));
   const [, tick] = useState(0);
-  const wait = next ? next.at + SHOW_AFTER_MS - Date.now() : 0;
+  const wait = next ? next.at + next.hold - Date.now() : 0;
   useEffect(() => {
     if (!next || wait <= 0) return;
     const t = setTimeout(() => tick((n) => n + 1), wait + 50);
