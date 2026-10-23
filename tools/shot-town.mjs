@@ -117,6 +117,12 @@ const ALL = {
   'sway-b': 'x=14&z=-12&t=0&dist=14&sway=6&skip=1.6',
   'golden-horizon': 'x=-10&z=4&t=0&day=0.95&dist=30&pitch=0.22&yaw=1.57',
   ripples: 'x=6.5&z=17.8&t=0&dist=10&ripple&frames=14',
+  // Front doors swung open, as when someone goes in.
+  'door-tavern': 'door=tavern-in&t=0&dist=8&pitch=0.5&yaw=0.5&frames=14',
+  'door-bakery': 'door=bakery-in&t=0&dist=8&pitch=0.5&yaw=-0.5&frames=14',
+  'door-church': 'door=church-in&t=0&dist=9&pitch=0.5&yaw=0.5&frames=14',
+  'door-tower': 'door=tower-in-s&t=0&dist=8&pitch=0.5&yaw=0.5&frames=14',
+  'door-cottage': 'door=house-0&t=0&dist=7&pitch=0.5&yaw=0.5&frames=14',
   'forest-hills': 'x=0&z=-30&t=0&dist=30&pitch=0.35&yaw=3.1',
   'shadow-cottage': 'x=25.6&z=13.6&t=0&dist=9&yaw=0.6',
   // The same view three times, for a steadier build time.

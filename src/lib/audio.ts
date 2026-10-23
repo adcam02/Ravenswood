@@ -79,6 +79,37 @@ export function wakeChime() {
   bell(1318.5, 2.6, 0.05, 0.32);
 }
 
+/** The shop-door chime when someone comes in: a soft "ding-dong", high then low. */
+export function doorChime(volume = 1) {
+  const c = audio();
+  if (!c) return;
+  const t0 = c.currentTime;
+  const out = c.createGain();
+  out.gain.value = 0.16 * volume;
+  out.connect(c.destination);
+  // Each strike: the note, a quiet octave and twelfth over it, ringing away over a second or two.
+  const strike = (freq: number, at: number) => {
+    for (const [ratio, amp, len] of [
+      [1, 1, 1.9],
+      [2, 0.22, 0.9],
+      [3, 0.07, 0.5],
+    ]) {
+      const osc = c.createOscillator();
+      const g = c.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq * ratio;
+      g.gain.setValueAtTime(0.0001, t0 + at);
+      g.gain.exponentialRampToValueAtTime(amp, t0 + at + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + len);
+      osc.connect(g).connect(out);
+      osc.start(t0 + at);
+      osc.stop(t0 + at + len + 0.05);
+    }
+  };
+  strike(659.3, 0);
+  strike(523.3, 0.42);
+}
+
 export function tick() {
   const c = audio();
   if (!c) return;

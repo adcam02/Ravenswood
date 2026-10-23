@@ -64,6 +64,7 @@ import {
 } from './props';
 import { TextSign, signBoard } from './sign';
 import { addSway, type GlowSpot } from './fx';
+import type { DoorSpot } from './doors';
 
 export interface Outdoor {
   group: THREE.Group;
@@ -85,10 +86,12 @@ export interface Outdoor {
   glowSpots: GlowSpot[];
   /** Where birds can sit: ridges, lamp tops and bench backs. */
   perches: THREE.Vector3[];
+  /** The front doors, for swinging open when someone goes in. */
+  doors: DoorSpot[];
 }
 
 /** While the town is being built, lamps, lanterns and windows note where their glow goes, and roofs where birds sit. */
-let collect: { glow: GlowSpot[]; perches: THREE.Vector3[] } | null = null;
+let collect: { glow: GlowSpot[]; perches: THREE.Vector3[]; doors: DoorSpot[] } | null = null;
 const WARM_GLOW = '#ffb453';
 const glowAt = (p: Paint, x: number, y: number, z: number, size: number, color = WARM_GLOW) => {
   if (!collect) return;
@@ -466,7 +469,13 @@ function windowBox(p: Paint, r: () => number, w: number) {
   }
 }
 
+/** A front door that swings open when someone goes in (see doors.ts): `p` at its foot, on the wall. */
+const doorAt = (p: Paint, w: number, h: number, color: THREE.ColorRepresentation, arched: boolean) => {
+  collect?.doors.push({ m: p.m.clone(), w, h, color: `#${new THREE.Color(color).getHexString()}`, arched });
+};
+
 function archedDoor(p: Paint, w: number, h: number, color: THREE.ColorRepresentation, trim: THREE.ColorRepresentation) {
+  doorAt(p, w, h, color, true);
   p.box(trim, w + 0.24, h + 0.1, 0.08, 0, h / 2, 0.02);
   p.cyl(trim, w / 2 + 0.12, 0.08, 0, h, 0.02, 16, Math.PI / 2);
   p.box(color, w, h, 0.1, 0, h / 2, 0.06);
@@ -976,6 +985,7 @@ function cottage(p: Paint, r: () => number, slot: number, smoke: (v: THREE.Vecto
   // The front door: a frame, planks, two cross-battens, hinges, a knob and a letter slot.
   f.box(trim, 1.15, 2.05, 0.06, 0, 1.3, 0.01);
   f.box(door, 0.92, 1.85, 0.1, 0, 1.22, 0.05);
+  doorAt(f.at(0, 0.295, 0), 0.92, 1.85, door, false);
   for (let k = 1; k < 4; k++) f.box(shade(door, -0.16), 0.02, 1.8, 0.02, -0.46 + k * 0.23, 1.22, 0.105);
   f.box(shade(door, -0.1), 0.7, 0.07, 0.04, 0, 1.6, 0.11);
   f.box(shade(door, -0.1), 0.7, 0.07, 0.04, 0, 0.9, 0.11);
@@ -1533,7 +1543,8 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   const smoke = (v: THREE.Vector3) => chimneys.push(v);
   const glowSpots: GlowSpot[] = [];
   const perches: THREE.Vector3[] = [];
-  collect = { glow: glowSpots, perches };
+  const doors: DoorSpot[] = [];
+  collect = { glow: glowSpots, perches, doors };
   // Leaves, grass and reeds sway in the wind.
   const leafMat = addSway(matte());
   const forestMat = addSway(matte(), true);
@@ -1983,6 +1994,6 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   const lampLights = [0, 2, 4, 6].map((i) => new THREE.Vector3(squareLamps[i].x, 2.9, squareLamps[i].z));
 
   collect = null;
-  return { group, colliders, water, clockHands, bell, flag, chimneys, houseSigns, signMaterials, wreaths, pools, lampLights, occluders, glowSpots, perches };
+  return { group, colliders, water, clockHands, bell, flag, chimneys, houseSigns, signMaterials, wreaths, pools, lampLights, occluders, glowSpots, perches, doors };
 }
 

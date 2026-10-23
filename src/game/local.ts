@@ -11,6 +11,10 @@ export const local: PoseState = {
   item: null,
   speaking: false,
   voiceId: null,
+  // (Until the mic is on, nobody can hear us.)
+  muted: true,
+  shout: false,
+  entering: null,
 };
 
 /** Things the HUD shows about the local animal. */

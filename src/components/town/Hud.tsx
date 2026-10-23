@@ -95,8 +95,36 @@ function PeopleVolumes() {
   );
 }
 
+/** Hold to shout: heard much further off out in town (never through walls). Players only; the Storyteller has Announce. */
+function ShoutButton() {
+  const v = useVoice();
+  const can = v.mic === 'on' && !v.muted;
+  const stop = () => voice.setShouting(false);
+  return (
+    <button
+      className={`voice-shout cosy-btn ${v.shouting ? 'live' : ''} ${can ? '' : 'off'}`}
+      onPointerDown={(e) => {
+        if (!can) return;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        voice.setShouting(true);
+      }}
+      onPointerUp={stop}
+      onPointerCancel={stop}
+      onLostPointerCapture={stop}
+      onContextMenu={(e) => e.preventDefault()}
+      title={can ? 'Hold to shout: people much further off can hear you, out in the open (H)' : 'Turn your mic on to shout'}
+      aria-pressed={v.shouting}
+    >
+      <Icon name="megaphone" />
+      <span>{v.shouting ? 'Shouting!' : 'Shout'}</span>
+      <span className="cosy-key">H</span>
+    </button>
+  );
+}
+
 export function VoiceDock() {
   const v = useVoice();
+  const view = useView();
   const hearing = useHud((s) => s.hearing);
   const [open, setOpen] = useState(false);
   const [talking, setTalking] = useState(false);
@@ -112,12 +140,12 @@ export function VoiceDock() {
     return () => window.removeEventListener('pointerdown', close);
   }, [open]);
 
-  const live = v.mic === 'on' && !v.muted && (!v.pushToTalk || v.holding);
+  const live = v.mic === 'on' && !v.muted && (!v.pushToTalk || v.holding || v.shouting);
   let label = 'Turn on mic';
   if (v.mic === 'asking') label = 'Allow the mic…';
   else if (v.mic === 'denied') label = 'Mic blocked';
   else if (v.mic === 'error') label = 'No mic: try again';
-  else if (v.mic === 'on') label = v.muted ? 'Muted' : v.pushToTalk ? (v.holding ? 'Talking' : 'Hold V to talk') : 'Mic on';
+  else if (v.mic === 'on') label = v.muted ? 'Muted' : v.pushToTalk ? (v.holding || v.shouting ? 'Talking' : 'Hold V to talk') : 'Mic on';
 
   return (
     <div className="voice-dock" ref={wrap}>
@@ -132,6 +160,7 @@ export function VoiceDock() {
         <Icon name={v.mic === 'on' && !v.muted ? 'mic' : 'micOff'} />
         <span>{label}</span>
       </button>
+      {view.mode === 'player' && <ShoutButton />}
       <span className={`voice-ears cosy-btn ${hearing ? 'some' : ''}`} title="People close enough to hear you right now (the ones with a speaker by their name)">
         🔊 {hearing}
       </span>
@@ -152,7 +181,8 @@ export function VoiceDock() {
           </label>
           <PeopleVolumes />
           <p className="voice-note">
-            {v.links ? `Connected to ${v.links} ${v.links === 1 ? 'person' : 'people'}.` : 'Nobody else connected yet.'} You hear people close by, and only people in the same building.
+            {v.links ? `Connected to ${v.links} ${v.links === 1 ? 'person' : 'people'}.` : 'Nobody else connected yet.'} You hear people close by, and only people in the same building.{' '}
+            {view.mode === 'player' && <>Hold <span className="cosy-key">H</span> to shout across the open town. </>}
             Headphones stop echo. If you’re also in a Discord call, everyone hears everyone regardless, so leave the voice channel while you play.
           </p>
         </div>
@@ -411,7 +441,7 @@ export function HelpCard() {
           <span className="cosy-key">G</span> give what you’re holding, <span className="cosy-key">Q</span> put it away
         </li>
         <li>
-          <span className="cosy-key">M</span> mute, scroll to zoom in and out
+          <span className="cosy-key">M</span> mute, hold <span className="cosy-key">H</span> to shout, scroll to zoom in and out
         </li>
       </ul>
       <p>Talk out loud: people nearby hear you, and buildings are private.</p>

@@ -3,7 +3,7 @@ import { local } from '../../game/local';
 import { presence } from '../../game/presence';
 import { useView } from '../../state/view';
 import { BAKERY, CHURCH, GALLOWS, GRAVEYARD, MEETING_CENTRE, POND, SQUARE_R, STOOL_R, TAVERN, TOWN_R, WASHHOUSE, WELL, houseSlots } from '../../world/town/layout';
-import { cottageSlot, houseOwner, zoneKind, type Look } from '../../world/types';
+import { cottageSlot, houseOwner, inBooth, zoneKind, type Look } from '../../world/types';
 
 // Twice the first version's size.
 const SIZE = 344;
@@ -34,6 +34,19 @@ function placeOf(zone: string, x: number, z: number, seatIndex: (id: string) => 
       return [x, z];
   }
 }
+
+/** One person's dot. `hidden`: sitting in a confession booth, so a plain grey "?" rather than who it is. */
+interface Marker {
+  look: Look | null;
+  me: boolean;
+  st: boolean;
+  dead: boolean;
+  name: string;
+  hidden: boolean;
+}
+
+/** In a building, at most this many dots side by side; past it, the last one says how many more. */
+const CLUSTER_MAX = 6;
 
 /** A little map of the town with a dot for everyone, so you can see where people are. */
 export function MiniMap() {
@@ -108,34 +121,91 @@ export function MiniMap() {
       ctx.fill();
       for (const h of houseSlots) box(h.x, h.z, 5.2, 4.6, '#d8c8a8', h.ry);
       // Everyone.
-      const dot = (x: number, z: number, look: Look | null, me: boolean, st: boolean, dead: boolean, name: string) => {
-        const cx = px(x);
-        const cz = pz(z);
+      const dot = (cx: number, cz: number, m: Marker, r: number) => {
         ctx.beginPath();
-        ctx.arc(cx, cz, me ? 11 : 9, 0, Math.PI * 2);
-        ctx.fillStyle = st ? '#4b3a6e' : dead ? 'rgba(220, 236, 255, 0.85)' : (look?.color ?? '#ffffff');
+        ctx.arc(cx, cz, m.me ? r + 2 : r, 0, Math.PI * 2);
+        ctx.fillStyle = m.hidden ? '#b9b3a8' : m.st ? '#4b3a6e' : m.dead ? 'rgba(220, 236, 255, 0.85)' : (m.look?.color ?? '#ffffff');
         ctx.fill();
-        ctx.lineWidth = me ? 3.5 : 2;
-        ctx.strokeStyle = me ? '#ff9a62' : st ? '#f6dc93' : '#3a2a20';
+        ctx.lineWidth = m.me ? 3.5 : 2;
+        ctx.strokeStyle = m.me ? '#ff9a62' : m.st && !m.hidden ? '#f6dc93' : '#3a2a20';
         ctx.stroke();
-        ctx.fillStyle = st ? '#f6dc93' : '#1a120c';
-        ctx.font = '600 13px Fredoka, sans-serif';
+        ctx.fillStyle = m.st && !m.hidden ? '#f6dc93' : '#1a120c';
+        ctx.font = `600 ${r > 8 ? 13 : 12}px Fredoka, sans-serif`;
         ctx.textAlign = 'center';
-        ctx.fillText(name.slice(0, 1).toUpperCase(), cx, cz + 4.5);
+        ctx.fillText(m.hidden ? '?' : m.name.slice(0, 1).toUpperCase(), cx, cz + 4.5);
+      };
+      // Several in one building: side by side on it (two rows for a crowd), and a count.
+      const cluster = (x: number, z: number, list: Marker[]) => {
+        if (list.length === 1) return dot(px(x), pz(z), list[0], 9);
+        // We're always among the dots shown, drawn last so we sit on top.
+        const order = [...list.filter((m) => !m.me), ...list.filter((m) => m.me)];
+        const shown = order.length > CLUSTER_MAX ? order.slice(-(CLUSTER_MAX - 1)) : order;
+        const more = order.length - shown.length;
+        const n = shown.length + (more ? 1 : 0);
+        const perRow = n > 3 ? Math.ceil(n / 2) : n;
+        const rows = Math.ceil(n / perRow);
+        const step = 13;
+        const at = (i: number): [number, number] => {
+          const row = Math.floor(i / perRow);
+          const inRow = Math.min(perRow, n - row * perRow);
+          return [px(x) + ((i % perRow) - (inRow - 1) / 2) * step, pz(z) + (row - (rows - 1) / 2) * step];
+        };
+        shown.forEach((m, i) => dot(...at(more ? i + 1 : i), m, 8));
+        if (more) {
+          const [cx, cz] = at(0);
+          ctx.beginPath();
+          ctx.arc(cx, cz, 8, 0, Math.PI * 2);
+          ctx.fillStyle = '#fffaee';
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = '#3a2a20';
+          ctx.stroke();
+          ctx.fillStyle = '#1a120c';
+          ctx.font = '600 10px Fredoka, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(`+${more}`, cx, cz + 3.5);
+        }
+        // The count, on the top right corner of the group.
+        const bx = px(x) + ((perRow - 1) / 2) * step + 9;
+        const bz = pz(z) - ((rows - 1) / 2) * step - 10;
+        ctx.beginPath();
+        ctx.arc(bx, bz, 8.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#d9423a';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#fff';
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = '700 11px Fredoka, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(String(list.length), bx, bz + 4);
       };
       const myKey = mode === 'st' ? 'st' : mySeat.current;
+      const people: { zone: string; x: number; z: number; m: Marker }[] = [];
       for (const [key, p] of presence.others) {
         if (key === myKey) continue;
         const seat = seats.current.find((s) => s.id === key);
         if (key !== 'st' && !seat) continue;
-        const [x, z] = placeOf(p.zone, p.x, p.z, seatIndex);
-        dot(x, z, seat?.look ?? null, false, key === 'st', Boolean(seat?.dead), key === 'st' ? 'S' : (seat?.name ?? '?'));
+        const hidden = mode !== 'st' && inBooth(p.zone, p.x, p.z);
+        people.push({ zone: p.zone, x: p.x, z: p.z, m: { look: seat?.look ?? null, me: false, st: key === 'st', dead: Boolean(seat?.dead), name: key === 'st' ? 'S' : (seat?.name ?? '?'), hidden } });
       }
       if (myKey) {
         const me = seats.current.find((s) => s.id === myKey);
-        const [x, z] = placeOf(local.zone, local.x, local.z, seatIndex);
-        dot(x, z, me?.look ?? null, true, mode === 'st', Boolean(me?.dead), mode === 'st' ? 'S' : (me?.name ?? '?'));
+        people.push({ zone: local.zone, x: local.x, z: local.z, m: { look: me?.look ?? null, me: true, st: mode === 'st', dead: Boolean(me?.dead), name: mode === 'st' ? 'S' : (me?.name ?? '?'), hidden: false } });
       }
+      // Out in town, where they stand (us last, on top); indoors, gathered on the building.
+      const inside = new Map<string, { x: number; z: number; list: Marker[] }>();
+      for (const { zone, x, z, m } of [...people.filter((q) => !q.m.me), ...people.filter((q) => q.m.me)]) {
+        if (zoneKind(zone) === 'town') {
+          dot(px(x), pz(z), m, 9);
+          continue;
+        }
+        const [bx, bz] = placeOf(zone, x, z, seatIndex);
+        const group = inside.get(zone) ?? { x: bx, z: bz, list: [] };
+        group.list.push(m);
+        inside.set(zone, group);
+      }
+      for (const g of inside.values()) cluster(g.x, g.z, g.list);
     };
     draw();
     const t = setInterval(draw, 250);

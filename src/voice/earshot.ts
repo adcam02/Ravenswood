@@ -1,9 +1,11 @@
 import { inBooth, zoneKind, type PoseState } from '../world/types';
 
 /** Full volume this close, in metres. */
-const NEAR = 3;
+const NEAR = 2;
 /** Silent beyond this, out in the town. */
-const FAR = 15;
+export const FAR = 9.5;
+/** A shout carries this many times further out in the open (never through a wall, or into or out of a booth). */
+export const SHOUT = 2.75;
 
 const smooth = (t: number) => t * t * (3 - 2 * t);
 
@@ -31,7 +33,9 @@ export function earshot(me: PoseState, other: PoseState, otherIsStoryteller: boo
     return 1 - 0.4 * smooth(Math.min(1, Math.max(0, (d - 4) / 8)));
   }
   if (ctx.meeting && atMeeting(me, ctx.meetingRadius) && atMeeting(other, ctx.meetingRadius)) return 1;
-  if (d <= NEAR) return 1;
-  if (d >= FAR) return 0;
-  return 1 - smooth((d - NEAR) / (FAR - NEAR));
+  // Someone shouting is heard the same way, only further off.
+  const k = other.shout ? SHOUT : 1;
+  if (d <= NEAR * k) return 1;
+  if (d >= FAR * k) return 0;
+  return 1 - smooth((d - NEAR * k) / ((FAR - NEAR) * k));
 }
