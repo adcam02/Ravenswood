@@ -742,6 +742,8 @@ export class Engine {
       local.ry = ry;
       this.moveTarget = null;
       this.seated = null;
+      // Whatever we were standing at is somewhere else now (the next frame finds what's here).
+      this.nearStation = null;
       this.doorsShutUntil = performance.now() + 700;
       this.showZone();
       if (this.me) {

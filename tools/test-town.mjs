@@ -362,6 +362,8 @@ await check('booth: the confession booth is private, one to a side', async () =>
 // ---------------------------------------------------------------- doors, jobs and items
 
 const stationFor = (p, job) => p.evaluate((job) => window.__engine.town.stations.find((s) => s.job === job), job);
+/** After being put somewhere, a page only notices which station it's at on its next frame: wait for that one. */
+const atStation = (p, job) => until(p, (job) => window.__engine.nearStation?.job === job && document.querySelector('.action-prompt'), job, 30000, `the ${job} prompt`);
 
 await check('doors: walking into the tavern door goes inside', async () => {
   const p = players.abbey;
@@ -449,7 +451,7 @@ await check('jobs: bartending puts a drink on the bar', async () => {
   const s = await stationFor(p, 'bartender');
   expect(s, 'no bartender station');
   await place(p, 'tavern', s.stand.x, s.stand.z, s.stand.ry);
-  await p.waitForSelector('.action-prompt', { timeout: 30000 });
+  await atStation(p, 'bartender');
   await p.keyboard.press('e');
   await p.waitForSelector('.job-dock', { timeout: 60000 });
   await shot(p, '06-bartender-game');
@@ -464,7 +466,7 @@ await check('jobs: the minigame can actually be played (pour)', async () => {
   const p = players.abbey;
   const s = await stationFor(p, 'bartender');
   await place(p, 'tavern', s.stand.x, s.stand.z, s.stand.ry);
-  await p.waitForSelector('.action-prompt', { timeout: 30000 });
+  await atStation(p, 'bartender');
   await p.keyboard.press('e');
   await p.waitForSelector('.job-dock', { timeout: 60000 });
   const before = await st.evaluate(() => window.__host.getState().g.town.drinks.length);
@@ -487,6 +489,7 @@ await check('items: Colter takes a drink from the bar and gives it to Abbey', as
   const s = await stationFor(c, 'takeDrink');
   expect(s, 'no takeDrink station');
   await place(c, 'tavern', s.stand.x, s.stand.z, s.stand.ry);
+  await atStation(c, 'takeDrink');
   await c.waitForSelector('.action-prompt:not(.locked)', { timeout: 30000 });
   await c.keyboard.press('e');
   await until(c, () => window.__local.item, null, 30000, 'a drink in paw');
@@ -510,7 +513,7 @@ for (const [job, where] of [
     const s = await stationFor(p, job);
     expect(s, `no ${job} station`);
     await place(p, where, s.stand.x, s.stand.z, s.stand.ry);
-    await p.waitForSelector('.action-prompt', { timeout: 30000 });
+    await atStation(p, job);
     await p.keyboard.press('e');
     await p.waitForSelector('.job-dock', { timeout: 60000 });
     await sleep(400);
