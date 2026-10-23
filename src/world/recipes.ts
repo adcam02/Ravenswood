@@ -3298,6 +3298,163 @@ const prawn: Recipe = (k, c) => {
   return { aquatic: true };
 };
 
+const meerkat: Recipe = (k, c) => {
+  const pale = mix(c.coat, '#f7ecd6', 0.62);
+  const dark = mix(c.coat, '#2c2019', 0.8);
+  const band = mix(c.coat, '#3a2a1e', 0.22);
+  // A little sentry standing bolt upright on its back legs: a slim body with a pale front, front paws held up under
+  // its chin, a small head tapering to a pointed nose, dark patches round its big eyes, little dark ears low on the
+  // sides of its head, faint dark bands across its back, and a thin tail reaching the ground with a dark tip.
+  k.joints.neck = [0, 0.66, 0.05];
+  k.joints.shoulder = [0.1, 0.55, 0.07];
+  k.joints.hip = [0.08, 0.16, -0.02];
+  k.joints.tail = [0, 0.17, -0.14];
+  torso(k, {
+    belly: [
+      [0, 0.3, -0.01],
+      [0.165, 0.27, 0.155],
+    ],
+    chest: [
+      [0, 0.53, 0.03],
+      [0.12, 0.15, 0.12],
+    ],
+    melt: 0.22,
+  });
+  headForm(k, { r: [0.15, 0.135, 0.15], at: [0, 0.11, 0.05], melt: 0.1 });
+  const snout = snoutForm(k, { dy: -0.24, len: 0.1, ra: 0.075, rb: 0.03, drop: 0.035, squash: [1.05, 0.85, 1], thin: true });
+  earForms(k, { x: 0.86, y: 0.3, w: 0.042, h: 0.05, d: 0.022, round: true, splay: 1.1, rake: 0.05, turn: 0.3 });
+  armForms(k, { len: 0.17, r0: 0.034, r1: 0.028, paw: [0.032, 0.026, 0.036], fwd: 0.6, out: 0.12 });
+  legForms(k, { r0: 0.05, r1: 0.04, foot: [0.045, 0.024, 0.08] });
+  const tailAt = tailForm(k, tailPath(0.44, [0, -0.75, -1], [0.6, 0, 0], 0.045, [1, 0.85, 0.7, 0.55, 0.4]));
+  useSurface(k);
+  eyes(k, { x: 0.42, y: 0.14, size: 0.95, wide: 1, slant: 0.05, color: '#120d0b' });
+  nose(k, '#2a1f1a', onSnout(k, snout.nose), 0.02, 0.016);
+  whiskers(k, c.coat, { len: 0.07 });
+  mouth(k, { w: 0.12, y: -0.52, curve: 0.06, r: 0.0055 });
+  const head = unitOf(k, 'head');
+  // A dark patch round each eye, a teardrop running down and back from it.
+  const patch = (q: Probe) => {
+    const u = head(q);
+    return segDist(Math.abs(u.x), u.y, 0.42, 0.18, 0.62, -0.14).d - 0.2 + (u.z < 0.1 ? 1 : 0);
+  };
+  // Bands across the lower back, wavy and a little broken up.
+  const bands = (q: Probe) => {
+    const w = (q.p.y + 0.015 * Math.sin(q.p.x * 30)) / 0.065;
+    return Math.max(Math.abs(w - Math.round(w)) - 0.2, q.p.z + 0.05, Math.abs(q.p.y - 0.32) - 0.15) * 0.1;
+  };
+  k.marks = {
+    base: c.coat,
+    marks: [
+      { color: dark, f: region(k, 'earL', 'earR') },
+      { color: dark, f: all(region(k, 'head', 'muzzle'), patch) },
+      { color: pale, f: region(k, 'muzzle') },
+      { color: pale, f: all(region(k, 'head'), (q) => 0.25 - head(q).z) },
+      { color: pale, f: frontOval(k, ['belly', 'chest'], 0, 0.36, 0.12, 0.34) },
+      { color: band, f: all(region(k, 'belly', 'chest'), bands) },
+      { color: mix(c.coat, dark, 0.35), f: region(k, 'armLPaw', 'armRPaw', 'legLFoot', 'legRFoot') },
+      { color: dark, f: all(region(k, /^tail\d/), (q) => 0.78 - tailAt(q.p)) },
+    ],
+  };
+  return {};
+};
+
+const skeleton: Recipe = (k, c) => {
+  // (On a dark skeleton, the hollows are pale instead, so they still show.)
+  const dim = luminance(c.coat) < 0.08;
+  const hollow = dim ? mix(c.coat, '#efe8f4', 0.62) : mix(c.coat, '#1c1522', 0.86);
+  const socket = dim ? mix(c.coat, '#efe8f4', 0.42) : mix(c.coat, '#3a3040', 0.84);
+  const gap = dim ? mix(c.coat, '#efe8f4', 0.32) : mix(c.coat, '#3c3048', 0.62);
+  // A friendly little skeleton out of a Halloween storybook: a big round skull with big shiny eyes set in dark
+  // sockets, a little nose hole and a toothy grin, a rib cage over a slender spine, a round pelvis, and thin bony
+  // arms and legs with knobbly joints, ending in bony hands and feet.
+  k.joints.neck = [0, 0.56, 0];
+  k.joints.shoulder = [0.15, 0.5, 0];
+  k.joints.hip = [0.075, 0.17, 0];
+  k.joints.tail = [0, 0.2, -0.1];
+  // (Cut a little finer, for its thin bones.)
+  k.step = 0.03;
+  const sc = sculptOf(k);
+  const n = k.joints.neck;
+  // The rib cage, the spine below it, and the pelvis. (Its summary for dress-up, seats and holding is the cage.)
+  sc.add(ellipsoid('body', [0, 0.42, 0.01], [0.15, 0.135, 0.125], { name: 'ribs' }));
+  sc.add(rod('body', [0, 0.33, -0.03], [0, 0.21, -0.03], 0.042, 0.042, { k: 0.03, name: 'spine' }));
+  sc.add(ellipsoid('body', [0, 0.205, -0.005], [0.115, 0.052, 0.08], { k: 0.035, name: 'pelvis' }));
+  sc.add(rod('neck', [0, n[1] - 0.09, -0.02], [0, n[1] + 0.04, -0.01], 0.036, 0.036, { k: 0.03, name: 'neckBone' }));
+  k.shape.tc = [0, 0.36, 0];
+  k.shape.tr = [0.15, 0.2, 0.125];
+  k.shape.pear = 0;
+  k.front = 0.135;
+  k.seat = 0.14;
+  headForm(k, { r: [0.205, 0.19, 0.19], at: [0, 0.18, 0.01], melt: 0.05 });
+  // Cheekbones, and the jaw: narrower than the skull and a little forward.
+  const hc = plus(n, k.shape.hc);
+  for (const side of [-1, 1]) sc.add(ellipsoid('neck', [side * 0.11, hc[1] - 0.09, hc[2] + 0.1], [0.06, 0.045, 0.06], { k: 0.04, name: side > 0 ? 'cheekL' : 'cheekR' }));
+  sc.add(ellipsoid('neck', [0, hc[1] - 0.14, hc[2] + 0.06], [0.12, 0.07, 0.11], { k: 0.05, name: 'jaw' }));
+  armForms(k, { len: 0.2, r0: 0.026, r1: 0.022, paw: [0.03, 0.034, 0.028], fwd: 0.2, out: 0.2 });
+  for (const nm of ['armL', 'armR']) sc.named(nm)!.k = 0.015;
+  legForms(k, { r0: 0.03, r1: 0.026, foot: [0.045, 0.026, 0.075], fwd: 0.04 });
+  // Knobbly joints: a ball at each shoulder, elbow and knee.
+  const elbow = k.elbow ?? 0.1;
+  for (const side of [-1, 1]) {
+    const L = side > 0 ? 'L' : 'R';
+    const sh: Vec3 = [side * k.joints.shoulder[0], k.joints.shoulder[1], k.joints.shoulder[2]];
+    sc.add(ellipsoid(`arm${L}`, sh, [0.04, 0.04, 0.04], { k: 0.015, name: `shoulder${L}` }));
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(...k.bind!.armL.map((x, i) => (i === 2 ? x * side : x)) as Vec3));
+    const e = new THREE.Vector3(0, -elbow, 0).applyQuaternion(q).add(new THREE.Vector3(...sh));
+    sc.add(ellipsoid(`fore${L}`, v3(e), [0.032, 0.032, 0.032], { k: 0.02, name: `elbow${L}` }));
+    sc.add(ellipsoid(`leg${L}`, [side * k.joints.hip[0], 0.1, k.joints.hip[2] + 0.005], [0.035, 0.035, 0.035], { k: 0.02, name: `knee${L}` }));
+  }
+  useSurface(k);
+  eyes(k, { x: 0.36, y: 0.04, size: 1.45, wide: 1, slant: 0, color: '#120e16' });
+  // A toothy grin: a curved line with little ticks across it.
+  mouth(k, { w: 0.28, y: -0.5, curve: 0.1, r: 0.0055, color: hollow });
+  const nk = new THREE.Vector3(...n);
+  for (let i = -3; i <= 3; i++) {
+    const ux = (i / 3.5) * 0.28;
+    const uy = -0.5 + 0.1 * (ux / 0.28) ** 2;
+    const at = onHead(k, ux, uy).add(nk);
+    const nrm = headNormal(k, ux, uy);
+    piece(k, { bone: 'neck', pts: [at.clone().add(new THREE.Vector3(0, 0.022, 0)).addScaledVector(nrm, -0.002), at.clone().addScaledVector(nrm, 0.002), at.clone().add(new THREE.Vector3(0, -0.022, 0)).addScaledVector(nrm, -0.002)], w: [0, 0.0032, 0], t: [0, 0.0022, 0], across: new THREE.Vector3(1, 0, 0), colors: [hollow, hollow], name: `tooth${i}` });
+  }
+  // Bony fingers: three little bones curling down from each hand.
+  for (const p of k.paws ?? []) {
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(...p.rot));
+    const at = new THREE.Vector3(...p.at);
+    const L = (x: number, y: number, z: number) => at.clone().add(new THREE.Vector3(x, y, z).applyQuaternion(q));
+    for (const f of [-1, 0, 1]) {
+      piece(k, { bone: p.bone, pts: [L(0, -0.015, f * 0.016), L(0.004, -0.045, f * 0.02 + 0.006), L(0.0, -0.068, f * 0.022 + 0.012)], w: [0.008, 0.007, 0], t: [0.008, 0.007, 0], across: new THREE.Vector3(0, 0, 1).applyQuaternion(q), colors: [c.coat, c.coat], name: `finger${p.bone}${f}` });
+    }
+  }
+  // The ribs: shadowed gaps curving round the cage between them, leaving the breastbone down the front and the
+  // spine down the back.
+  for (const y of [0.345, 0.4, 0.455]) {
+    for (const side of [-1, 1]) {
+      const pts = [0.28, 0.6, 0.95, 1.3, 1.65, 2.0, 2.35, 2.7].map((a) => surfaceHit(k, new THREE.Vector3(0, y, 0.01), new THREE.Vector3(side * Math.sin(a), -0.28 * Math.sin(a), Math.cos(a)))?.p);
+      if (pts.every(Boolean)) decalLine(k, { bone: 'body', pts: pts as THREE.Vector3[], w: 0.0095, color: gap });
+    }
+  }
+  const lowRibs = (q: Probe) => {
+    const w = (q.p.y - 0.33 + 0.9 * q.p.x * q.p.x) / 0.06;
+    return Math.max(Math.abs(w - Math.floor(w) - 0.5) - 0.18, 0.03 - Math.abs(q.p.x), q.p.y - 0.48);
+  };
+  const head = unitOf(k, 'head');
+  const face = (f: (u: THREE.Vector3) => number) => all(region(k, 'head'), (q) => {
+    const u = head(q);
+    return u.z < 0 ? 1 : f(u);
+  });
+  k.marks = {
+    base: c.coat,
+    marks: [
+      // Big dark sockets round the eyes, and a little upside-down heart of a nose between them.
+      { color: socket, f: face((u) => Math.hypot(Math.abs(u.x) - 0.36, u.y - 0.04) - 0.33) },
+      { color: hollow, f: face((u) => Math.hypot(Math.abs(u.x) - 0.045, u.y + 0.2) - 0.06 + Math.max(0, u.y + 0.2) * 0.4) },
+      // Far off, where the gaps between the ribs aren't drawn, broad bands painted round the cage instead.
+      ...(isLow() ? [{ color: gap, f: all(region(k, 'ribs'), lowRibs) }] : []),
+    ],
+  };
+  return {};
+};
+
 export const RECIPES: Record<AnimalId, Recipe> = {
   raccoon,
   fox,
@@ -3340,6 +3497,8 @@ export const RECIPES: Record<AnimalId, Recipe> = {
   chameleon,
   whaleshark,
   prawn,
+  meerkat,
+  skeleton,
 };
 
 /** How each species carries itself. Anything left out is the plain default. */
@@ -3428,6 +3587,11 @@ const PROFILES: Partial<Record<AnimalId, Partial<Profile>>> = {
   whaleshark: { lean: 0.03, head: -0.02, gait: 'waddle', cadence: 0.75, stride: 0.6, sit: 'settle', bed: 'side', idles: ['slowBlink', 'tailSwish', 'chill'], tailSway: 0.22 },
   // Scuttles about on quick little steps, claws up, eyes swivelling on their stalks.
   prawn: { lean: 0.02, head: -0.03, paws: 0.12, gait: 'scuttle', cadence: 1.35, stride: 0.6, sit: 'settle', idles: ['stalks', 'rubPaws', 'tailSwish'], tailSway: 0.2 },
+  // Bolt upright with its paws held up under its chin, scurrying about in quick little bursts; every so often it
+  // stands up tall on its toes to keep watch, looking sharply this way and that.
+  meerkat: { lean: -0.04, head: -0.06, paws: 0.17, gait: 'trot', cadence: 1.55, stride: 0.75, sit: 'feet', idles: ['sentinel', 'lookAround', 'sniff', 'sentinel'], tailSway: 0.12 },
+  // A jaunty, loose-limbed little walk; tilts its head, looks about, and has a good stretch now and then.
+  skeleton: { lean: 0, head: -0.03, gait: 'trot', cadence: 1.2, stride: 0.85, sit: 'feet', idles: ['headTilt', 'lookAround', 'stretch'], tailSway: 0 },
 };
 
 /** Finishing touches: toes on the feet, claws, buck teeth. */
@@ -3448,6 +3612,8 @@ export const DETAILS: Partial<Record<AnimalId, Details>> = {
   dragon: { claws: 3 },
   // Two bundles of toes on each foot and hand, for gripping.
   chameleon: { toes: 1, paws: 1 },
+  meerkat: { toes: 2, claws: 3 },
+  skeleton: { toes: 2 },
 };
 
 export function profileOf(id: AnimalId): Profile {

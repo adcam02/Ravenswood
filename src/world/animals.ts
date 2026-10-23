@@ -205,6 +205,7 @@ const CLIP_LEN: Record<Mannerism, number> = {
   wingStretch: 2.8,
   flutter: 2.2,
   lookAround: 3.0,
+  sentinel: 4.2,
 };
 
 const clamp01 = (x: number) => Math.min(1, Math.max(0, x));
@@ -1393,6 +1394,17 @@ class AnimalRig implements Rig {
         P.hry += sin(p * Math.PI * 2) * 0.55 * e;
         P.hrx -= 0.05 * e;
         break;
+      case 'sentinel': {
+        // Up tall on its toes to keep watch: a sharp look one way, then the other, each held a moment, then back.
+        const look = p < 0.25 ? 0 : p < 0.5 ? sd : p < 0.75 ? -sd : 0;
+        P.by += 0.015 * e;
+        P.brx -= 0.07 * e;
+        P.hrx -= 0.06 * e;
+        P.hry += look * 0.75 * e;
+        aux(A, 'earL')[0] -= 0.15 * e;
+        aux(A, 'earR')[0] -= 0.15 * e;
+        break;
+      }
       case 'tailCurl':
         aux(A, 'tail1')[0] -= 0.6 * e;
         aux(A, 'tail2')[0] -= 0.8 * e;

@@ -286,6 +286,32 @@ class Ambience {
     src.start(at, Math.random() * 0.8, len + 0.03);
   }
 
+  /**
+   * A skeleton's bones knocking together as it walks, on top of its footstep: two or three quick hollow knocks, soft
+   * and woody rather than clicky. `volume` is 0 to 1.
+   */
+  rattle(volume = 1) {
+    const ctx = this.ctx;
+    if (!ctx || !this.enabled || volume <= 0) return;
+    const knocks = 2 + Math.floor(Math.random() * 2);
+    let at = ctx.currentTime + 0.03;
+    for (let i = 0; i < knocks; i++) {
+      const f = 480 + Math.random() * 240;
+      const o = ctx.createOscillator();
+      o.type = 'triangle';
+      o.frequency.setValueAtTime(f, at);
+      o.frequency.exponentialRampToValueAtTime(f * 0.7, at + 0.05);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.3 * volume * (1 - i * 0.25), at + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.06);
+      o.connect(g).connect(this.layers.steps);
+      o.start(at);
+      o.stop(at + 0.07);
+      at += 0.045 + Math.random() * 0.03;
+    }
+  }
+
   /** Rain: two bands of noise, a soft hiss and a lower patter. */
   private rainBed() {
     const ctx = this.ctx!;

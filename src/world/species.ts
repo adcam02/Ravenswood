@@ -179,7 +179,8 @@ export type Mannerism =
   | 'chill'
   | 'wingStretch'
   | 'flutter'
-  | 'lookAround';
+  | 'lookAround'
+  | 'sentinel';
 
 export interface Profile {
   /** Forward lean of the body when standing (radians), and the head's pitch and roll on top of it. */

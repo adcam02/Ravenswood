@@ -1,11 +1,11 @@
-// A test bench for the animals: open /dev/animals.html?view=grid|close|poses|items|ghosts|hats&animal=fox
+// A test bench for the animals: open /dev/animals.html?view=grid|close|poses|items|ghosts|hats|colors&animal=fox
 // Add &hat=crown to put a hat on every animal, &detail=low for the distant versions.
 import * as THREE from 'three';
 import { animalThumbnail, buildAnimal, buildPet, buildStoryteller, type Pet, type Rig } from '../src/world/animals';
 import { buildHat } from '../src/world/hats';
 import { buildItem } from '../src/world/items';
 import { audit, resetAudit } from '../src/world/paper';
-import { ANIMALS, HATS, PETS, type Anim, type AnimalId, type HatId, type ItemKind, type Look } from '../src/world/types';
+import { ANIMALS, EXTRA_COLORS, HATS, PETS, type Anim, type AnimalId, type HatId, type ItemKind, type Look, type PetId } from '../src/world/types';
 
 const q = new URLSearchParams(location.search);
 const view = q.get('view') ?? 'grid';
@@ -246,6 +246,16 @@ if (view === 'grid' || view === 'night') {
   ortho.lookAt(0, 0.55, 0);
   ortho.updateMatrixWorld();
   orthoCam = ortho;
+} else if (view === 'colors') {
+  // One animal (?animal=) in every colour it can be: its own ones first, then the shared ones, turned ?ry=.
+  const id = (q.get('animal') ?? 'fox') as AnimalId;
+  const colors = [...ANIMALS.find((a) => a.id === id)!.colors, ...EXTRA_COLORS];
+  const cols = 9;
+  colors.forEach((color, i) => {
+    place(make({ animal: id, color }), ((i % cols) - (cols - 1) / 2) * 1.05, Math.floor(i / cols) * 1.5 - 0.75, 'idle', 0, Number(q.get('ry') ?? 0.5));
+  });
+  camera.position.set(0, 3.2, 8.6);
+  camera.lookAt(0, 0.45, 0);
 } else if (view === 'itemgrid') {
   // Every named animal holding every named item: columns are each animal from the front and three-quarter
   // (?ry=0,0.7), rows are the items, seen square-on from above and in front (no perspective, so every row
