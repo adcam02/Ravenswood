@@ -320,6 +320,19 @@ export function composition(players: number): Composition | null {
   return { townsfolk, outsider, minion, demon };
 }
 
+/**
+ * Characters this town keeps out of small games, with the fewest players each needs: the Fang Gu only plays with 7
+ * or more. Below that they can't go in the bag, and no random setup picks them.
+ */
+export const MIN_PLAYERS: Record<string, number> = { fanggu: 7 };
+
+/** Why this character is kept out of a game with this many players (not counting Travellers), or null if it isn't. */
+export function tooFewFor(roleId: string, players: number): string | null {
+  const min = MIN_PLAYERS[roleId];
+  if (!min || players >= min) return null;
+  return `The ${getRole(roleId)?.name ?? 'character'} is kept out of games with ${min - 1} or fewer players, and this one has ${players}.`;
+}
+
 export function setupNote(role: Role): string | null {
   if (!role.setup) return null;
   const m = role.ability.match(/\[([^\]]+)\]\s*$/);

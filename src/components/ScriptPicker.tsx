@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
-import { EDITIONS, editionLogo, editionScript, getRole, parseScript, type Script } from '../data';
+import { EDITIONS, editionLogo, editionScript, getRole, MIN_PLAYERS, parseScript, tooFewFor, type Script } from '../data';
 import { loadJSON, saveJSON } from '../lib/util';
-import { st, useHost } from '../state/host';
+import { setupPlayers, st, useHost } from '../state/host';
 import { ui } from '../state/ui';
 import { Icon } from './Icon';
 import { Modal } from './Modal';
@@ -18,8 +18,17 @@ function counts(script: Script) {
   return `${t.townsfolk} Townsfolk · ${t.outsider} Outsiders · ${t.minion} Minions · ${t.demon} Demons`;
 }
 
+/** What a game this small leaves out of a script (the Fang Gu with 6 or fewer players), to say so on its card. */
+function leftOut(script: Script, players: number): string | null {
+  const ids = script.roles.filter((id) => tooFewFor(id, players));
+  if (!ids.length) return null;
+  const names = ids.map((id) => getRole(id)?.name ?? id).join(', ');
+  return `With ${players} players, the ${names} stays out (it needs ${Math.min(...ids.map((id) => MIN_PLAYERS[id]))} or more).`;
+}
+
 export function ScriptModal() {
   const current = useHost((s) => s.g.script);
+  const players = useHost((s) => setupPlayers(s.g));
   const [text, setText] = useState('');
   const [error, setError] = useState('');
   const [parsed, setParsed] = useState<Script | null>(null);
@@ -64,6 +73,7 @@ export function ScriptModal() {
               <strong>{ed.name}</strong>
               <p>{ed.blurb}</p>
               <span>{counts(script)}</span>
+              {leftOut(script, players) && <em className="edition-note">{leftOut(script, players)}</em>}
             </button>
           );
         })}
@@ -111,6 +121,7 @@ export function ScriptModal() {
             <>
               <span className="parsed">
                 <b>{parsed.name}</b> · {counts(parsed)}
+                {leftOut(parsed, players) && <em className="edition-note"> {leftOut(parsed, players)}</em>}
               </span>
               <button className="btn primary" onClick={() => use(parsed)}>
                 Use this script

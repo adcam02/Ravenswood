@@ -5,6 +5,7 @@ import {
   getRole,
   rolesByTeam,
   setCustomRoles,
+  tooFewFor,
   type Alignment,
   type Script,
 } from '../data';
@@ -152,6 +153,9 @@ export function majorityOf(seats: { dead: boolean }[]): number {
 export function isTraveller(roleId: string | null | undefined): boolean {
   return getRole(roleId)?.team === 'traveller';
 }
+
+/** Players for setting up: every seat but the Travellers'. */
+export const setupPlayers = (g: { seats: { roleId: string | null }[] }): number => g.seats.filter((s) => !isTraveller(s.roleId)).length;
 
 export function seatAlignment(s: Seat): Alignment | null {
   return s.alignment ?? defaultAlignment(getRole(s.roleId)?.team);
@@ -496,7 +500,7 @@ function suggestShown(g: GameState, seat: Seat): string | null {
   if (seat.roleId === 'marionette') return pickRandom([...unused('townsfolk'), ...unused('outsider')]);
   if (seat.roleId === 'lunatic') {
     const demon = g.seats.find((s) => getRole(s.roleId)?.team === 'demon');
-    return demon?.roleId ?? pickRandom(byTeam.demon.map((r) => r.id));
+    return demon?.roleId ?? pickRandom(byTeam.demon.map((r) => r.id).filter((id) => !tooFewFor(id, setupPlayers(g))));
   }
   return null;
 }
@@ -905,8 +909,9 @@ export const st = {
   setBag(ids: string[]) {
     update((g) => void (g.bag = ids));
   },
+  /** Puts a character in the bag, unless it's kept out of games this small (the Fang Gu with 6 or fewer). */
   addToBag(id: string) {
-    update((g) => void g.bag.push(id));
+    update((g) => void (!tooFewFor(id, setupPlayers(g)) && g.bag.push(id)));
   },
   removeFromBag(id: string) {
     update((g) => {
@@ -914,9 +919,13 @@ export const st = {
       if (i >= 0) g.bag.splice(i, 1);
     });
   },
-  /** Hand the bag out at random to every seat that isn't a traveller. */
+  /**
+   * Hand the bag out at random to every seat that isn't a traveller. Not while the bag holds a character kept out of
+   * games this small (the seats went down after it was filled): the bag says so, and offers to swap it.
+   */
   dealRandom() {
     update((g) => {
+      if (g.bag.some((id) => tooFewFor(id, setupPlayers(g)))) return;
       const seats = g.seats.filter((s) => !isTraveller(s.roleId));
       const bag = shuffle(g.bag).slice(0, seats.length);
       seats.forEach((s, i) => {

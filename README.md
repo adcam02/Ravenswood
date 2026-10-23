@@ -153,7 +153,10 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      keeps each player's alignment). When a Demon dies at night that could hand on (the Imp, the Fang
      Gu), the end-of-game question offers who takes over instead. The real Goblin's seat menu has
      **Claimed to be the Goblin**, and a claimed Goblin who's executed that day suggests evil wins. The
-     Godfather's and Fang Gu's Outsider counts are allowed for in the bag.
+     Godfather's and Fang Gu's Outsider counts are allowed for in the bag. The Fang Gu stays out of
+     games with 6 or fewer players: it can't go in the bag, random bags never pick it, and the bag and
+     the script picker say why. If seats go after it's in the bag, the bag says so and offers to swap
+     it for another Demon (trading its extra Outsider back for a Townsfolk).
    - **Waking someone at night** drifts you to their bedside; the player sees a dream bubble beside
      their bed and you're told when they've read it.
    - **Around town**: signs float over the things to do, the well gives water, the noticeboard has the
