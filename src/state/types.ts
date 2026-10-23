@@ -49,6 +49,19 @@ export interface Nomination {
   secondsPerPlayer: number;
 }
 
+/** A player asking to nominate someone. The Storyteller runs nominations, so they start it (or don't). */
+export interface NominationRequest {
+  id: string;
+  /** Seat ids: who wants to nominate, and whom. */
+  by: string;
+  target: string;
+  day: number;
+  at: number;
+  status: 'pending' | 'started' | 'declined' | 'withdrawn';
+  /** Why it didn't go ahead, when another nomination got there first. */
+  note?: string;
+}
+
 export interface VoteRecord {
   id: string;
   day: number;
@@ -128,7 +141,7 @@ export interface TownHall {
   at: number;
   /** Bumped by "ring again", which only alerts players who aren't back yet. */
   ring: number;
-  /** Seats whose player has reached the square. */
+  /** Seats whose player has sat down on their own stool. */
   back: string[];
   /**
    * Everyone has arrived (or the Storyteller stopped the bell): the bell stops, but the meeting goes on,
@@ -237,6 +250,8 @@ export interface GameState {
   nomination: Nomination | null;
   marked: { seatId: string; votes: number } | null;
   history: VoteRecord[];
+  /** Players asking to nominate today, oldest first. */
+  nomRequests?: NominationRequest[];
   townHall: TownHall | null;
   execution: Execution | null;
   /** The weather the Storyteller has called for. */
@@ -345,6 +360,8 @@ export interface PrivateState {
   visit?: Visit | null;
   /** Pigeons that have come for this seat lately: who sent each, and where they said they were. */
   pigeons?: { id: string; name: string; where: string; at: number }[];
+  /** This seat's own requests to nominate today, and what came of them. */
+  nomRequests?: NominationRequest[];
 }
 
 // ---------------------------------------------------------------- messages
@@ -376,10 +393,14 @@ export type HostMessage =
   | { t: 'gift'; item: Item; from: string | null }
   /** The Storyteller calls this player over: they're brought to stand beside the Storyteller. */
   | { t: 'summon'; zone: string; x: number; z: number }
+  /** The Storyteller seats this player on their stool at the meeting (they hadn't answered the bell). */
+  | { t: 'seat' }
   /** That animal is already someone else's (or being chosen by them): pick another. */
   | { t: 'taken'; animal: string; by: string }
   /** Whether the letter just posted went in (it can't by night, or past the day's limit). */
   | { t: 'posted'; ok: boolean }
+  /** Whether the request to nominate just sent reached the Storyteller, or why not. */
+  | { t: 'nominated'; ok: boolean; why?: string }
   /** Whether the pigeon just sent took off (they only fly by day, and need a rest between flights). */
   | { t: 'pigeoned'; ok: boolean; why?: string }
   /** `at` is the ping's own time, sent back so the player can tell how long the round trip took. */
@@ -405,6 +426,9 @@ export type ClientMessage =
   | { t: 'give'; to: string; item: Item }
   /** Claim to be the Slayer and choose this seat. */
   | { t: 'slay'; seatId: string }
+  /** Ask the Storyteller to start a nomination of this seat, or take back a request still waiting. */
+  | { t: 'nominate'; seatId: string }
+  | { t: 'withdrawNomination'; id: string }
   /** Post a letter in someone's letterbox (by day), signed or not. */
   | { t: 'letter'; to: string; text: string; signed: boolean }
   /** Send a messenger pigeon to someone: "<name> wants to speak to you", and where the sender is. */

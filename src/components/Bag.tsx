@@ -10,10 +10,14 @@ import {
   rolesByTeam,
   setupNote,
   TEAM_LABEL,
+  TEAM_SINGULAR,
+  tooFewFor,
+  MIN_PLAYERS,
   type Team,
 } from '../data';
 import { shuffle } from '../lib/util';
-import { disguise, DISGUISED, heldRole, isTraveller, NEEDS_SHOWN, st, useHost } from '../state/host';
+import { disguise, DISGUISED, heldRole, isTraveller, NEEDS_SHOWN, setupPlayers, st, underway, useHost } from '../state/host';
+import type { GameState } from '../state/types';
 import { ui } from '../state/ui';
 import { CharacterGrid } from './CharacterGrid';
 import { Icon } from './Icon';
@@ -75,10 +79,15 @@ function Fill() {
   const notes = [...new Set(g.bag)].map((id) => getRole(id)).filter((r) => r && setupNote(r));
   const disguised = [...new Set(g.bag)].filter((id) => DISGUISED[id]).map((id) => getRole(id)!);
   const byTeam = rolesByTeam(g.script.roles);
+  // Characters kept out of games this small (the Fang Gu with 6 or fewer): greyed out, with the reason.
+  const small = g.script.roles.filter((id) => tooFewFor(id, players));
+  const tags = Object.fromEntries(small.map((id) => [id, `${MIN_PLAYERS[id]}+ players`]));
 
   const toggle = (id: string) => {
     const role = getRole(id);
-    if (counts[id] && !canDuplicate(role)) st.removeFromBag(id);
+    const why = tooFewFor(id, players);
+    if (counts[id] && (!canDuplicate(role) || why)) st.removeFromBag(id);
+    else if (why) ui.toast(why, 'info');
     else st.addToBag(id);
   };
 
@@ -127,8 +136,15 @@ function Fill() {
           </button>
         </div>
       </div>
-      {notes.length + disguised.length > 0 && (
+      <SmallGame />
+      {notes.length + disguised.length + small.length > 0 && (
         <div className="setup-notes">
+          {small.map((id) => (
+            <span key={id} className="setup-note">
+              <Token roleId={id} label={false} /> <b>{getRole(id)?.name}</b> stays out of games with {MIN_PLAYERS[id] - 1} or fewer players, so
+              it can’t go in the bag with {players}.
+            </span>
+          ))}
           {notes.map((r) => (
             <span key={r!.id} className="setup-note">
               <Token roleId={r!.id} label={false} /> <b>{r!.name}</b> {setupNote(r!)}
@@ -147,6 +163,8 @@ function Fill() {
         counts={counts}
         onPick={toggle}
         onSecondary={st.removeFromBag}
+        dimmed={new Set(small)}
+        tags={tags}
         size={84}
         teams={['townsfolk', 'outsider', 'minion', 'demon']}
         teamExtra={(team) => (byTeam[team].length ? <TeamCount team={team} /> : null)}
@@ -170,10 +188,12 @@ function TeamCount({ team }: { team: Team }) {
 /** Fills the bag at random to the right counts, honouring setup characters like the Baron. */
 export function randomBag() {
   const g = useHost.getState().g;
-  const players = g.seats.filter((s) => !isTraveller(s.roleId)).length;
+  const players = setupPlayers(g);
   const base = composition(players);
   if (!base) return;
-  const byTeam = rolesByTeam(g.script.roles);
+  // Never anything kept out of a game this small (the Fang Gu with 6 or fewer).
+  const byTeam = rolesByTeam(g.script.roles.filter((id) => !tooFewFor(id, players)));
+  if (!byTeam.demon.length) ui.toast('This script has no Demon for a game this small, so the bag has none: choose one yourself.', 'info');
   for (let attempt = 0; attempt < 30; attempt++) {
     const bag: string[] = [];
     const demon = shuffle(byTeam.demon)[0];
@@ -188,6 +208,81 @@ export function randomBag() {
     st.setBag(bag);
     return;
   }
+}
+
+/**
+ * Characters in the bag, or handed out, that a game this small keeps out: until the first night (after that, a
+ * Fang Gu's jump is part of the game).
+ */
+function smallGameBan(g: GameState): string[] {
+  if (underway(g)) return [];
+  const players = setupPlayers(g);
+  return [...new Set([...g.bag, ...g.seats.map((s) => s.roleId)])].filter((id): id is string => Boolean(id && tooFewFor(id, players)));
+}
+
+/**
+ * The seats went down after the bag was filled, and now it holds a character kept out of games this small (the Fang
+ * Gu with 6 or fewer). Says so, and offers to swap it for another of its kind.
+ */
+function SmallGame() {
+  const g = useHost((s) => s.g);
+  const banned = smallGameBan(g);
+  if (!banned.length) return null;
+  const players = setupPlayers(g);
+  return (
+    <div className="bag-banned">
+      {banned.map((id) => {
+        const role = getRole(id);
+        const who = g.seats.flatMap((s, i) => (s.roleId === id ? [s.name || `Seat ${i + 1}`] : []));
+        return (
+          <p key={id}>
+            <Token roleId={id} label={false} />
+            <span>
+              <b>{role?.name}</b> is {who.length ? `with ${who.join(', ')}` : 'in the bag'}, but it stays out of games with {(MIN_PLAYERS[id] ?? 1) - 1}{' '}
+              or fewer players, and there are only {players} now.
+            </span>
+            <button className="btn small" onClick={() => swapOut(id)}>
+              <Icon name="shuffle" /> Swap for another {role ? TEAM_SINGULAR[role.team] : 'character'}
+            </button>
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Swaps a character a small game keeps out for another of its team from the script, in the bag and on any seat
+ * that has it. Its setup change goes with it (the Fang Gu's extra Outsider), so before anything is handed out,
+ * Outsiders and Townsfolk in the bag are traded to put the counts right again (after, the tallies show it).
+ */
+function swapOut(id: string) {
+  const g = useHost.getState().g;
+  const players = setupPlayers(g);
+  const role = getRole(id);
+  if (!role) return;
+  const byTeam = rolesByTeam(g.script.roles.filter((x) => !tooFewFor(x, players)));
+  const next = shuffle(byTeam[role.team].map((r) => r.id).filter((x) => !g.bag.includes(x)))[0] ?? null;
+  let bag = g.bag.filter((x) => x !== id);
+  if (next) bag.push(next);
+  const base = composition(players);
+  if (base && !g.seats.some((s) => s.roleId)) {
+    const count = (team: string) => bag.filter((x) => getRole(x)?.team === team).length;
+    const target = adjustedComposition(base, bag, { outsider: count('outsider') });
+    const unused = (team: 'townsfolk' | 'outsider') => shuffle(byTeam[team].map((r) => r.id).filter((x) => !bag.includes(x)));
+    // Too many Outsiders now: one back for a Townsfolk, and the other way round.
+    while (count('outsider') > target.outsider && unused('townsfolk').length) {
+      const out = shuffle(bag.filter((x) => getRole(x)?.team === 'outsider'))[0];
+      bag = [...bag.filter((x) => x !== out), unused('townsfolk')[0]];
+    }
+    while (count('outsider') < target.outsider && unused('outsider').length && count('townsfolk') > 0) {
+      const tf = shuffle(bag.filter((x) => getRole(x)?.team === 'townsfolk'))[0];
+      bag = [...bag.filter((x) => x !== tf), unused('outsider')[0]];
+    }
+  }
+  st.setBag(bag);
+  for (const s of g.seats) if (s.roleId === id) st.setRole(s.id, next);
+  ui.toast(next ? `Swapped the ${role.name} for the ${getRole(next)?.name}.` : `Took the ${role.name} out. The script has nothing else to swap in.`, 'info');
 }
 
 function FillFooter({ onNext }: { onNext: () => void }) {
@@ -235,6 +330,8 @@ function Deal() {
   const clickTray = (roleId: string) => {
     const target = selected ?? seats.find((s) => !s.roleId)?.id;
     if (!target) return;
+    const why = tooFewFor(roleId, setupPlayers(g));
+    if (why) return ui.toast(why, 'info');
     st.setRole(target, roleId);
     setSelected(null);
   };
@@ -244,8 +341,9 @@ function Deal() {
 
   return (
     <div className="deal">
+      <SmallGame />
       <div className="deal-bar">
-        <button className="btn" onClick={() => (st.dealRandom(), setSelected(null))} disabled={!g.bag.length}>
+        <button className="btn" onClick={() => (st.dealRandom(), setSelected(null))} disabled={!g.bag.length || smallGameBan(g).length > 0}>
           <Icon name="shuffle" /> Deal at random
         </button>
         <button className="btn quiet" onClick={() => (st.clearRoles(), setSelected(null))} disabled={!assigned.length}>

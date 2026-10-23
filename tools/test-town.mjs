@@ -704,7 +704,11 @@ await check('game: ringing the bell gathers everyone at the square', async () =>
   await st.evaluate(() => window.__st.st.callTownHall());
   await shot(players.abbey, '16-bell');
   for (const p of all()) await until(p, () => window.__sawBell, null, 20000, 'to see the bell call');
-  // Everyone is taken to their stool on their own; the host sees them arrive.
+  // Nobody is taken anywhere until they choose to go: a few seconds on, everyone is still where they were.
+  await sleep(3500);
+  for (const p of all()) expect(!(await p.evaluate(() => window.__hud.getState().meetingSeated)), `${p.label} was sat down without choosing to go`);
+  // Each answers it with "Take my seat", which takes them to their stool; the host sees them sit down.
+  for (const p of all()) await p.$eval('.bell-call .bell-actions .cosy-btn.primary', (el) => el.click()).catch(() => {});
   for (const p of all()) await until(p, () => window.__hud.getState().meetingSeated, null, 30000, 'to be seated at the meeting');
   // Once everyone is there the bell stops, but the meeting (and the stools) carry on.
   await until(st, () => Boolean(window.__host.getState().g.townHall?.gathered), null, 60000, 'everyone to arrive at the square');

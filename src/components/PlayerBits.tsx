@@ -4,6 +4,7 @@ import { ui, useUI, type Panel } from '../state/ui';
 import { useView } from '../state/view';
 import { Icon, type IconName } from './Icon';
 import { RichText } from './RichText';
+import { nominateButton } from './Nominate';
 import { slayerButton } from './Slayer';
 import { Token } from './Token';
 
@@ -94,6 +95,7 @@ export function PlayerRail() {
   const muted = useUI((s) => s.muted);
   const me = view.seats.find((s) => s.isMe);
   const slayer = slayerButton(view);
+  const nominate = nominateButton(view);
   const open = (p: Exclude<Panel, null>) => () => ui.togglePanel(p);
   const items: { key: string; icon: IconName; label: string; on?: boolean; disabled?: boolean; action: () => void }[] = [
     {
@@ -107,6 +109,18 @@ export function PlayerRail() {
     { key: 'notes', icon: 'notepad', label: 'Notepad', on: panel === 'notes', action: open('notes') },
     { key: 'journal', icon: 'scroll', label: 'Storyteller info', on: panel === 'journal', action: open('journal') },
     { key: 'history', icon: 'vote', label: 'Votes', on: panel === 'history', action: open('history') },
+    // By day, for the living: once a day, for the Storyteller to start.
+    ...(nominate.show
+      ? [
+          {
+            key: 'nominate',
+            icon: 'point' as const,
+            label: nominate.waiting ? 'Waiting…' : nominate.why ? 'Nominated' : 'Nominate',
+            disabled: Boolean(nominate.why && !nominate.waiting),
+            action: () => ui.open({ kind: 'nominate' }),
+          },
+        ]
+      : []),
     { key: 'pigeon', icon: 'bird', label: 'Pigeon', disabled: view.phase === 'night', action: () => ui.open({ kind: 'pigeon' }) },
     { key: 'awards', icon: 'trophy', label: 'Awards', action: () => ui.open({ kind: 'awards' }) },
     // Anyone can claim to be the Slayer, once a game, when the script has one.

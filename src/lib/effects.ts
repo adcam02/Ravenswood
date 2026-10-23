@@ -60,6 +60,8 @@ export function useEffects(view: View | null) {
         const before = p.seats.find((x) => x.id === s.id);
         if (s.claimed && (!before || !before.claimed)) ui.toast(`${s.label} has arrived in town`, 'info');
       }
+      // A player has nominated someone: a chime, so the Storyteller looks up at the prompt.
+      if (view.nomRequests.some((r) => r.status === 'pending' && !p.nomRequests.some((x) => x.id === r.id))) wakeChime();
     }
     if (view.grimoireRevealed && !p.grimoireRevealed) ui.banner('The grimoire is revealed', 'Every character, face up');
     // A new town record is news for everyone.

@@ -5,6 +5,7 @@ import {
   getRole,
   rolesByTeam,
   setCustomRoles,
+  tooFewFor,
   type Alignment,
   type Script,
 } from '../data';
@@ -31,6 +32,7 @@ import type {
   GrimoireSnapshot,
   Letter,
   Nomination,
+  NominationRequest,
   Pigeon,
   Phase,
   PrivateState,
@@ -38,6 +40,7 @@ import type {
   Seat,
   TownAction,
   Visit,
+  VoteRecord,
   WakeMessage,
   WakePanel,
   WakeReply,
@@ -82,6 +85,7 @@ function freshGame(prev?: GameState, keepPlayers = true): GameState {
     nomination: null,
     marked: null,
     history: [],
+    nomRequests: [],
     townHall: null,
     execution: null,
     weather: prev?.weather ?? 'clear',
@@ -108,6 +112,7 @@ function loadGame(): GameState | null {
     g.nomination.status = g.nomination.step > 0 ? 'paused' : 'idle';
   }
   g.townHall ??= null;
+  g.nomRequests ??= [];
   g.nightDeaths ??= [];
   g.letters ??= [];
   g.pigeons ??= [];
@@ -147,6 +152,9 @@ export function majorityOf(seats: { dead: boolean }[]): number {
 export function isTraveller(roleId: string | null | undefined): boolean {
   return getRole(roleId)?.team === 'traveller';
 }
+
+/** Players for setting up: every seat but the Travellers'. */
+export const setupPlayers = (g: { seats: { roleId: string | null }[] }): number => g.seats.filter((s) => !isTraveller(s.roleId)).length;
 
 export function seatAlignment(s: Seat): Alignment | null {
   return s.alignment ?? defaultAlignment(getRole(s.roleId)?.team);
@@ -242,6 +250,66 @@ export const underway = (g: { revealed: boolean; phase: Phase; day: number }) =>
 /** Whether a player can claim to be the Slayer right now: the script has one, and it's a day of the game. */
 export function slayerOpen(g: { script: { roles: string[] }; phase: Phase; day: number; ended?: GameEnd | null }): boolean {
   return g.script.roles.includes('slayer') && g.phase === 'day' && g.day > 0 && !g.ended;
+}
+
+/** Players can ask to nominate by day, once the game is under way, until it's over. */
+export function nominationsOpen(g: { phase: Phase; day: number; ended?: GameEnd | null }): boolean {
+  return g.phase === 'day' && g.day > 0 && !g.ended;
+}
+
+/** What nominating depends on, in the game itself or in a player's view of it. */
+interface NominationRules {
+  phase: Phase;
+  day: number;
+  ended?: GameEnd | null;
+  seats: { id: string; dead: boolean }[];
+  history: VoteRecord[];
+  nomination: Nomination | null;
+  nomRequests?: NominationRequest[];
+}
+
+/** Why a seat can't nominate today: the day, their seat, or that they've had their one. */
+export type NominateBlock = 'closed' | 'noSeat' | 'dead' | 'nominated' | 'waiting' | 'noTarget' | 'targetNominated';
+
+/**
+ * Why `by` can't nominate `target` now (or anyone, with no target), or null if they can. Each player nominates once
+ * a day, alive, and each player can be nominated once a day (dead ones too). A nomination counts from when it's
+ * started: a vote finished today, the one on now, or a request the Storyteller started. `ignore` leaves out one
+ * request (the one being started).
+ */
+export function nominateBlock(g: NominationRules, by: string, target?: string, ignore?: string): NominateBlock | null {
+  if (!nominationsOpen(g)) return 'closed';
+  const me = g.seats.find((s) => s.id === by);
+  if (!me) return 'noSeat';
+  if (me.dead) return 'dead';
+  const asked = (g.nomRequests ?? []).filter((r) => r.day === g.day && r.id !== ignore);
+  const votes = g.history.filter((h) => h.day === g.day);
+  if (votes.some((h) => h.nominatorId === by) || g.nomination?.nominatorId === by || asked.some((r) => r.by === by && r.status === 'started')) return 'nominated';
+  if (asked.some((r) => r.by === by && r.status === 'pending')) return 'waiting';
+  if (target === undefined) return null;
+  if (!g.seats.some((s) => s.id === target)) return 'noTarget';
+  if (votes.some((h) => h.nomineeId === target) || g.nomination?.nomineeId === target || asked.some((r) => r.target === target && r.status === 'started')) return 'targetNominated';
+  return null;
+}
+
+/** The reason, as the player trying to nominate is told it. */
+export function nominateWhy(block: NominateBlock, targetName = 'They'): string {
+  switch (block) {
+    case 'closed':
+      return 'Nominations are made by day, once the game has begun.';
+    case 'noSeat':
+      return 'Take a seat in town first.';
+    case 'dead':
+      return 'The dead can’t nominate (though they can still be nominated).';
+    case 'nominated':
+      return 'You’ve made your nomination for today. Everyone gets one a day.';
+    case 'waiting':
+      return 'You’re waiting on the Storyteller to start your nomination.';
+    case 'noTarget':
+      return 'They aren’t in the game.';
+    case 'targetNominated':
+      return `${targetName} has already been nominated today.`;
+  }
 }
 
 export interface WinCheck {
@@ -374,6 +442,7 @@ export function toPrivate(g: GameState, playerId: string): PrivateState {
       .filter((p) => p.to === seat.id)
       .map(({ id, name, where, at }) => ({ id, name, where, at })),
     visit: visitFor(g, seat.id),
+    nomRequests: (g.nomRequests ?? []).filter((r) => r.by === seat.id && r.day === g.day),
   };
 }
 
@@ -423,7 +492,7 @@ function suggestShown(g: GameState, seat: Seat): string | null {
   if (seat.roleId === 'marionette') return pickRandom([...unused('townsfolk'), ...unused('outsider')]);
   if (seat.roleId === 'lunatic') {
     const demon = g.seats.find((s) => getRole(s.roleId)?.team === 'demon');
-    return demon?.roleId ?? pickRandom(byTeam.demon.map((r) => r.id));
+    return demon?.roleId ?? pickRandom(byTeam.demon.map((r) => r.id).filter((id) => !tooFewFor(id, setupPlayers(g))));
   }
   return null;
 }
@@ -661,6 +730,7 @@ export const st = {
       delete g.awake[id];
       if (g.nomination && (g.nomination.nomineeId === id || g.nomination.nominatorId === id)) g.nomination = null;
       if (g.marked?.seatId === id) g.marked = null;
+      g.nomRequests = (g.nomRequests ?? []).filter((r) => r.by !== id && r.target !== id);
     });
   },
   renameSeat(id: string, name: string) {
@@ -831,8 +901,9 @@ export const st = {
   setBag(ids: string[]) {
     update((g) => void (g.bag = ids));
   },
+  /** Puts a character in the bag, unless it's kept out of games this small (the Fang Gu with 6 or fewer). */
   addToBag(id: string) {
-    update((g) => void g.bag.push(id));
+    update((g) => void (!tooFewFor(id, setupPlayers(g)) && g.bag.push(id)));
   },
   removeFromBag(id: string) {
     update((g) => {
@@ -840,9 +911,13 @@ export const st = {
       if (i >= 0) g.bag.splice(i, 1);
     });
   },
-  /** Hand the bag out at random to every seat that isn't a traveller. */
+  /**
+   * Hand the bag out at random to every seat that isn't a traveller. Not while the bag holds a character kept out of
+   * games this small (the seats went down after it was filled): the bag says so, and offers to swap it.
+   */
   dealRandom() {
     update((g) => {
+      if (g.bag.some((id) => tooFewFor(id, setupPlayers(g)))) return;
       const seats = g.seats.filter((s) => !isTraveller(s.roleId));
       const bag = shuffle(g.bag).slice(0, seats.length);
       seats.forEach((s, i) => {
@@ -899,6 +974,7 @@ export const st = {
       g.townHall = null;
       g.nightDeaths = [];
       g.execution = null;
+      g.nomRequests = [];
       // A day timer belongs to the day it was set for.
       g.dayTimer = null;
       if (phase === 'day') g.awake = {};
@@ -970,6 +1046,30 @@ export const st = {
         countdown: 0,
         secondsPerPlayer: prev?.secondsPerPlayer ?? 2,
       };
+      // Players who asked to nominate find out what came of it: this is theirs, or someone got there first.
+      for (const r of g.nomRequests ?? []) {
+        if (r.status !== 'pending' || r.day !== g.day) continue;
+        if (r.by === nominatorId && r.target === nomineeId) r.status = 'started';
+        else if (r.target === nomineeId) Object.assign(r, { status: 'declined', note: `${seatName(g, nomineeId)} was nominated by someone else first.` });
+        else if (r.by === nominatorId) Object.assign(r, { status: 'declined', note: 'The Storyteller started a different nomination for you.' });
+      }
+    });
+  },
+  /**
+   * Starts the nomination a player asked for, as if the Storyteller had set it up in the grimoire. A vote that's
+   * finished is closed first (into the day's history); one that hasn't finished has to be closed by hand.
+   */
+  startNominationRequest(id: string) {
+    const g = hostGame();
+    const r = (g.nomRequests ?? []).find((x) => x.id === id && x.status === 'pending');
+    if (!r || nominateBlock(g, r.by, r.target, r.id) || (g.nomination && g.nomination.status !== 'done')) return;
+    if (g.nomination) st.closeNomination();
+    st.nominate(r.by, r.target);
+  },
+  declineNominationRequest(id: string) {
+    update((g) => {
+      const r = (g.nomRequests ?? []).find((x) => x.id === id && x.status === 'pending');
+      if (r) r.status = 'declined';
     });
   },
   setVote(seatId: string, up: boolean, force = false) {
@@ -1250,6 +1350,29 @@ export const st = {
     vote(playerId: string, up: boolean) {
       const s = hostGame().seats.find((x) => x.playerId === playerId);
       if (s) st.setVote(s.id, up);
+    },
+    /**
+     * A player asking to nominate someone. It goes to the Storyteller, who starts it (or doesn't): they run the
+     * votes. Returns why not, if it can't be asked.
+     */
+    nominate(playerId: string, targetId: string): string | null {
+      const g = hostGame();
+      const s = g.seats.find((x) => x.playerId === playerId);
+      const block = s ? nominateBlock(g, s.id, targetId) : 'noSeat';
+      if (!s || block) return nominateWhy(block ?? 'noSeat', seatName(g, targetId));
+      const request: NominationRequest = { id: uid(), by: s.id, target: targetId, day: g.day, at: Date.now(), status: 'pending' };
+      update((g) => {
+        g.nomRequests = [...(g.nomRequests ?? []), request].slice(-40);
+      });
+      return null;
+    },
+    /** Takes back a request to nominate that the Storyteller hasn't answered yet. */
+    withdrawNomination(playerId: string, id: string) {
+      update((g) => {
+        const s = g.seats.find((x) => x.playerId === playerId);
+        const r = (g.nomRequests ?? []).find((x) => x.id === id && x.status === 'pending');
+        if (s && r && r.by === s.id) r.status = 'withdrawn';
+      });
     },
     /**
      * A player claims to be the Slayer and chooses someone (once a game each). The Storyteller answers every claim,

@@ -77,12 +77,12 @@ export const game = {
   goTo: (_key: string) => {},
   /** Walk (well, hop) to your own stool at the town meeting. */
   takeMeetingSeat: () => {},
-  /** Head straight to the square when the bell rings. */
-  goToSquare: () => {},
   jobDone: (_result: unknown) => {},
   jobCancel: () => {},
   /** The counting-sheep game is over; right earns tomorrow's gold star. */
   sheepDone: (_correct: boolean) => {},
+  /** The Storyteller has sat this player on their stool at the meeting (they hadn't come when the bell rang). */
+  calledToStool: () => {},
   /** The Storyteller has called this player over: go and stand beside them. */
   summoned: (_zone: string, _x: number, _z: number) => {},
   /** Storyteller: someone was clicked in the world, so open their seat menu there. */

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { go } from '../App';
-import { ALL_ROLES, defaultAlignment, genericIcon, getRole, jinxesFor, nightReminder, TEAM_SINGULAR, rolesOfTeam } from '../data';
+import { ALL_ROLES, defaultAlignment, genericIcon, getRole, jinxesFor, MIN_PLAYERS, nightReminder, TEAM_SINGULAR, rolesOfTeam, tooFewFor } from '../data';
 import { player } from '../net/client';
 import { hostLink, type PlayerLine } from '../net/host';
-import { NEEDS_SHOWN, seatName, st, underway, useHost } from '../state/host';
+import { NEEDS_SHOWN, seatName, setupPlayers, st, underway, useHost } from '../state/host';
 import { notes, useNotes } from '../state/notes';
 import { ui, useUI } from '../state/ui';
 import { useView } from '../state/view';
@@ -18,6 +18,7 @@ import { joinNames } from '../lib/util';
 import { askForNotifications, notificationsSupported } from '../lib/notify';
 import { ScriptModal } from './ScriptPicker';
 import { SlayerModal } from './Slayer';
+import { NominateModal } from './Nominate';
 import { ReadLettersModal, SeatingModal, WriteLetterModal } from './Letters';
 import { AwardsModal } from './Awards';
 import { PigeonModal } from './Pigeon';
@@ -58,6 +59,8 @@ export function Modals() {
       return <DawnCheck />;
     case 'slayer':
       return <SlayerModal />;
+    case 'nominate':
+      return <NominateModal />;
     case 'recap':
       return <RecapModal />;
     case 'letter':
@@ -101,6 +104,10 @@ function CharacterModal({ seatId, purpose }: { seatId: string; purpose: 'role' |
   const ids = all ? playable : view.script.roles;
   const tags: Record<string, string> = {};
   if (view.mode === 'st') for (const s of view.seats) if (s.roleId && s.id !== seatId) tags[s.roleId] = s.label;
+  // Setting up a game this small: what it keeps out (the Fang Gu with 6 or fewer), marked and refused.
+  const players = useHost((s) => setupPlayers(s.g));
+  const setup = view.mode === 'st' && purpose === 'role' && !underway(view);
+  if (setup) for (const id of ids) if (tooFewFor(id, players)) tags[id] = `${MIN_PLAYERS[id]}+ players`;
   const noted = useNotes((s) => s.notes[seatId]);
   if (!seat) return null;
 
@@ -109,6 +116,8 @@ function CharacterModal({ seatId, purpose }: { seatId: string; purpose: 'role' |
     purpose === 'role' ? raw?.roleId : purpose === 'shown' ? raw?.shownRoleId : purpose === 'note' ? noted?.guess : noted?.claim;
   const pick = (id: string) => {
     const g = useHost.getState().g;
+    const small = setup ? tooFewFor(id, players) : null;
+    if (small) return ui.toast(small, 'info');
     if (purpose === 'role') st.setRole(seatId, id);
     else if (purpose === 'shown') st.setShownRole(seatId, id);
     else notes.set(seatId, purpose === 'note' ? 'guess' : 'claim', id);

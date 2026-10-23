@@ -35,6 +35,9 @@ const QUIET_MS = 8000;
 /** The host's answer to the last pigeon sent: whether it took off (and why not), and when the answer came. */
 export const usePigeoned = create<{ ok: boolean | null; why: string; at: number }>(() => ({ ok: null, why: '', at: 0 }));
 
+/** The host's answer to the last request to nominate: whether it reached the Storyteller, or why not. */
+export const useNominated = create<{ ok: boolean | null; why: string; at: number }>(() => ({ ok: null, why: '', at: 0 }));
+
 /** The host's answer to the last letter posted: whether it went in, and when it came. */
 export const usePosted = create<{ ok: boolean | null; at: number }>(() => ({ ok: null, at: 0 }));
 
@@ -309,10 +312,14 @@ class ClientLink {
       if (typeof msg.animal === 'string') useTaken.setState({ animal: msg.animal, by: String(msg.by ?? 'Someone'), at: Date.now() });
     } else if (msg.t === 'pigeoned') {
       usePigeoned.setState({ ok: msg.ok === true, why: typeof msg.why === 'string' ? msg.why.slice(0, 80) : '', at: Date.now() });
+    } else if (msg.t === 'nominated') {
+      useNominated.setState({ ok: msg.ok === true, why: typeof msg.why === 'string' ? msg.why.slice(0, 120) : '', at: Date.now() });
     } else if (msg.t === 'posted') {
       usePosted.setState({ ok: msg.ok === true, at: Date.now() });
     } else if (msg.t === 'summon') {
       if (typeof msg.zone === 'string' && Number.isFinite(msg.x) && Number.isFinite(msg.z)) game.summoned(msg.zone, msg.x, msg.z);
+    } else if (msg.t === 'seat') {
+      game.calledToStool();
     }
   }
 
@@ -351,7 +358,7 @@ class ClientLink {
 }
 
 /** Actions worth holding for a moment while reconnecting; positions and pings just go stale. */
-const OUTBOX = new Set<ClientMessage['t']>(['vote', 'slay', 'reply', 'ack', 'town', 'give', 'rename', 'sleep', 'hold', 'letter']);
+const OUTBOX = new Set<ClientMessage['t']>(['vote', 'slay', 'nominate', 'withdrawNomination', 'reply', 'ack', 'town', 'give', 'rename', 'sleep', 'hold', 'letter']);
 /** Long enough for a reconnect, short enough that an old vote can't land on a later nomination. */
 const OUTBOX_MS = 20000;
 
@@ -374,6 +381,9 @@ export const player = {
   vote: (up: boolean) => clientLink.send({ t: 'vote', up }),
   /** Claim to be the Slayer and choose this seat. */
   slay: (seatId: string) => clientLink.send({ t: 'slay', seatId }),
+  /** Ask the Storyteller to start a nomination of this seat (or take back one still waiting). */
+  nominate: (seatId: string) => clientLink.send({ t: 'nominate', seatId }),
+  withdrawNomination: (id: string) => clientLink.send({ t: 'withdrawNomination', id }),
   /** Send a messenger pigeon to someone, saying where we are. */
   pigeon: (to: string, where: string) => clientLink.send({ t: 'pigeon', to, where }),
   /** Post a letter in someone's letterbox. */

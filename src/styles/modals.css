@@ -569,6 +569,12 @@
   font-size: 12px;
   color: var(--text-faint);
 }
+/* What a game this small leaves out of the script (the Fang Gu with 6 or fewer players). */
+.edition-note {
+  font-size: 12px;
+  font-style: normal;
+  color: var(--brass-hi);
+}
 .recent-scripts,
 .custom-script {
   display: grid;
@@ -735,6 +741,35 @@
 .bag-warn {
   margin: 0;
   color: var(--brass-hi);
+}
+/* A character in the bag that a game this small keeps out (the seats went down after it was filled). */
+.bag-banned {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.bag-banned p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin: 0;
+  padding: 6px 8px 6px 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(217, 56, 76, 0.55);
+  background: rgba(165, 26, 45, 0.16);
+  font-size: 14px;
+  color: var(--text-dim);
+}
+.bag-banned p > span {
+  flex: 1 1 260px;
+}
+.bag-banned b {
+  font-weight: 400;
+  color: var(--text);
+}
+.bag-banned .token {
+  --size: 34px;
 }
 .setup-notes {
   display: flex;
@@ -2348,6 +2383,23 @@
   justify-content: flex-end;
   gap: 10px;
   margin-top: 6px;
+}
+
+/* A player's nomination, waiting on the Storyteller: the Slayer's prompt, in brass. */
+.nominate-prompt {
+  border-color: rgba(240, 212, 143, 0.6);
+}
+.nominate-prompt .eyebrow {
+  color: var(--brass-hi);
+}
+.nominate-modal .ask-seat:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.nominate-why {
+  margin: 14px 0 0;
+  text-align: center;
+  color: #ff9aa4;
 }
 
 /* The Storyteller's guided night: the next character to wake, at the top of the screen through the night (under any

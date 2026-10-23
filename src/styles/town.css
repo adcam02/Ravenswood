@@ -474,17 +474,52 @@
   display: flex;
   align-items: center;
   gap: 14px;
+  width: max-content;
+  max-width: calc(100vw - 24px);
   padding: 10px 12px 10px 16px;
   animation: bell-in 0.5s var(--ease-spring);
 }
-.bell-call div {
+.bell-text {
   display: grid;
+  gap: 1px;
 }
 .bell-call strong {
   font-size: 18px;
 }
 .bell-call span {
   color: var(--cosy-ink-soft);
+}
+.bell-call em {
+  max-width: 300px;
+  font-size: 13px;
+  font-style: normal;
+  color: var(--cosy-ink-soft);
+}
+.bell-actions {
+  display: grid;
+  gap: 6px;
+}
+/* Walking over: a small reminder, out of the way. */
+.bell-call.small {
+  gap: 10px;
+  padding: 5px 6px 5px 12px;
+  font-size: 14px;
+}
+.bell-call.small .bell-emoji {
+  font-size: 22px;
+}
+@media (max-width: 560px) {
+  .bell-call:not(.small) {
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 8px;
+  }
+  .bell-call:not(.small) .bell-actions {
+    display: flex;
+  }
+  .bell-call.small > span:not(.bell-emoji) {
+    font-size: 13px;
+  }
 }
 .bell-emoji {
   font-size: 34px;
@@ -512,6 +547,43 @@
   bottom: 160px;
   z-index: 16;
   transform: translateX(-50%);
+}
+
+/* Nominating from your stool, and a nomination waiting on the Storyteller (above "Take your seat" if that's up). */
+.nominate-dock {
+  position: absolute;
+  left: 50%;
+  bottom: 160px;
+  z-index: 16;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.nominate-dock svg {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}
+.nominate-dock.waiting {
+  gap: 10px;
+  max-width: calc(100vw - 24px);
+  padding: 6px 6px 6px 12px;
+  white-space: normal;
+  animation: prompt-in 0.3s var(--ease-out);
+}
+.nominate-dock.waiting span {
+  display: grid;
+  line-height: 1.25;
+}
+.nominate-dock.waiting em {
+  font-size: 13px;
+  font-style: normal;
+  color: var(--cosy-ink-soft);
+}
+.app:has(.meeting-seat) .nominate-dock {
+  bottom: 214px;
 }
 
 .announce.live {

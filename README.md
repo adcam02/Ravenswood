@@ -92,10 +92,14 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      the night order in the side panel.
    - **Day**: everyone comes back outside. Deaths in the night are announced at dawn, and dead players
      become ghosts of their animal: they can still walk around and talk.
-   - **Ring the bell** and a bell call pops up on every player's screen, wherever they are, and after a
-     moment they're sat on their own stool around the clock tower, in the same order as the grimoire,
-     with their camera pulled back behind their stool to look down into the middle of the circle, so
-     everyone can see everyone (scroll to pull it in or out a little).
+   - **Ring the bell** and a bell call pops up on every player's screen, wherever they are. Nobody is
+     pulled out of what they're doing: **Take my seat** goes straight to their own stool around the
+     clock tower, in the same order as the grimoire, or **I'll walk over** lets them finish up and sit
+     down on reaching their stool (ringed in gold until they do). Seated, their camera pulls back behind
+     their stool to look down into the middle of the circle, so everyone can see everyone (scroll to
+     pull it in or out a little). The count under the bell is of players sat on their own stool, and
+     **Seat everyone** there (or **Sit them on their stool** in a seat menu) brings anyone still missing
+     straight to their stool. Someone who reloads mid-meeting goes straight back to their stool.
      Once everyone is there the bell stops but the meeting carries on, everyone staying put on their
      own stool (they can still wave, cheer and so on from their seat), until you
      press **End meeting** (in the scene bar or under the bell) or night falls. If you reorder the
@@ -107,6 +111,12 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      smoke, then they walk on as a ghost. For someone who survives being executed (the Devil's
      Advocate's choice, the Fool, a Tea Lady's neighbour), **Execute, but they survive** in their seat
      menu plays the same hanging, but the trapdoor jams, the rope snaps and they're left standing.
+   - **Nominating**: by day, every living player has a **Nominate** button, in their menu and by their
+     stool at a meeting. They choose who (anyone, dead or alive, themselves included), once a day, and
+     nobody can be nominated twice in a day. You get a box: **Start the nomination** sets it up on the
+     clock and opens the grimoire to run the vote, or **Decline**. The player sees it waiting, can take
+     it back, and is told when you start it or don't (and why, when someone else's nomination of the
+     same player got there first).
    - **The end of the game**: when every Demon is dead (good) or only two players are left with the
      Demon among them (evil), you're asked whether the game is over; "Not yet" holds the question
      until something changes (a Scarlet Woman, a starpass). You can also call it either way in
@@ -137,7 +147,10 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      keeps each player's alignment). When a Demon dies at night that could hand on (the Imp, the Fang
      Gu), the end-of-game question offers who takes over instead. The real Goblin's seat menu has
      **Claimed to be the Goblin**, and a claimed Goblin who's executed that day suggests evil wins. The
-     Godfather's and Fang Gu's Outsider counts are allowed for in the bag.
+     Godfather's and Fang Gu's Outsider counts are allowed for in the bag. The Fang Gu stays out of
+     games with 6 or fewer players: it can't go in the bag, random bags never pick it, and the bag and
+     the script picker say why. If seats go after it's in the bag, the bag says so and offers to swap
+     it for another Demon (trading its extra Outsider back for a Townsfolk).
    - **Waking someone at night** drifts you to their bedside; the player sees a dream bubble beside
      their bed and you're told when they've read it.
    - **Around town**: signs float over the things to do, the well gives water, the noticeboard has the

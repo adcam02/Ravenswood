@@ -8,8 +8,8 @@ import { st, toPrivate, toPublic, useHost } from '../state/host';
 import type { ClientMessage, HostMessage } from '../state/types';
 import { local, receiveItem } from '../game/local';
 import { presence } from '../game/presence';
-import { MEETING_RADIUS } from '../game/rules';
 import { fromPose, toPose, type Item, type Pose } from '../world/types';
+import { meetingSpot } from '../world/town/layout';
 import { joinMesh, type Mesh } from './mesh';
 import { newWorldLink, worldUpdate, type WorldLink } from './world';
 import { useUpdate } from '../lib/version';
@@ -366,6 +366,14 @@ class HostLink {
       case 'slay':
         p.slay(pid, String(msg.seatId));
         break;
+      case 'nominate': {
+        const why = p.nominate(pid, String(msg.seatId ?? ''));
+        link.send({ t: 'nominated', ok: !why, why: why ?? undefined });
+        break;
+      }
+      case 'withdrawNomination':
+        p.withdrawNomination(pid, String(msg.id ?? ''));
+        break;
       case 'pigeon': {
         const why = p.pigeon(pid, String(msg.to ?? ''), String(msg.where ?? ''));
         link.send({ t: 'pigeoned', ok: !why, why: why ?? undefined });
@@ -401,10 +409,12 @@ class HostLink {
     const seat = g.seats.find((s) => s.playerId === playerId);
     if (!seat) return;
     presence.set(seat.id, p);
-    // Reaching the square answers the bell.
+    // Sitting down on their own stool answers the bell (just passing through the square, or standing chatting by
+    // the well, doesn't).
     const pose = fromPose(p);
-    if (g.townHall && !g.townHall.back.includes(seat.id) && pose.zone === 'town' && Math.hypot(pose.x, pose.z) < MEETING_RADIUS) {
-      st.arrived(seat.id);
+    if (g.townHall && !g.townHall.back.includes(seat.id) && pose.zone === 'town') {
+      const spot = meetingSpot(g.seats.indexOf(seat), g.seats.length);
+      if (Math.hypot(pose.x - spot.x, pose.z - spot.z) < 0.6) st.arrived(seat.id);
     }
   }
 
@@ -429,6 +439,18 @@ class HostLink {
     const target = useHost.getState().g.seats.find((s) => s.id === to);
     if (!target?.playerId) return;
     for (const [link, meta] of this.links) if (meta.playerId === target.playerId) link.send({ t: 'gift', item, from: 'The Storyteller' });
+  }
+
+  /**
+   * Sits players on their stools at the meeting, wherever they are: these seats, or everyone who hasn't sat down
+   * yet. For stragglers the bell didn't bring.
+   */
+  seatAtMeeting(seatIds?: string[]) {
+    const g = useHost.getState().g;
+    const call = g.townHall;
+    const want = new Set(seatIds ?? g.seats.filter((s) => !call?.back.includes(s.id)).map((s) => s.id));
+    const players = new Set(g.seats.filter((s) => s.playerId && want.has(s.id)).map((s) => s.playerId));
+    for (const [link, meta] of this.links) if (meta.playerId && players.has(meta.playerId)) link.send({ t: 'seat' });
   }
 
   /** Brings a player to stand beside the Storyteller, wherever they are. */

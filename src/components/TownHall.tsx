@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { hostLink } from '../net/host';
 import { st } from '../state/host';
 import { ui } from '../state/ui';
 import { useView } from '../state/view';
@@ -49,7 +50,7 @@ export function HallButton() {
   // Everyone on their stool: the bell stops, the meeting carries on until it's ended.
   useEffect(() => {
     if (!gathered || !allBack) return;
-    ui.toast('Everyone is sat at the square. The meeting is on.', 'good');
+    ui.toast('Everyone is sat on their stool. The meeting is on.', 'good');
     setOpen(false);
   }, [gathered, allBack]);
 
@@ -84,7 +85,7 @@ export function HallButton() {
         <div className="hall-pop surface">
           <strong>{gathered ? 'The town meeting is on' : 'Everyone to the square'}</strong>
           <span>
-            {back.length} of {players.length} {gathered ? 'came to the square' : 'have arrived'}
+            {back.length} of {players.length} {gathered ? 'came and sat down' : 'are sat on their stools'}
           </span>
           {!gathered && waiting.length > 0 && (
             <p>
@@ -95,6 +96,18 @@ export function HallButton() {
             <button className="btn small" onClick={st.callTownHall} title={gathered ? 'Everyone back to their stools' : 'Ring for anyone not here yet'}>
               <Icon name="bell" /> Ring again
             </button>
+            {waiting.length > 0 && (
+              <button
+                className="btn small"
+                onClick={() => {
+                  hostLink.seatAtMeeting();
+                  ui.toast(`Sitting ${waiting.map((s) => s.label).join(', ')} on their stools.`, 'info');
+                }}
+                title="Sits anyone who hasn't come straight onto their stool, wherever they are"
+              >
+                Seat everyone
+              </button>
+            )}
             {!gathered && (
               <button className="btn small quiet" onClick={st.stopBell} title="Stop the bell and start with whoever is here">
                 Stop the bell

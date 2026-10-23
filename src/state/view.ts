@@ -3,7 +3,7 @@ import { defaultAlignment, getRole, type Alignment, type Script } from '../data'
 import { useClient } from '../net/client';
 import { useHostNet } from '../net/host';
 import { isTraveller, seatAlignment, useHost, visitFor } from './host';
-import type { AwakeState, DayTimer, DeathRecord, Execution, GameEnd, LetterIn, Nomination, Phase, Reminder, SlayerShot, TownHall, Visit, VoteRecord } from './types';
+import type { AwakeState, DayTimer, DeathRecord, Execution, GameEnd, LetterIn, Nomination, NominationRequest, Phase, Reminder, SlayerShot, TownHall, Visit, VoteRecord } from './types';
 import type { Look, TownState, Weather } from '../world/types';
 import { useUI } from './ui';
 
@@ -51,6 +51,8 @@ export interface View {
   nomination: Nomination | null;
   marked: { seatId: string; votes: number } | null;
   history: VoteRecord[];
+  /** Requests to nominate today: every one for the Storyteller, a player's own for them. */
+  nomRequests: NominationRequest[];
   townHall: TownHall | null;
   execution: Execution | null;
   weather: Weather;
@@ -116,6 +118,7 @@ export function useStorytellerView(): View {
       nomination: g.nomination,
       marked: g.marked,
       history: g.history,
+      nomRequests: (g.nomRequests ?? []).filter((r) => r.day === g.day),
       townHall: g.townHall,
       execution: g.execution,
       weather: g.weather ?? 'clear',
@@ -181,6 +184,7 @@ export function usePlayerView(): View | null {
       nomination: pub.nomination,
       marked: pub.marked,
       history: pub.history,
+      nomRequests: Array.isArray(priv?.nomRequests) ? priv.nomRequests : [],
       townHall: pub.townHall ?? null,
       execution: pub.execution ?? null,
       weather: pub.weather ?? 'clear',

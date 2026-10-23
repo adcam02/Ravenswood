@@ -86,7 +86,8 @@ export interface TownWorld {
   /** The seating chart in the bedrooms: everyone round the circle, in the grimoire's order. */
   setSeating(seats: SeatingEntry[]): void;
   setTown(state: TownState, now: number): void;
-  setMeeting(m: { n: number; nominee: number | null; nominator?: number | null; hand: number | null; active: boolean; votes: number[]; label?: string }): void;
+  /** `mine`: the local player's own stool, ringed in gold while the bell calls them to it. */
+  setMeeting(m: { n: number; nominee: number | null; nominator?: number | null; hand: number | null; active: boolean; votes: number[]; label?: string; mine?: number | null }): void;
   /** Gravestones for the dead, by seat name. */
   setGraves(names: string[]): void;
   /** The post office's letterboxes: everyone's name in grimoire order, and whose have letters waiting. */
@@ -720,6 +721,12 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   handRing.position.y = 0.11;
   handRing.visible = false;
   meeting.add(handRing);
+  // Your own stool while the bell rings: a soft gold ring round it that breathes, so you can find it on foot.
+  const mineRing = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.07, 10, 40), new THREE.MeshBasicMaterial({ color: '#ffd77a', transparent: true, opacity: 0.85 }));
+  mineRing.rotation.x = Math.PI / 2;
+  mineRing.position.y = 0.1;
+  mineRing.visible = false;
+  meeting.add(mineRing);
   let handTarget = 0;
   const signEl = document.createElement('div');
   signEl.className = 'meeting-sign cosy-panel';
@@ -1150,6 +1157,12 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         voteMarks[i].position.set(spot.x, 0.12, spot.z);
         s.material = i === m.nominee ? nomineeMat : stoolMat;
       });
+      const mine = m.mine ?? null;
+      mineRing.visible = mine !== null && mine >= 0 && mine < m.n;
+      if (mineRing.visible) {
+        const spot = meetingSpot(mine!, m.n);
+        mineRing.position.set(spot.x, 0.1, spot.z);
+      }
       // The fixed hands: blue to the nominator, red to the nominee.
       const nomineeIdx = m.nominee !== null && m.nominee >= 0 && m.nominee < m.n ? m.nominee : null;
       const nominatorIdx = m.nominator !== null && m.nominator !== undefined && m.nominator >= 0 && m.nominator < m.n ? m.nominator : null;
@@ -1257,6 +1270,11 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       // Puddles fill while it rains and dry slowly after; arriving in the rain, they're already there.
       wetK = rainK > 0.5 ? (t < 8 ? 1 : Math.min(1, wetK + dt / 25)) : Math.max(0, wetK - dt / 90);
       glowUniforms.uGlowTime.value = t;
+      if (mineRing.visible) {
+        const k = 0.5 + 0.5 * Math.sin(t * 3.2);
+        mineRing.scale.setScalar(1 + k * 0.12);
+        (mineRing.material as THREE.MeshBasicMaterial).opacity = 0.55 + k * 0.4;
+      }
       if (bellPending) {
         bellPending = false;
         bellStart = t;
