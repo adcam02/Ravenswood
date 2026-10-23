@@ -52,7 +52,7 @@ export type AnimalId =
 export interface AnimalInfo {
   id: AnimalId;
   name: string;
-  /** Aquatic animals are glossy and drip a little. */
+  /** Aquatic animals are glossy. */
   aquatic: boolean;
   /** Colour choices for the main coat, natural ones first. The first is the default. */
   colors: string[];
