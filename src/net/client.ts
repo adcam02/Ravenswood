@@ -351,7 +351,7 @@ class ClientLink {
 }
 
 /** Actions worth holding for a moment while reconnecting; positions and pings just go stale. */
-const OUTBOX = new Set<ClientMessage['t']>(['vote', 'slay', 'goblin', 'reply', 'ack', 'town', 'give', 'rename', 'sleep', 'hold', 'letter']);
+const OUTBOX = new Set<ClientMessage['t']>(['vote', 'slay', 'reply', 'ack', 'town', 'give', 'rename', 'sleep', 'hold', 'letter']);
 /** Long enough for a reconnect, short enough that an old vote can't land on a later nomination. */
 const OUTBOX_MS = 20000;
 
@@ -374,7 +374,6 @@ export const player = {
   vote: (up: boolean) => clientLink.send({ t: 'vote', up }),
   /** Claim to be the Slayer and choose this seat. */
   slay: (seatId: string) => clientLink.send({ t: 'slay', seatId }),
-  goblin: () => clientLink.send({ t: 'goblin' }),
   /** Send a messenger pigeon to someone, saying where we are. */
   pigeon: (to: string, where: string) => clientLink.send({ t: 'pigeon', to, where }),
   /** Post a letter in someone's letterbox. */

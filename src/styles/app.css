@@ -409,16 +409,6 @@ button.my-card:hover {
   font-size: inherit;
   color: inherit;
 }
-/* On the block with the Goblin on the script: a public claim. */
-.vote-bar .goblin-claim {
-  background: #4f7a3a;
-  border-color: #3c5f2b;
-  color: #f4f8ec;
-  white-space: nowrap;
-}
-.vote-bar .goblin-claim:hover {
-  background: #5d8c45;
-}
 @keyframes rise {
   from {
     opacity: 0;

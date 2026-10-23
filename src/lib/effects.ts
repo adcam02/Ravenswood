@@ -67,12 +67,6 @@ export function useEffects(view: View | null) {
       const before = p.town.records[game];
       if (!before || before.at !== r.at) ui.toast(`🏆 ${r.by} set the ${JOB_TITLES[game as GameJob]?.toLowerCase() ?? game} record: ${SCORE_LABEL[game as GameJob]?.(r.score) ?? r.score}`, 'good');
     }
-    // A nominee claiming to be the Goblin.
-    for (const c of view.goblins) {
-      if (p.goblins.some((x) => x.id === c.id)) continue;
-      gavel();
-      ui.banner(`${view.seats.find((s) => s.id === c.by)?.label ?? 'Someone'} claims to be the Goblin`, 'If the Goblin is executed today, evil wins');
-    }
     // Someone claiming to be the Slayer, then what came of it.
     for (const shot of view.slayer) {
       const before = p.slayer.find((x) => x.id === shot.id);
