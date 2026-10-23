@@ -1,0 +1,181 @@
+/*
+ * An execution: the town's vote on how (big buttons, a running count, a draining timer), then the wheel that
+ * spins to the answer. Up near the top, so the gallows stays in view below.
+ */
+.exec-vote {
+  position: fixed;
+  left: 50%;
+  top: 72px;
+  z-index: 78;
+  transform: translateX(-50%);
+  width: min(560px, calc(100vw - 20px));
+  padding: 14px 16px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  animation: exec-in 0.4s var(--ease-spring) both;
+}
+@keyframes exec-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -20px) scale(0.92);
+  }
+}
+.exec-eyebrow {
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cosy-red);
+}
+.exec-title {
+  font-size: 20px;
+  line-height: 1.15;
+}
+.exec-timer {
+  width: 100%;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--cosy-bg-2);
+  overflow: hidden;
+}
+.exec-timer i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--cosy-red), var(--cosy-accent));
+  transform-origin: left;
+  transition: transform 0.2s linear;
+}
+.exec-methods {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+.exec-method {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 4px 8px;
+  border: 3px solid transparent;
+  border-radius: 16px;
+  background: var(--cosy-bg-2);
+  box-shadow: 0 4px 0 rgba(90, 68, 52, 0.2);
+  font-family: var(--cosy-font);
+  color: var(--cosy-ink);
+  cursor: pointer;
+  transition:
+    transform 0.15s var(--ease-spring),
+    background 0.15s;
+}
+.exec-method:hover:not(:disabled) {
+  transform: translateY(-2px);
+  background: #fff1d6;
+}
+.exec-method.on {
+  border-color: var(--m);
+  background: color-mix(in srgb, var(--m) 22%, #fff8ea);
+  transform: scale(1.04);
+}
+.exec-method:disabled {
+  cursor: default;
+}
+.exec-icon {
+  font-size: 34px;
+  line-height: 1.1;
+}
+.exec-name {
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1.1;
+}
+.exec-count {
+  position: absolute;
+  top: -8px;
+  right: -6px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: var(--m);
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  line-height: 24px;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.18);
+  animation: exec-pop 0.3s var(--ease-spring);
+}
+@keyframes exec-pop {
+  from {
+    transform: scale(0.4);
+  }
+}
+.exec-foot {
+  font-size: 13px;
+  color: var(--cosy-ink-soft);
+}
+.exec-wheel {
+  width: min(250px, 62vw);
+  aspect-ratio: 1;
+}
+.exec-wheel svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 5px 0 rgba(90, 68, 52, 0.2));
+}
+.exec-wheel .win path {
+  stroke: #fff;
+  stroke-width: 6;
+}
+.exec-result {
+  font-size: 24px;
+  min-height: 1.3em;
+}
+.exec-result span {
+  font-size: 28px;
+}
+.exec-result.in {
+  color: var(--m);
+  animation: exec-pop 0.35s var(--ease-spring);
+}
+.exec-vote.wheel.landed .exec-wheel {
+  animation: exec-thump 0.4s var(--ease-spring);
+}
+@keyframes exec-thump {
+  50% {
+    transform: scale(1.06);
+  }
+}
+.exec-vote.chosen .exec-result {
+  color: var(--m);
+}
+
+/* A phone held upright: smaller buttons, still four across. */
+@media (max-width: 520px) {
+  .exec-vote {
+    top: 58px;
+    padding: 10px 10px 8px;
+    gap: 6px;
+  }
+  .exec-title {
+    font-size: 17px;
+  }
+  .exec-methods {
+    gap: 6px;
+  }
+  .exec-method {
+    padding: 7px 2px 6px;
+    border-radius: 13px;
+  }
+  .exec-icon {
+    font-size: 26px;
+  }
+  .exec-name {
+    font-size: 11px;
+  }
+}

@@ -582,3 +582,293 @@ export function pigeonSound(name: string) {
     });
   }
 }
+
+/** A note shaped by a quick rise and a fall, sliding from `f0` to `f1` over its length. */
+function blip(c: AudioContext, out: AudioNode, at: number, len: number, type: OscillatorType, f0: number, f1: number, vol: number) {
+  const osc = c.createOscillator();
+  const g = c.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(f0, at);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(20, f1), at + len);
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(vol, at + Math.min(0.02, len / 4));
+  g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+  osc.connect(g).connect(out);
+  osc.start(at);
+  osc.stop(at + len + 0.05);
+  return osc;
+}
+
+/** Noise through a filter, swept from `f0` to `f1`, rising and falling over its length. */
+function hush(c: AudioContext, out: AudioNode, at: number, len: number, kind: BiquadFilterType, f0: number, f1: number, vol: number, q = 1, attack = 0.01) {
+  const src = noise(c, len + 0.05);
+  const f = c.createBiquadFilter();
+  f.type = kind;
+  f.Q.value = q;
+  f.frequency.setValueAtTime(f0, at);
+  f.frequency.exponentialRampToValueAtTime(Math.max(20, f1), at + len);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(vol, at + attack);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+  src.connect(f).connect(g).connect(out);
+  src.start(at);
+  return src;
+}
+
+/**
+ * The executions' sounds, by name: puffs, drums, volleys and corks, blades and clunks, the buzz of the chair, the
+ * rocket's fuse, whistle and boom, the fire, a rain cloud, the kaiju's rumble, roar, breath and sneeze, and the
+ * soul floating up. Plus the vote's ticks and the wheel's clicks.
+ */
+export function execSound(name: string) {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.value = 1;
+  out.connect(c.destination);
+  switch (name) {
+    case 'poof':
+      hush(c, out, t, 0.45, 'bandpass', 2400, 500, 0.12, 0.8);
+      break;
+    case 'drumroll':
+      drumroll(1.3);
+      break;
+    case 'ready':
+    case 'aim':
+      // A snare's crack and the stamp of boots.
+      hush(c, out, t, 0.12, 'highpass', 1800, 1800, 0.14);
+      blip(c, out, t, 0.18, 'triangle', 140, 60, 0.18);
+      break;
+    case 'volley':
+      for (let k = 0; k < 4; k++) {
+        const at = t + k * 0.05;
+        hush(c, out, at, 0.5, 'lowpass', 3000, 300, 0.3);
+        blip(c, out, at, 0.25, 'sine', 120, 40, 0.35);
+      }
+      break;
+    case 'flags':
+      // Four little pops and a silly kazoo.
+      for (let k = 0; k < 4; k++) {
+        hush(c, out, t + k * 0.05, 0.08, 'highpass', 2500, 2500, 0.12);
+        blip(c, out, t + k * 0.05, 0.08, 'sine', 900, 500, 0.08);
+      }
+      blip(c, out, t + 0.3, 0.5, 'sawtooth', 300, 420, 0.04);
+      break;
+    case 'thud':
+      blip(c, out, t, 0.3, 'sine', 110, 40, 0.35);
+      hush(c, out, t, 0.2, 'lowpass', 600, 150, 0.15);
+      break;
+    case 'blade':
+      // A long metal shhhing down.
+      hush(c, out, t, 0.25, 'bandpass', 5200, 1600, 0.14, 3);
+      break;
+    case 'chop':
+      blip(c, out, t, 0.35, 'sine', 95, 45, 0.4);
+      hush(c, out, t, 0.12, 'bandpass', 1400, 700, 0.2);
+      break;
+    case 'jam':
+    case 'clunk':
+      blip(c, out, t, 0.12, 'square', 220, 150, 0.08);
+      blip(c, out, t, 0.25, 'sine', 160, 70, 0.3);
+      hush(c, out, t, 0.08, 'bandpass', 2400, 1200, 0.12, 2);
+      if (name === 'jam') {
+        const b = blip(c, out, t + 0.08, 0.7, 'triangle', 330, 280, 0.08);
+        const wob = c.createOscillator();
+        const d = c.createGain();
+        wob.frequency.value = 14;
+        d.gain.value = 60;
+        wob.connect(d).connect(b.frequency);
+        wob.start(t + 0.08);
+        wob.stop(t + 0.85);
+      }
+      break;
+    case 'boing': {
+      const b = blip(c, out, t, 0.6, 'sine', 180, 520, 0.12);
+      const wob = c.createOscillator();
+      const d = c.createGain();
+      wob.frequency.value = 18;
+      d.gain.value = 50;
+      wob.connect(d).connect(b.frequency);
+      wob.start(t);
+      wob.stop(t + 0.65);
+      break;
+    }
+    case 'buzz': {
+      // The chair: a fierce mains hum with crackles over it.
+      const hum = c.createOscillator();
+      hum.type = 'sawtooth';
+      hum.frequency.value = 60;
+      const hum2 = c.createOscillator();
+      hum2.type = 'square';
+      hum2.frequency.value = 121;
+      const g = c.createGain();
+      const f = c.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = 1400;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.09, t + 0.05);
+      g.gain.setValueAtTime(0.09, t + 1.8);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 2.0);
+      hum.connect(f);
+      hum2.connect(f);
+      f.connect(g).connect(out);
+      hum.start(t);
+      hum2.start(t);
+      hum.stop(t + 2.05);
+      hum2.stop(t + 2.05);
+      for (let k = 0; k < 16; k++) hush(c, out, t + k * 0.12 + Math.random() * 0.05, 0.05, 'highpass', 3000, 3000, 0.1);
+      break;
+    }
+    case 'fizzle':
+      hush(c, out, t, 0.6, 'bandpass', 3000, 900, 0.08, 1.5);
+      for (let k = 0; k < 3; k++) hush(c, out, t + 0.1 + k * 0.13, 0.04, 'highpass', 3500, 3500, 0.06);
+      break;
+    case 'wahwah':
+      // The sad trombone.
+      [
+        [311, 0],
+        [294, 0.35],
+        [277, 0.7],
+        [262, 1.05],
+      ].forEach(([f, at], i) => {
+        const o = blip(c, out, t + at, i === 3 ? 1.0 : 0.38, 'sawtooth', f, i === 3 ? f * 0.94 : f, 0.05);
+        if (i === 3) {
+          const wob = c.createOscillator();
+          const d = c.createGain();
+          wob.frequency.value = 6;
+          d.gain.value = 6;
+          wob.connect(d).connect(o.frequency);
+          wob.start(t + at);
+          wob.stop(t + at + 1.05);
+        }
+      });
+      break;
+    case 'sizzle':
+      hush(c, out, t, 1.6, 'highpass', 4000, 6000, 0.05, 1, 0.2);
+      break;
+    case 'fuse':
+      hush(c, out, t, 1.2, 'bandpass', 5000, 7000, 0.06, 2, 0.05);
+      break;
+    case 'launch':
+      hush(c, out, t, 1.0, 'bandpass', 300, 2600, 0.25, 0.7, 0.03);
+      blip(c, out, t, 0.4, 'sine', 90, 50, 0.25);
+      break;
+    case 'whistle':
+      // Coming down: the falling whistle.
+      blip(c, out, t, 0.85, 'sine', 2200, 700, 0.06);
+      break;
+    case 'boom':
+      blip(c, out, t, 1.2, 'sine', 80, 28, 0.6);
+      hush(c, out, t, 1.6, 'lowpass', 2500, 120, 0.45, 0.7, 0.005);
+      break;
+    case 'thunk':
+      blip(c, out, t, 0.2, 'sine', 140, 60, 0.35);
+      hush(c, out, t, 0.1, 'bandpass', 900, 600, 0.18);
+      break;
+    case 'squeak':
+      blip(c, out, t, 0.25, 'sine', 900, 1500, 0.07);
+      break;
+    case 'crackle':
+      for (let k = 0; k < 30; k++) hush(c, out, t + Math.random() * 4, 0.03 + Math.random() * 0.04, 'bandpass', 1500 + Math.random() * 2500, 1500, 0.05 + Math.random() * 0.05, 1.5);
+      hush(c, out, t, 4.2, 'lowpass', 500, 400, 0.04, 0.7, 0.4);
+      break;
+    case 'rain':
+      for (let k = 0; k < 40; k++) hush(c, out, t + Math.random() * 1.8, 0.03, 'bandpass', 2500 + Math.random() * 3000, 2000, 0.04, 2);
+      break;
+    case 'hiss':
+      hush(c, out, t, 1.4, 'highpass', 3000, 2000, 0.12, 0.8, 0.05);
+      break;
+    case 'pop':
+      hush(c, out, t, 0.08, 'highpass', 2000, 2000, 0.15);
+      blip(c, out, t, 0.1, 'sine', 700, 300, 0.1);
+      break;
+    case 'ding':
+      bell(1568, 1.6, 0.08);
+      bell(2093, 1.2, 0.05, 0.01);
+      break;
+    case 'rumble':
+      hush(c, out, t, 2.6, 'lowpass', 120, 90, 0.5, 0.6, 0.4);
+      blip(c, out, t, 2.4, 'sine', 45, 32, 0.25);
+      break;
+    case 'roar': {
+      // A great growling roar: a low saw that rises and falls, rough with noise, and a rumble under it.
+      const o = c.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(70, t);
+      o.frequency.linearRampToValueAtTime(130, t + 0.4);
+      o.frequency.linearRampToValueAtTime(95, t + 1.3);
+      const rough = c.createOscillator();
+      const d = c.createGain();
+      rough.frequency.value = 31;
+      d.gain.value = 25;
+      rough.connect(d).connect(o.frequency);
+      const f = c.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.setValueAtTime(400, t);
+      f.frequency.linearRampToValueAtTime(1600, t + 0.4);
+      f.frequency.linearRampToValueAtTime(500, t + 1.4);
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.22, t + 0.15);
+      g.gain.setValueAtTime(0.22, t + 1.0);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 1.5);
+      o.connect(f).connect(g).connect(out);
+      o.start(t);
+      rough.start(t);
+      o.stop(t + 1.55);
+      rough.stop(t + 1.55);
+      hush(c, out, t, 1.4, 'bandpass', 600, 900, 0.18, 0.6, 0.15);
+      blip(c, out, t, 1.5, 'sine', 50, 38, 0.3);
+      break;
+    }
+    case 'charge':
+      blip(c, out, t, 1.0, 'sine', 220, 1200, 0.05);
+      blip(c, out, t, 1.0, 'triangle', 330, 1800, 0.03);
+      break;
+    case 'beam':
+      hush(c, out, t, 1.25, 'bandpass', 900, 1400, 0.3, 0.5, 0.03);
+      blip(c, out, t, 1.2, 'sawtooth', 110, 90, 0.08);
+      blip(c, out, t, 1.2, 'sine', 1600, 1300, 0.04);
+      break;
+    case 'ahh':
+      hush(c, out, t, 0.45, 'bandpass', 500, 800, 0.12, 2, 0.15);
+      break;
+    case 'sneeze':
+      hush(c, out, t, 0.6, 'bandpass', 2500, 900, 0.35, 0.8, 0.01);
+      blip(c, out, t, 0.3, 'sawtooth', 220, 110, 0.08);
+      break;
+    case 'soul': {
+      // A soft rising harp, and a hushed choir under it.
+      [523.3, 659.3, 784, 1046.5, 1318.5].forEach((f, i) => bell(f, 1.6, 0.035, i * 0.13));
+      for (const f of [261.6, 329.6, 392]) {
+        const o = c.createOscillator();
+        o.type = 'triangle';
+        o.frequency.setValueAtTime(f, t);
+        o.frequency.linearRampToValueAtTime(f * 1.06, t + 2.8);
+        const g = c.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.025, t + 0.6);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 3.0);
+        o.connect(g).connect(out);
+        o.start(t);
+        o.stop(t + 3.05);
+      }
+      break;
+    }
+    case 'twinkle':
+      [1568, 2093, 2637].forEach((f, i) => blip(c, out, t + i * 0.06, 0.4, 'triangle', f, f, 0.04));
+      break;
+    case 'tick':
+      blip(c, out, t, 0.06, 'triangle', 1400, 900, 0.08);
+      break;
+    case 'click':
+      blip(c, out, t, 0.03, 'square', 2200, 1600, 0.03);
+      break;
+    case 'land':
+      bell(784, 1.2, 0.07);
+      bell(1175, 1.2, 0.05, 0.08);
+      break;
+  }
+}

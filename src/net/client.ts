@@ -2,7 +2,7 @@ import Peer, { type DataConnection } from 'peerjs';
 import { create } from 'zustand';
 import { setCustomRoles } from '../data';
 import { loadJSON, saveJSON, uid, debugHooks } from '../lib/util';
-import type { ClientMessage, HostMessage, PrivateState, PublicState, TownAction } from '../state/types';
+import type { ClientMessage, ExecMethod, HostMessage, PrivateState, PublicState, TownAction } from '../state/types';
 import { receiveItem } from '../game/local';
 import { game } from '../game/hud';
 import { presence } from '../game/presence';
@@ -384,6 +384,8 @@ export const player = {
   /** Ask the Storyteller to start a nomination of this seat (or take back one still waiting). */
   nominate: (seatId: string) => clientLink.send({ t: 'nominate', seatId }),
   withdrawNomination: (id: string) => clientLink.send({ t: 'withdrawNomination', id }),
+  /** A vote on how today's execution goes. */
+  method: (m: ExecMethod) => clientLink.send({ t: 'method', m }),
   /** Send a messenger pigeon to someone, saying where we are. */
   pigeon: (to: string, where: string) => clientLink.send({ t: 'pigeon', to, where }),
   /** Post a letter in someone's letterbox. */
