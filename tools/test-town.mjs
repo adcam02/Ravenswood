@@ -808,6 +808,9 @@ await check('day: the gold star shows on the sheep counter for everyone', async 
 await check('game: an execution plays out at the gallows for everyone', async () => {
   const id = await seatOf('Steele');
   const abbeySat = await players.abbey.evaluate(() => window.__hud.getState().meetingSeated);
+  // Held near its start on both screens from the moment it begins, so neither can run on past the puff while the
+  // test is still waiting for the other.
+  for (const p of [players.abbey, players.steele]) await p.evaluate(() => void (window.__engine.showFreeze = 0.6));
   await st.evaluate((id) => {
     window.__st.st.markSeat(id);
     window.__st.st.toggleDead(id);
