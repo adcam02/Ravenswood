@@ -432,6 +432,12 @@ function aim(shoulder: THREE.Vector3, grip: THREE.Vector3, target: THREE.Vector3
 
 /** How far below the ground a tail (or a tentacle) may reach before it's lifted: a hair, so it still rests. */
 const CLEAR_FLOOR = -0.012;
+/**
+ * How far the covers stand above the mattress, where a sleeper's root is (see the bed in town/interiors.ts), and how
+ * far into them a sleeper sinks: asleep, it lies on top of them, and its tail along them.
+ */
+const COVERS = 0.04;
+const SINK = 0.008;
 const kcV = new THREE.Vector3();
 const kcLow = new THREE.Vector3();
 const kcPivot = new THREE.Vector3();
@@ -485,6 +491,8 @@ class AnimalRig implements Rig {
    * animal is raised by this, so it stands on the ground rather than in it.
    */
   private footLift = 0;
+  /** How far the body is raised asleep, so it lies on top of the covers rather than in them (see measureBed). */
+  private bedLift = 0;
   private prof: Profile;
   private clip: { name: Mannerism; t0: number; dur: number; side: number; data: number[] } | null = null;
   private nextClip = 1.5 + Math.random() * 3;
@@ -705,6 +713,44 @@ class AnimalRig implements Rig {
     // (A bat stands with its wings folded, and only hovers while it's flying.)
     this.headHeight = this.measureHead() + (this.floats && !this.flaps ? this.hover : 0);
     this.baseHeadHeight = this.headHeight;
+    this.bedLift = this.measureBed();
+  }
+
+  /**
+   * How far the body has to be raised asleep for its lowest point to rest on top of the covers, however deep its
+   * back, its shell or its fins: measured once, with the rig put in its sleeping pose and then back at rest. (Tails,
+   * and tentacles walked on, are left out beyond their roots: they're kept clear of the covers on their own.)
+   */
+  private measureBed(): number {
+    const pose = { ...this.pose };
+    const auxAt = new Map([...this.auxNow].map(([n, a]) => [n, [...a]]));
+    // (Settled upright, its tentacles are already laid out over the covers: they count too.)
+    const chains = this.prof.bed === 'upright' ? [] : this.freeChains();
+    const free = new Set(chains.flatMap((r) => this.chainOf(r).map((n) => this.sk.names.indexOf(n))));
+    const idx = this.highGeo.getAttribute('skinIndex') as THREE.BufferAttribute;
+    const wgt = this.highGeo.getAttribute('skinWeight') as THREE.BufferAttribute;
+    const v = new THREE.Vector3();
+    let low = Infinity;
+    // (At a few moments, as tentacles drift a little in their sleep.)
+    for (const t of [0, 1.4, 2.8, 4.2, 5.6]) {
+      this.applyPose(1, this.target({ anim: 'sleep', speed: 0, dt: 0, t: t - this.seed }));
+      this.root.updateMatrixWorld(true);
+      // (Right by the root of a tail, which barely moves as the tail is lifted, it counts as body.)
+      const roots = chains.flatMap((n) => this.bones.get(n)?.getWorldPosition(new THREE.Vector3()) ?? []);
+      for (let i = 0; i < idx.count; i++) {
+        let onFree = 0;
+        for (let k = 0; k < 4; k++) if (free.has(idx.getComponent(i, k))) onFree += wgt.getComponent(i, k);
+        this.mesh.getVertexPosition(i, v);
+        if (onFree > 0.85 && roots.every((r) => r.distanceTo(v) > 0.18)) continue;
+        low = Math.min(low, v.y);
+      }
+    }
+    Object.assign(this.pose, pose);
+    this.auxNow = auxAt as AuxMap;
+    this.clip = null;
+    this.applyPose(1);
+    this.root.updateMatrixWorld(true);
+    return low === Infinity ? 0 : COVERS - SINK - this.footLift - low;
   }
 
   /** The top of everything that rides on the neck, at rest. */
@@ -1443,6 +1489,20 @@ class AnimalRig implements Rig {
           P.hrx = 0.12;
           break;
         }
+        if (prof.bed === 'side') {
+          // Curled up on its left side, facing out into the room, knees drawn up and chin tucked in.
+          P.brx = -Math.PI / 2;
+          P.bry = Math.PI / 2;
+          P.bz = 0.45;
+          P.llx = P.lrx = 0.9;
+          P.alx = P.arx = -0.55;
+          P.alz = 0.15;
+          P.arz = -0.15;
+          P.hrx = 0.22;
+          P.trx = 0.9;
+          aux(A, 'earL')[0] = aux(A, 'earR')[0] = 0.3;
+          break;
+        }
         // On its back, head towards the back of the root, centred on the origin.
         P.brx = -Math.PI / 2;
         P.by = 0.18;
@@ -1812,16 +1872,18 @@ class AnimalRig implements Rig {
       this.grow += ((out ? 1 : 0) - this.grow) * (1 - Math.exp(-dt * 8));
     }
     const target = this.target(s);
+    if (s.anim === 'sleep') target.P.by += this.bedLift;
     this.applyPose(1 - Math.exp(-dt * 14), target);
 
     // Floating: ghosts and the Storyteller hover with a gentle bob.
     // (A bat only stays up while it's flying: with its wings folded it stands.)
     const floating = (this.floats && !(this.flaps && this.folded(s))) || this.ghost;
-    const h = s.anim === 'sleep' ? 0.03 : this.floats ? this.hover : 0.35;
-    const fy = (floating ? h + Math.sin(s.t * 2 + this.seed) * 0.06 : 0) + this.footLift;
+    // (Asleep, just a gentle rise and fall that never dips into the covers.)
+    const h = s.anim === 'sleep' ? 0.012 : this.floats ? this.hover : 0.35;
+    const fy = (floating ? h + Math.sin(s.t * 2 + this.seed) * (s.anim === 'sleep' ? 0.012 : 0.06) : 0) + this.footLift;
     this.float.position.y += (fy - this.float.position.y) * (1 - Math.exp(-dt * 6));
     if (floating) this.wisp.rotation.z = Math.sin(s.t * 3 + this.seed) * 0.15;
-    this.keepClearOfGround();
+    this.keepClearOfGround(s.anim === 'sleep' ? COVERS + CLEAR_FLOOR : CLEAR_FLOOR);
 
     // Blinking (and eyes half shut for some mannerisms).
     this.blinkAt -= dt;
@@ -1904,6 +1966,11 @@ class AnimalRig implements Rig {
     }
   }
 
+  /** The chains kept clear of the ground on their own: the tail, and the legs of an animal that walks on tentacles. */
+  private freeChains(): string[] {
+    return ['tail', ...(this.prof.gait === 'scuttle' ? ['legL', 'legR'] : [])];
+  }
+
   /** The bones in a chain: this one and everything hanging off it. */
   private chainOf(name: string): string[] {
     const out = [name];
@@ -1928,7 +1995,7 @@ class AnimalRig implements Rig {
     const wgt = this.highGeo.getAttribute('skinWeight') as THREE.BufferAttribute;
     const bones = this.mesh.skeleton.bones;
     const inverses = this.mesh.skeleton.boneInverses;
-    const roots = ['tail', ...(this.prof.gait === 'scuttle' ? ['legL', 'legR'] : [])];
+    const roots = this.freeChains();
     const groups: NonNullable<AnimalRig['lowPoints']> = [];
     for (const rootName of roots) {
       const pivot = this.bones.get(rootName);
@@ -1959,7 +2026,7 @@ class AnimalRig implements Rig {
    * below it, the chain's root bone turns just enough to lift it clear. Worked out fresh each frame from the
    * pose, so nothing builds up.
    */
-  private keepClearOfGround() {
+  private keepClearOfGround(floor: number) {
     const groups = (this.lowPoints ??= this.findLowPoints());
     if (!groups.length) return;
     this.root.updateMatrixWorld(true);
@@ -1974,7 +2041,7 @@ class AnimalRig implements Rig {
             kcLow.copy(kcV);
           }
         }
-        if (lowY >= CLEAR_FLOOR) break;
+        if (lowY >= floor) break;
         kcPivot.setFromMatrixPosition(g.pivot.matrixWorld).applyMatrix4(kcToRoot);
         const dir = kcLow.sub(kcPivot);
         const reach = Math.max(0.06, dir.length());
@@ -1986,7 +2053,7 @@ class AnimalRig implements Rig {
         g.pivot.parent!.getWorldQuaternion(kcQp);
         kcQr.invert().multiply(kcQp).invert();
         kcAxis.applyQuaternion(kcQr);
-        g.pivot.quaternion.premultiply(kcQ.setFromAxisAngle(kcAxis, (CLEAR_FLOOR - lowY + 0.004) / reach));
+        g.pivot.quaternion.premultiply(kcQ.setFromAxisAngle(kcAxis, (floor - lowY + 0.004) / reach));
         g.pivot.updateMatrixWorld(true);
       }
     }

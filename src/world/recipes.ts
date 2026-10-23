@@ -3350,8 +3350,8 @@ const PROFILES: Partial<Record<AnimalId, Partial<Profile>>> = {
   raccoon: { lean: 0.14, head: -0.05, paws: 0.2, gait: 'amble', cadence: 0.85, sit: 'tuck', idles: ['rubPaws', 'sniff', 'lookAround'], tailSway: 0.18 },
   // Slides along with a slow stretch and draw, settles low to sit.
   snail: { gait: 'slither', cadence: 0.55, sit: 'settle', idles: ['stalks', 'stretch', 'stalks'], tailSway: 0 },
-  // Bobs about on stubby legs with its fins out, swishes its tail.
-  shark: { lean: 0.04, head: -0.02, gait: 'waddle', cadence: 1, stride: 0.7, sit: 'settle', idles: ['tailSwish', 'headTilt', 'chill'], tailSway: 0.25 },
+  // Bobs about on stubby legs with its fins out, swishes its tail. Sleeps curled up on its side (clear of its fin).
+  shark: { lean: 0.04, head: -0.02, gait: 'waddle', cadence: 1, stride: 0.7, sit: 'settle', bed: 'side', idles: ['tailSwish', 'headTilt', 'chill'], tailSway: 0.25 },
   // Drifts, sways and pulses.
   jellyfish: { gait: 'float', cadence: 0.6, sit: 'settle', idles: ['sway', 'chill', 'sway'], tailSway: 0 },
   // Ripples along on its tentacles, stretches, sways.
@@ -3364,8 +3364,8 @@ const PROFILES: Partial<Record<AnimalId, Partial<Profile>>> = {
   bat: { gait: 'flap', cadence: 1.2, sit: 'settle', idles: ['wingStretch', 'scratch', 'lookAround'], tailSway: 0 },
   // Ripples along on its arms like the octopus, sways and stretches.
   squid: { gait: 'scuttle', cadence: 1, sit: 'settle', idles: ['sway', 'chill', 'stretch'], tailSway: 0 },
-  // Snuffles about on quick little steps, nose always going.
-  hedgehog: { lean: 0.04, head: -0.04, paws: 0.1, gait: 'trot', cadence: 1.5, stride: 0.6, sit: 'tuck', idles: ['sniff', 'noseWiggle', 'lookAround'], tailSway: 0 },
+  // Snuffles about on quick little steps, nose always going. Sleeps curled up on its side, off its spines.
+  hedgehog: { lean: 0.04, head: -0.04, paws: 0.1, gait: 'trot', cadence: 1.5, stride: 0.6, sit: 'tuck', bed: 'side', idles: ['sniff', 'noseWiggle', 'lookAround'], tailSway: 0 },
   // Waddles with a swish of its tail, smiling.
   axolotl: { lean: 0.02, head: -0.02, gait: 'waddle', cadence: 0.9, stride: 0.7, sit: 'settle', idles: ['headTilt', 'tailSwish', 'chill'], tailSway: 0.3 },
   // Quick and alert, the tail curling.
@@ -3408,22 +3408,24 @@ const PROFILES: Partial<Record<AnimalId, Partial<Profile>>> = {
   crab: { lean: 0, head: 0, paws: 0.12, gait: 'scuttle', cadence: 1.3, stride: 0.6, sit: 'settle', idles: ['stalks', 'rubPaws', 'lookAround'], tailSway: 0 },
   // Unhurried: a slow waddle, slow blinks, a stretch of the neck.
   turtle: { lean: 0.03, head: -0.02, gait: 'waddle', cadence: 0.6, stride: 0.55, sit: 'settle', idles: ['slowBlink', 'headTilt', 'chill'], tailSway: 0.05 },
-  // Stomps about in a heavy rolling amble, the great tail swinging behind; looks about, stretches up tall.
-  kaiju: { lean: 0.06, head: -0.03, paws: 0.1, gait: 'amble', cadence: 0.7, stride: 0.85, sit: 'tuck', idles: ['lookAround', 'stretch', 'tailSwish'], tailSway: 0.15 },
+  // Stomps about in a heavy rolling amble, the great tail swinging behind; looks about, stretches up tall. Sleeps
+  // curled up on its side, off its plates.
+  kaiju: { lean: 0.06, head: -0.03, paws: 0.1, gait: 'amble', cadence: 0.7, stride: 0.85, sit: 'tuck', bed: 'side', idles: ['lookAround', 'stretch', 'tailSwish'], tailSway: 0.15 },
   // Stiff little steps, rocking from foot to foot like a wind-up toy; swivels its head right round, sits with its feet out.
   robot: { lean: 0, head: 0, gait: 'waddle', cadence: 1.3, stride: 0.5, sit: 'feet', idles: ['headSwivel', 'lookAround', 'headTilt'], tailSway: 0 },
   // Scampers about on its big feet, rubbing its big hands together, ears twitching.
   homunculus: { lean: 0.04, head: -0.04, gait: 'trot', cadence: 1.4, stride: 0.75, sit: 'feet', idles: ['rubPaws', 'earTwitch', 'headTilt', 'lookAround'], tailSway: 0 },
   // Hops everywhere, sways a little, blinks slowly.
   fungi: { lean: 0, head: -0.02, gait: 'hop', cadence: 1.05, sit: 'feet', idles: ['sway', 'headTilt', 'slowBlink'], tailSway: 0 },
-  // Waddles about on its stubby legs, little arms up; flutters its tiny wings now and then, swishes its tail.
-  dragon: { lean: 0.03, head: -0.04, paws: 0.12, gait: 'waddle', cadence: 1.05, stride: 0.65, sit: 'feet', idles: ['flutter', 'tailSwish', 'lookAround', 'flutter'], tailSway: 0.2 },
+  // Waddles about on its stubby legs, little arms up; flutters its tiny wings now and then, swishes its tail. Sleeps
+  // curled up on its side, off its wings and spikes.
+  dragon: { lean: 0.03, head: -0.04, paws: 0.12, gait: 'waddle', cadence: 1.05, stride: 0.65, sit: 'feet', bed: 'side', idles: ['flutter', 'tailSwish', 'lookAround', 'flutter'], tailSway: 0.2 },
   // Always on the wing, buzzing about; rubs its little hands, twitches an antenna, looks about.
   bee: { lean: 0.02, head: -0.03, gait: 'flap', cadence: 1.3, stride: 0.7, sit: 'settle', idles: ['rubPaws', 'earTwitch', 'lookAround'], tailSway: 0 },
   // Slow and careful, rocking as it goes; sways, tilts its head, its eyes always roving.
   chameleon: { lean: 0.04, head: -0.03, gait: 'amble', cadence: 0.6, stride: 0.75, sit: 'feet', idles: ['sway', 'headTilt', 'lookAround'], tailSway: 0.05 },
-  // Unhurried and gentle: a slow waddle, slow blinks, a lazy swish of the great tail.
-  whaleshark: { lean: 0.03, head: -0.02, gait: 'waddle', cadence: 0.75, stride: 0.6, sit: 'settle', idles: ['slowBlink', 'tailSwish', 'chill'], tailSway: 0.22 },
+  // Unhurried and gentle: a slow waddle, slow blinks, a lazy swish of the great tail. Sleeps on its side, off its fin.
+  whaleshark: { lean: 0.03, head: -0.02, gait: 'waddle', cadence: 0.75, stride: 0.6, sit: 'settle', bed: 'side', idles: ['slowBlink', 'tailSwish', 'chill'], tailSway: 0.22 },
   // Scuttles about on quick little steps, claws up, eyes swivelling on their stalks.
   prawn: { lean: 0.02, head: -0.03, paws: 0.12, gait: 'scuttle', cadence: 1.35, stride: 0.6, sit: 'settle', idles: ['stalks', 'rubPaws', 'tailSwish'], tailSway: 0.2 },
 };

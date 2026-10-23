@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { createTown } from '../src/world/town';
 import { swayUniforms } from '../src/world/town/fx';
-import { ANIMALS, emptyTown, type Weather, type ZoneKind } from '../src/world/types';
+import { ANIMALS, animalInfo, emptyTown, type Weather, type ZoneKind } from '../src/world/types';
 import { buildAnimal } from '../src/world/animals';
 import { BED } from '../src/world/town/layout';
 import { NightVisit, bendVictim } from '../src/world/visit';
@@ -87,7 +87,7 @@ if (q.has('gallows')) town.setGallows({ open: num('gallows', 1), label: 'Steele 
 
 // ?visit=0..9&vt=4.2: the hooded figure's night visit, held at vt seconds in, with a fox asleep in the bed (or
 // ?animal=kaiju; ?ghost to show them as the ghost they are by then in the game; ?vcam to look from where the game's
-// camera does; ?hat= puts a hat on them). ?vt=1.4,3.3,3.9 stops at each moment in turn, waiting for `next()` between them, for contact sheets.
+// camera does; ?hat= puts a hat on them; ?color= its colour). ?vt=1.4,3.3,3.9 stops at each moment in turn, waiting for `next()` between them, for contact sheets.
 let visit: NightVisit | null = null;
 let sleeper: ReturnType<typeof buildAnimal> | null = null;
 const moments = (q.get('vt') ?? '3').split(',').map(Number);
@@ -103,7 +103,7 @@ let walkStart = 0;
 if (q.has('visit')) {
   visit = new NightVisit(town.groups.house, num('visit', 0));
   const animal = q.get('animal') ?? 'fox';
-  sleeper = buildAnimal({ animal: animal as never, color: ANIMALS.find((a) => a.id === animal)?.colors[0] ?? '#e2793a', hat: (q.get('hat') ?? null) as never });
+  sleeper = buildAnimal({ animal: animal as never, color: q.get('color') ?? animalInfo(animal).colors[0], hat: (q.get('hat') ?? null) as never });
   sleeper.root.position.set(BED.x, BED.top, BED.z + 0.25);
   if (q.has('ghost')) sleeper.setGhost(true);
   town.groups.house.add(sleeper.root);
@@ -112,6 +112,30 @@ if (q.has('visit')) {
     camera.lookAt(BED.x - 0.6, 0.9, BED.z - 0.6);
   }
 }
+// For going through every animal in bed without building the town each time: bench.sleepAs('kaiju') puts another
+// animal in the bed (settled straight into its sleeping pose), bench.lookFrom([x, y, z], [x, y, z]) moves the
+// camera, bench.shadows() redraws the shadows for the next frame, bench.sleeper() is whoever is in the bed.
+let redrawShadows = false;
+Object.assign(window, {
+  bench: {
+    sleepAs(id: string, color?: string) {
+      if (!sleeper) return;
+      sleeper.dispose();
+      sleeper = buildAnimal({ animal: id as never, color: color ?? animalInfo(id).colors[0] });
+      sleeper.root.position.set(BED.x, BED.top, BED.z + 0.25);
+      town.groups.house.add(sleeper.root);
+      for (let i = 0; i < 6; i++) sleeper.update({ anim: 'sleep', speed: 0, dt: 0.5, t: num('vt', 3) });
+      redrawShadows = true;
+    },
+    lookFrom(from: [number, number, number], to: [number, number, number]) {
+      camera.position.set(...from);
+      camera.lookAt(...to);
+    },
+    shadows: () => (redrawShadows = true),
+    sleeper: () => sleeper,
+    frames: () => frames,
+  },
+});
 
 // ?pigeon=3.5: a messenger pigeon held at that many seconds in, coming to a fox standing at x, z.
 let pigeon: PigeonFlight | null = null;
@@ -159,7 +183,8 @@ function loop() {
   if (q.has('ripple') && frames === 2) for (let i = 0; i < 4; i++) town.ripple(6.5 + (i - 1.5) * 1.6, 17.8 + (i % 2) * 1.2, 1);
   // ?dust: someone running along x from the focus, kicking up a puff each frame.
   if (q.has('dust') && frames < settle - 1) town.puff(tx + frames * 0.35, 0, tz);
-  if (town.consumeShadowDirty()) {
+  if (town.consumeShadowDirty() || redrawShadows) {
+    redrawShadows = false;
     renderer.shadowMap.needsUpdate = true;
     shadowRenders++;
   }

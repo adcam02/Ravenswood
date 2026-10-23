@@ -193,8 +193,11 @@ export interface Profile {
   cadence: number;
   stride: number;
   sit: SitStyle;
-  /** How it sleeps: on its back (the usual), or settled upright against the pillow. */
-  bed?: 'back' | 'upright';
+  /**
+   * How it sleeps: on its back (the usual), settled upright against the pillow, or curled up on its side (when it
+   * has a fin, a shell or spines along its back that would dig into the bed).
+   */
+  bed?: 'back' | 'upright' | 'side';
   idles: Mannerism[];
   /** How much the tail sways at rest, and whether the ears lie back when moving. */
   tailSway: number;
