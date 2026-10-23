@@ -607,7 +607,7 @@ function reaper(): BuiltHat {
   // the neck. A dark lining inside and a rolled edge round the opening.
   const C = new THREE.Vector3(0, -0.2, -0.015);
   const R = new THREE.Vector3(0.31, 0.27, 0.3);
-  const hole = 1.1;
+  const hole = 1.28;
   const tip = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2 + 0.55, 0, 0));
   const peak = new THREE.Vector3(0, 0.8, -0.6).normalize();
   const pull = new THREE.Vector3(0, 0.5, -0.85).normalize();
@@ -617,10 +617,14 @@ function reaper(): BuiltHat {
     const p = d.clone().multiply(R).multiplyScalar(v.length());
     const k = Math.max(0, (d.dot(peak) - 0.5) / 0.5);
     p.addScaledVector(pull, 0.22 * k * k);
+    // Only a short drape at the back: on animals that are nearly all head (a frog, a jellyfish) a long one swallowed
+    // the whole body. Anything still below the neck line is drawn up close under it.
     const hang = Math.max(0, -d.y) ** 2 * (0.5 - 0.5 * d.z);
-    p.x *= 1 + 0.3 * hang;
-    p.z *= 1 + 0.3 * hang;
-    p.y -= 0.34 * hang;
+    p.x *= 1 + 0.12 * hang;
+    p.z *= 1 + 0.12 * hang;
+    p.y -= 0.08 * hang;
+    const floor = -0.3;
+    if (p.y < floor) p.y = floor + (p.y - floor) * 0.3;
     return v.copy(p.add(C));
   };
   for (const [r, color, flip] of [
@@ -656,8 +660,9 @@ function horns(): BuiltHat {
 
 function laurel(): BuiltHat {
   const b = new Builder();
-  const greens = ['#5a9e48', '#4a8a3e', '#6cb052'];
-  const gold = '#e8b83a';
+  // A victor's wreath in gold, which shows on any coat (green leaves vanished on the frog), with a red bow.
+  const greens = ['#e8b83a', '#d49a24', '#f4cd5c'];
+  const gold = '#c8302c';
   const R = 0.222;
   // Two sprigs of paired leaves round the head, from a gold bow at the back to the brow, where they part.
   const at = (a: number) => new THREE.Vector3(Math.sin(a) * R, -0.075 - Math.cos(a) * 0.02, Math.cos(a) * R);
@@ -679,12 +684,12 @@ function laurel(): BuiltHat {
         const face = out.clone().addScaledVector(along, -out.dot(along)).normalize();
         const m = new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(along, face), along, face);
         m.setPosition(p.clone().addScaledVector(along, 0.036));
-        b.add(leaf, greens[(k + j) % 3], m.multiply(new THREE.Matrix4().makeScale(0.021, 0.042, 0.006)));
+        b.add(leaf, greens[(k + j) % 3], m.multiply(new THREE.Matrix4().makeScale(0.025, 0.048, 0.007)));
       }
     }
     const curve = new THREE.CatmullRomCurve3(twig);
     const g = new THREE.TubeGeometry(curve, 18, 0.008, 4, false);
-    b.add(g, '#6a7a3a');
+    b.add(g, '#a8741c');
     g.dispose();
   }
   leaf.dispose();
@@ -693,7 +698,7 @@ function laurel(): BuiltHat {
   b.add(sph(8, 6), gold, { pos: k.toArray(), scale: [0.018, 0.018, 0.014] });
   for (const side of [-1, 1]) {
     b.add(sph(8, 6), gold, { pos: [k.x + side * 0.03, k.y + 0.008, k.z], rot: [0, 0, side * 0.35], scale: [0.028, 0.017, 0.01] });
-    b.add(new THREE.BoxGeometry(1, 1, 1), '#d4a22e', { pos: [k.x + side * 0.018, k.y - 0.042, k.z - 0.004], rot: [0.15, 0, side * 0.3], scale: [0.016, 0.066, 0.004] });
+    b.add(new THREE.BoxGeometry(1, 1, 1), '#a82424', { pos: [k.x + side * 0.018, k.y - 0.042, k.z - 0.004], rot: [0.15, 0, side * 0.3], scale: [0.016, 0.066, 0.004] });
   }
   return finish(b, { top: 0.04 });
 }
