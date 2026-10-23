@@ -924,6 +924,76 @@ export function whiskers(k: Kit, coat: Color, o: { len?: number; back?: number; 
   }
 }
 
+export interface DecalOpts {
+  bone: string;
+  /** A point inside the body, and the way out from it to the patch's middle. */
+  from: THREE.Vector3;
+  dir: THREE.Vector3;
+  /** Its radius, and how much longer it is along `along` (a direction roughly along the surface) than across. */
+  r: number;
+  stretch?: number;
+  along?: THREE.Vector3;
+  color: Color;
+  /** How many sides round its rim. */
+  sides?: number;
+  name: string;
+}
+
+/**
+ * A crisp flat patch of colour lying on the surface, too small to paint cleanly into the cut surface (a fawn's
+ * spot, a nostril, a freckle): a fan of faces round its middle, its rim following the sculpted surface just
+ * off it, fixed to one bone (one that isn't turned at rest: the body, neck, ears or tail). Close up only.
+ */
+export function decal(k: Kit, o: DecalOpts) {
+  if (isLow()) return;
+  const sc = sculptOf(k);
+  // Found on the surface as it will be cut, thin parts fattened a touch (see finishSculpt).
+  sc.grow = (k.step ?? STEP) * 0.15;
+  const hit = surfaceHit(k, o.from, o.dir);
+  if (!hit) return;
+  const n = hit.n.clone().normalize();
+  const up = o.along ?? new THREE.Vector3(0, 1, 0);
+  const a = up.clone().addScaledVector(n, -up.dot(n));
+  if (a.lengthSq() < 1e-6) a.set(1, 0, 0).addScaledVector(n, -n.x);
+  a.normalize();
+  const b = new THREE.Vector3().crossVectors(n, a);
+  // Onto the surface, then just off it (a cut face can lie a little inside the sculpt between its corners).
+  const g = new THREE.Vector3();
+  const onto = (p: THREE.Vector3, lift: number) => {
+    for (let i = 0; i < 4; i++) {
+      const d = sc.at(p.x, p.y, p.z);
+      sc.grad(p.x, p.y, p.z, g);
+      p.addScaledVector(g, -d);
+    }
+    return p.addScaledVector(sc.grad(p.x, p.y, p.z, g), lift);
+  };
+  const lift = 0.0035 + o.r * 0.05;
+  const sides = o.sides ?? 9;
+  const turn = (seedOf(o.name) % 100) / 100;
+  const rim = Array.from({ length: sides }, (_, i) => {
+    const t = ((i + turn) / sides) * Math.PI * 2;
+    return onto(hit.p.clone().addScaledVector(a, Math.cos(t) * o.r * (o.stretch ?? 1)).addScaledVector(b, Math.sin(t) * o.r), lift);
+  });
+  const mid = onto(hit.p.clone(), lift + o.r * 0.05);
+  const f = part(k, `piece:${o.bone}`, o.bone);
+  const origin = boneAt(k, o.bone);
+  const tint = new THREE.Color(o.color);
+  const e1 = new THREE.Vector3();
+  const e2 = new THREE.Vector3();
+  for (let i = 0; i < sides; i++) {
+    const p = rim[i];
+    const q = rim[(i + 1) % sides];
+    // Wound to face out.
+    const tri = e1.subVectors(p, mid).cross(e2.subVectors(q, mid)).dot(n) > 0 ? [mid, p, q] : [mid, q, p];
+    for (const v of tri) {
+      f.pos.push(v.x - origin.x, v.y - origin.y, v.z - origin.z);
+      f.col.push(tint.r, tint.g, tint.b);
+      f.along.push(-1);
+    }
+    audit.faces++;
+  }
+}
+
 /** Where a ray from inside the body (`from`, along `dir`) comes out through the sculpted surface, and which way is out there. */
 export function surfaceHit(k: Kit, from: THREE.Vector3, dir: THREE.Vector3): { p: THREE.Vector3; n: THREE.Vector3 } | null {
   const sc = sculptOf(k);

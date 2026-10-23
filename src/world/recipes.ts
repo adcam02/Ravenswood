@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Vec3 } from './build';
-import { all, any, armForms, type Details, beakForm, earForms, earMarks, finForm, headForm, legForms, membraneWings, piece, region, sculptOf, snoutForm, sock as sockOf, suckerForms, surfaceHit, tailForm, tentacleForms, torso, unitOf, useSurface, whiskers, wingForms } from './forms';
-import { curve, pillar, solid } from './paper';
+import { all, any, armForms, type Details, beakForm, decal, earForms, earMarks, finForm, headForm, legForms, membraneWings, piece, region, sculptOf, snoutForm, sock as sockOf, suckerForms, surfaceHit, tailForm, tentacleForms, torso, unitOf, useSurface, whiskers, wingForms } from './forms';
+import { curve, pillar, solid, type Color } from './paper';
 import { ellipsoid, pyramid, rod, spiral, type Probe } from './sculpt';
 import {
   CHARCOAL,
@@ -13,6 +13,7 @@ import {
   defaultProfile,
   eyes,
   frame,
+  headNormal,
   inside,
   mix,
   mouth,
@@ -194,7 +195,7 @@ const raccoon: Recipe = (k, c) => {
       { color: mask, f: all(face, (q) => 0.075 - Math.abs(head(q).x), band(0.08, 0.13, 0.86, -0.22, 0.2, 0.13)) },
       // A cream brow above it, cream cheek ruffs and chin below.
       { color: cream, f: all(face, (q) => 0.07 - Math.abs(head(q).x), band(0.1, 0.36, 0.7, 0.26, 0.075, 0.06)) },
-      { color: cream, f: any(region(k, 'cheekL', 'cheekR'), all(face, (q) => head(q).y + 0.5)) },
+      { color: cream, f: any(region(k, 'cheekL', 'cheekR'), all(face, (q) => head(q).y + 0.5, (q) => -0.1 - head(q).z)) },
       // Dark socks with a clean straight top, and dark feet.
       { color: sock, f: any(sockOf(k, 'L', 0.45), sockOf(k, 'R', 0.45)) },
       { color: sock, f: all(region(k, /^leg/), (q) => q.p.y - 0.11) },
@@ -305,6 +306,79 @@ const spots = (k: Kit, name: string, at: [number, number, number][]) => {
 const frontOval = (k: Kit, names: (string | RegExp)[], cx: number, cy: number, rx: number, ry: number) =>
   all(region(k, ...names), (q) => -q.p.z, (q) => Math.hypot((q.p.x - cx) / rx, (q.p.y - cy) / ry) - 1);
 
+interface DabOpts {
+  stretch?: number;
+  /** Which way a stretched dab is long (the left one's; mirrored). */
+  along?: Vec3;
+  sides?: number;
+}
+
+/**
+ * Crisp dabs of colour on the face (see `decal`), a pair mirrored either side (or one, in the middle), each at a
+ * spot on the head's unit form (across and up) and this big.
+ */
+const faceDabs = (k: Kit, at: [number, number, number][], color: Color, name: string, o: DabOpts = {}) => {
+  const n = new THREE.Vector3(...k.joints.neck);
+  const c = n.clone().add(new THREE.Vector3(...k.shape.hc));
+  at.forEach(([x, y, r], i) => {
+    for (const side of x ? [-1, 1] : [1]) {
+      const p = onHead(k, side * x, y).add(n);
+      const along = o.along && new THREE.Vector3(side * o.along[0], o.along[1], o.along[2]);
+      decal(k, { bone: 'neck', from: c, dir: p.sub(c), r, color, stretch: o.stretch, along, sides: o.sides, name: `${name}${i}${side > 0 ? 'L' : 'R'}` });
+    }
+  });
+};
+
+/**
+ * Crisp dabs of colour on the body (see `decal`), each where a ray from `c` comes out: round from straight behind
+ * (`yaw`, mirrored to both sides unless nought), up (`pitch`), and how big.
+ */
+const bodyDabs = (k: Kit, bone: string, c: Vec3, at: [number, number, number][], color: Color, name: string, o: DabOpts = {}) => {
+  at.forEach(([yaw, pitch, r], i) => {
+    for (const side of yaw ? [-1, 1] : [1]) {
+      const dir = new THREE.Vector3(side * Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
+      const along = o.along && new THREE.Vector3(side * o.along[0], o.along[1], o.along[2]);
+      decal(k, { bone, from: new THREE.Vector3(...c), dir, r, color, stretch: o.stretch, along, sides: o.sides, name: `${name}${i}${side > 0 ? 'L' : 'R'}` });
+    }
+  });
+};
+
+/** Two little fangs over the lip, either side of the middle, from a spot on the head's unit form (across and up). */
+const fangs = (k: Kit, x: number, y: number, len: number, w: number, color: Color = '#fbf8f1', name = 'fang') => {
+  const n = new THREE.Vector3(...k.joints.neck);
+  for (const side of [-1, 1]) {
+    const p = onHead(k, side * x, y);
+    const out = headNormal(k, side * x, y);
+    const dir = new THREE.Vector3(0, -1, 0).addScaledVector(out, 0.45).normalize();
+    p.add(n);
+    const pts = [p.clone().addScaledVector(out, -0.01), p.clone().addScaledVector(dir, len * 0.45), p.clone().addScaledVector(dir, len)];
+    piece(k, { bone: 'neck', pts, w: [w, w * 0.8, 0], t: [w * 0.7, w * 0.55, 0], across: new THREE.Vector3(1, 0, 0), colors: [color, color], name: `${name}${side > 0 ? 'L' : 'R'}` });
+  }
+};
+
+/**
+ * Crisp speckles (see `decal`) scattered evenly over an ellipsoid's surface (where rays from its middle come out),
+ * wherever `keep` says, a little different in size each.
+ */
+const speckle = (k: Kit, bone: string, c0: Vec3, r: Vec3, count: number, keep: (d: THREE.Vector3) => boolean, size: number, color: Color, name: string, sides = 7) =>
+  fibonacci(count).forEach((d, i) => {
+    if (!keep(d)) return;
+    decal(k, { bone, from: new THREE.Vector3(...c0), dir: new THREE.Vector3(d.x * r[0], d.y * r[1], d.z * r[2]), r: size * (0.8 + ((i * 7) % 5) * 0.1), color, sides, name: `${name}${i}` });
+  });
+
+/**
+ * Two little nostrils on top of a bill, `at` of the way along it from where it leaves the face (see `beakForm`),
+ * `gap` either side of its middle.
+ */
+const nostrils = (k: Kit, o: { dy: number; len: number; drop: number; at: number; gap: number; r: number; color: Color }) => {
+  const n = new THREE.Vector3(...k.joints.neck);
+  const dir = new THREE.Vector3(0, -Math.sin(o.drop), Math.cos(o.drop));
+  const c = onHead(k, 0, o.dy, -0.01).add(n).addScaledVector(dir, o.len * o.at);
+  for (const side of [-1, 1]) {
+    decal(k, { bone: 'neck', from: c.clone().add(new THREE.Vector3(side * o.gap, 0, 0)), dir: new THREE.Vector3(0, 1, 0), r: o.r, stretch: 1.6, along: dir, color: o.color, sides: 7, name: `nostril${side > 0 ? 'L' : 'R'}` });
+  }
+};
+
 const shark: Recipe = (k, c) => {
   const white = mix(c.coat, '#f2efe8', 0.85);
   const dark = mix(c.coat, CHARCOAL, 0.4);
@@ -340,16 +414,20 @@ const shark: Recipe = (k, c) => {
   useSurface(k);
   eyes(k, { x: 0.45, y: 0.15, size: 0.9, wide: 1.1, slant: 0.1, color: '#141018' });
   mouth(k, { w: 0.4, y: -0.42, curve: 0.12, r: 0.008, out: 0.004 });
+  // A few little pointed teeth along the top of its grin.
+  fangs(k, 0.08, -0.41, 0.03, 0.012, '#fbf8f1', 'tooth');
+  fangs(k, 0.2, -0.385, 0.025, 0.0105, '#fbf8f1', 'toothB');
+  // Three crisp gill slits on each side of the neck, just under the head, leaning back.
+  for (const side of [-1, 1]) {
+    [-0.03, 0.035, 0.1].forEach((z, i) => {
+      decal(k, { bone: 'body', from: new THREE.Vector3(0, 0.49, z), dir: new THREE.Vector3(side, -0.1, 0), r: 0.011, stretch: 3.6, along: new THREE.Vector3(0, 1, 0.3), color: mix(c.coat, CHARCOAL, 0.7), sides: 8, name: `gill${side > 0 ? 'L' : 'R'}${i}` });
+    });
+  }
   k.nose = snout.nose;
   const head = unitOf(k, 'head');
   k.marks = {
     base: c.coat,
     marks: [
-      // Three short gill slits low on each side of the neck, just under the head.
-      {
-        color: mix(c.coat, CHARCOAL, 0.7),
-        f: all(region(k, 'head', 'chest', 'belly'), (q) => 0.17 - Math.abs(q.p.x), (q) => Math.abs(q.p.y - 0.48) - 0.045, (q) => Math.min(...[-0.04, 0.03, 0.1].map((z) => Math.abs(q.p.z - z))) - 0.022),
-      },
       // A white underside from the snout back along the jaw and down the tummy, under a sweeping line.
       { color: white, f: all(region(k, 'muzzle'), (q) => q.p.y - (snout.mid(q.p) - snout.r * 0.15)) },
       { color: white, f: all(region(k, 'head'), (q) => head(q).y + 0.12 - head(q).z * 0.38, (q) => -head(q).z - 0.25) },
@@ -396,12 +474,18 @@ const jellyfish: Recipe = (k, c) => {
   k.sipLow = true;
   eyes(k, { x: 0.3, y: -0.12, size: 1.1, wide: 1, slant: 0, color: '#1c1428' });
   mouth(k, { w: 0.14, y: -0.32, curve: 0.08, r: 0.006, color: deep });
+  // Crisp pale round spots over the dome (clear of the face): each how far down from the top and round from the
+  // front (degrees), and how big.
+  const hr = k.shape.hr;
+  const D = Math.PI / 180;
+  ([[18, 150, 0.06], [45, 45, 0.048], [45, -45, 0.048], [52, 115, 0.054], [52, -115, 0.054], [58, 180, 0.058], [82, 80, 0.042], [82, -80, 0.042], [86, 145, 0.045], [86, -145, 0.045]] as Vec3[]).forEach(([t, p, r], i) => {
+    const dir = new THREE.Vector3(Math.sin(t * D) * Math.sin(p * D) * hr[0], Math.cos(t * D) * hr[1], Math.sin(t * D) * Math.cos(p * D) * hr[2]);
+    decal(k, { bone: 'neck', from: new THREE.Vector3(0, bell[1], 0), dir, r, color: mix(c.coat, '#ffffff', 0.55), sides: 12, name: `dome${i}` });
+  });
   k.marks = {
     base: c.coat,
     marks: [
       { color: light, f: region(k, 'rim') },
-      // Pale round spots over the dome (clear of the face).
-      { color: mix(c.coat, '#ffffff', 0.55), f: spots(k, 'head', [[18, 150, 0.2], [45, 45, 0.15], [45, -45, 0.15], [52, 115, 0.17], [52, -115, 0.17], [58, 180, 0.18], [82, 80, 0.13], [82, -80, 0.13], [86, 145, 0.14], [86, -145, 0.14]]) },
       { color: light, f: region(k, /^arm/, /^fore/) },
       { color: mix(c.coat, light, 0.5), f: all(region(k, /^leg/), (q) => q.p.y - 0.12) },
     ],
@@ -436,9 +520,11 @@ const octopus: Recipe = (k, c) => {
   suckerForms(k, legs, arms, mix(c.coat, '#fff3ec', 0.55));
   eyes(k, { x: 0.34, y: -0.12, size: 1.35, wide: 1.05, slant: 0.05, color: '#1c1420' });
   mouth(k, { w: 0.16, y: -0.42, curve: 0.08, r: 0.006 });
+  // Pale freckles over the top and back of the mantle, clear of the face.
+  bodyDabs(k, 'neck', plus(k.joints.neck, [0, 0.22, -0.03]), [[0, 1.15, 0.05], [0.55, 0.6, 0.045], [0, 0.3, 0.05], [1.05, 0.2, 0.04], [1.25, 0.8, 0.042], [0.5, -0.1, 0.038], [1.85, 0.55, 0.036], [0.15, -0.45, 0.034]], mix(c.coat, '#fff3ec', 0.4), 'freckle');
   k.marks = {
     base: c.coat,
-    // Plain all over (spots this small only come out as stray flecks; the suckers are pieces of their own).
+    // Plain all over (the freckles and suckers are pieces of their own).
     marks: [],
   };
   return { aquatic: true, legs: 'tentacles' };
@@ -470,7 +556,8 @@ const penguin: Recipe = (k, c) => {
   legForms(k, { r0: 0.05, r1: 0.04, foot: [0.055, 0.025, 0.085], fwd: 0.06 });
   finForm(k, 'tail', k.joints.tail, { len: 0.1, w: 0.07, d: 0.022, rot: [-(Math.PI / 2 + 0.6), 0, 0], name: 'tailFan' });
   useSurface(k);
-  eyes(k, { x: 0.38, y: 0.14, size: 0.9, wide: 1, slant: 0, color: '#141018' });
+  // White rings round its eyes.
+  eyes(k, { x: 0.38, y: 0.14, size: 0.9, wide: 1, slant: 0, color: '#141018', ring: white, ringSize: 1.55 });
   k.nose = beakTip;
   const head = unitOf(k, 'head');
   k.marks = {
@@ -507,12 +594,26 @@ const duck: Recipe = (k, c) => {
   });
   headForm(k, { r: [0.2, 0.19, 0.19], at: [0, 0.16, 0.03], melt: 0.14 });
   const billTip = beakForm(k, { dy: -0.12, len: 0.13, w: 0.075, h: 0.028, drop: 0.12, flat: true });
+  const bill = { dy: -0.12, len: 0.13, drop: 0.12 };
   finForm(k, 'neck', v3(onHead(k, 0, 0.92, -0.02).add(new THREE.Vector3(...k.joints.neck))), { len: 0.08, w: 0.025, d: 0.015, rot: [-0.5, 0, 0], name: 'tuft', melt: 0.02 });
   wingForms(k, { len: 0.4, w: 0.14, d: 0.04, fwd: -0.05, out: 0.18 });
   legForms(k, { r0: 0.045, r1: 0.04, foot: [0.065, 0.025, 0.09], fwd: 0.06 });
   finForm(k, 'tail', k.joints.tail, { len: 0.13, w: 0.08, d: 0.024, rot: [-0.65, 0, 0], name: 'tailFan' });
   useSurface(k);
   eyes(k, { x: 0.38, y: 0.18, size: 0.9, wide: 1, slant: 0, color: '#141018' });
+  nostrils(k, { ...bill, at: 0.42, gap: 0.022, r: 0.0095, color: mix(orange, '#5a2a10', 0.55) });
+  // Three crisp darker flight feathers fanned out at the back of each folded wing.
+  const quill = mix(c.coat, CHARCOAL, 0.32);
+  for (const side of ['L', 'R']) {
+    const tip = sculptOf(k).named(`arm${side}Paw`)!.c;
+    [-0.5, 0, 0.5].forEach((spread, i) => {
+      const dir = new THREE.Vector3((side === 'L' ? 1 : -1) * (0.25 + spread * 0.3), -0.55 + spread * 0.35, -1).normalize();
+      const hit = surfaceHit(k, tip, dir);
+      if (!hit) return;
+      const len = 0.085 - Math.abs(spread) * 0.03;
+      piece(k, { bone: `fore${side}`, pts: [hit.p.clone().addScaledVector(dir, -0.02), hit.p.clone().addScaledVector(dir, len * 0.5), hit.p.clone().addScaledVector(dir, len)], w: [0.024, 0.02, 0], t: [0.006, 0.005, 0], across: new THREE.Vector3(1, 0, 0).cross(dir).normalize(), colors: [quill, quill], name: `quill${side}${i}` });
+    });
+  }
   k.nose = billTip;
   k.marks = {
     base: c.coat,
@@ -553,6 +654,8 @@ const bat: Recipe = (k, c) => {
   eyes(k, { x: 0.36, y: 0.08, size: 1.1, wide: 1, slant: 0.05, color: '#140c10' });
   nose(k, '#3a2a30', onSnout(k, snout.nose, 0.004), 0.02, 0.016);
   mouth(k, { w: 0.18, y: -0.55, curve: 0.08, r: 0.006 });
+  // Two tiny fangs peeping over its lip.
+  fangs(k, 0.075, -0.535, 0.03, 0.0085);
   const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
   k.marks = {
     base: c.coat,
@@ -568,7 +671,7 @@ const bat: Recipe = (k, c) => {
 
 const frog: Recipe = (k, c) => {
   const belly = mix(c.coat, '#fff6c8', 0.6);
-  const spot = mix(c.coat, CHARCOAL, 0.3);
+  const spot = mix(c.coat, CHARCOAL, 0.36);
   // Squat and wide: a wide flat head with eyes up on top, a big smile, a throat that puffs out, and long
   // folded back legs on big feet.
   k.joints.neck = [0, 0.34, 0.08];
@@ -603,13 +706,15 @@ const frog: Recipe = (k, c) => {
   useSurface(k);
   eyes(k, { x: 0.52, y: 0.62, size: 1.05, wide: 1.05, slant: 0, color: '#141018' });
   mouth(k, { w: 0.6, y: -0.25, curve: 0.08, r: 0.0075 });
+  // A round eardrum behind each eye, and crisp darker spots over the back, the haunches and the back of the head.
+  faceDabs(k, [[0.9, 0.2, 0.034]], mix(c.coat, '#4a3a20', 0.4), 'drum');
+  bodyDabs(k, 'body', [0, 0.22, -0.02], [[0, 0.55, 0.038], [0.42, 0.2, 0.033], [0.5, 0.85, 0.03], [0.95, 0.5, 0.03], [0.85, -0.05, 0.028], [1.35, 0.22, 0.025]], spot, 'spot');
+  bodyDabs(k, 'neck', plus(k.joints.neck, [0, 0.1, 0.05]), [[0, 0.75, 0.03], [0.55, 0.45, 0.024]], spot, 'headSpot');
   k.marks = {
     base: c.coat,
     marks: [
       { color: belly, f: region(k, 'throat') },
       { color: belly, f: frontOval(k, ['belly', 'chest'], 0, 0.2, 0.17, 0.16) },
-      // Darker spots over the back and head.
-      { color: spot, f: all(region(k, 'belly', 'chest', 'head', 'haunchL', 'haunchR'), (q) => q.p.z + 0.02, (q) => 0.8 - Math.sin(q.p.x * 22 + 1) * Math.sin(q.p.y * 20) * Math.sin(q.p.z * 18 + 2)) },
     ],
   };
   return { aquatic: true };
@@ -670,6 +775,8 @@ const squid: Recipe = (k, c) => {
   useSurface(k);
   eyes(k, { x: 0.5, y: 0.02, size: 1.35, wide: 1, slant: 0, color: '#141018', ring: light, ringSize: 1.4 });
   mouth(k, { w: 0.12, y: -0.42, curve: 0.06, r: 0.006 });
+  // Little dark spots of colour scattered over the mantle, above and below its band.
+  speckle(k, 'neck', [0, n[1] + 0.31, n[2] - 0.05], [0.145, 0.27, 0.135], 44, (d) => Math.abs(d.y - 0.19) > 0.2 && d.y < 0.5 && d.y > (d.z > 0 ? -0.15 : -0.45), 0.023, deep, 'spot');
   k.marks = {
     base: c.coat,
     marks: [
@@ -744,6 +851,9 @@ const hedgehog: Recipe = (k, c) => {
     base: face,
     marks: [
       { color: mix(c.coat, '#e8a0a0', 0.6), f: any(...ears.map((e) => e.inner)) },
+      // Little brown paws and feet.
+      { color: mix(face, spine, 0.6), f: region(k, 'armLPaw', 'armRPaw') },
+      { color: mix(face, spine, 0.6), f: all(region(k, /^leg/), (q) => q.p.y - 0.045) },
       // Dark under the spikes, with a clean edge round the face and tummy.
       { color: spine, f: all(region(k, 'belly', 'chest'), (q) => onBody(unitDir(q, bellyC, bellyR), 0.06) * 0.2) },
       { color: spine, f: all(region(k, 'head'), (q) => onHead(unitDir(q, hc, headR), 0.06) * 0.15) },
@@ -754,6 +864,7 @@ const hedgehog: Recipe = (k, c) => {
 
 const axolotl: Recipe = (k, c) => {
   const gill = mix(c.coat, '#c0306a', 0.55);
+  const frill = mix(gill, '#d02060', 0.3);
   const pale = mix(c.coat, '#ffffff', 0.4);
   // A soft newt standing up: a wide flat head with a wide smile, three gill stalks fanning out each side,
   // little hands and feet, and a long flat tail with a fin along the top.
@@ -781,6 +892,17 @@ const axolotl: Recipe = (k, c) => {
       const mid: Vec3 = [side * (0.2 + Math.cos(a) * 0.08), base[1] + Math.sin(a) * 0.08, base[2] - 0.035];
       const tipP: Vec3 = [side * (0.2 + Math.cos(a + 0.25) * 0.15), base[1] + Math.sin(a + 0.25) * 0.15, base[2] - 0.06];
       chain(k, 'neck', [base, mid, tipP], [0.032, 0.03, 0.028], `gill${side > 0 ? 'L' : 'R'}${i}_`);
+      // Feathery filaments down both sides of each stalk, swept towards its tip and a little forward.
+      const b0 = new THREE.Vector3(...base);
+      const d = new THREE.Vector3(...tipP).sub(b0);
+      const len = d.length();
+      d.normalize();
+      const across = new THREE.Vector3(-d.y, d.x, 0).normalize();
+      [0.32, 0.52, 0.72, 0.92].forEach((t, f) => {
+        const at = b0.clone().addScaledVector(d, len * t);
+        const dir = across.clone().multiplyScalar(f % 2 ? 1 : -1).addScaledVector(d, 0.75).add(new THREE.Vector3(0, 0, 0.35)).normalize();
+        piece(k, { bone: 'neck', pts: [at, at.clone().addScaledVector(dir, 0.046), at.clone().addScaledVector(dir, 0.072)], w: [0.008, 0.0065, 0], t: [0.0055, 0.0045, 0], across: new THREE.Vector3(0, 0, 1), colors: [frill, frill], name: `frill${side > 0 ? 'L' : 'R'}${i}_${f}` });
+      });
     }
   }
   armForms(k, { len: 0.17, r0: 0.04, r1: 0.033, paw: [0.042, 0.02, 0.045], fwd: 0.5, out: 0.3 });
@@ -808,7 +930,7 @@ const gecko: Recipe = (k, c) => {
   const belly = mix(c.coat, CREAM, 0.6);
   const band = mix(c.coat, '#5a3424', 0.5);
   // A little lizard standing up: a big round head with huge eyes and a wide grin, a slim body, wide hands and
-  // feet, and a long fat tail curling out behind, banded across the back.
+  // feet, dark spots all over its back, and a long fat tail curling out behind, banded across.
   k.joints.neck = [0, 0.5, 0.06];
   k.joints.shoulder = [0.12, 0.42, 0.08];
   k.joints.hip = [0.09, 0.16, -0.03];
@@ -832,13 +954,14 @@ const gecko: Recipe = (k, c) => {
   // Huge eyes up on the sides of the head, gold round the pupils.
   eyes(k, { x: 0.5, y: 0.3, size: 1.5, wide: 1, slant: 0, color: '#1a1410', ring: '#e2b040', ringSize: 1.3 });
   mouth(k, { w: 0.6, y: -0.3, curve: 0.1, r: 0.006 });
-  const back = region(k, 'belly', 'chest');
+  // A leopard gecko's crisp dark spots over the top of its head, its back and sides.
+  speckle(k, 'neck', plus(k.joints.neck, [0, 0.12, 0.06]), [0.2, 0.15, 0.19], 40, (d) => d.z < 0.3 && d.y > -0.1, 0.017, band, 'headSpot');
+  speckle(k, 'body', [0, 0.3, -0.02], [0.16, 0.22, 0.15], 44, (d) => d.z < 0.15 && d.y > (Math.abs(d.x) < 0.5 ? -0.25 : -0.6) && d.y < 0.85, 0.018, band, 'spot');
   k.marks = {
     base: c.coat,
     marks: [
       { color: belly, f: frontOval(k, ['belly', 'chest'], 0, 0.3, 0.12, 0.2) },
-      // Broad bands across the back and round the tail.
-      { color: band, f: all(back, (q) => q.p.z + 0.02, (q) => 0.55 - Math.sin((q.p.y - 0.1) * 26)) },
+      // Broad bands round the tail.
       { color: band, f: all(region(k, /^tail\d/), (q) => 0.55 - Math.sin(tailAt(q.p) * Math.PI * 7)) },
     ],
   };
@@ -949,8 +1072,8 @@ const deer: Recipe = (k, c) => {
   const white = mix(c.coat, CREAM, 0.85);
   const dark = mix(c.coat, '#2b211d', 0.72);
   const antler = '#e4d6b8';
-  // Slender and gentle: long legs, a longer neck, big wide ears, a white bob of a tail, a dark nose, pale spots
-  // down its back, and small branching antlers.
+  // Slender and gentle: long legs, a longer neck, big wide ears, a bob of a tail white underneath, a dark nose,
+  // a fawn's white spots down its back, and small branching antlers.
   k.joints.neck = [0, 0.66, 0.07];
   k.joints.shoulder = [0.11, 0.52, 0.12];
   k.joints.hip = [0.09, 0.24, -0.06];
@@ -994,15 +1117,24 @@ const deer: Recipe = (k, c) => {
   eyes(k, { x: 0.45, y: 0.1, size: 1.1, wide: 1.15, slant: 0.12, color: '#1a1210' });
   nose(k, INK, onSnout(k, snout.nose), 0.026, 0.02);
   const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
-  // Pale spots in two rows down each side of the back.
-  const spotsAt: Vec3[] = [];
+  // A fawn's spots: crisp white dots in rows down each side of the back, from the shoulders to the rump, the
+  // rows staggered and the outer ones smaller, out onto the flanks.
+  const rows = [
+    { a: 0.3, top: 0.6, n: 5, r: 0.028 },
+    { a: 0.72, top: 0.565, n: 4, r: 0.027 },
+    { a: 1.12, top: 0.53, n: 3, r: 0.022 },
+    { a: 1.5, top: 0.5, n: 3, r: 0.02 },
+  ];
   for (const side of [-1, 1]) {
-    for (let i = 0; i < 4; i++) {
-      spotsAt.push([side * 0.075, 0.5 - i * 0.055, -0.08 - i * 0.04]);
-      spotsAt.push([side * 0.13, 0.46 - i * 0.055, -0.04 - i * 0.04]);
-    }
+    rows.forEach(({ a, top, n, r }, ri) => {
+      for (let i = 0; i < n; i++) {
+        const y = top - i * 0.07;
+        const tilt = a + (i % 2) * 0.06 - 0.03;
+        decal(k, { bone: 'body', from: new THREE.Vector3(0, y, -0.03), dir: new THREE.Vector3(side * Math.sin(tilt), 0, -Math.cos(tilt)), r, stretch: 1.15, color: white, name: `spot${side > 0 ? 'L' : 'R'}${ri}_${i}` });
+      }
+    });
   }
-  const spot = (q: Probe) => Math.min(...spotsAt.map((s) => Math.hypot(q.p.x - s[0], q.p.y - s[1], (q.p.z - s[2]) * 0.6))) - 0.034;
+  const bobY = j[1] + 0.02;
   k.marks = {
     base: c.coat,
     marks: [
@@ -1012,8 +1144,9 @@ const deer: Recipe = (k, c) => {
       { color: white, f: all(region(k, 'muzzle'), (q) => q.p.y - (snout.mid(q.p) - snout.r * 0.2)) },
       { color: white, f: all(region(k, 'chest', 'ruff'), (q) => -q.p.z, (q) => Math.hypot(q.p.x / 0.07, (q.p.y - 0.6) / 0.06) - 1) },
       { color: white, f: frontOval(k, ['belly'], 0, 0.3, 0.1, 0.12) },
-      { color: white, f: region(k, 'bob') },
-      { color: white, f: all(region(k, 'belly', 'chest', 'haunchL', 'haunchR'), (q) => q.p.z + 0.02, spot) },
+      // The tail: coat over the top, white under it and on the rump round it, flashed when it bobs.
+      { color: white, f: all(region(k, 'bob'), (q) => q.p.y - bobY + (q.p.z - j[2]) * 0.6) },
+      { color: white, f: all(region(k, 'belly', 'haunchL', 'haunchR'), (q) => q.p.z + 0.17, (q) => Math.hypot(q.p.x / 0.075, (q.p.y - 0.33) / 0.075) - 1) },
       { color: dark, f: all(region(k, /^leg/), (q) => q.p.y - 0.06) },
       { color: dark, f: all(region(k, 'armLPaw', 'armRPaw'), (q) => q.p.y - (k.joints.shoulder[1] - 0.37)) },
     ],
@@ -1059,14 +1192,15 @@ const sloth: Recipe = (k, c) => {
   eyes(k, { x: 0.36, y: 0.08, size: 0.8, wide: 1, slant: 0, color: '#140e0c' });
   nose(k, mix(c.coat, '#1a1210', 0.85), onSnout(k, snout.nose), 0.03, 0.022);
   mouth(k, { w: 0.24, y: -0.48, curve: 0.08, r: 0.006 });
+  // A crisp dark stripe back from each eye across the pale face.
+  faceDabs(k, [[0.55, 0.04, 0.025]], mask, 'stripe', { stretch: 2.9, along: [1, -0.22, 0], sides: 12 });
   const head = unitOf(k, 'head');
   const faceR = region(k, 'head', 'muzzle');
   k.marks = {
     base: c.coat,
     marks: [
       { color: claw, f: region(k, /^claw/) },
-      // A dark stripe back from each eye, then the pale face round it.
-      { color: mask, f: all(faceR, (q) => 0.16 - Math.abs(head(q).x), (q) => Math.abs(head(q).x) - 0.9, (q) => Math.abs(head(q).y - 0.08 + (Math.abs(head(q).x) - 0.36) * 0.25) - 0.085, (q) => -0.3 - head(q).z) },
+      // The pale face.
       { color: face, f: all(faceR, (q) => 0.05 - head(q).z) },
       { color: face, f: region(k, 'muzzle') },
     ],
@@ -1103,6 +1237,10 @@ const seal: Recipe = (k, c) => {
   nose(k, '#2a2224', onSnout(k, snout.nose), 0.028, 0.02);
   whiskers(k, c.coat, { len: 0.1, sweep: 0.15, color: '#e8e0d4' });
   mouth(k, { w: 0.18, y: -0.52, curve: 0.06, r: 0.006 });
+  // A harbour seal's dark speckles, scattered over its back and sides and the top of its head.
+  const speck = mix(c.coat, CHARCOAL, 0.42);
+  speckle(k, 'body', [0, 0.33, -0.02], [0.22, 0.28, 0.21], 46, (d) => d.z < 0.25 && d.y < 0.75 && d.y > -0.55, 0.017, speck, 'speck');
+  speckle(k, 'neck', plus(k.joints.neck, [0, 0.13, 0.04]), [0.18, 0.165, 0.17], 22, (d) => d.z < 0.1 && d.y > -0.1, 0.014, speck, 'headSpeck');
   k.marks = {
     base: c.coat,
     marks: [
@@ -1137,6 +1275,7 @@ const platypus: Recipe = (k, c) => {
   });
   headForm(k, { r: [0.17, 0.15, 0.16], at: [0, 0.12, 0.05], melt: 0.12 });
   const tip = beakForm(k, { dy: -0.18, len: 0.16, w: 0.09, h: 0.028, flat: true, drop: 0.12 });
+  const billAt = { dy: -0.18, len: 0.16, drop: 0.12 };
   armForms(k, { len: 0.18, r0: 0.045, r1: 0.036, paw: [0.05, 0.02, 0.05], fwd: 0.5, out: 0.3 });
   legForms(k, { r0: 0.05, r1: 0.042, foot: [0.06, 0.022, 0.08] });
   // The paddle: a wide flat tail, thinner to the end.
@@ -1144,6 +1283,9 @@ const platypus: Recipe = (k, c) => {
   sculptOf(k).add(ellipsoid('tail', [j[0], j[1] - 0.06, j[2] - 0.13], [0.12, 0.045, 0.16], { rot: [-0.4, 0, 0], k: 0.05, anchor: j, reach: 0.12, name: 'paddle' }));
   useSurface(k);
   eyes(k, { x: 0.5, y: 0.25, size: 0.75, wide: 1, slant: 0, color: '#120e10' });
+  // Nostrils near the end of the bill, and a pale spot under each eye.
+  nostrils(k, { ...billAt, at: 0.78, gap: 0.02, r: 0.0085, color: '#1c181a' });
+  faceDabs(k, [[0.6, 0.12, 0.024]], belly, 'cheek', { stretch: 1.3, along: [1, 0.3, 0] });
   k.nose = tip;
   k.marks = {
     base: c.coat,
@@ -1199,7 +1341,6 @@ const panda: Recipe = (k, c) => {
   eyes(k, { x: 0.38, y: 0.1, size: 0.85, wide: 1, slant: 0.1, color: '#120e10', ring: black, ringSize: 1.8, out: 0.006 });
   nose(k, black, onSnout(k, snout.nose), 0.032, 0.022);
   const head = unitOf(k, 'head');
-  const hc = plus(k.joints.neck, headAt);
   k.marks = {
     base: c.coat,
     marks: [
@@ -1219,7 +1360,7 @@ const panda: Recipe = (k, c) => {
       },
       // Black arms and a band over the shoulders joining them; black legs.
       { color: black, f: region(k, 'armL', 'armR', 'foreL', 'foreR', 'armLPaw', 'armRPaw') },
-      { color: black, f: all(region(k, 'chest', 'belly'), (q) => Math.abs(q.p.y - 0.5 + q.p.z * 0.35) - 0.07, (q) => hc[1] - 0.1 - q.p.y + 0.3) },
+      { color: black, f: all(region(k, 'chest', 'belly'), (q) => Math.abs(q.p.y - 0.54 - q.p.z * 0.25) - 0.075, (q) => -Math.max(0.05 - q.p.z, Math.abs(q.p.x) - 0.13)) },
       { color: black, f: region(k, /^leg/, 'haunchL', 'haunchR') },
     ],
   };
@@ -1305,6 +1446,11 @@ const capybara: Recipe = (k, c) => {
   useSurface(k);
   eyes(k, { x: 0.5, y: 0.35, size: 0.7, wide: 1, slant: 0, color: '#140e0c' });
   nose(k, dark, onSnout(k, snout.nose), 0.04, 0.02);
+  // The dark bare patch on top of its nose.
+  const n = new THREE.Vector3(...k.joints.neck);
+  const root = onHead(k, 0, -0.12).add(n);
+  const ridge = root.clone().lerp(new THREE.Vector3(...snout.nose).add(n), 0.4);
+  decal(k, { bone: 'neck', from: ridge.add(new THREE.Vector3(0, -0.03, 0)), dir: new THREE.Vector3(0, 1, 0.15), r: 0.032, stretch: 1.45, along: new THREE.Vector3(0, -0.3, 1), color: mix(c.coat, CHARCOAL, 0.5), name: 'ridge' });
   k.marks = {
     base: c.coat,
     marks: [
@@ -1318,6 +1464,7 @@ const capybara: Recipe = (k, c) => {
 const wolf: Recipe = (k, c) => {
   const pale = mix(c.coat, CREAM, 0.75);
   const dark = mix(c.coat, CHARCOAL, 0.45);
+  const saddle = mix(c.coat, CHARCOAL, 0.3);
   // Rangy and proud: a deep chest under a thick ruff, a long snout, tall pointed ears, a pale mask round the
   // muzzle and throat, a darker saddle over the back, long legs and a bushy tail carried low.
   k.joints.neck = [0, 0.66, 0.05];
@@ -1360,6 +1507,8 @@ const wolf: Recipe = (k, c) => {
   eyes(k, { x: 0.4, y: 0.14, size: 0.85, wide: 1.4, slant: 0.28, color: '#1a1410', ring: '#c8963a', ringSize: 1.25 });
   nose(k, INK, onSnout(k, snout.nose), 0.028, 0.02);
   whiskers(k, c.coat, { len: 0.1, back: 0.035 });
+  // Pale brow spots over the eyes.
+  faceDabs(k, [[0.27, 0.43, 0.024]], pale, 'brow', { stretch: 1.3, along: [1, 0.35, 0] });
   const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
   const head = unitOf(k, 'head');
   k.marks = {
@@ -1371,8 +1520,8 @@ const wolf: Recipe = (k, c) => {
       { color: pale, f: all(region(k, 'muzzle'), (q) => q.p.y - (snout.mid(q.p) + snout.r * 0.2)) },
       { color: pale, f: all(region(k, 'head', 'cheekL', 'cheekR'), (q) => head(q).y + 0.12 + Math.abs(head(q).x) * 0.15, (q) => -0.2 - head(q).z) },
       { color: pale, f: all(region(k, 'chest', 'ruff', 'belly'), (q) => -q.p.z, (q) => segDist(q.p.x, q.p.y, 0, 0.32, 0, 0.62).d - 0.09) },
-      // A darker saddle over the back, and a dark tip to the tail.
-      { color: dark, f: all(region(k, 'belly', 'chest', 'ruff', 'haunchL', 'haunchR'), (q) => q.p.z + 0.06, (q) => 0.4 - q.p.y + Math.abs(q.p.x) * 0.6) },
+      // A darker saddle over the back from the shoulders to the rump, and a dark tip to the tail.
+      { color: saddle, f: all(region(k, 'belly', 'chest', 'ruff', 'haunchL', 'haunchR'), (q) => Math.atan2(Math.abs(q.p.x), -0.06 - q.p.z) - 0.55 - (q.p.y - 0.3) * 1.7, (q) => 0.3 - q.p.y) },
       { color: dark, f: all(region(k, /^tail\d/), (q) => 0.85 - tailAt(q.p)) },
     ],
   };
@@ -1428,8 +1577,9 @@ const bear: Recipe = (k, c) => {
       { color: muzzleC, f: any(...ears.map((e) => e.inner)) },
       { color: muzzleC, f: region(k, 'muzzle') },
       { color: mix(c.coat, muzzleC, 0.35), f: frontOval(k, ['belly', 'chest'], 0, 0.33, 0.15, 0.22) },
-      { color: dark, f: region(k, 'armLPaw', 'armRPaw') },
-      { color: dark, f: all(region(k, /^leg/), (q) => q.p.y - 0.06) },
+      // Darker legs: socks well up the arms, and up over the feet.
+      { color: dark, f: any(sockOf(k, 'L', 0.55), sockOf(k, 'R', 0.55)) },
+      { color: dark, f: all(region(k, /^leg/), (q) => q.p.y - 0.11) },
     ],
   };
   return {};
@@ -1473,6 +1623,8 @@ const redpanda: Recipe = (k, c) => {
   eyes(k, { x: 0.38, y: 0.08, size: 0.9, wide: 1, slant: 0.1, color: '#140e0c' });
   nose(k, INK, onSnout(k, snout.nose), 0.026, 0.019);
   whiskers(k, c.coat, { len: 0.09, color: '#f0e6da' });
+  // White brows over the eyes.
+  faceDabs(k, [[0.33, 0.43, 0.026]], white, 'brow', { stretch: 1.55, along: [1, 0.3, 0] });
   const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
   const head = unitOf(k, 'head');
   k.marks = {
@@ -1484,7 +1636,6 @@ const redpanda: Recipe = (k, c) => {
       { color: dark, f: all(region(k, 'head', 'cheekL', 'cheekR'), (q) => Math.abs(Math.abs(head(q).x) - 0.4) - 0.07, (q) => head(q).y - 0.0, (q) => -0.35 - head(q).y, (q) => 0.2 - head(q).z) },
       { color: white, f: region(k, 'muzzle') },
       { color: white, f: all(region(k, 'cheekL', 'cheekR', 'head'), (q) => head(q).y + 0.05, (q) => 0.25 - head(q).z) },
-      { color: white, f: all(region(k, 'head'), (q) => Math.hypot((Math.abs(head(q).x) - 0.32) / 0.12, (head(q).y - 0.42) / 0.09) - 1) },
       // Dark legs, arms and belly.
       { color: dark, f: region(k, 'armL', 'armR', 'foreL', 'foreR', 'armLPaw', 'armRPaw', /^leg/) },
       { color: dark, f: frontOval(k, ['belly', 'chest'], 0, 0.28, 0.14, 0.2) },
@@ -1635,6 +1786,10 @@ const dugong: Recipe = (k, c) => {
   useSurface(k);
   eyes(k, { x: 0.5, y: 0.3, size: 0.62, wide: 1, slant: 0, color: '#120e10' });
   nose(k, mix(c.coat, '#2a2224', 0.7), onSnout(k, [snout.nose[0], snout.nose[1] + 0.03, snout.nose[2] - 0.02]), 0.03, 0.014);
+  // Two crescent nostrils up on top of the end of the muzzle.
+  for (const side of [-1, 1]) {
+    decal(k, { bone: 'neck', from: new THREE.Vector3(...plus(n, snout.nose)).add(new THREE.Vector3(0, -0.05, -0.05)), dir: new THREE.Vector3(side * 0.45, 1, 0.55), r: 0.011, stretch: 1.7, along: new THREE.Vector3(1, 0, -0.4 * side), color: mix(c.coat, '#2a2224', 0.65), sides: 8, name: `nostril${side > 0 ? 'L' : 'R'}` });
+  }
   whiskers(k, c.coat, { len: 0.05, sweep: 0.05, drop: 0.04, color: mix(c.coat, '#f2ece2', 0.6) });
   mouth(k, { w: 0.16, y: -0.62, curve: 0.05, r: 0.006 });
   k.marks = {
@@ -1717,7 +1872,7 @@ const ibis: Recipe = (k, c) => {
   const black = '#1f1d22';
   const plume = '#26242a';
   // The Australian white ibis: a white bird on long black legs, its bare black head and neck ending in a long
-  // down-curved beak, and a scruffy black plume over the tail. Cut finer than most, so the slender beak survives.
+  // down-curved beak, black tips to its wings and a scruffy black plume over the tail. Cut finer than most, so the slender beak survives.
   k.step = 0.03;
   k.joints.neck = [0, 0.86, 0.1];
   k.joints.shoulder = [0.14, 0.6, 0.0];
@@ -1753,12 +1908,15 @@ const ibis: Recipe = (k, c) => {
   // Long thin legs, and a fan of tail feathers under a scruffy plume.
   legForms(k, { r0: 0.028, r1: 0.022, foot: [0.045, 0.018, 0.08], fwd: 0.04 });
   finForm(k, 'tail', k.joints.tail, { len: 0.14, w: 0.09, d: 0.034, rot: [-(Math.PI / 2 + 0.5), 0, 0], name: 'tailFan' });
-  const sc = sculptOf(k);
-  [-0.06, -0.02, 0.02, 0.06].forEach((x, i) => {
-    const base: Vec3 = [x, 0.52 + (i % 2) * 0.025, -0.15];
-    sc.add(pyramid('body', base, 0.045, 0.17 - (i % 2) * 0.03, 0.036, { rot: [-(Math.PI / 2 + 0.85), x * 3, 0], k: 0.02, round: 0.012, anchor: base, reach: 0.06, name: `plume${i}`, thin: true }));
-  });
   useSurface(k);
+  // The plume: crisp black feathers drooping from the lower back over the tail, fanned a little. They're on the
+  // bone the rig folds away inside the body under a cape or a backpack (as the kaiju's plates are).
+  bone(k, 'backPlates', 'body', [0, 0.48, -0.16]);
+  [-0.05, -0.025, 0, 0.025, 0.05].forEach((x, i) => {
+    const l = 1 - Math.abs(x) * 3 + (i % 2) * 0.08;
+    const pts = [new THREE.Vector3(x, 0.49, -0.17), new THREE.Vector3(x * 1.3, 0.46, -0.27), new THREE.Vector3(x * 1.6, 0.46 - 0.08 * l, -0.27 - 0.07 * l), new THREE.Vector3(x * 1.8, 0.46 - 0.17 * l, -0.28 - 0.1 * l)];
+    piece(k, { bone: 'backPlates', pts, w: [0.02, 0.022, 0.015, 0], t: [0.008, 0.007, 0.005, 0], across: new THREE.Vector3(1, 0, 0), colors: [plume, plume, plume], name: `plume${i}` });
+  });
   eyes(k, { x: 0.42, y: 0.12, size: 0.8, wide: 1, slant: 0, color: '#120e10', ring: '#9a9aa4', ringSize: 1.45, out: 0.005 });
   k.nose = v3(new THREE.Vector3(...pts[pts.length - 1]).sub(new THREE.Vector3(...n)));
   k.marks = {
@@ -1768,7 +1926,8 @@ const ibis: Recipe = (k, c) => {
       { color: black, f: region(k, 'head') },
       { color: black, f: all(region(k, 'chest'), (q) => 0.74 - q.p.y) },
       { color: black, f: region(k, /^leg/) },
-      { color: plume, f: region(k, /^plume/) },
+      // Black tips to the folded wings.
+      { color: plume, f: all(region(k, 'armLPaw', 'armRPaw'), (q) => q.p.y - 0.37) },
     ],
   };
   return {};
@@ -1847,6 +2006,8 @@ const crab: Recipe = (k, c) => {
     solid(eye, k.rnd, { base: 'ico0', r: 0.007, matrix: inside(m, [0.006, 0.008, 0.011]), jitter: 0.01, color: '#fbf6ec', tone: 0 });
   }
   k.blink = ['blinkL', 'blinkR'];
+  // Pale freckles over the top and back of the shell.
+  speckle(k, 'body', [0, 0.3, 0], [0.27, 0.2, 0.17], 48, (d) => d.y > 0.1 && d.z < 0.25, 0.016, mix(c.coat, '#fbeee0', 0.42), 'freckle');
   const eyeAt = onHead(k, 0.4, 0.62).add(tipRel);
   k.eyeY = eyeAt.y;
   k.eyeX = eyeAt.x + 0.02;
@@ -2181,6 +2342,8 @@ export const DETAILS: Partial<Record<AnimalId, Details>> = {
   panda: { toes: 2 },
   raccoon: { toes: 3 },
   bear: { claws: 3 },
+  gecko: { toes: 3, paws: 3 },
+  otter: { toes: 3 },
   ferret: { toes: 2, paws: 2 },
   kaiju: { claws: 3 },
 };
