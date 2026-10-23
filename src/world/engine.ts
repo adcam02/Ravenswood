@@ -600,6 +600,8 @@ export class Engine {
       this.lastShowId.add(ex.id);
       const name = v.seats.find((s) => s.id === ex.seatId)?.name ?? 'Someone';
       this.show = { id: ex.id, seatId: ex.seatId, name, start: this.clock.elapsedTime, mine: ex.seatId === v.mySeatId, released: false, alive: true };
+      // (Popups wait from this moment, not from the next frame.)
+      useHud.setState({ drama: true });
       // Everyone stops what they're doing to watch, but anyone on a meeting stool stays sat.
       if (this.show.mine || this.seated?.y !== STOOL_Y) this.stopEverything();
       const spot = this.town.gallowsSpot;

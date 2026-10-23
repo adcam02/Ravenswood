@@ -11,6 +11,7 @@ import { useUI } from '../state/ui';
 import { useJoin } from '../components/town/JoinFlow';
 import { ViewContext, type View } from '../state/view';
 import { voice } from '../voice/voice';
+import { earshot } from '../voice/earshot';
 import { Engine, type WorldView } from './engine';
 import { emptyTown } from './types';
 
@@ -112,7 +113,7 @@ export function World({ mode }: { mode: 'st' | 'player' | 'preview' }) {
           else player.give(to, item);
         },
       });
-      if (debugHooks()) Object.assign(window, { __engine: engine.current, __local: local, __presence: presence, __hud: useHud, __game: game, __st: { st }, __ambience: ambience });
+      if (debugHooks()) Object.assign(window, { __engine: engine.current, __local: local, __presence: presence, __hud: useHud, __game: game, __st: { st }, __ambience: ambience, __earshot: earshot });
     } catch (e) {
       console.error(e);
       useHud.setState({ failed: e instanceof Error ? e.message : String(e) });
