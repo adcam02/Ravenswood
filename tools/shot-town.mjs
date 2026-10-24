@@ -51,6 +51,10 @@ const ALL = {
   'casino-bj': 'zone=casino&x=4.4&z=-3&t=0&dist=6&pitch=0.8&casino',
   'casino-seat-pk': 'zone=casino&t=0&casino&seatcam=pk:5',
   'casino-seat-bj': 'zone=casino&t=0&casino&seatcam=bj:2',
+  'casino-roulette': 'zone=casino&x=4.1&z=2.5&t=0&dist=6&pitch=0.85&casino&rlt=3.5',
+  'casino-roulette-wheel': 'zone=casino&x=5.08&z=2.5&t=0&dist=2.2&pitch=1.1&casino&rlt=4.6',
+  'casino-roulette-result': 'zone=casino&x=4.1&z=2.5&t=0&dist=6&pitch=0.85&casino&rlresult&rlt=9',
+  'casino-seat-rl': 'zone=casino&t=0&casino&seatcam=rl:1&rlt=5.2',
   // A messenger pigeon flying in to a fox by the pond, perched on its shoulder, and bursting into confetti.
   'pigeon-fly': 'x=2&z=20&t=0&dist=6&pitch=0.45&pigeon=1.3&frames=30',
   'pigeon-perch': 'x=2&z=20&t=0&dist=3.2&pitch=0.3&pigeon=3.6&frames=40',

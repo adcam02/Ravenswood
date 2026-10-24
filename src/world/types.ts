@@ -529,7 +529,8 @@ export type JobId =
   /** The casino: the pet shop's counter, and a seat at either card table. */
   | 'shop'
   | 'blackjack'
-  | 'poker';
+  | 'poker'
+  | 'roulette';
 
 /** The town's best at each game: who, the score, and when. */
 export interface TownRecord {

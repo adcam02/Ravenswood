@@ -1,7 +1,7 @@
 import { BEDS, BED_SPOTS, BOOTH, BOOTH_SEATS, LINES, LINE_SLOTS, type Collider, type Door, type Spot, type Station, type ZoneKind } from '../types';
 import { local } from './kit';
-import { BJ_TABLE, BJ_DEALER, CASHIER, CASINO, CASINO_DOOR, CASINO_ROOM, CHAIR_Y, PK_DEALER, PK_TABLE, SHOP, SLOTS, bjSeat, pkSeat } from './casinoLayout';
-import { BJ_SEATS, PK_SEATS } from '../../casino/types';
+import { BJ_TABLE, BJ_DEALER, CASHIER, CASINO, CASINO_DOOR, CASINO_ROOM, CHAIR_Y, PK_DEALER, PK_TABLE, RL_CROUPIER, RL_TABLE, SHOP, SLOTS, bjSeat, pkSeat, rlSeat } from './casinoLayout';
+import { BJ_SEATS, PK_SEATS, RL_SEATS } from '../../casino/types';
 
 /**
  * Where everything in Ravenswood stands. Metres, y up, north is -z (away from the camera).
@@ -400,9 +400,13 @@ export function makeStations(): Station[] {
     const c = pkSeat(i);
     st.push({ id: `pk-${i}`, zone: 'casino', x: c.x, z: c.z, r: 0.85, job: 'poker', stand: c, y: CHAIR_Y, label: 'Sit down for poker' });
   }
+  for (let i = 0; i < RL_SEATS; i++) {
+    const c = rlSeat(i);
+    st.push({ id: `rl-${i}`, zone: 'casino', x: c.x, z: c.z, r: 0.85, job: 'roulette', stand: c, y: CHAIR_Y, label: 'Sit down for roulette' });
+  }
   // Activities are easy to step into: a generous area round each (the nearest wins where two overlap).
   // Seats and beds keep a small one, so walking past doesn't keep offering to sit.
-  for (const s of st) if (s.job !== 'sit' && s.job !== 'sleep' && s.job !== 'blackjack' && s.job !== 'poker') s.r = Math.min(3.2, Math.max(2.4, s.r * 1.6));
+  for (const s of st) if (s.job !== 'sit' && s.job !== 'sleep' && s.job !== 'blackjack' && s.job !== 'poker' && s.job !== 'roulette') s.r = Math.min(3.2, Math.max(2.4, s.r * 1.6));
   return st;
 }
 
@@ -508,6 +512,8 @@ export function roomColliders(kind: Exclude<ZoneKind, 'town'>): Collider[] {
     for (const k of [-1, -0.5, 0, 0.5, 1]) c.push({ kind: 'circle', x: PK_TABLE.x + k * (PK_TABLE.rx - PK_TABLE.rz * 0.8), z: PK_TABLE.z, r: PK_TABLE.rz * (1 - Math.abs(k) * 0.12) + 0.05 });
     c.push({ kind: 'circle', x: PK_DEALER.x, z: PK_DEALER.z, r: 0.35 });
     for (const sl of SLOTS) c.push(at(sl.x, sl.z, 0.4, 0.45));
+    c.push(at(RL_TABLE.x, RL_TABLE.z, RL_TABLE.hw + 0.05, RL_TABLE.hd + 0.05));
+    c.push({ kind: 'circle', x: RL_CROUPIER.x, z: RL_CROUPIER.z, r: 0.35 });
     // Potted palms in the corners.
     for (const [x, z] of [
       [-8.3, 5.9],

@@ -3,7 +3,8 @@ import type { CasinoView } from '../../casino/types';
 import { HIDDEN } from '../../casino/types';
 import { buildAnimal, type Rig } from '../animals';
 import type { Anim } from '../types';
-import { BJ_DEALER, BJ_TABLE, CASHIER, FELT_Y, STEP, PK_DEALER, PK_TABLE, bjSpot, pkAround } from './casinoLayout';
+import { BJ_DEALER, CASHIER, FELT_Y, STEP, PK_DEALER, PK_TABLE, RL_BOARD, RL_CROUPIER, RL_WHEEL, bjSpot, pkAround, rlCell } from './casinoLayout';
+import { BET_KEYS, WHEEL, betName, boardCell, colourOf } from '../../casino/roulette';
 
 /**
  * What's on the casino's tables, drawn in the room: the cards (face up where this player may see them, backs
@@ -160,10 +161,187 @@ const betSpot = (i: number) => {
   return { x: p.x + Math.cos(p.ry) * 0.3, z: p.z - Math.sin(p.ry) * 0.3 };
 };
 
+// ---------------------------------------------------------------- roulette
+
+const RL_COLOURS = { red: '#c8303a', black: '#1d1a24', green: '#2f8a4f' };
+
+/** The betting board, painted on a canvas to lie on the felt (the same cells as the panel's board). */
+function boardTexture(): THREE.CanvasTexture {
+  const S = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = 14 * S;
+  canvas.height = 5 * Math.round(S * (RL_BOARD.ch / RL_BOARD.cw));
+  const H = canvas.height / 5;
+  const g = canvas.getContext('2d')!;
+  g.fillStyle = '#2f7a4f';
+  g.fillRect(0, 0, canvas.width, canvas.height);
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  for (const key of BET_KEYS) {
+    const c = boardCell(key);
+    const x = c.col * S;
+    const y = c.row * H;
+    const w = c.w * S;
+    const h = c.h * H;
+    const n = key[0] === 'n' ? Number(key.slice(1)) : null;
+    if (n !== null || key === 'red' || key === 'black') {
+      const col = n !== null ? colourOf(n) : (key as 'red' | 'black');
+      g.fillStyle = RL_COLOURS[col];
+      if (n !== null) g.fillRect(x + 5, y + 5, w - 10, h - 10);
+      else {
+        // A diamond of the colour, as on a real layout.
+        g.beginPath();
+        g.moveTo(x + w / 2, y + 8);
+        g.lineTo(x + w - 14, y + h / 2);
+        g.lineTo(x + w / 2, y + h - 8);
+        g.lineTo(x + 14, y + h / 2);
+        g.closePath();
+        g.fill();
+      }
+    }
+    g.strokeStyle = '#f6efe0';
+    g.lineWidth = 3;
+    g.strokeRect(x + 1.5, y + 1.5, w - 3, h - 3);
+    if (key !== 'red' && key !== 'black') {
+      g.fillStyle = '#f6efe0';
+      g.font = `600 ${n !== null ? 34 : 30}px Fredoka, "Trebuchet MS", sans-serif`;
+      // (Upright for the players along the front.)
+      g.fillText(betName(key), x + w / 2, y + h / 2);
+    }
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+/** The wheel's face: 37 pockets in their colours, numbered round the rim. */
+function rotorTexture(): THREE.CanvasTexture {
+  const S = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = S;
+  const g = canvas.getContext('2d')!;
+  const c = S / 2;
+  const step = (Math.PI * 2) / 37;
+  // A pocket at angle φ on the wheel lies at (sin φ, cos φ), which on this face is (c + r sin φ, c + r cos φ).
+  const at = (phi: number, r: number) => [c + r * Math.sin(phi), c + r * Math.cos(phi)] as const;
+  WHEEL.forEach((n, k) => {
+    const a0 = k * step - step / 2;
+    g.beginPath();
+    g.moveTo(...at(a0, c * 0.55));
+    for (let j = 0; j <= 6; j++) g.lineTo(...at(a0 + (step * j) / 6, c));
+    for (let j = 6; j >= 0; j--) g.lineTo(...at(a0 + (step * j) / 6, c * 0.55));
+    g.closePath();
+    g.fillStyle = RL_COLOURS[colourOf(n)];
+    g.fill();
+    g.save();
+    const [x, y] = at(k * step, c * 0.87);
+    g.translate(x, y);
+    g.rotate(-k * step + Math.PI);
+    g.fillStyle = '#f6efe0';
+    g.font = '600 26px Fredoka, "Trebuchet MS", sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(String(n), 0, 0);
+    g.restore();
+  });
+  g.beginPath();
+  g.arc(c, c, c * 0.55, 0, Math.PI * 2);
+  g.fillStyle = '#7a4a2a';
+  g.fill();
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+const POCKET_R = 0.235;
+const TRACK_R = 0.355;
+const ROTOR_R = 0.3;
+/** The rotor turns slowly all the time, and three whole turns more over a spin. */
+const IDLE_SPIN = 0.6;
+const ease = (p: number) => 1 - Math.pow(1 - p, 3);
+const smooth01 = (p: number) => (p <= 0 ? 0 : p >= 1 ? 1 : p * p * (3 - 2 * p));
+
+/** The wheel at the end of the roulette table, its ball, and the croupier's marker on the winning number. */
+function makeWheel(group: THREE.Group) {
+  const w = new THREE.Group();
+  w.position.set(RL_WHEEL.x, FELT_Y, RL_WHEEL.z);
+  group.add(w);
+  const wood = new THREE.MeshLambertMaterial({ color: '#6a3a22' });
+  const bowl = new THREE.Mesh(
+    new THREE.LatheGeometry([new THREE.Vector2(RL_WHEEL.r + 0.02, 0), new THREE.Vector2(RL_WHEEL.r + 0.03, 0.12), new THREE.Vector2(RL_WHEEL.r - 0.01, 0.13), new THREE.Vector2(TRACK_R, 0.1), new THREE.Vector2(ROTOR_R + 0.01, 0.07), new THREE.Vector2(ROTOR_R, 0.06)], 48),
+    wood,
+  );
+  bowl.receiveShadow = true;
+  bowl.castShadow = true;
+  w.add(bowl);
+  const rotor = new THREE.Group();
+  rotor.position.y = 0.06;
+  w.add(rotor);
+  const face = new THREE.Mesh(new THREE.CircleGeometry(ROTOR_R, 74), new THREE.MeshLambertMaterial({ map: rotorTexture() }));
+  face.rotation.x = -Math.PI / 2;
+  face.position.y = 0.002;
+  rotor.add(face);
+  const gold = new THREE.MeshLambertMaterial({ color: '#d8b04a', emissive: '#5a4010', emissiveIntensity: 0.3 });
+  // The frets between the pockets, and the turret in the middle with its cross.
+  const fretGeo = new THREE.BoxGeometry(0.004, 0.018, 0.075);
+  for (let k = 0; k < 37; k++) {
+    const a = ((k + 0.5) / 37) * Math.PI * 2;
+    const f = new THREE.Mesh(fretGeo, gold);
+    f.position.set(Math.sin(a) * (ROTOR_R * 0.775), 0.009, Math.cos(a) * (ROTOR_R * 0.775));
+    f.rotation.y = a;
+    rotor.add(f);
+  }
+  const turret = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.07, 24), gold);
+  turret.position.y = 0.035;
+  rotor.add(turret);
+  for (const ry of [0, Math.PI / 2]) {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.012, 0.012), gold);
+    arm.position.y = 0.08;
+    arm.rotation.y = ry;
+    rotor.add(arm);
+  }
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.014, 12, 8), new THREE.MeshLambertMaterial({ color: '#fbf8f0', emissive: '#444444' }));
+  ball.castShadow = true;
+  ball.visible = false;
+  w.add(ball);
+  const dolly = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.04, 0.07, 16), gold);
+  dolly.visible = false;
+  group.add(dolly);
+  const pocketOf = (n: number) => (WHEEL.indexOf(n) / 37) * Math.PI * 2;
+  return {
+    /** Where everything is at this moment, on the host's clock (ms). */
+    update(ms: number, spin: CasinoView['rl']['spin'], stage: CasinoView['rl']['stage'] | null) {
+      const rotorAt = (t: number) => {
+        const p = spin ? Math.min(1, Math.max(0, (t - spin.at) / (spin.until - spin.at))) : 1;
+        return ((t / 1000) * IDLE_SPIN) % (Math.PI * 2) + Math.PI * 6 * ease(p);
+      };
+      rotor.rotation.y = rotorAt(ms);
+      ball.visible = Boolean(spin);
+      dolly.visible = Boolean(spin && stage === 'result');
+      if (!spin) return;
+      const p = Math.min(1, Math.max(0, (ms - spin.at) / (spin.until - spin.at)));
+      // The ball runs the other way round the track, slows, drops in, bounces once and rides in its pocket.
+      const settled = rotor.rotation.y + pocketOf(spin.n);
+      const angle = settled + Math.PI * 2 * 7 * (1 - p) * (1 - p);
+      const drop = smooth01((p - 0.62) / 0.2);
+      const bounce = p > 0.82 && p < 0.95 ? Math.sin(((p - 0.82) / 0.13) * Math.PI) * 0.03 : 0;
+      const r = TRACK_R + (POCKET_R - TRACK_R) * drop + bounce;
+      ball.position.set(Math.sin(angle) * r, 0.105 - 0.035 * drop + bounce * 0.5 + 0.014, Math.cos(angle) * r);
+      if (dolly.visible) {
+        const c = boardCell(`n${spin.n}`);
+        const at = rlCell(c.col + c.w / 2 - 0.5, c.row + c.h / 2 - 0.5);
+        dolly.position.set(at.x, TOP + 0.035, at.z);
+      }
+    },
+  };
+}
+
 export interface CasinoTables {
   group: THREE.Group;
-  /** What's on the tables now (null: nothing to show, nobody's playing). */
-  set(view: CasinoView | null): void;
+  /** What's on the tables now (null: nothing to show, nobody's playing), and how far the host's clock is ahead of ours. */
+  set(view: CasinoView | null, hostOffset?: number): void;
   update(dt: number, t: number): void;
 }
 
@@ -203,6 +381,16 @@ export function makeCasinoTables(): CasinoTables {
     board.position.set(PK_TABLE.x, TOP, PK_TABLE.z);
     group.add(board);
   }
+  // The roulette board on its felt, and the wheel.
+  {
+    const board = new THREE.Mesh(new THREE.PlaneGeometry(14 * RL_BOARD.cw, 5 * RL_BOARD.ch), new THREE.MeshLambertMaterial({ map: boardTexture() }));
+    board.rotation.x = -Math.PI / 2;
+    board.position.set(RL_BOARD.x, TOP, RL_BOARD.z);
+    board.receiveShadow = true;
+    group.add(board);
+  }
+  const wheel = makeWheel(group);
+  let offset = 0;
   // Whose turn it is: a soft gold glow on the felt in front of them.
   const turnGlow = new THREE.Mesh(new THREE.CircleGeometry(0.32, 28), new THREE.MeshBasicMaterial({ color: '#ffd76b', transparent: true, opacity: 0.35, depthWrite: false }));
   turnGlow.rotation.x = -Math.PI / 2;
@@ -213,11 +401,13 @@ export function makeCasinoTables(): CasinoTables {
     bj: new Staff({ animal: 'raccoon', color: '#8a8c94', hat: 'tophat' }, BJ_DEALER, group),
     pk: new Staff({ animal: 'fox', color: '#e2793a', hat: 'tophat' }, PK_DEALER, group),
     shop: new Staff({ animal: 'otter', color: '#8a5a36', hat: null }, CASHIER, group),
+    rl: new Staff({ animal: 'penguin', color: '#2a2a33', hat: 'tophat' }, RL_CROUPIER, group),
   };
   // The staff stand on steps behind their counters, to see over them.
   staff.shop.rig.root.position.y = 0.3;
   staff.bj.rig.root.position.y = STEP;
   staff.pk.rig.root.position.y = STEP;
+  staff.rl.rig.root.position.y = STEP;
 
   const card = (c: string, x: number, z: number, ry: number, lift = 0) => {
     const m = new THREE.Mesh(cardGeo(c), cardMat);
@@ -255,9 +445,10 @@ export function makeCasinoTables(): CasinoTables {
 
   return {
     group,
-    set(view) {
+    set(view, hostOffset = 0) {
+      offset = hostOffset;
       if (view === last && view) return;
-      const k = view ? JSON.stringify([view.bj, view.pk.seats, view.pk.board, view.pk.pot, view.pk.turn, view.pk.button]) : '';
+      const k = view ? JSON.stringify([view.bj, view.pk.seats, view.pk.board, view.pk.pot, view.pk.turn, view.pk.button, view.rl?.seats, view.rl?.stage]) : '';
       if (k === key) return;
       key = k;
       // The dealers deal when cards come out; the cashier waves after a sale.
@@ -266,6 +457,8 @@ export function makeCasinoTables(): CasinoTables {
         if (count(view) > count(last)) staff.bj.busy('work', 0.9, now);
         const pkCount = (v: CasinoView) => v.pk.board.length + v.pk.seats.reduce((n, s) => n + (s?.cards.length ?? 0), 0);
         if (pkCount(view) !== pkCount(last)) staff.pk.busy('work', 1.1, now);
+        // The croupier throws the ball, and waves the winners in.
+        if (view.rl?.stage !== last.rl?.stage && view.rl?.stage !== 'betting') staff.rl.busy(view.rl?.stage === 'spinning' ? 'work' : 'wave', 1.4, now);
       }
       last = view;
       items.clear();
@@ -306,6 +499,15 @@ export function makeCasinoTables(): CasinoTables {
       if (pk.board.length) hand(pk.board, PK_TABLE.x, PK_TABLE.z, 0, CARD_W + 0.02);
       const inPot = pk.pot - pk.seats.reduce((n, s) => n + (s?.bet ?? 0), 0);
       if (inPot > 0 && pk.stage !== 'showdown') chips(inPot, PK_TABLE.x - 0.08, PK_TABLE.z - 0.32);
+      // Everyone's chips on the roulette board, each seat's a little apart from the others'.
+      view.rl?.seats.forEach((s, i) => {
+        if (!s) return;
+        for (const [key, amount] of Object.entries(s.bets)) {
+          const c = boardCell(key);
+          const at = rlCell(c.col + c.w / 2 - 0.5, c.row + c.h / 2 - 0.5);
+          chips(amount, at.x + ((i % 3) - 1) * 0.025, at.z + (Math.floor(i / 3) - 0.5) * 0.03);
+        }
+      });
       if (pk.button !== null && pk.seats[pk.button]) {
         button ??= new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.02, 20), new THREE.MeshLambertMaterial({ color: '#fffaf0' }));
         const b = pkAround(pk.button, -0.3);
@@ -319,10 +521,9 @@ export function makeCasinoTables(): CasinoTables {
       staff.bj.update(dt, t);
       staff.pk.update(dt, t);
       staff.shop.update(dt, t);
+      staff.rl.update(dt, t);
+      wheel.update(Date.now() + offset, last?.rl?.spin ?? null, last?.rl?.stage ?? null);
     },
   };
 }
 
-/** The table's middle, at felt height, for the seated camera to look across. */
-export const tableCentre = (kind: 'blackjack' | 'poker') =>
-  kind === 'poker' ? new THREE.Vector3(PK_TABLE.x, FELT_Y, PK_TABLE.z) : new THREE.Vector3(BJ_TABLE.x, FELT_Y, BJ_TABLE.z + 0.45);

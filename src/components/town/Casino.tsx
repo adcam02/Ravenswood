@@ -2,11 +2,12 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { bestHand, bjTotal, isCard, type Card } from '../../casino/cards';
 import { casino, hostNow, useCasinoView } from '../../casino/client';
 import { petPrice, shopPets } from '../../casino/shop';
-import { BJ_MAX, BJ_MIN, HIDDEN, PK, type BjSeatView, type CasinoView, type PkSeatView, type PkView } from '../../casino/types';
+import { BJ_MAX, BJ_MIN, HIDDEN, PK, RL, type BjSeatView, type CasinoView, type PkSeatView, type PkView } from '../../casino/types';
+import { BET_KEYS, betName, boardCell, colourOf, covers, odds } from '../../casino/roulette';
 import { useHud } from '../../game/hud';
 import { money } from '../../game/profiles';
 import { useMoney, useMyPets } from '../../game/progress';
-import { cardSound, casinoLose, casinoWin, chipSound, tillSound } from '../../lib/audio';
+import { cardSound, casinoLose, casinoWin, chipSound, rouletteSpin, tillSound } from '../../lib/audio';
 import { useView } from '../../state/view';
 import { fixLook } from '../../world/types';
 import { wearLook } from './JoinFlow';
@@ -25,6 +26,7 @@ export function CasinoPanels() {
   if (!at) return null;
   if (at.kind === 'shop') return <Shop view={cv} />;
   if (!cv) return null;
+  if (at.kind === 'roulette') return cv.rl ? <Roulette view={cv} seat={at.seat} /> : null;
   return at.kind === 'blackjack' ? <Blackjack view={cv} seat={at.seat} /> : <Poker view={cv} seat={at.seat} />;
 }
 
@@ -491,6 +493,128 @@ function Betting({ pk, me }: { pk: PkView; me: PkSeatView }) {
   );
 }
 
+// ---------------------------------------------------------------- roulette
+
+const RL_CHIPS = [1, 5, 10, 25];
+
+function Roulette({ view, seat }: { view: CasinoView; seat: number }) {
+  const coins = useMoney();
+  const v = useView();
+  const rl = view.rl;
+  const s = rl.seats[seat];
+  const mine = s?.mine ? s : null;
+  const [chip, setChip] = useState(5);
+  useEffect(() => {
+    if (v.mode === 'player' && !s) casino({ k: 'rl', do: 'sit', seat });
+  }, [seat, Boolean(s)]);
+  const leave = () => {
+    if (v.mode === 'player') casino({ k: 'rl', do: 'leave' });
+    close();
+  };
+  if (s && !s.mine && v.mode === 'player') {
+    return (
+      <TableShell title="Roulette" onLeave={close}>
+        <p className="casino-wait">{s.name} is sitting there. Try another seat!</p>
+      </TableShell>
+    );
+  }
+  const down = mine ? Object.values(mine.bets).reduce((a, b) => a + b, 0) : 0;
+  const betting = rl.stage === 'betting' && Boolean(mine);
+  const room = Math.min(RL.max, coins) - down;
+  const n = rl.stage === 'result' ? (rl.spin?.n ?? null) : null;
+  const others = rl.seats.filter((x): x is NonNullable<typeof x> => Boolean(x && !x.mine));
+  // Everyone's chips, by cell, for the little markers on the board (yours counted apart).
+  const theirs: Record<string, number> = {};
+  for (const o of others) for (const [k, a] of Object.entries(o.bets)) theirs[k] = (theirs[k] ?? 0) + a;
+  return (
+    <TableShell title="Roulette" rules="Single zero · a number pays 35 to 1, dozens and columns 2 to 1, the rest 1 to 1" onLeave={leave}>
+      <Note view={view} />
+      <div className="rl-top">
+        <span className="rl-history" aria-label="The last numbers">
+          {rl.history.slice(-10).map((h, i) => (
+            <i key={i} className={`rl-dot ${colourOf(h)}`}>
+              {h}
+            </i>
+          ))}
+        </span>
+        {rl.stage === 'betting' && (
+          <span className="rl-status">
+            {rl.closes ? 'Bets close soon' : 'Place your bets'}
+            <TurnTimer until={rl.closes} total={RL.betMs} />
+          </span>
+        )}
+        {rl.stage === 'spinning' && <span className="rl-status">No more bets! The ball is rolling…</span>}
+        {n !== null && (
+          <span className={`rl-result ${colourOf(n)}`}>
+            <b>{n}</b> {n === 0 ? 'Zero' : colourOf(n) === 'red' ? 'Red' : 'Black'}
+          </span>
+        )}
+      </div>
+      {mine && rl.stage === 'result' && mine.staked > 0 && (
+        <p className={`bj-result ${mine.won > mine.staked ? 'good' : mine.won === mine.staked ? 'even' : 'bad'}`}>
+          {mine.won > 0 ? `You won ${money(mine.won)}${mine.won > mine.staked ? ` (+${money(mine.won - mine.staked)})` : ''}` : `No luck: −${money(mine.staked)}`}
+        </p>
+      )}
+      <div className={`rl-board ${betting ? 'open' : ''}`} role="grid" aria-label="The betting board">
+        {BET_KEYS.map((key) => {
+          const c = boardCell(key);
+          const num = key[0] === 'n' ? Number(key.slice(1)) : null;
+          const amount = mine?.bets[key] ?? 0;
+          const win = n !== null && covers(key, n);
+          return (
+            <button
+              key={key}
+              className={`rl-cell ${num !== null ? colourOf(num) : key === 'red' || key === 'black' ? `${key} swatch` : 'outside'} ${win ? 'win' : ''}`}
+              style={{ gridColumn: `${c.col + 1} / span ${c.w}`, gridRow: `${c.row + 1} / span ${c.h}` }}
+              disabled={!betting || chip > room}
+              onClick={() => (casino({ k: 'rl', do: 'bet', bet: key, amount: chip }), chipSound())}
+              title={`${num !== null ? `Number ${num}` : betName(key)}: pays ${odds(key)} to 1`}
+            >
+              <span>{key === 'red' || key === 'black' ? '' : betName(key)}</span>
+              {amount > 0 && <em className="rl-chip">{amount}</em>}
+              {!amount && theirs[key] > 0 && <i className="rl-theirs" />}
+            </button>
+          );
+        })}
+      </div>
+      {mine ? (
+        <div className="table-actions">
+          <span className="bet-chips">
+            {RL_CHIPS.map((c) => (
+              <button key={c} className={`${chipClass(c)} ${chip === c ? 'picked' : ''}`} onClick={() => setChip(c)} aria-pressed={chip === c} aria-label={`Bet ${money(c)} a click`}>
+                {c}
+              </button>
+            ))}
+          </span>
+          <span className="rl-down">
+            On the table <b>{money(down)}</b>
+          </span>
+          <button className="cosy-btn" disabled={!betting || !down} onClick={() => casino({ k: 'rl', do: 'clear' })}>
+            Clear
+          </button>
+          <button className="cosy-btn primary big" disabled={!betting || !down || mine.ready} onClick={() => casino({ k: 'rl', do: 'ready' })}>
+            {mine.ready ? 'Ready ✓' : 'Spin!'}
+          </button>
+        </div>
+      ) : (
+        <p className="casino-wait">{v.mode === 'st' ? 'Watching the table.' : 'Taking your seat…'}</p>
+      )}
+      {others.length > 0 && (
+        <ul className="table-others">
+          {others.map((o) => {
+            const on = Object.values(o.bets).reduce((a, b) => a + b, 0);
+            return (
+              <li key={o.name}>
+                <b>{o.name}</b> {rl.stage === 'result' && o.staked ? (o.won ? `won ${money(o.won)}` : 'lost') : on ? `${money(on)} down${o.ready ? ', ready' : ''}` : 'choosing'}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </TableShell>
+  );
+}
+
 // ---------------------------------------------------------------- sounds
 
 /** Cards and chips as they change on the tables in view, and a little fanfare for your own wins. */
@@ -507,6 +631,17 @@ function useCasinoSounds(view: CasinoView | null) {
     const was = last.current;
     last.current = view;
     if (!view || !was || !at || at.kind === 'shop') return;
+    if (at.kind === 'roulette') {
+      const rl = view.rl;
+      const me = rl?.seats.find((s) => s?.mine);
+      if (rl?.spin && rl.stage === 'spinning' && was.rl?.stage !== 'spinning') rouletteSpin(Math.max(1, (rl.spin.until - hostNow()) / 1000));
+      if (rl?.stage === 'result' && was.rl?.stage !== 'result' && me?.staked) {
+        if (me.won > me.staked) casinoWin(me.won >= me.staked * 5);
+        else if (me.won < me.staked) casinoLose();
+        else chipSound();
+      }
+      return;
+    }
     const cards = (v: CasinoView) =>
       (at.kind === 'blackjack' ? v.bj.reduce((n, s) => n + (s ? s.cards.length + s.dealer.filter((c) => c !== HIDDEN).length : 0), 0) : v.pk.board.length + v.pk.seats.reduce((n, s) => n + (s?.cards.length ?? 0), 0));
     const dealt = cards(view) - cards(was);

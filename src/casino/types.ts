@@ -85,9 +85,38 @@ export interface PkView {
   note: string;
 }
 
+export const RL_SEATS = 5;
+/** Roulette: the most a player can have on the table in one spin, how long betting stays open, and the spin itself. */
+export const RL = { max: 100, betMs: 25000, spinMs: 7500, resultMs: 5000 };
+
+export interface RlSeatView {
+  name: string;
+  mine: boolean;
+  /** Their chips on the board, by bet (see casino/roulette.ts). */
+  bets: Record<string, number>;
+  /** Ready for the wheel to spin. */
+  ready: boolean;
+  /** On the last spin: what they put down, and what came back. */
+  staked: number;
+  won: number;
+}
+
+export interface RlView {
+  seats: (RlSeatView | null)[];
+  /** Taking bets, the ball rolling, or the number called. */
+  stage: 'betting' | 'spinning' | 'result';
+  /** When betting closes (host clock), once the first chip is down. */
+  closes: number | null;
+  /** The ball: the number it lands on, when it was thrown and when it settles (host clock). Null before the first. */
+  spin: { n: number; at: number; until: number; no: number } | null;
+  /** The last numbers, newest last. */
+  history: number[];
+}
+
 export interface CasinoView {
   bj: (BjSeatView | null)[];
   pk: PkView;
+  rl: RlView;
   /** Something just for this player ("You need $35 for the slime"), and when. */
   note: { text: string; at: number } | null;
 }
@@ -102,4 +131,7 @@ export type CasinoAction =
   | { k: 'pk'; do: 'sit'; seat: number; buyIn: number }
   | { k: 'pk'; do: 'leave' | 'back' }
   | { k: 'pk'; do: 'fold' | 'check' | 'call' | 'allin'; hand: number }
-  | { k: 'pk'; do: 'raise'; to: number; hand: number };
+  | { k: 'pk'; do: 'raise'; to: number; hand: number }
+  | { k: 'rl'; do: 'sit'; seat: number }
+  | { k: 'rl'; do: 'leave' | 'clear' | 'ready' }
+  | { k: 'rl'; do: 'bet'; bet: string; amount: number };

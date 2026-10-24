@@ -9,7 +9,7 @@ import { buildAnimal } from '../src/world/animals';
 import { BED } from '../src/world/town/layout';
 import { NightVisit } from '../src/world/visit';
 import { PigeonFlight } from '../src/world/pigeon';
-import { CHAIR_Y, FELT_Y, bjSeat, bjSpot, pkAround, pkSeat } from '../src/world/town/casinoLayout';
+import { CHAIR_Y, FELT_Y, RL_LOOK, bjSeat, bjSpot, pkAround, pkSeat, rlSeat } from '../src/world/town/casinoLayout';
 
 const q = new URLSearchParams(location.search);
 const num = (k: string, d: number) => (q.has(k) ? Number(q.get(k)) : d);
@@ -114,9 +114,12 @@ if (q.has('pigeon')) {
 
 // ?casino: the Lucky Raven's tables mid-game, with players sitting at them (?seatcam=pk:4 or bj:2 looks from that seat).
 const sitters: ReturnType<typeof buildAnimal>[] = [];
+// (The wheel is held still at ?rlt seconds into its spin: the bench keeps telling it the time is that moment.)
+const benchT0 = Date.now();
+let casinoView: Parameters<typeof town.setCasino>[0] = null;
 if (q.has('casino')) {
   const seat = (name: string, cards: string[], stack: number, bet: number, last: string | null, mine = false, folded = false) => ({ name, mine, stack, bet, inHand: true, folded, allIn: false, out: false, cards, last, won: 0, hand: null });
-  town.setCasino({
+  casinoView = {
     bj: [
       { name: 'Abbey', mine: false, state: 'playing', bet: 10, cards: ['Kh', '7c'], dealer: ['6d', '??'], result: null, paid: 0, canDouble: true, until: null },
       null,
@@ -139,8 +142,23 @@ if (q.has('casino')) {
       canRaise: true,
       note: '',
     },
+    rl: {
+      seats: [
+        { name: 'Ann', mine: false, bets: { red: 10, n17: 2, d2: 5 }, ready: true, staked: 0, won: 0 },
+        null,
+        { name: 'You', mine: true, bets: { n7: 1, odd: 5, c1: 3 }, ready: false, staked: 0, won: 0 },
+        null,
+        { name: 'Bea', mine: false, bets: { black: 25 }, ready: false, staked: 0, won: 0 },
+      ],
+      stage: q.has('rlresult') ? 'result' : 'spinning',
+      closes: null,
+      // (Thrown a moment ago, or settled on 17.)
+      spin: { n: 17, at: benchT0 - num('rlt', 3) * 1000, until: benchT0 - num('rlt', 3) * 1000 + 7500, no: 3 },
+      history: [32, 5, 0, 17, 26, 11],
+    },
     note: null,
-  });
+  };
+  town.setCasino(casinoView);
   const at = [
     ['bj', 0, 'deer'],
     ['bj', 2, 'panda'],
@@ -150,10 +168,13 @@ if (q.has('casino')) {
     ['pk', 3, 'hedgehog'],
     ['pk', 5, 'fox'],
     ['pk', 6, 'capybara'],
+    ['rl', 0, 'otter'],
+    ['rl', 2, 'bee'],
+    ['rl', 4, 'duck'],
   ] as const;
   for (const [table, i, animal] of at) {
-    const spot = table === 'bj' ? bjSeat(i) : pkSeat(i);
-    const a = buildAnimal({ animal, color: ({ deer: '#b07a4a', panda: '#f4efe6', frog: '#7cc28b', bear: '#8a5a36', raccoon: '#8a8c94', hedgehog: '#8a5a36', fox: '#e2793a', capybara: '#a8784a' } as Record<string, string>)[animal] });
+    const spot = table === 'bj' ? bjSeat(i) : table === 'pk' ? pkSeat(i) : rlSeat(i);
+    const a = buildAnimal({ animal, color: ({ deer: '#b07a4a', panda: '#f4efe6', frog: '#7cc28b', bear: '#8a5a36', raccoon: '#8a8c94', hedgehog: '#8a5a36', fox: '#e2793a', capybara: '#a8784a', otter: '#8a5a36', bee: '#f2cf5b', duck: '#f4efe6' } as Record<string, string>)[animal] });
     a.root.position.set(spot.x, CHAIR_Y, spot.z);
     a.root.rotation.y = spot.ry;
     town.groups.casino.add(a.root);
@@ -162,8 +183,8 @@ if (q.has('casino')) {
   if (q.has('seatcam')) {
     const [table, n] = q.get('seatcam')!.split(':');
     const i = Number(n);
-    const spot = table === 'bj' ? bjSeat(i) : pkSeat(i);
-    const look = table === 'bj' ? bjSpot(i, 0.8) : pkAround(i, -0.8);
+    const spot = table === 'bj' ? bjSeat(i) : table === 'pk' ? pkSeat(i) : rlSeat(i);
+    const look = table === 'bj' ? bjSpot(i, 0.8) : table === 'pk' ? pkAround(i, -0.8) : RL_LOOK;
     camera.fov = num('fov', 58);
     camera.near = 0.1;
     camera.updateProjectionMatrix();
@@ -202,6 +223,7 @@ function loop() {
     sleeper.root.position.y = BED.top + pose.dy;
     sleeper.root.rotation.z = pose.shake;
   }
+  if (casinoView) town.setCasino(casinoView, benchT0 - Date.now());
   for (const a of sitters) a.update({ anim: 'sit', speed: 0, dt: 0.016, t: clock.elapsedTime });
   if (q.has('sway')) swayUniforms.uSway.value = num('sway', 4);
   if (openDoor) town.openDoor(openDoor.x, openDoor.z);

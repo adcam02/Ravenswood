@@ -122,8 +122,8 @@ export interface TownWorld {
    * engine sets `renderer.shadowMap.autoUpdate = false` and `renderer.shadowMap.needsUpdate = true` on this.
    */
   consumeShadowDirty(): boolean;
-  /** The casino's tables: the cards and chips on them, as this player may see them. */
-  setCasino(view: CasinoView | null): void;
+  /** The casino's tables: the cards and chips on them, as this player may see them (and the host's clock, ahead of ours by this many ms, for the roulette wheel). */
+  setCasino(view: CasinoView | null, hostOffset?: number): void;
 }
 
 // ---------------------------------------------------------------- the day and the night
@@ -1429,8 +1429,8 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       ripples.spawn(x, z, size, nowT);
     },
 
-    setCasino(view) {
-      casinoTables.set(view);
+    setCasino(view, hostOffset) {
+      casinoTables.set(view, hostOffset);
     },
 
     consumeShadowDirty() {

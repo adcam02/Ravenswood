@@ -11,6 +11,11 @@
  * front of them when they leave. A player who walks out, drops off or goes quiet is folded (their chips stay safe),
  * and every turn has a timer.
  *
+ * Roulette: a European wheel for five. Chips go down on the board while betting is open (25 seconds from the first,
+ * or as soon as everyone with chips down says they're ready); they're taken from each player's money when the ball
+ * is thrown, and what comes back is paid when it lands. Everyone sees the same spin: the view carries the number and
+ * the host-clock times the ball is thrown and settles, and each screen rolls it to that.
+ *
  * Chips on the table and bets in play are noted in this browser as they change, so if the Storyteller's page closes
  * mid-hand, everyone gets theirs back the next time it opens.
  */
@@ -20,9 +25,10 @@ import { presence } from '../game/presence';
 import { debugHooks, loadJSON, saveJSON } from '../lib/util';
 import { useHost } from '../state/host';
 import { PETS, type PetId } from '../world/types';
-import { bestHand, bjTotal, dealerStands, isBlackjack, newShoe, sharePot, splitPots, type Card, type Contribution } from './cards';
+import { bestHand, bjTotal, dealerStands, isBlackjack, newShoe, randomBelow, sharePot, splitPots, type Card, type Contribution } from './cards';
 import { petName, petPrice } from './shop';
-import { BJ_MAX, BJ_MIN, BJ_SEATS, HIDDEN, PK, PK_SEATS, type BjResult, type BjSeatView, type CasinoAction, type CasinoView, type PkSeatView, type PkStage, type PkView } from './types';
+import { isBet, payout } from './roulette';
+import { BJ_MAX, BJ_MIN, BJ_SEATS, HIDDEN, PK, PK_SEATS, RL, RL_SEATS, type BjResult, type RlView, type BjSeatView, type CasinoAction, type CasinoView, type PkSeatView, type PkStage, type PkView } from './types';
 
 /** The casino's zone (the room behind the Lucky Raven's door). */
 export const CASINO_ZONE = 'casino';
@@ -129,6 +135,7 @@ const table: Table = {
 const notes = new Map<string, { text: string; at: number }>();
 /** Tests only (with ?debug): the next poker hand's cards, in the order they're dealt. */
 let rigged: Card[] | null = null;
+let riggedN: number | null = null;
 
 let changed = false;
 const bump = () => (changed = true);
@@ -174,12 +181,17 @@ function buy(player: string, pet: string) {
 
 const bjIndex = (player: string) => bj.findIndex((s) => s?.player === player);
 const pkIndex = (player: string) => table.seats.findIndex((s) => s?.player === player);
+const rlIndex = (player: string) => wheel.seats.findIndex((s) => s?.player === player);
+/** Already sitting at another table: which one, to say so. */
+const elsewhere = (player: string, here: 'bj' | 'pk' | 'rl') =>
+  here !== 'bj' && bjIndex(player) >= 0 ? 'blackjack' : here !== 'pk' && pkIndex(player) >= 0 ? 'poker' : here !== 'rl' && rlIndex(player) >= 0 ? 'roulette' : null;
 
 function bjSit(player: string, i: number) {
   const seat = gameSeat(player);
   if (!seat || !(i >= 0 && i < BJ_SEATS)) return;
   if (!inCasino(seat.id)) return;
-  if (pkIndex(player) >= 0) return tell(player, 'Leave the poker table first.');
+  const other = elsewhere(player, 'bj');
+  if (other) return tell(player, `Leave the ${other} table first.`);
   const mine = bjIndex(player);
   if (mine === i) return;
   if (bj[i]) return tell(player, `${bj[i]!.name} is sitting there.`);
@@ -370,7 +382,8 @@ const potTotal = () => table.seats.reduce((sum, s) => sum + (s?.inHand ? s.total
 function pkSit(player: string, i: number, raw: unknown) {
   const seat = gameSeat(player);
   if (!seat || !(i >= 0 && i < PK_SEATS) || !inCasino(seat.id)) return;
-  if (bjIndex(player) >= 0) return tell(player, 'Leave the blackjack table first.');
+  const other = elsewhere(player, 'pk');
+  if (other) return tell(player, `Leave the ${other} table first.`);
   if (pkIndex(player) >= 0) return;
   if (table.seats[i]) return tell(player, `${table.seats[i]!.name} is sitting there.`);
   const buyIn = Math.max(PK.minBuy, Math.min(PK.maxBuy, wholeDollars(raw)));
@@ -721,19 +734,161 @@ function pkView(player: string | null): PkView {
   };
 }
 
+// ---------------------------------------------------------------- roulette
+
+interface RlSeat extends Who {
+  bets: Record<string, number>;
+  ready: boolean;
+  staked: number;
+  won: number;
+}
+
+/** The roulette table. Bets are promised while betting is open and taken when the ball is thrown. */
+const wheel: {
+  seats: (RlSeat | null)[];
+  stage: RlView['stage'];
+  closes: number | null;
+  spin: RlView['spin'];
+  history: number[];
+  /** The bets riding on the ball in the air, by name: paid when it settles, even if their owner has left. */
+  riding: { name: string; player: string; bets: Record<string, number>; staked: number }[];
+  /** When the called number gives way to betting again. */
+  resultUntil: number;
+} = { seats: Array.from({ length: RL_SEATS }, () => null), stage: 'betting', closes: null, spin: null, history: [], riding: [], resultUntil: 0 };
+
+const staked = (bets: Record<string, number>) => Object.values(bets).reduce((a, b) => a + b, 0);
+
+function rlSit(player: string, i: number) {
+  const seat = gameSeat(player);
+  if (!seat || !(i >= 0 && i < RL_SEATS) || !inCasino(seat.id)) return;
+  const other = elsewhere(player, 'rl');
+  if (other) return tell(player, `Leave the ${other} table first.`);
+  const mine = rlIndex(player);
+  if (mine === i) return;
+  if (wheel.seats[i]) return tell(player, `${wheel.seats[i]!.name} is sitting there.`);
+  if (mine >= 0) wheel.seats[mine] = null;
+  wheel.seats[i] = { player, seatId: seat.id, name: seat.name.trim(), away: null, bets: {}, ready: false, staked: 0, won: 0 };
+  bump();
+}
+
+function rlLeave(player: string) {
+  const i = rlIndex(player);
+  if (i < 0) return;
+  // (Bets not yet taken just go; any riding on the ball are paid when it lands.)
+  wheel.seats[i] = null;
+  bump();
+}
+
+function rlBet(player: string, key: unknown, raw: unknown) {
+  const s = wheel.seats[rlIndex(player)];
+  if (!s || wheel.stage !== 'betting' || !isBet(key)) return;
+  const amount = wholeDollars(raw);
+  if (amount <= 0) return;
+  const total = staked(s.bets) + amount;
+  if (total > RL.max) return tell(player, `Up to ${money(RL.max)} a spin.`);
+  if (total > coinsOf(s.name)) return tell(player, `You have ${money(coinsOf(s.name))}.`);
+  s.bets = { ...s.bets, [key]: (s.bets[key] ?? 0) + amount };
+  s.ready = false;
+  wheel.closes ??= Date.now() + RL.betMs;
+  bump();
+}
+
+function rlClear(player: string) {
+  const s = wheel.seats[rlIndex(player)];
+  if (!s || wheel.stage !== 'betting') return;
+  s.bets = {};
+  s.ready = false;
+  if (!wheel.seats.some((x) => x && staked(x.bets) > 0)) wheel.closes = null;
+  bump();
+}
+
+function rlReady(player: string) {
+  const s = wheel.seats[rlIndex(player)];
+  if (!s || wheel.stage !== 'betting' || !staked(s.bets)) return;
+  s.ready = true;
+  bump();
+}
+
+/** No more bets: each player's chips are taken from their money, and the ball is thrown. */
+function throwBall(now: number) {
+  wheel.riding = [];
+  for (const s of wheel.seats) {
+    if (!s) continue;
+    const total = staked(s.bets);
+    s.staked = 0;
+    s.won = 0;
+    if (!total) continue;
+    if (!debit(who(s), total, 'bet at roulette')) {
+      tell(s.player, 'Not enough money for those bets any more: they’re off the table.');
+      s.bets = {};
+      continue;
+    }
+    s.staked = total;
+    wheel.riding.push({ name: s.name, player: s.player, bets: s.bets, staked: total });
+  }
+  wheel.closes = null;
+  if (!wheel.riding.length) return bump();
+  const n = riggedN ?? randomBelow(37);
+  riggedN = null;
+  wheel.spin = { n, at: now + 400, until: now + 400 + RL.spinMs, no: (wheel.spin?.no ?? 0) + 1 };
+  wheel.stage = 'spinning';
+  bump();
+}
+
+function settleWheel(now: number) {
+  const n = wheel.spin!.n;
+  for (const r of wheel.riding) {
+    const back = payout(r.bets, n);
+    if (back > 0) credit({ name: r.name }, back, 'won at roulette');
+    const s = wheel.seats[rlIndex(r.player)];
+    if (s) s.won = back;
+  }
+  wheel.riding = [];
+  wheel.history = [...wheel.history, n].slice(-12);
+  wheel.stage = 'result';
+  wheel.resultUntil = now + RL.resultMs;
+  bump();
+}
+
+function rlTick(now: number) {
+  if (wheel.stage === 'betting') {
+    const seated = wheel.seats.filter((s): s is RlSeat => Boolean(s));
+    const betting = seated.filter((s) => staked(s.bets) > 0);
+    // Everyone with chips down has said so (and nobody else is still choosing), or time's up.
+    const allReady = betting.length > 0 && betting.every((s) => s.ready) && seated.every((s) => s.ready || !staked(s.bets));
+    if (betting.length && ((wheel.closes && now >= wheel.closes) || allReady)) throwBall(now);
+  } else if (wheel.stage === 'spinning' && wheel.spin && now >= wheel.spin.until) settleWheel(now);
+  else if (wheel.stage === 'result' && now >= wheel.resultUntil) {
+    wheel.stage = 'betting';
+    for (const s of wheel.seats) if (s) Object.assign(s, { bets: {}, ready: false });
+    bump();
+  }
+}
+
+function rlView(player: string | null): RlView {
+  return {
+    seats: wheel.seats.map((s) => (s ? { name: s.name, mine: s.player === player, bets: s.bets, ready: s.ready, staked: s.staked, won: s.won } : null)),
+    stage: wheel.stage,
+    closes: wheel.closes,
+    spin: wheel.spin,
+    history: wheel.history,
+  };
+}
+
 // ---------------------------------------------------------------- players coming and going
 
 /** Players who've left the casino, dropped off or given up their seat in the game lose their table seats. */
 function checkAway(now: number, online: Record<string, true>) {
   const g = useHost.getState().g;
   const here = (s: Who) => g.seats.some((x) => x.id === s.seatId && x.playerId === s.player) && online[s.player] && inCasino(s.seatId);
-  for (const s of [...bj, ...table.seats]) {
+  for (const s of [...bj, ...table.seats, ...wheel.seats]) {
     if (!s) continue;
     if (here(s)) s.away = null;
     else if (s.away === null) s.away = now;
     else if (now - s.away > AWAY_MS) {
       s.away = null;
       if (bj.includes(s as BjSeat)) bjLeave(s.player);
+      else if (wheel.seats.includes(s as RlSeat)) rlLeave(s.player);
       else pkLeave(s.player);
     }
   }
@@ -774,6 +929,7 @@ function save() {
   const chips: Saved['chips'] = [];
   for (const s of table.seats) if (s) chips.push({ name: s.name, amount: s.stack + (playing() && s.inHand ? s.total : 0), why: 'back from the poker table' });
   for (const s of bj) if (s && (s.state === 'playing' || s.state === 'dealer')) chips.push({ name: s.name, amount: s.bet, why: 'back from blackjack' });
+  for (const r of wheel.riding) chips.push({ name: r.name, amount: r.staked, why: 'back from roulette' });
   saveJSON(SAVE_KEY, { chips: chips.filter((c) => c.amount > 0) } satisfies Saved);
 }
 
@@ -799,6 +955,12 @@ export function receiveCasino(player: string, raw: unknown) {
   } else if (a.k === 'pk') {
     if (a.do === 'sit') pkSit(player, wholeDollars(a.seat), a.buyIn);
     else if (['leave', 'back', 'fold', 'check', 'call', 'allin', 'raise'].includes(a.do)) pkMove(player, a);
+  } else if (a.k === 'rl') {
+    if (a.do === 'sit') rlSit(player, wholeDollars(a.seat));
+    else if (a.do === 'leave') rlLeave(player);
+    else if (a.do === 'bet') rlBet(player, a.bet, a.amount);
+    else if (a.do === 'clear') rlClear(player);
+    else if (a.do === 'ready') rlReady(player);
   }
   flush();
 }
@@ -806,11 +968,12 @@ export function receiveCasino(player: string, raw: unknown) {
 /** What a player sees of the casino: the tables while they're in it (or sitting at one), and nothing otherwise. */
 export function casinoFor(player: string | null): CasinoView | null {
   const seat = player ? useHost.getState().g.seats.find((s) => s.playerId === player) : null;
-  if (player && !(seat && (inCasino(seat.id) || bjIndex(player) >= 0 || pkIndex(player) >= 0))) return null;
+  if (player && !(seat && (inCasino(seat.id) || bjIndex(player) >= 0 || pkIndex(player) >= 0 || rlIndex(player) >= 0))) return null;
   const note = player ? notes.get(player) : undefined;
   return {
     bj: bj.map((s) => (s ? bjView(s, s.player === player) : null)),
     pk: pkView(player),
+    rl: rlView(player),
     note: note && Date.now() - note.at < NOTE_MS ? note : null,
   };
 }
@@ -836,6 +999,7 @@ export function startCasino(online: () => Record<string, true>) {
       checkPets();
       bjTick(now);
       pkTick(now);
+      rlTick(now);
       for (const [p, n] of notes) if (now - n.at > NOTE_MS) notes.delete(p);
     } catch (e) {
       console.error(e);
@@ -844,4 +1008,4 @@ export function startCasino(online: () => Record<string, true>) {
   }, 250);
 }
 
-if (debugHooks()) Object.assign(window, { __casino: { bj, table, casinoFor, receiveCasino, store: useCasino, rig: (cards: Card[]) => void (rigged = cards) } });
+if (debugHooks()) Object.assign(window, { __casino: { bj, table, wheel, casinoFor, receiveCasino, store: useCasino, rig: (cards: Card[]) => void (rigged = cards), rigWheel: (n: number) => void (riggedN = n) } });

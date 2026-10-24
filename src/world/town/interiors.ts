@@ -29,8 +29,8 @@ import { makeGlows, type GlowSpot, type Glows } from './fx';
 import { beamGeometry, beamMaterial } from './looks';
 import { SeatingChart } from './seating';
 import { signBoard, TextSign } from './sign';
-import { BJ_DEALER, BJ_TABLE, FELT_Y, STEP, PK_DEALER, PK_TABLE, SHOP, SLOTS, bjSeat, pkSeat } from './casinoLayout';
-import { BJ_SEATS, PK_SEATS } from '../../casino/types';
+import { BJ_DEALER, BJ_TABLE, FELT_Y, STEP, PK_DEALER, PK_TABLE, RL_CROUPIER, RL_TABLE, SHOP, SLOTS, bjSeat, pkSeat, rlSeat } from './casinoLayout';
+import { BJ_SEATS, PK_SEATS, RL_SEATS } from '../../casino/types';
 import { placeMatrix } from '../build';
 
 
@@ -1454,6 +1454,25 @@ function casino(p: Paint, glow: Builder, r: () => number): THREE.Object3D {
     p.block('#3a2418', 0.9, STEP, 0.7, PK_DEALER.x, 0, PK_DEALER.z - 0.05);
   }
 
+  // The roulette table: a long green table on turned legs, with the wheel's bowl at the right-hand end (the wheel
+  // itself turns, so it's drawn with the cards and chips) and velvet chairs along the front and at the far end.
+  {
+    const { x, z, hw, hd } = RL_TABLE;
+    p.rbox(RAIL, hw * 2 + 0.2, 0.12, hd * 2 + 0.2, x, FELT_Y - 0.08, z, 0.05);
+    // (A touch lower than the card tables' felt: the betting board lies on it.)
+    p.box(FELT, hw * 2 - 0.08, 0.03, hd * 2 - 0.08, x, FELT_Y - 0.022, z);
+    p.block('#3a2418', hw * 2 - 0.3, 0.14, hd * 2 - 0.3, x, FELT_Y - 0.26, z);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      p.post('#3a2418', 0.07, FELT_Y - 0.12, x + sx * (hw - 0.2), 0, z + sz * (hd - 0.15), 10);
+      p.sphere(GOLD, 0.08, 0.05, 0.08, x + sx * (hw - 0.2), 0.05, z + sz * (hd - 0.15), 10, 6);
+    }
+    for (let i = 0; i < RL_SEATS; i++) {
+      const c = rlSeat(i);
+      velvetChair(p.at(c.x, 0, c.z, c.ry));
+    }
+    chandelier(p, glow, x, 2.5, z);
+    p.block('#3a2418', 1.0, STEP, 0.7, RL_CROUPIER.x, 0, RL_CROUPIER.z - 0.05);
+  }
   for (const sl of SLOTS) slotMachine(p.at(sl.x, 0, sl.z, -Math.PI / 2), glow, r);
   for (const [x, z] of [
     [-8.3, 5.9],
@@ -1598,7 +1617,7 @@ export function buildInteriors(): Interiors {
         { pos: [PK_TABLE.x, 2.3, PK_TABLE.z], color: '#ffd48a', intensity: 16, distance: 9 },
         { pos: [BJ_TABLE.x, 2.3, BJ_TABLE.z + 0.9], color: '#ffd48a', intensity: 15, distance: 9 },
         { pos: [SHOP.x, 2.4, SHOP.z + 1.2], color: '#ffe2a8', intensity: 9, distance: 7 },
-        { pos: [7.6, 2.0, 2.7], color: '#ffb35a', intensity: 7, distance: 6, flicker: true },
+        { pos: [RL_TABLE.x, 2.3, RL_TABLE.z], color: '#ffd48a', intensity: 13, distance: 8 },
       ],
     },
   };

@@ -35,7 +35,7 @@ interface Hud {
   /** The noticeboard is open. */
   notice: boolean;
   /** At the casino: the pet shop open, or sitting at a card table (which seat). */
-  casino: { kind: 'shop' } | { kind: 'blackjack' | 'poker'; seat: number } | null;
+  casino: { kind: 'shop' } | { kind: 'blackjack' | 'poker' | 'roulette'; seat: number } | null;
   /** Sitting on your stool at the town meeting. */
   meetingSeated: boolean;
   /** Night in bed: the counting-sheep game is on offer, being played, or done for tonight. */

@@ -536,3 +536,48 @@ export function tillSound() {
   bell(2093, 1.0, 0.05, 0.12);
   chipSound(false);
 }
+
+/**
+ * The roulette ball over `seconds`: a whirr round the track that slows, then the clatter of it dropping among the
+ * frets, and a last click into its pocket.
+ */
+export function rouletteSpin(seconds = 7) {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.value = 0.4;
+  out.connect(c.destination);
+  // The roll: filtered noise, its pitch and loudness falling as the ball slows.
+  const roll = noise(c, seconds * 0.7);
+  const f = c.createBiquadFilter();
+  f.type = 'bandpass';
+  f.Q.value = 2.5;
+  f.frequency.setValueAtTime(2400, t);
+  f.frequency.exponentialRampToValueAtTime(700, t + seconds * 0.65);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.12, t + 0.15);
+  g.gain.exponentialRampToValueAtTime(0.02, t + seconds * 0.68);
+  roll.connect(f).connect(g).connect(out);
+  roll.start(t);
+  // The clatter: hard little ticks, further apart as it settles.
+  let at = seconds * 0.62;
+  let gap = 0.05;
+  while (at < seconds * 0.97) {
+    const tick = noise(c, 0.02);
+    const hf = c.createBiquadFilter();
+    hf.type = 'highpass';
+    hf.frequency.value = 3200 + Math.random() * 1500;
+    const tg = c.createGain();
+    const when = t + at;
+    tg.gain.setValueAtTime(0.0001, when);
+    tg.gain.exponentialRampToValueAtTime(0.18 + Math.random() * 0.1, when + 0.002);
+    tg.gain.exponentialRampToValueAtTime(0.0001, when + 0.02);
+    tick.connect(hf).connect(tg).connect(out);
+    tick.start(when);
+    at += gap * (0.7 + Math.random() * 0.6);
+    gap *= 1.18;
+  }
+  bell(2637, 0.4, 0.04, seconds);
+}
