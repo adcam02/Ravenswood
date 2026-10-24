@@ -94,7 +94,10 @@ import {
 
 export interface WorldSeat {
   id: string;
+  /** The name to show (this viewer's nickname for them, if they gave one). */
   name: string;
+  /** Their real name, for matching up with names in the game's records. */
+  real?: string;
   look: Look | null;
   dead: boolean;
   /** A character to show over their head, if this viewer may see it. */
@@ -619,7 +622,7 @@ export class Engine {
     // Fish caught since we last looked get a bubble over whoever caught them.
     if (this.lastFish < 0) this.lastFish = v.town.fish.length;
     for (const f of v.town.fish.slice(this.lastFish)) {
-      const seat = v.seats.find((s) => s.name === f.by);
+      const seat = v.seats.find((s) => (s.real ?? s.name) === f.by);
       const av = seat ? (seat.id === v.mySeatId ? this.me : this.others.get(seat.id)) : this.others.get('st');
       av?.bubble(f.cm ? `Caught a ${f.cm}cm ${f.kind}!` : `Caught ${f.kind}…`);
     }

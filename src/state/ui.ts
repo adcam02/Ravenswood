@@ -12,6 +12,8 @@ export type Modal =
   | { kind: 'bluff'; index: number }
   | { kind: 'fabled' }
   | { kind: 'rename'; seatId: string }
+  /** A nickname for another player that only this viewer sees. */
+  | { kind: 'nickname'; seatId: string }
   | { kind: 'share' }
   | { kind: 'settings' }
   | { kind: 'role'; roleId: string }

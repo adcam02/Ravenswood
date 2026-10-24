@@ -59,7 +59,9 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
     started: view.phase === 'night' || view.day > 0,
     seats: view.seats.map((s) => ({
       id: s.id,
+      // What this viewer calls them (a nickname they gave them shows on the name plate, the stools, everywhere).
       name: s.label,
+      real: s.name,
       look: s.look,
       dead: s.dead,
       // Characters float over heads for the Storyteller (the Drunk's Townsfolk, with "(Drunk)"), and for everyone

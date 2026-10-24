@@ -11,6 +11,7 @@ import { Icon } from './Icon';
 import { CARDS, InfoCard, SIGNS, SignGlyph } from './InfoCard';
 import { Modal } from './Modal';
 import { askText, PanelView, ReplyLine } from './PanelView';
+import { shownName } from '../state/nicks';
 
 type Adder = 'player' | 'character' | 'text' | null;
 
@@ -104,7 +105,7 @@ export function WakeComposer() {
                     }}
                   >
                     <Icon name={draft.to.includes(s.id) ? 'check' : 'plus'} />
-                    {s.name || `Seat ${i + 1}`}
+                    {shownName(s.name, `Seat ${i + 1}`)}
                     <em>{getRole(s.roleId)?.name}</em>
                   </button>
                 ))}
@@ -187,7 +188,7 @@ export function WakeComposer() {
           <div className="wake-pick-list">
             {g.seats.map((s, i) => (
               <button key={s.id} className="btn" onClick={() => setTo([s.id])}>
-                {s.name || `Seat ${i + 1}`}
+                {shownName(s.name, `Seat ${i + 1}`)}
                 <em>{getRole(s.roleId)?.name}</em>
               </button>
             ))}
@@ -251,7 +252,7 @@ export function WakeComposer() {
                 <div className="adder-seats">
                   {g.seats.map((s, i) => (
                     <button key={s.id} className={`btn small ${panel.seatIds.includes(s.id) ? 'primary' : ''} ${s.dead ? 'dead' : ''}`} onClick={() => edit((p) => ({ ...p, seatIds: toggle(p.seatIds, s.id) }))}>
-                      {s.name || `Seat ${i + 1}`}
+                      {shownName(s.name, `Seat ${i + 1}`)}
                       <em>{getRole(s.roleId)?.name}</em>
                     </button>
                   ))}

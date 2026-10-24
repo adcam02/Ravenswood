@@ -5,6 +5,7 @@ import { ui } from '../../state/ui';
 import { useView } from '../../state/view';
 import { animalInfo, fixLook, type AnimalId, type Look } from '../../world/types';
 import { letGoOfAnimal, LookEditor, savedLook, useJoin, wearLook, type PickTab } from './JoinFlow';
+import { shownName } from '../../state/nicks';
 
 /**
  * The customiser, from the Customise button on the bar: the same pickers as joining, over the town. While a game is
@@ -54,7 +55,7 @@ export function CustomiseModal() {
     if (!taken.animal || taken.at < opened.current) return;
     if (useJoin.getState().held === taken.animal) useJoin.setState({ held: null });
     const who = animalInfo(taken.animal as AnimalId)?.name ?? 'that animal';
-    setNote(`${taken.by} just took the ${who.toLowerCase()}. Pick another!`);
+    setNote(`${shownName(taken.by)} just took the ${who.toLowerCase()}. Pick another!`);
     setSent(null);
     setTab('animal');
   }, [taken.at, taken.animal, taken.by]);

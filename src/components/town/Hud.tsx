@@ -15,6 +15,7 @@ import { lazyPart } from '../../lib/lazy';
 import { CrashNote, Guard } from '../Guard';
 import { Icon } from '../Icon';
 import { MoneyPill } from './Money';
+import { shownName } from '../../state/nicks';
 // The minigames and the sheep load the first time they're needed, so the first visit downloads less.
 const JobGame = lazyPart(() => import('../../jobs').then((m) => m.JobGame));
 const SheepGame = lazyPart(() => import('./SheepGame').then((m) => m.SheepGame));
@@ -323,7 +324,7 @@ export function JobLayer() {
   const personal = useBests((s) => s.bests);
   if (!job) return null;
   const town = view.town.records[job.job];
-  const bests = { personal: personal[job.job], town: town ? { by: town.by, score: town.score } : undefined };
+  const bests = { personal: personal[job.job], town: town ? { by: shownName(town.by), score: town.score } : undefined };
   return (
     <Guard
       key={job.station}
@@ -579,7 +580,7 @@ export function NoticeBoard() {
                 .sort((a, b) => b[1].at - a[1].at)
                 .map(([game, r]) => (
                   <li key={game}>
-                    <b>{JOB_TITLES[game as GameJob] ?? game}</b>: {r.by}, {SCORE_LABEL[game as GameJob]?.(r.score) ?? r.score}
+                    <b>{JOB_TITLES[game as GameJob] ?? game}</b>: {shownName(r.by)}, {SCORE_LABEL[game as GameJob]?.(r.score) ?? r.score}
                   </li>
                 ))}
             </ul>
@@ -590,7 +591,7 @@ export function NoticeBoard() {
           <ul>
             <li>{view.town.drinks.length ? `${view.town.drinks.length} ${view.town.drinks.length === 1 ? 'drink' : 'drinks'} waiting on the bar at the Raven’s Rest.` : 'The bar at the Raven’s Rest is empty. Someone pour a round?'}</li>
             <li>{view.town.loaves.length ? `${view.town.loaves.length} fresh ${view.town.loaves.length === 1 ? 'bake' : 'bakes'} on the bakery shelf.` : 'Nothing on the bakery shelf yet.'}</li>
-            <li>{best ? `Biggest catch: ${best.by}’s ${best.cm}cm ${best.kind}.` : 'Nobody has caught anything at the pond yet.'}</li>
+            <li>{best ? `Biggest catch: ${shownName(best.by)}’s ${best.cm}cm ${best.kind}.` : 'Nobody has caught anything at the pond yet.'}</li>
             <li>{view.town.flowers.length ? `${view.town.flowers.length} ${view.town.flowers.length === 1 ? 'flower' : 'flowers'} planted around the square.` : 'The flower beds are bare.'}</li>
           </ul>
         </section>

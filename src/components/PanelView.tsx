@@ -5,6 +5,7 @@ import { Icon } from './Icon';
 import { cardTitle, InfoCard, SignGlyph, signLabel } from './InfoCard';
 import { RichText } from './RichText';
 import { Token } from './Token';
+import { shownName } from '../state/nicks';
 
 export interface PanelEdit {
   active: number;
@@ -30,7 +31,7 @@ export function GrimoireSnapshotView({ snap, seatFor }: { snap: GrimoireSnapshot
           return (
             <div key={s.id} className={`snap-seat ${s.dead ? 'is-dead' : ''} ${s.id === seatFor ? 'is-me' : ''}`} style={{ left: `calc(50% + ${Math.cos(a) * R}px)`, top: `calc(50% + ${Math.sin(a) * R}px)` }}>
               <Token roleId={s.roleId} dead={s.dead} blank="unknown" label={false} />
-              <em>{s.name}</em>
+              <em>{shownName(s.name, '')}</em>
               <b>{getRole(s.roleId)?.name ?? '—'}</b>
               {s.reminders.length > 0 && <small>{s.reminders.join(' · ')}</small>}
             </div>

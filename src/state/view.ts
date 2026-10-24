@@ -5,6 +5,7 @@ import { useHostNet } from '../net/host';
 import { isTraveller, seatAlignment, useHost, visitFor } from './host';
 import type { AwakeState, DayTimer, DeathRecord, Execution, GameEnd, LetterIn, Nomination, NominationRequest, Phase, Reminder, SlayerShot, TownHall, Visit, VoteRecord, PitState } from './types';
 import type { Look, TownState, Weather } from '../world/types';
+import { nickFor, useNicks } from './nicks';
 import { useUI } from './ui';
 import { pitPublic } from '../game/pitRules';
 
@@ -15,8 +16,12 @@ export const useMode = () => useContext(ModeContext);
 export interface SeatView {
   id: string;
   index: number;
+  /** Their real name, as everyone else sees it (and the host keeps). */
   name: string;
+  /** What this viewer calls them: the nickname they gave them (see `nicks.ts`), else their name, else "Seat 3". */
   label: string;
+  /** The nickname this viewer gave them, if any (only ever on this screen). */
+  nick: string | null;
   claimed: boolean;
   connected: boolean;
   /** Storyteller only: their line is slow, this many milliseconds there and back (null when it's fine). */
@@ -91,7 +96,7 @@ function pitHere(p: PitState | undefined, offset: number): PitState | null {
   };
 }
 
-const label = (name: string, i: number) => name || `Seat ${i + 1}`;
+const label = (name: string, i: number, nicks: Record<string, string>) => nickFor(name, nicks) ?? (name || `Seat ${i + 1}`);
 
 /** An execution's times (the vote closing, the wheel's draw) in this browser's own clock. */
 const localExecution = (ex: Execution, offset: number): Execution => ({
@@ -106,6 +111,7 @@ export function useStorytellerView(): View {
   const online = useHostNet((s) => s.online);
   const slow = useHostNet((s) => s.slow);
   const hide = useUI((s) => s.hideGrimoire) && !g.ended;
+  const nicks = useNicks();
   return useMemo(
     () => ({
       mode: 'st',
@@ -117,7 +123,8 @@ export function useStorytellerView(): View {
         id: s.id,
         index: i,
         name: s.name,
-        label: label(s.name, i),
+        label: label(s.name, i, nicks),
+        nick: nickFor(s.name, nicks),
         claimed: Boolean(s.playerId),
         connected: Boolean(s.playerId && online[s.playerId]),
         slow: (s.playerId && online[s.playerId] && slow[s.playerId]) || null,
@@ -157,7 +164,7 @@ export function useStorytellerView(): View {
       pigeonNotes: [],
       pit: pitHere(g.pit && pitPublic(g.pit), 0),
     }),
-    [g, online, slow, hide],
+    [g, online, slow, hide, nicks],
   );
 }
 
@@ -165,6 +172,7 @@ export function usePlayerView(): View | null {
   const pub = useClient((s) => s.pub);
   const priv = useClient((s) => s.priv);
   const clockOffset = useClient((s) => s.clockOffset);
+  const nicks = useNicks();
   return useMemo(() => {
     if (!pub) return null;
     return {
@@ -183,7 +191,8 @@ export function usePlayerView(): View | null {
           id: s.id,
           index: i,
           name: s.name,
-          label: label(s.name, i),
+          label: label(s.name, i, nicks),
+          nick: nickFor(s.name, nicks),
           claimed: s.claimed,
           connected: s.connected,
           slow: null,
@@ -224,7 +233,7 @@ export function usePlayerView(): View | null {
       pigeonNotes: (Array.isArray(priv?.pigeons) ? priv.pigeons : []).map((p) => ({ ...p, at: p.at - (clockOffset ?? 0) })),
       pit: pitHere(pub.pit, clockOffset ?? 0),
     };
-  }, [pub, priv, clockOffset]);
+  }, [pub, priv, clockOffset, nicks]);
 }
 
 export const ViewContext = createContext<View | null>(null);

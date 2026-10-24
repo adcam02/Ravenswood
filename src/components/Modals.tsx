@@ -28,6 +28,8 @@ import { useProblems } from '../lib/report';
 import { ReminderToken, Token } from './Token';
 import { WakeComposer } from './WakeComposer';
 import { CustomiseModal } from './town/Customise';
+import { NicknameModal } from './Nickname';
+import { shownName } from '../state/nicks';
 
 export function Modals() {
   const modal = useUI((s) => s.modal);
@@ -43,6 +45,8 @@ export function Modals() {
       return <ReminderModal seatId={modal.seatId} />;
     case 'rename':
       return <RenameModal seatId={modal.seatId} />;
+    case 'nickname':
+      return <NicknameModal seatId={modal.seatId} />;
     case 'share':
       return <ShareModal />;
     case 'settings':
@@ -249,7 +253,7 @@ function ReminderModal({ seatId }: { seatId: string }) {
     .filter((r) => r && ((r.reminders?.length ?? 0) + (r.remindersGlobal?.length ?? 0) > 0));
   return (
     <Modal
-      title={`Reminder for ${seat?.name || 'this seat'}`}
+      title={`Reminder for ${seat?.name ? shownName(seat.name) : 'this seat'}`}
       eyebrow="Click a reminder to place it. Click a placed reminder to remove it."
       size="lg"
       head={
@@ -506,7 +510,7 @@ function PlayerLines() {
     };
   }, []);
   if (!lines?.length) return null;
-  const name = (pid: string) => g.seats.find((s) => s.playerId === pid)?.name || 'Someone joining';
+  const name = (pid: string) => shownName(g.seats.find((s) => s.playerId === pid)?.name, 'Someone joining');
   const feel = (ms: number | null) => (ms === null ? '' : ms < 150 ? 'good' : ms < 400 ? 'fair' : 'poor');
   const sorted = [...lines].sort((a, b) => (b.ms ?? 0) - (a.ms ?? 0));
   return (

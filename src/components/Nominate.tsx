@@ -7,6 +7,7 @@ import { ui, useUI } from '../state/ui';
 import { useView, type View } from '../state/view';
 import { Icon } from './Icon';
 import { Modal } from './Modal';
+import { shownName } from '../state/nicks';
 
 /**
  * Whether this player has a Nominate button: by day once the game is under way, for the living. `why` says why
@@ -183,8 +184,8 @@ export function NominationPrompt() {
   const pending = (g.nomRequests ?? []).filter((r) => r.status === 'pending' && r.day === g.day);
   const r = pending[0];
   if (!r || !nominationsOpen(g) || g.slayer.some((x) => x.result === 'pending')) return null;
-  const by = seatName(g, r.by);
-  const target = seatName(g, r.target);
+  const by = shownName(seatName(g, r.by));
+  const target = shownName(seatName(g, r.target));
   const block = nominateBlock(g, r.by, r.target, r.id);
   const open = g.nomination && g.nomination.status !== 'done' ? g.nomination : null;
   const note =

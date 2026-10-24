@@ -11,6 +11,7 @@ import { Journal, Notepad } from './Notepad';
 import { PanelView, ReplyLine } from './PanelView';
 import { RichText } from './RichText';
 import { Token } from './Token';
+import { shownName } from '../state/nicks';
 
 export function SidePanel() {
   const panel = useUI((s) => s.panel);
@@ -119,7 +120,7 @@ function NightOrderList() {
                   <strong>{special ? special.name : role?.name}</strong>
                   {row.holders.map((h) => (
                     <span key={h.seat.id} className={`night-who ${h.seat.dead ? 'dead' : ''}`}>
-                      {h.seat.name || 'Empty seat'}
+                      {shownName(h.seat.name, 'Empty seat')}
                       {h.believes && ` (${getRole(h.seat.roleId)?.name})`}
                     </span>
                   ))}

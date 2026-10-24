@@ -180,6 +180,18 @@
   display: grid;
   gap: 16px;
 }
+
+/* Giving someone a nickname only you see. */
+.nickname-hint {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+.nickname-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
 .error {
   color: var(--evil-hi);
   font-size: 14px;

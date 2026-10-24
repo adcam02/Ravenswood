@@ -188,7 +188,7 @@ export function MiniMap() {
         const seat = seats.current.find((s) => s.id === key);
         if (key !== 'st' && !seat) continue;
         const hidden = mode !== 'st' && inBooth(p.zone, p.x, p.z);
-        people.push({ zone: p.zone, x: p.x, z: p.z, m: { look: seat?.look ?? null, me: false, st: key === 'st', dead: Boolean(seat?.dead), name: key === 'st' ? 'S' : (seat?.name ?? '?'), hidden } });
+        people.push({ zone: p.zone, x: p.x, z: p.z, m: { look: seat?.look ?? null, me: false, st: key === 'st', dead: Boolean(seat?.dead), name: key === 'st' ? 'S' : (seat?.label ?? '?'), hidden } });
       }
       if (myKey) {
         const me = seats.current.find((s) => s.id === myKey);

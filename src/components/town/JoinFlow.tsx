@@ -8,6 +8,7 @@ import { AnimalPreview } from '../../world/AnimalPreview';
 import { animalThumbnail } from '../../world/animals';
 import { ANIMALS_ABC, animalInfo, EXTRA_COLORS, fixLook, HATS, hatsOwned, hatSpeedLabel, PETS, type AnimalId, type Look } from '../../world/types';
 import { useProgress } from '../../game/progress';
+import { shownName } from '../../state/nicks';
 
 type Step = 'name' | 'animal' | 'mic';
 
@@ -75,7 +76,7 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
     // We don't hold it after all.
     if (useJoin.getState().held === taken.animal) useJoin.setState({ held: null });
     const who = animalInfo(taken.animal as AnimalId)?.name ?? 'that animal';
-    setNote(`${taken.by} just took the ${who.toLowerCase()}. Pick another!`);
+    setNote(`${shownName(taken.by)} just took the ${who.toLowerCase()}. Pick another!`);
     setTab('animal');
     setStep((s) => (s === 'name' ? s : 'animal'));
   }, [taken.at, taken.animal, taken.by]);
@@ -331,8 +332,8 @@ function useOthersAnimals(): Map<string, { by: string; choosing: boolean }> {
   const held = useJoin((s) => s.held);
   return useMemo(() => {
     const out = new Map<string, { by: string; choosing: boolean }>();
-    for (const s of pub?.seats ?? []) if (s.claimed && s.id !== mySeat && s.look?.animal) out.set(s.look.animal, { by: s.name || 'Someone', choosing: false });
-    for (const [animal, by] of Object.entries(pub?.picking ?? {})) if (animal !== held && !out.has(animal)) out.set(animal, { by, choosing: true });
+    for (const s of pub?.seats ?? []) if (s.claimed && s.id !== mySeat && s.look?.animal) out.set(s.look.animal, { by: shownName(s.name), choosing: false });
+    for (const [animal, by] of Object.entries(pub?.picking ?? {})) if (animal !== held && !out.has(animal)) out.set(animal, { by: shownName(by), choosing: true });
     return out;
   }, [pub, mySeat, held]);
 }

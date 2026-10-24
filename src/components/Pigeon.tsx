@@ -4,6 +4,7 @@ import { local } from '../game/local';
 import { tally } from '../game/progress';
 import { player, useClient, usePigeoned } from '../net/client';
 import { ui } from '../state/ui';
+import { withReal } from '../state/nicks';
 import { useView } from '../state/view';
 import { whereIs } from '../world/town/layout';
 import { Icon } from './Icon';
@@ -92,7 +93,7 @@ export function PigeonNote() {
         🕊️
       </span>
       <span className="pigeon-note-text">
-        <strong>{note.name} wants to speak to you</strong>
+        <strong>{withReal(note.name)} wants to speak to you</strong>
         <span>They’re {note.where}.</span>
       </span>
     </button>

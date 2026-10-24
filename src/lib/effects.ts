@@ -8,6 +8,7 @@ import { countBeat, dawn, fanfare, gavel, nightfall, primeAudio, tick, townBells
 import { notify } from './notify';
 import { joinNames } from './util';
 import { JOB_TITLES, SCORE_LABEL, type GameJob } from '../jobs/meta';
+import { shownName } from '../state/nicks';
 
 /** Sounds, banners and notices that follow from changes in the game. */
 export function useEffects(view: View | null) {
@@ -67,7 +68,7 @@ export function useEffects(view: View | null) {
     // A new town record is news for everyone.
     for (const [game, r] of Object.entries(view.town.records)) {
       const before = p.town.records[game];
-      if (!before || before.at !== r.at) ui.toast(`🏆 ${r.by} set the ${JOB_TITLES[game as GameJob]?.toLowerCase() ?? game} record: ${SCORE_LABEL[game as GameJob]?.(r.score) ?? r.score}`, 'good');
+      if (!before || before.at !== r.at) ui.toast(`🏆 ${shownName(r.by)} set the ${JOB_TITLES[game as GameJob]?.toLowerCase() ?? game} record: ${SCORE_LABEL[game as GameJob]?.(r.score) ?? r.score}`, 'good');
     }
     // Someone claiming to be the Slayer, then what came of it.
     for (const shot of view.slayer) {
@@ -140,7 +141,7 @@ export function useEffects(view: View | null) {
       if (!a.seen) continue;
       const key = `${seatId}:${a.wakeId}`;
       now.add(key);
-      if (!seenBefore.current.has(key)) ui.toast(`${seatName(g, seatId)} has seen it`, 'good');
+      if (!seenBefore.current.has(key)) ui.toast(`${shownName(seatName(g, seatId))} has seen it`, 'good');
     }
     seenBefore.current = now;
   }, [awake, view?.mode]);

@@ -6,6 +6,7 @@ import { useNotes, type NoteKind } from '../state/notes';
 import { ui } from '../state/ui';
 import { useView } from '../state/view';
 import { Icon } from './Icon';
+import { NameAndReal } from './Nickname';
 import { PanelView } from './PanelView';
 import { Token } from './Token';
 
@@ -20,7 +21,7 @@ export function Notepad() {
   }, [key, text]);
   return (
     <div className="notepad">
-      <p className="notepad-hint">Only you can see this. It’s kept in this browser.</p>
+      <p className="notepad-hint">Only you can see this. It’s kept in this browser. Tap a name to give them a nickname.</p>
       <WhosWho />
       <textarea
         className="notepad-paper"
@@ -67,7 +68,20 @@ function WhosWho() {
           <div key={s.id} className={`whos-row ${s.dead ? 'dead' : ''} ${odd ? 'odd' : ''}`}>
             <span className="whos-seat">
               <span className="ask-num">{s.index + 1}</span>
-              <span className="whos-label">{s.label}</span>
+              {s.name ? (
+                <button
+                  className="whos-nick"
+                  title={s.nick ? `You call ${s.name} “${s.nick}”. Change or clear it` : `Give ${s.name} a nickname only you see`}
+                  onClick={() => ui.open({ kind: 'nickname', seatId: s.id })}
+                >
+                  <span className="whos-label">
+                    <NameAndReal name={s.name} label={s.label} />
+                  </span>
+                  <Icon name="pencil" />
+                </button>
+              ) : (
+                <span className="whos-label">{s.label}</span>
+              )}
               {s.dead && <Icon name="skull" aria-label="dead" />}
             </span>
             {slot(s.id, 'claim')}

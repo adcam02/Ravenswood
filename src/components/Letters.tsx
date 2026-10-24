@@ -4,6 +4,7 @@ import { useHud } from '../game/hud';
 import { loadJSON, saveJSON } from '../lib/util';
 import { player, useClient, usePosted } from '../net/client';
 import { LETTER_MAX } from '../state/host';
+import { withReal } from '../state/nicks';
 import type { LetterIn } from '../state/types';
 import { ui } from '../state/ui';
 import { useView } from '../state/view';
@@ -153,7 +154,7 @@ export function ReadLettersModal() {
         <div className="letter-read">
           <div className="letter-paper reading">
             <p>{letter.text}</p>
-            <span className="letter-sign">{letter.name ? `From ${letter.name}` : 'Unsigned'}</span>
+            <span className="letter-sign">{letter.name ? `From ${withReal(letter.name)}` : 'Unsigned'}</span>
           </div>
           <div className="letter-actions">
             <button className="btn" onClick={() => setOpen(null)}>
@@ -166,7 +167,7 @@ export function ReadLettersModal() {
           {list.map((l) => (
             <button key={l.id} className={`letter-envelope ${read.has(l.id) ? 'read' : 'new'}`} onClick={() => show(l)}>
               <span className="letter-env-icon">{read.has(l.id) ? '📭' : '💌'}</span>
-              <span className="letter-env-from">{l.name ? `From ${l.name}` : 'Unsigned'}</span>
+              <span className="letter-env-from">{l.name ? `From ${withReal(l.name)}` : 'Unsigned'}</span>
               <em>{l.night === view.day ? 'tonight' : `night ${l.night}`}</em>
             </button>
           ))}

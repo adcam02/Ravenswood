@@ -10,6 +10,8 @@ import { Icon } from './Icon';
 import { Modal } from './Modal';
 import { Token } from './Token';
 import { GamePay } from './town/Money';
+import { shownName } from '../state/nicks';
+import { NameAndReal } from './Nickname';
 
 const TEAM = { good: 'Good', evil: 'Evil' } as const;
 
@@ -205,7 +207,7 @@ function awardsFor(view: View): Award[] {
   // This game's fish only (the town's catch log runs on from game to game).
   const since = view.ended?.since ?? 0;
   const fish = view.town.fish.filter((f) => f.at >= since).sort((a, b) => b.cm - a.cm)[0];
-  if (fish && fish.cm > 0) out.push({ icon: '🎣', title: 'Biggest catch', who: fish.by, detail: `${fish.kind}, ${fish.cm}cm` });
+  if (fish && fish.cm > 0) out.push({ icon: '🎣', title: 'Biggest catch', who: shownName(fish.by), detail: `${fish.kind}, ${fish.cm}cm` });
   return out;
 }
 
@@ -306,7 +308,9 @@ export function RecapModal() {
               <div key={s.id} className={`recap-seat ${onTeam(s, ended.winner) ? 'won' : 'lost'} ${s.alignment ?? 'good'}`}>
                 <Token roleId={s.roleId} alignment={s.alignment} dead={fate.dead} deadBadge label={false} />
                 <div className="recap-seat-text">
-                  <strong>{s.label}</strong>
+                  <strong>
+                    <NameAndReal name={s.name} label={s.label} />
+                  </strong>
                   <span>
                     {role ? `The ${role.name}` : 'No character'}
                     {shown && <em> (thought they were the {shown.name})</em>}

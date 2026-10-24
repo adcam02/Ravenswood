@@ -1201,6 +1201,43 @@ button.my-card:hover {
   text-decoration: line-through;
   text-decoration-color: rgba(255, 255, 255, 0.3);
 }
+/* A name in who's who: tap it to give them a nickname (the pencil shows on hover, faintly on touch screens). */
+.whos-nick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-left: -6px;
+  padding: 2px 6px;
+  border-radius: 8px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  transition: background 0.15s;
+}
+.whos-nick:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.whos-seat .whos-nick svg {
+  width: 13px;
+  height: 13px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.whos-nick:hover svg,
+.whos-nick:focus-visible svg {
+  opacity: 1;
+}
+@media (hover: none) {
+  .whos-seat .whos-nick svg {
+    opacity: 0.6;
+  }
+}
+/* Someone's real name, small beside the nickname you gave them. */
+.real-name {
+  font-size: 0.78em;
+  color: var(--text-faint);
+}
 .whos-slot {
   display: grid;
   justify-items: center;

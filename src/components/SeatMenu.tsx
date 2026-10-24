@@ -6,6 +6,7 @@ import { notes, useNotes } from '../state/notes';
 import { ui, useUI } from '../state/ui';
 import { useView, type SeatView } from '../state/view';
 import { Icon, type IconName } from './Icon';
+import { NameAndReal } from './Nickname';
 import type { Geometry } from './Square';
 import { game } from '../game/hud';
 import { local } from '../game/local';
@@ -74,7 +75,9 @@ export function SeatMenu({ seat, geo, pt }: { seat: SeatView; geo: Geometry; pt:
   return (
     <Popover geo={geo} pt={pt}>
       <header className="menu-head">
-        <strong>{seat.label}</strong>
+        <strong>
+          <NameAndReal name={seat.name} label={seat.label} />
+        </strong>
         <span>{!role ? 'No character yet' : DISGUISED[role.id] && shown ? `${shown.name}, secretly the ${role.name}` : role.name}</span>
       </header>
 
@@ -127,7 +130,7 @@ export function SeatMenu({ seat, geo, pt }: { seat: SeatView; geo: Geometry; pt:
               game.goTo(seat.id);
             }}
           >
-            Float over to {seat.name || 'them'}
+            Float over to {seat.name ? seat.label : 'them'}
           </Item>
         )}
         {presence.others.has(seat.id) && (
@@ -139,16 +142,16 @@ export function SeatMenu({ seat, geo, pt }: { seat: SeatView; geo: Geometry; pt:
               hostLink.summon(seat.id, local.zone, local.x, local.z);
             }}
           >
-            Bring {seat.name || 'them'} to me
+            Bring {seat.name ? seat.label : 'them'} to me
           </Item>
         )}
         {view.townHall && presence.others.has(seat.id) && !view.townHall.back.includes(seat.id) && (
           <Item icon="bell" onClick={() => (close(), hostLink.seatAtMeeting([seat.id]))}>
-            Sit {seat.name || 'them'} on their stool
+            Sit {seat.name ? seat.label : 'them'} on their stool
           </Item>
         )}
         <Item icon="wake" onClick={() => ui.wake([seat.id])}>
-          Wake {seat.name || 'this player'}
+          Wake {seat.name ? seat.label : 'this player'}
         </Item>
         {seat.awake && (
           <Item icon="sleep" onClick={() => (st.sleep([seat.id]), close())}>
@@ -191,6 +194,11 @@ export function SeatMenu({ seat, geo, pt }: { seat: SeatView; geo: Geometry; pt:
         <Item icon="pencil" onClick={() => ui.open({ kind: 'rename', seatId: seat.id })}>
           Rename
         </Item>
+        {seat.name && (
+          <Item icon="feather" hint={seat.nick ? `you call them ${seat.nick}` : 'only you see it'} onClick={() => ui.open({ kind: 'nickname', seatId: seat.id })}>
+            Nickname…
+          </Item>
+        )}
         <Item icon="swap" onClick={() => ui.pick({ kind: 'swap', seatId: seat.id })}>
           Swap seats with…
         </Item>
@@ -243,7 +251,9 @@ export function PlayerSeatMenu({ seat, geo, pt }: { seat: SeatView; geo: Geometr
   return (
     <Popover geo={geo} pt={pt}>
       <header className="menu-head">
-        <strong>{seat.label}</strong>
+        <strong>
+          <NameAndReal name={seat.name} label={seat.label} />
+        </strong>
         <span>{seat.roleId ? getRole(seat.roleId)?.name : noteRole ? `Your guess: ${noteRole.name}` : 'Only you see your notes'}</span>
       </header>
       <div className="menu-group">
@@ -253,6 +263,11 @@ export function PlayerSeatMenu({ seat, geo, pt }: { seat: SeatView; geo: Geometr
         {note && (
           <Item icon="x" onClick={() => (notes.set(seat.id, 'guess', null), close())}>
             Clear my guess
+          </Item>
+        )}
+        {seat.name && (
+          <Item icon="pencil" hint={seat.nick ? `you call them ${seat.nick}` : 'only you see it'} onClick={() => ui.open({ kind: 'nickname', seatId: seat.id })}>
+            Nickname…
           </Item>
         )}
         {seat.roleId && (
