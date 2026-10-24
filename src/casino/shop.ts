@@ -56,6 +56,22 @@ const TIER: Record<string, 1 | 2 | 3 | 4> = {
   luckdragon: 4,
   skybison: 4,
   ent: 4,
+  // The fifth set: little ones cheap, special ones dear.
+  fairy: 1,
+  cactus: 1,
+  bean: 1,
+  hedgehog: 2,
+  chomper: 2,
+  moogle: 2,
+  platypus: 2,
+  dug: 2,
+  nursebot: 3,
+  eggprobe: 3,
+  turret: 3,
+  faceless: 3,
+  hearth: 3,
+  niffler: 3,
+  catbus: 4,
 };
 
 const PRICE = { 1: 20, 2: 35, 3: 50, 4: 80 } as const;

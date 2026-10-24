@@ -103,6 +103,8 @@ interface Pet {
   update(dt: number, t: number, moving: boolean): void;
   setGhost(on: boolean): void;
   dispose(): void;
+  /** Some pets dress to suit their owner (the bean's suit colour). */
+  setOwner?(name: string): void;
 }
 const buildPet = (Animals as unknown as { buildPet?: (pet: PetId) => Pet }).buildPet;
 
@@ -245,6 +247,7 @@ export class AvatarView {
       this.pet?.dispose();
       this.pet = petId && buildPet ? buildPet(petId) : null;
       if (this.pet) {
+        this.pet.setOwner?.(info.name);
         AvatarView.noShadows(this.pet.root);
         this.petPos.set(this.x - 0.6, 0, this.z + 0.6);
         this.pet.root.position.copy(this.petPos);

@@ -3,6 +3,7 @@ import { Builder, SMOOTH_LOOK, eyeMaterial, glow, rng, soft, wet, type Vec3 } fr
 import { all, regionOf, type Field } from './forms';
 import { Sculpt, box, ellipsoid, pyramid, rod, type Probe } from './sculpt';
 import type { PetId } from './types';
+import { PETS5_MAKERS } from './pets5';
 import { Act, addEyes, arc, bead, bell, BLUSH, blushes, both, clamp, CREASE, Critter, cutout, either, flatBase, frontZ, gem, Homage, hop, INK, irisEyes, Jointed, onFront, onSurface, patch, PetRig, pip, placeCopy, sculpted, sph, spike, spots, tube, V, type Pet } from './petkit';
 
 export type { Pet };
@@ -3404,6 +3405,7 @@ const MAKERS: Record<PetId, () => PetRig> = {
   raven: () => new Raven(),
   scorpion: () => new Scorpion(),
   tinyrex: () => new TinyRex(),
+  ...PETS5_MAKERS,
 };
 
 export function buildPet(pet: PetId): Pet {

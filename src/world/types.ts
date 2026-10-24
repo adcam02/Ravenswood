@@ -151,7 +151,10 @@ export type PetId =
   | 'mogwai' | 'clip' | 'tribble' | 'luckdragon' | 'skybison' | 'volleyball' | 'feedme'
   // Storybook critters from the players' own wish list.
   | 'gecko' | 'golem' | 'pengling' | 'puffdragon' | 'cockatoo' | 'ent' | 'piglet' | 'noodle'
-  | 'raven' | 'scorpion' | 'tinyrex';
+  | 'raven' | 'scorpion' | 'tinyrex'
+  // A fifth set (pets5.ts).
+  | 'eggprobe' | 'nursebot' | 'hedgehog' | 'chomper' | 'fairy' | 'moogle' | 'cactus' | 'bean'
+  | 'turret' | 'catbus' | 'faceless' | 'hearth' | 'niffler' | 'platypus' | 'dug';
 
 export const PETS: { id: PetId; name: string; icon: string }[] = [
   { id: 'chick', name: 'Chick', icon: '🐤' },
@@ -201,6 +204,21 @@ export const PETS: { id: PetId; name: string; icon: string }[] = [
   { id: 'raven', name: 'Nevermore', icon: '🐦‍⬛' },
   { id: 'scorpion', name: 'Snippy scorpion', icon: '🦂' },
   { id: 'tinyrex', name: 'Tiny rex', icon: '🦖' },
+  { id: 'eggprobe', name: 'Egg probe', icon: '🛰️' },
+  { id: 'nursebot', name: 'Huggy nurse bot', icon: '🩹' },
+  { id: 'hedgehog', name: 'Speedy hedgehog', icon: '🦔' },
+  { id: 'chomper', name: 'Chain chomper', icon: '⛓️' },
+  { id: 'fairy', name: 'Hey-listen fairy', icon: '🧚' },
+  { id: 'moogle', name: 'Kupo moogle', icon: '🎈' },
+  { id: 'cactus', name: 'Sprinting cactus', icon: '🌵' },
+  { id: 'bean', name: 'Sus bean', icon: '🧑‍🚀' },
+  { id: 'turret', name: 'Turret pal', icon: '🎯' },
+  { id: 'catbus', name: 'Cat bus', icon: '🚌' },
+  { id: 'faceless', name: 'Faceless spirit', icon: '🎭' },
+  { id: 'hearth', name: 'Hearth fire', icon: '🔥' },
+  { id: 'niffler', name: 'Shiny snatcher', icon: '🪙' },
+  { id: 'platypus', name: 'Agent platypus', icon: '🕵️' },
+  { id: 'dug', name: 'Squirrel! dog', icon: '🦮' },
 ];
 
 const pickFrom = <T extends string>(list: { id: T }[], v: unknown): T | null => (list.some((x) => x.id === v) ? (v as T) : null);
