@@ -68,6 +68,35 @@ function bentCone(b: Builder, colors: (i: number) => THREE.ColorRepresentation, 
   return [pos.x, pos.y, pos.z];
 }
 
+/**
+ * Like bentCone, but one smooth piece (for a soft cloth cap, where the joins between pieces would show): a cone of
+ * `segs` rings round, bending `bend` radians as it rises, more towards the tip (where it's thin enough to fold
+ * without creasing). Returns the geometry and where its point ends up.
+ */
+function bentTube(base: Vec3, r0: number, height: number, segs: number, bend: number, bendDir: Vec3, start: Vec3, radial = 28): { geo: THREE.BufferGeometry; tip: Vec3 } {
+  const rings: { at: THREE.Vector3; q: THREE.Quaternion }[] = [];
+  let pos = new THREE.Vector3(...base);
+  let dir = new THREE.Vector3(...start).normalize();
+  const axis = new THREE.Vector3(...bendDir).normalize();
+  const up = new THREE.Vector3(0, 1, 0);
+  // Each ring's share of the bend grows with its height.
+  const share = (i: number) => (i + 0.5) ** 1.6;
+  let total = 0;
+  for (let i = 0; i < segs; i++) total += share(i);
+  for (let i = 0; i <= segs; i++) {
+    rings.push({ at: pos.clone(), q: new THREE.Quaternion().setFromUnitVectors(up, dir) });
+    pos = pos.clone().addScaledVector(dir, height / segs);
+    dir = dir.clone().applyAxisAngle(axis, (bend * share(i)) / total).normalize();
+  }
+  const geo = warp(new THREE.CylinderGeometry(0, 1, 1, radial, segs, true), (v) => {
+    const k = Math.round((v.y + 0.5) * segs);
+    const ring = rings[k];
+    return v.set(v.x * r0, 0, v.z * r0).applyQuaternion(ring.q).add(ring.at);
+  });
+  const tip = rings[segs].at;
+  return { geo, tip: [tip.x, tip.y, tip.z] };
+}
+
 function finish(b: Builder, extra: Partial<BuiltHat> & { top: number; sit: HatSit }, material = soft()): BuiltHat {
   const group = new THREE.Group();
   const mesh = b.mesh(material, { cast: true, receive: false });
@@ -1653,6 +1682,531 @@ function pumpkin(): BuiltHat {
   return built;
 }
 
+// ---------------------------------------------------------------- more pop-culture hats, each for its own achievement
+
+/** Bands of a shell (part of an ellipsoid at C, radii R), from t0 to t1 down from the crown, all the way round. */
+function shellBand(b: Builder, C: Vec3, R: Vec3, t0: number, t1: number, color: string, w = 32) {
+  const g = new THREE.SphereGeometry(1, w, Math.max(2, Math.round((t1 - t0) * 7)), 0, Math.PI * 2, t0, t1 - t0);
+  b.add(g, color, { pos: C, scale: R });
+  g.dispose();
+}
+
+function viking(): BuiltHat {
+  const b = new Builder();
+  const steel = ['#e2e6ea', '#c2c8d0', '#9aa2ae'];
+  const bronze = '#c8913a';
+  const horn = ['#a88a58', '#c4a874', '#d8c294', '#e6d6b0', '#efe4c8', '#f6eedc', '#fbf6ea'];
+  // A Norse warrior's helmet (as worn by everyone who ever shouted a dragon off a mountain): a steel dome, light on
+  // top and darker round the sides, a bronze band round the brow studded with rivets, a bronze ridge from front to
+  // back, and a great pair of horns curling up and out, each with a bronze ring at the root.
+  const C: Vec3 = [0, -0.14, -0.01];
+  const R: Vec3 = [0.272, 0.215, 0.282];
+  shellBand(b, C, R, 0, 0.62, steel[0]);
+  shellBand(b, C, R, 0.62, 1.12, steel[1]);
+  shellBand(b, C, R, 1.12, Math.PI / 2, steel[2]);
+  b.add(cyl(36), bronze, { pos: [0, -0.142, -0.01], scale: [R[0] + 0.012, 0.055, R[2] + 0.012] });
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    b.add(sph(6, 4), '#e8b860', { pos: [Math.sin(a) * (R[0] + 0.014), -0.142, -0.01 + Math.cos(a) * (R[2] + 0.014)], scale: 0.011 });
+  }
+  const ridge = new THREE.TorusGeometry(1, 0.07, 5, 24, Math.PI).rotateY(Math.PI / 2);
+  b.add(ridge, bronze, { pos: C, scale: [0.2, R[1] + 0.006, R[2] + 0.006] });
+  ridge.dispose();
+  for (const side of [-1, 1]) {
+    const root: Vec3 = [side * 0.235, -0.06, -0.02];
+    b.add(torus(0.3, 6, 18), bronze, { pos: root, rot: [0, 0, side * 1.25], scale: [0.058, 0.058, 0.05] });
+    bentCone(b, (i) => horn[i], root, 0.056, 0.27, 7, 1.7, [0, 0, side], [side, 0.25, 0.12]);
+  }
+  return finish(b, { top: 0.16, sit: { kind: 'snug', rim: [-0.17, 0.284, 0.294] } }, wet());
+}
+
+function sombrero(): BuiltHat {
+  const b = new Builder();
+  const straw = '#e8c46a';
+  const weave = '#d0a84a';
+  const bright = ['#d8343c', '#2f9a4a', '#f6d55c', '#f8f6f0'];
+  // A big fiesta sombrero: a tall round crown, a wide straw brim that sweeps up at the edge, bands of red, white and
+  // green, stitched dots round the brim and little pom-poms dangling all the way round.
+  const crown = new THREE.LatheGeometry(
+    [
+      [0.152, -0.04],
+      [0.15, 0.05],
+      [0.14, 0.14],
+      [0.122, 0.21],
+      [0.096, 0.26],
+      [0.064, 0.292],
+      [0.03, 0.31],
+      [0.001, 0.314],
+    ].map(([r, y]) => new THREE.Vector2(r, y)),
+    32,
+  );
+  b.add(crown, straw);
+  crown.dispose();
+  b.add(cyl(32, 0.97, 1), bright[0], { pos: [0, 0.005, 0], scale: [0.153, 0.05, 0.153] });
+  for (const [y, r, c] of [
+    [0.035, 0.149, bright[3]],
+    [0.05, 0.146, bright[1]],
+  ] as [number, number, string][]) {
+    b.add(torus(0.14, 3, 28), c, { pos: [0, y, 0], rot: [Math.PI / 2, 0, 0], scale: [r, r, 0.08] });
+  }
+  b.add(torus(0.07, 3, 26), weave, { pos: [0, 0.16, 0], rot: [Math.PI / 2, 0, 0], scale: [0.136, 0.136, 0.1] });
+  // The brim, dipping a little and then curling right up at the edge.
+  const rOut = 0.42;
+  const bend = (_x: number, _z: number, t: number) => -0.04 - 0.025 * t + 0.15 * t ** 3.5;
+  const brim = brimGeo(0.13, rOut, 0.016, 36, bend);
+  b.add(brim, straw);
+  brim.dispose();
+  const rw = 0.27;
+  b.add(torus(0.1, 3, 32), weave, { pos: [0, bend(0, 0, (rw - 0.13) / (rOut - 0.13)) + 0.008, 0], rot: [Math.PI / 2, 0, 0], scale: [rw, rw, 0.08] });
+  const edge: THREE.Vector3[] = [];
+  for (let i = 0; i < 40; i++) {
+    const a = (i / 40) * Math.PI * 2;
+    edge.push(new THREE.Vector3(Math.sin(a) * (rOut + 0.006), bend(0, 0, 1.02), Math.cos(a) * (rOut + 0.006)));
+  }
+  const binding = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(edge, true), 48, 0.012, 4, true);
+  b.add(binding, bright[0]);
+  binding.dispose();
+  // Stitched dots round the brim near the crown, and the pom-poms hanging off the edge.
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const r = 0.185;
+    b.add(sph(5, 3), bright[i % 3], { pos: [Math.sin(a) * r, bend(0, 0, (r - 0.13) / (rOut - 0.13)) + 0.012, Math.cos(a) * r], scale: [0.014, 0.006, 0.014] });
+  }
+  for (let i = 0; i < 12; i++) {
+    const a = ((i + 0.5) / 12) * Math.PI * 2;
+    const x = Math.sin(a) * (rOut + 0.012);
+    const z = Math.cos(a) * (rOut + 0.012);
+    const y = bend(0, 0, 1.02);
+    b.add(cyl(3), '#3a2a1a', { pos: [x, y - 0.022, z], scale: [0.003, 0.04, 0.003] });
+    b.add(sph(6, 4), bright[(i + 1) % 3], { pos: [x, y - 0.05, z], scale: 0.018 });
+  }
+  return finish(b, { top: 0.31, sit: { kind: 'brim', rim: [-0.04, 0.152] } });
+}
+
+function beret(): BuiltHat {
+  const b = new Builder();
+  const felt = '#8a2a48';
+  const band = '#6c1e36';
+  // An artist's beret: a soft felt disc slouched over to one side on a narrow band round the head, a little stalk in
+  // the middle, dabs of paint here and there, and a paintbrush tucked in at the side.
+  b.add(cyl(32), band, { pos: [0, -0.095, -0.005], scale: [0.262, 0.032, 0.272] });
+  const tip = new THREE.Euler(0.04, 0, -0.17);
+  const top: Vec3 = [0.04, -0.02, -0.01];
+  b.add(sph(28, 12), felt, { pos: top, rot: [tip.x, tip.y, tip.z], scale: [0.33, 0.092, 0.335] });
+  // Where the top of the disc is, a way out from its middle.
+  const on = (x: number, z: number, lift = 0) => {
+    const k = 1 - (x * x) / (0.33 * 0.33) - (z * z) / (0.335 * 0.335);
+    return new THREE.Vector3(x, Math.sqrt(Math.max(0, k)) * 0.092 + lift, z).applyEuler(tip).add(new THREE.Vector3(...top));
+  };
+  b.add(cyl(8, 0.7, 1), band, { pos: on(0, 0, 0.012).toArray(), rot: [0, 0, -0.17], scale: [0.012, 0.028, 0.012] });
+  for (const [x, z, s, c] of [
+    [0.14, 0.08, 0.034, '#3a7bd5'],
+    [-0.09, 0.15, 0.026, '#f6d55c'],
+    [0.05, -0.17, 0.03, '#f8f6f0'],
+    [-0.16, -0.06, 0.022, '#4cb860'],
+  ] as [number, number, number, string][]) {
+    b.add(sph(8, 4), c, { pos: on(x, z, -0.006).toArray(), rot: [tip.x, x * 3, tip.z], scale: [s, 0.009, s * 0.8] });
+  }
+  // The brush: a red handle, a silver ferrule and blue-dipped bristles, tucked under the band on the left.
+  const from = new THREE.Vector3(-0.27, -0.12, 0.05);
+  const to = new THREE.Vector3(-0.245, 0.11, -0.13);
+  const dir = to.clone().sub(from).normalize();
+  const ferrule = to.clone().addScaledVector(dir, 0.03);
+  b.add(cyl(8), '#c8343a', rod(from, to, 0.011));
+  b.add(cyl(8), '#c8ccd4', rod(to, ferrule, 0.013));
+  b.add(cyl(8, 0.4, 1), '#e8d8b0', rod(ferrule, ferrule.clone().addScaledVector(dir, 0.03), 0.012));
+  b.add(cyl(8, 0.1, 1), '#3a7bd5', rod(ferrule.clone().addScaledVector(dir, 0.03), ferrule.clone().addScaledVector(dir, 0.05), 0.0055));
+  return finish(b, { top: 0.12, sit: { kind: 'snug', rim: [-0.11, 0.262, 0.272] } });
+}
+
+function astronaut(): BuiltHat {
+  const b = new Builder();
+  const white = '#f4f4f0';
+  const grey = '#a8b0bc';
+  // A space-age fishbowl helmet: a clear glass bubble right over the head, on a chunky white collar ring with a grey
+  // seal, a little air valve and a pair of lights, and a gleam of light on the glass.
+  const C = new THREE.Vector3(0, -0.23, 0.015);
+  const R = 0.37;
+  const cut = 2.42;
+  const yc = C.y + Math.cos(cut) * R;
+  const rc = Math.sin(cut) * R;
+  b.add(torus(0.22, 8, 36), white, { pos: [0, yc - 0.02, C.z], rot: [Math.PI / 2, 0, 0], scale: [rc + 0.02, rc + 0.02, 0.2] });
+  b.add(torus(0.16, 6, 36), grey, { pos: [0, yc + 0.012, C.z], rot: [Math.PI / 2, 0, 0], scale: [rc - 0.004, rc - 0.004, 0.12] });
+  b.add(cyl(14), grey, { pos: [0.15, yc - 0.03, C.z + rc * 0.82], rot: [Math.PI / 2 - 0.3, 0, 0], scale: [0.02, 0.04, 0.02] });
+  b.add(cyl(14), '#3a3e48', { pos: [0.15, yc - 0.026, C.z + rc * 0.82 + 0.022], rot: [Math.PI / 2 - 0.3, 0, 0], scale: [0.012, 0.008, 0.012] });
+  for (const [x, c] of [
+    [-0.12, '#ff5a4a'],
+    [-0.07, '#5ad87a'],
+  ] as [number, string][]) {
+    b.add(sph(8, 6), c, { pos: [x, yc - 0.03, C.z + rc * 0.92 + 0.028], scale: 0.013 });
+  }
+  // The gleam: a curved streak and a dot, high on the glass at the front left.
+  for (const [a, e, sx, sy] of [
+    [-0.55, 0.62, 0.06, 0.02],
+    [-0.3, 0.38, 0.018, 0.018],
+  ]) {
+    const n = new THREE.Vector3(Math.sin(a) * Math.cos(e), Math.sin(e), Math.cos(a) * Math.cos(e));
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+    b.add(sph(10, 6), '#ffffff', new THREE.Matrix4().compose(C.clone().addScaledVector(n, R + 0.002), q, new THREE.Vector3(sx, sy, 0.004)));
+  }
+  const built = finish(b, { top: 0.15, sit: { kind: 'hood', rim: [-0.2, 0.31, 0.31], clear: true } });
+  const glassMat = new THREE.MeshPhongMaterial({ color: '#d8ecff', specular: '#ffffff', shininess: 110, transparent: true, opacity: 0.22, depthWrite: false });
+  const glass = new THREE.Mesh(new THREE.SphereGeometry(R, 30, 16, 0, Math.PI * 2, 0, cut), glassMat);
+  glass.position.copy(C);
+  glass.castShadow = false;
+  glass.renderOrder = 2;
+  built.group.add(glass);
+  built.materials.push(glassMat);
+  return built;
+}
+
+function ushanka(): BuiltHat {
+  const b = new Builder();
+  const fur = ['#a07a56', '#94704e', '#ac8660', '#9a7452'];
+  const cloth = '#5a4436';
+  const r = rng(7);
+  // A fur trapper's ushanka: a dark quilted crown, the fur flap at the front turned up with a little brass star on it, the
+  // back flap turned up too, and the ear flaps folded up at the sides and tied over the top.
+  const C: Vec3 = [0, -0.12, -0.005];
+  const R: Vec3 = [0.272, 0.2, 0.282];
+  b.add(dome(24, 9), cloth, { pos: C, scale: R });
+  for (let i = 0; i < 4; i++) b.add(torus(0.04, 4, 24), '#4c3a2e', { pos: C, rot: [0, (i * Math.PI) / 4, 0], scale: [R[0] + 0.002, R[1] + 0.002, 0.05] });
+  // The turned-up flaps, front and back: thick fur rolls hugging the head.
+  for (const [start, len, y, h] of [
+    [-1.15, 2.3, -0.1, 0.1],
+    [Math.PI - 1.35, 2.7, -0.115, 0.075],
+  ]) {
+    const g = jitter(new THREE.CylinderGeometry(1, 1.03, 1, 22, 2, false, start, len), 0.025, 5);
+    b.addColored(paintFaces(g, () => fur[Math.floor(r() * fur.length)]), placeMatrix({ pos: [0, y, -0.005], scale: [R[0] + 0.035, h, R[2] + 0.035] }));
+    g.dispose();
+    // Tufts along the top of the roll, so it reads as fur.
+    const n = Math.round(len * 7);
+    for (let i = 0; i < n; i++) {
+      const a = start + ((i + 0.5) / n) * len;
+      const tuft = jitter(new THREE.IcosahedronGeometry(1, 0), 0.25, 20 + i);
+      b.add(tuft, fur[i % fur.length], { pos: [Math.sin(a) * (R[0] + 0.03), y + h / 2, -0.005 + Math.cos(a) * (R[2] + 0.03)], rot: [i, a, 0], scale: [0.036, 0.026, 0.036] });
+      tuft.dispose();
+    }
+  }
+  // The ear flaps, folded up against the sides, and the ties up over the top to a bow.
+  for (const side of [-1, 1]) {
+    const g = jitter(new THREE.SphereGeometry(1, 12, 8), 0.04, side > 0 ? 9 : 11);
+    b.addColored(paintFaces(g, () => fur[Math.floor(r() * fur.length)]), placeMatrix({ pos: [side * 0.268, -0.08, -0.02], rot: [0, 0, side * 0.32], scale: [0.045, 0.11, 0.13] }));
+    g.dispose();
+    b.add(cyl(5), '#4a3424', rod(new THREE.Vector3(side * 0.275, -0.02, -0.02), new THREE.Vector3(side * 0.03, C[1] + R[1] + 0.012, -0.02), 0.005));
+  }
+  const knot = C[1] + R[1] + 0.018;
+  b.add(sph(8, 6), '#4a3424', { pos: [0, knot, -0.02], scale: [0.016, 0.013, 0.016] });
+  for (const side of [-1, 1]) b.add(sph(8, 5), '#4a3424', { pos: [side * 0.026, knot + 0.004, -0.02], rot: [0, 0, side * 0.4], scale: [0.028, 0.013, 0.012] });
+  const star = starGeo(1);
+  b.add(star, '#e2b23a', { pos: [0, -0.055, R[2] + 0.04], rot: [-0.25, 0, 0], scale: 0.03 });
+  star.dispose();
+  return finish(b, { top: 0.1, sit: { kind: 'snug', rim: [-0.15, 0.272, 0.282] } });
+}
+
+function santa(): BuiltHat {
+  const b = new Builder();
+  const red = '#d6302f';
+  const white = '#fbf8f2';
+  // Father Christmas's hat: a long red stocking cap flopping over to one side, a thick white fur trim, a fluffy
+  // pom-pom on the end and a sprig of holly at the front.
+  const { geo: cap, tip } = bentTube([0, -0.12, -0.01], 0.27, 0.5, 12, 2.0, [0.25, 0, 1], [0, 1, -0.1]);
+  b.add(cap, red);
+  cap.dispose();
+  const trim = jitter(new THREE.TorusGeometry(1, 0.13, 8, 36), 0.03, 2).rotateX(Math.PI / 2);
+  b.add(trim, white, { pos: [0, -0.13, -0.01], scale: [0.285, 0.3, 0.295] });
+  trim.dispose();
+  const pom = jitter(new THREE.IcosahedronGeometry(1, 2), 0.18, 4);
+  b.add(pom, white, { pos: [tip[0], tip[1] - 0.02, tip[2]], scale: 0.065 });
+  pom.dispose();
+  // Holly: two leaves and three berries on the trim at the front left.
+  for (const side of [-1, 1]) {
+    b.add(sph(8, 4), '#2f7a3a', { pos: [-0.1 + side * 0.035, -0.11, 0.29], rot: [-0.3, 0, side * 0.5], scale: [0.042, 0.018, 0.008] });
+  }
+  for (let i = 0; i < 3; i++) b.add(sph(8, 6), '#c81e2a', { pos: [-0.1 + (i - 1) * 0.014, -0.098 + (i % 2) * 0.012, 0.3], scale: 0.012 });
+  return finish(b, { top: 0.22, sit: { kind: 'snug', rim: [-0.17, 0.285, 0.295] } });
+}
+
+function catEars(): BuiltHat {
+  const b = new Builder();
+  const dark = '#2e2832';
+  // A cat-ear headband: a thin glossy band arching over the head, and on it two pointed cat ears, dark with pink
+  // insides and a little white tuft, standing forward so real ears behind them don't hide them.
+  const band = new THREE.TorusGeometry(1, 0.06, 5, 20, Math.PI * 0.56).rotateZ(Math.PI * 0.22);
+  b.add(band, dark, { pos: [0, -0.22, 0.03], rot: [0.55, 0, 0], scale: [0.268, 0.205, 0.2] });
+  band.dispose();
+  for (const side of [-1, 1]) {
+    const base = new THREE.Vector3(side * 0.085, -0.055, 0.14);
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.2, side * -0.25, side * -0.32));
+    const ear = (dz: number, s: Vec3, color: string, y = 0) => b.add(new THREE.ConeGeometry(1, 1, 10), color, new THREE.Matrix4().compose(base.clone().add(new THREE.Vector3(0, s[1] / 2 + y, dz).applyQuaternion(q)), q, new THREE.Vector3(...s)));
+    ear(0, [0.065, 0.13, 0.026], dark);
+    ear(0.016, [0.042, 0.09, 0.012], '#f29ab4', -0.005);
+    b.add(sph(6, 4), '#fbf8f2', new THREE.Matrix4().compose(base.clone().add(new THREE.Vector3(0, 0.022, 0.026).applyQuaternion(q)), q, new THREE.Vector3(0.02, 0.012, 0.006)));
+    b.add(sph(10, 5), dark, { pos: [base.x, base.y + 0.005, base.z], scale: [0.06, 0.018, 0.03] });
+  }
+  return finish(b, { top: 0.1, sit: { kind: 'perch', rim: [-0.06, 0.16], among: true } }, wet());
+}
+
+function ninja(): BuiltHat {
+  const b = new Builder();
+  const cloth = '#25356a';
+  const steel = '#c4cad4';
+  // A ninja's headband: a dark blue cloth band round the brow with a steel plate on the front engraved with a
+  // swirling leaf, knotted at the back with its two long tails fluttering behind.
+  const tilt = new THREE.Matrix4().makeRotationX(0.16);
+  const ring = new THREE.LatheGeometry(
+    [
+      [0.236, -0.134],
+      [0.25, -0.138],
+      [0.256, -0.12],
+      [0.256, -0.084],
+      [0.25, -0.068],
+      [0.236, -0.064],
+      [0.236, -0.134],
+    ].map(([r, y]) => new THREE.Vector2(r, y)),
+    40,
+  );
+  b.add(ring, cloth, {}, tilt);
+  ring.dispose();
+  // The plate, curved round the brow, with a rivet in each corner.
+  const plate = new THREE.CylinderGeometry(0.266, 0.266, 0.056, 14, 1, true, -0.42, 0.84);
+  b.add(plate, steel, { pos: [0, -0.1, 0] }, tilt);
+  plate.dispose();
+  for (const [a, y] of [
+    [-0.36, -0.08],
+    [0.36, -0.08],
+    [-0.36, -0.12],
+    [0.36, -0.12],
+  ]) {
+    b.add(sph(6, 4), '#8a92a0', { pos: [Math.sin(a) * 0.268, y, Math.cos(a) * 0.268], scale: 0.0065 }, tilt);
+  }
+  // The leaf: a spiral swirl ending in a point.
+  const swirl = new THREE.TorusGeometry(1, 0.2, 4, 18, Math.PI * 1.6);
+  b.add(swirl, '#3a4250', { pos: [0, -0.1, 0.27], rot: [0, 0, 0.6], scale: [0.016, 0.016, 0.02] }, tilt);
+  swirl.dispose();
+  b.add(sph(6, 4), '#3a4250', { pos: [0, -0.1, 0.271], scale: 0.006 }, tilt);
+  b.add(new THREE.ConeGeometry(1, 1, 4), '#3a4250', { pos: [0.018, -0.087, 0.27], rot: [0, 0, -0.8], scale: [0.006, 0.026, 0.004] }, tilt);
+  // The knot at the back.
+  const knot = new THREE.Vector3(0, -0.1, -0.255).applyMatrix4(tilt);
+  b.add(sph(10, 7), cloth, { pos: knot.toArray(), scale: [0.03, 0.026, 0.022] });
+  const built = finish(b, { top: 0.0, sit: { kind: 'band', rim: [-0.14, 0.236] } });
+  // The tails, each its own mesh so they can flutter.
+  const tails: THREE.Object3D[] = [];
+  for (const side of [-1, 1]) {
+    const t = new Builder();
+    let p = new THREE.Vector3();
+    let dir = new THREE.Vector3(side * 0.35, -0.55, -0.75).normalize();
+    for (let i = 0; i < 4; i++) {
+      const len = 0.06;
+      const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir);
+      t.add(new THREE.BoxGeometry(1, 1, 1), i % 2 ? '#2a3c76' : cloth, new THREE.Matrix4().compose(p.clone().addScaledVector(dir, len / 2), q, new THREE.Vector3(0.036 - i * 0.003, len * 1.06, 0.006)));
+      p = p.addScaledVector(dir, len);
+      dir = dir.add(new THREE.Vector3(0, -0.35, 0)).normalize();
+    }
+    const material = soft();
+    const mesh = t.mesh(material, { cast: true, receive: false });
+    const holder = new THREE.Group();
+    holder.position.copy(knot);
+    holder.add(mesh);
+    built.group.add(holder);
+    built.solid.push({ mesh, material });
+    built.materials.push(material);
+    tails.push(holder);
+  }
+  built.update = (t) => {
+    tails.forEach((o, i) => {
+      o.rotation.x = Math.sin(t * 2.3 + i * 1.7) * 0.12 + Math.sin(t * 5.1 + i) * 0.04;
+      o.rotation.z = Math.sin(t * 1.7 + i * 2.1) * 0.08;
+    });
+  };
+  return built;
+}
+
+function knight(): BuiltHat {
+  const b = new Builder();
+  const steel = ['#e6eaee', '#c8ced6', '#a4acb8', '#7e8694'];
+  // A knight's helm: a polished steel helmet with a raised comb from front to back, a rolled brow band, the pointed
+  // visor swung up out of the way (eye slits and breathing holes and all) on rivets at the sides, and a tall plume of
+  // red and white feathers streaming back from the crown.
+  const C: Vec3 = [0, -0.14, -0.01];
+  const R: Vec3 = [0.275, 0.225, 0.285];
+  shellBand(b, C, R, 0, 0.55, steel[0]);
+  shellBand(b, C, R, 0.55, 1.1, steel[1]);
+  shellBand(b, C, R, 1.1, Math.PI / 2, steel[2]);
+  b.add(torus(0.18, 6, 36), steel[3], { pos: [0, -0.15, -0.01], rot: [Math.PI / 2, 0, 0], scale: [R[0] + 0.006, R[2] + 0.006, 0.15] });
+  const comb = new THREE.TorusGeometry(1, 0.05, 4, 24, Math.PI).rotateY(Math.PI / 2);
+  b.add(comb, steel[1], { pos: C, scale: [0.4, R[1] + 0.012, R[2] + 0.012] });
+  comb.dispose();
+  // The visor, swung up: a shell of its own over the front of the crown, a ridge down its middle, eye slits along its
+  // lower edge and breathing holes to one side, on rivets at the sides.
+  const V: Vec3 = [R[0] * 1.06, R[1] * 1.06, R[2] * 1.06];
+  const visor = new THREE.SphereGeometry(1, 14, 5, Math.PI / 2 - 1.05, 2.1, 0.32, 0.78);
+  b.add(visor, steel[1], { pos: C, scale: V });
+  b.add(inward(visor), steel[3], { pos: C, scale: [V[0] - 0.004, V[1] - 0.004, V[2] - 0.004] });
+  visor.dispose();
+  const beak = new THREE.TorusGeometry(1, 0.035, 4, 10, 0.78).rotateZ(Math.PI / 2 - 0.32 - 0.78).rotateY(-Math.PI / 2);
+  b.add(beak, steel[0], { pos: C, scale: [0.4, V[1] + 0.006, V[2] + 0.006] });
+  beak.dispose();
+  const onVisor = (a: number, e: number) => {
+    const { p, n } = onShell(V[0], V[1], V[2], a, e, C[1]);
+    p.z += C[2];
+    return { p: p.addScaledVector(n, 0.003), q: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n) };
+  };
+  for (const side of [-1, 1]) {
+    const { p, q } = onVisor(side * 0.3, 0.6);
+    b.add(new THREE.BoxGeometry(1, 1, 1), '#2a2e36', new THREE.Matrix4().compose(p, q, new THREE.Vector3(0.075, 0.012, 0.008)));
+    b.add(cyl(14), steel[3], { pos: [side * (V[0] + 0.004), -0.1, 0.0], rot: [0, 0, Math.PI / 2], scale: [0.03, 0.02, 0.03] });
+  }
+  for (let i = 0; i < 4; i++) {
+    const { p } = onVisor(0.55 + (i % 2) * 0.13, 0.62 + Math.floor(i / 2) * 0.13);
+    b.add(sph(6, 4), '#2a2e36', { pos: p.toArray(), scale: 0.008 });
+  }
+  // The plume, in a socket at the back of the crown.
+  const socket = new THREE.Vector3(0, C[1] + R[1] - 0.01, -0.07);
+  b.add(cyl(10), steel[2], { pos: socket.toArray(), rot: [-0.4, 0, 0], scale: [0.022, 0.05, 0.022] });
+  for (let i = 0; i < 7; i++) {
+    const a = (i - 3) * 0.16;
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.75 - Math.abs(i - 3) * 0.08, 0, a));
+    const len = 0.2 - Math.abs(i - 3) * 0.02;
+    const at = socket.clone().add(new THREE.Vector3(0, len * 0.9, 0).applyQuaternion(q));
+    b.add(sph(10, 7), i % 2 ? '#f6efe4' : '#d02a34', new THREE.Matrix4().compose(at, q, new THREE.Vector3(0.03, len, 0.022)));
+  }
+  return finish(b, { top: 0.24, sit: { kind: 'snug', rim: [-0.17, 0.281, 0.291] } }, wet());
+}
+
+function gnome(): BuiltHat {
+  const b = new Builder();
+  const red = '#d23a2e';
+  // A garden gnome's hat: a tall pointed red felt cap that leans back and droops a little at the tip, a rolled edge,
+  // and a patch sewn on the side with big stitches.
+  const { geo: cap } = bentTube([0, -0.13, -0.01], 0.278, 0.6, 12, 0.75, [-1, 0, 0], [0, 1, -0.18]);
+  b.add(cap, red);
+  cap.dispose();
+  b.add(torus(0.12, 6, 36), '#b02e24', { pos: [0, -0.13, -0.01], rot: [Math.PI / 2, 0, 0], scale: [0.282, 0.292, 0.22] });
+  const { p, n } = onShell(0.24, 0.3, 0.25, 1.15, 0.45, -0.13);
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+  b.add(new THREE.BoxGeometry(1, 1, 1), '#7a5a3a', new THREE.Matrix4().compose(p.clone().addScaledVector(n, 0.002), q.clone().multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0.2))), new THREE.Vector3(0.06, 0.055, 0.008)));
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + 0.2;
+    const o = new THREE.Vector3(Math.cos(a) * 0.03, Math.sin(a) * 0.028, 0.005).applyQuaternion(q);
+    b.add(new THREE.BoxGeometry(1, 1, 1), '#f2e6c8', new THREE.Matrix4().compose(p.clone().add(o), q.clone().multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, a))), new THREE.Vector3(0.016, 0.004, 0.004)));
+  }
+  return finish(b, { top: 0.42, sit: { kind: 'snug', rim: [-0.16, 0.278, 0.288] } });
+}
+
+function fedora(): BuiltHat {
+  const b = new Builder();
+  const felt = '#86613e';
+  const dark = '#3a2618';
+  // An adventurer's fedora (whip and bullwhip not included): a battered brown felt crown with a dent down the middle
+  // and pinched at the front, a dark band, and a brim snapped down at the front and turned up a touch at the back.
+  const prof = [
+    [0.15, -0.04],
+    [0.153, 0.0],
+    [0.152, 0.05],
+    [0.146, 0.09],
+    [0.132, 0.12],
+    [0.105, 0.138],
+    [0.07, 0.146],
+    [0.035, 0.149],
+    [0.001, 0.15],
+  ].map(([x, y]) => new THREE.Vector2(x, y));
+  const crown = warp(new THREE.LatheGeometry(prof, 40), (v) => {
+    const h = THREE.MathUtils.smoothstep(v.y, 0.03, 0.14);
+    v.y -= 0.05 * h * Math.exp(-((v.x / 0.05) ** 2)) * (0.8 + 0.2 * (v.z / 0.15)) + 0.015 * h * Math.max(0, v.z / 0.15);
+    const f = Math.max(0, v.z / 0.153);
+    v.x *= (1 - 0.32 * f * f * h) * 0.95;
+    v.z *= 1.1;
+    return v;
+  });
+  b.add(crown, felt);
+  crown.dispose();
+  b.add(cyl(40, 1.01, 1), dark, { pos: [0, -0.008, 0], scale: [0.153 * 0.95 + 0.004, 0.036, 0.153 * 1.1 + 0.004] });
+  for (const side of [-1, 1]) b.add(sph(8, 5), dark, { pos: [-0.148, -0.006, -0.02 + side * 0.016], rot: [0, 0, 0.2], scale: [0.006, 0.018, 0.014] });
+  const bend = (x: number, z: number, t: number) => {
+    const r = Math.hypot(x, z) + 1e-6;
+    const side = (x * x) / (r * r);
+    return -0.035 + t * t * (0.02 * side - 0.045 * Math.max(0, z / r) ** 1.5 + 0.03 * Math.max(0, -z / r) ** 2);
+  };
+  const rOut = 0.28;
+  const brim = brimGeo(0.12, rOut, 0.014, 48, bend, 1.1);
+  b.add(brim, felt);
+  brim.dispose();
+  const edge: THREE.Vector3[] = [];
+  for (let i = 0; i < 40; i++) {
+    const a = (i / 40) * Math.PI * 2;
+    const x = Math.sin(a) * (rOut + 0.005);
+    const z = Math.cos(a) * (rOut + 0.005);
+    edge.push(new THREE.Vector3(x, bend(x, z, 1.02), z * 1.1));
+  }
+  const binding = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(edge, true), 60, 0.006, 4, true);
+  b.add(binding, '#6e4e30');
+  binding.dispose();
+  return finish(b, { top: 0.15, sit: { kind: 'brim', rim: [-0.04, 0.145, 0.168] } });
+}
+
+function unicorn(): BuiltHat {
+  const b = new Builder();
+  const pastel = ['#ffc8de', '#e4c8ff', '#c4dcff', '#c8f2e0', '#fff0b8'];
+  // A unicorn's horn: a spiralled horn, pearly on its ridges and running through the pastels of a rainbow in its
+  // grooves, rising from a gold cuff on the forehead with little flowers round it, and a sparkle twinkling at the tip.
+  const H = 0.34;
+  const r0 = 0.062;
+  const turns = 3.6;
+  const raw = new THREE.CylinderGeometry(0.003, r0, H, 16, 22, false);
+  const horn = warp(raw, (v) => {
+    const t = (v.y + H / 2) / H;
+    const a = Math.atan2(v.x, v.z);
+    const k = 0.84 + 0.16 * Math.cos(2 * (a - t * turns * Math.PI * 2));
+    v.x *= k;
+    v.z *= k;
+    return v;
+  });
+  const painted = paintFaces(horn, (_, c) => {
+    const t = (c.y + H / 2) / H;
+    const a = Math.atan2(c.x, c.z);
+    const ridge = Math.cos(2 * (a - t * turns * Math.PI * 2)) > 0.2;
+    return ridge ? '#fffaf0' : pastel[Math.min(pastel.length - 1, Math.floor(t * pastel.length))];
+  });
+  horn.dispose();
+  const base = new THREE.Vector3(0, -0.035, 0.1);
+  const lean = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.42, 0, 0));
+  const up = new THREE.Vector3(0, 1, 0).applyQuaternion(lean);
+  b.addColored(painted, new THREE.Matrix4().compose(base.clone().addScaledVector(up, H / 2 + 0.01), lean, new THREE.Vector3(1, 1, 1)));
+  painted.dispose();
+  b.add(torus(0.3, 6, 22), '#e8b83a', new THREE.Matrix4().compose(base.clone().addScaledVector(up, 0.012), lean.clone().multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0))), new THREE.Vector3(r0 + 0.006, r0 + 0.006, 0.05)));
+  b.add(sph(14, 6), '#e8b83a', new THREE.Matrix4().compose(base, lean, new THREE.Vector3(r0 + 0.012, 0.02, r0 + 0.012)));
+  // Little flowers and leaves round the foot of the horn.
+  for (const [a, c] of [
+    [-1.1, pastel[0]],
+    [1.2, pastel[1]],
+    [Math.PI, pastel[2]],
+  ] as [number, string][]) {
+    const at = base.clone().add(new THREE.Vector3(Math.sin(a) * 0.085, 0.006, Math.cos(a) * 0.065 - 0.012));
+    const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.5, a, 0));
+    for (let k = 0; k < 5; k++) {
+      const pa = (k / 5) * Math.PI * 2;
+      const p = at.clone().add(new THREE.Vector3(Math.cos(pa) * 0.018, Math.sin(pa) * 0.018, 0).applyQuaternion(q));
+      b.add(sph(6, 4), c, new THREE.Matrix4().compose(p, q, new THREE.Vector3(0.016, 0.016, 0.007)));
+    }
+    b.add(sph(6, 4), '#f6c42c', new THREE.Matrix4().compose(at.clone().add(new THREE.Vector3(0, 0, 0.005).applyQuaternion(q)), q, new THREE.Vector3(0.01, 0.01, 0.008)));
+    b.add(sph(6, 4), '#78b85a', { pos: [at.x + Math.sin(a + 0.5) * 0.03, at.y - 0.006, at.z + Math.cos(a + 0.5) * 0.025], rot: [0.3, a + 0.5, 0.5], scale: [0.026, 0.008, 0.012] });
+  }
+  const built = finish(b, { top: 0.32, sit: { kind: 'brim', rim: [-0.035, 0.11, 0.13] } });
+  const sparkMat = new THREE.MeshBasicMaterial({ color: '#fffbe8' });
+  const spark = new THREE.Mesh(starGeo(0.022, 0.35), sparkMat);
+  spark.position.copy(base.clone().addScaledVector(up, H + 0.035));
+  spark.castShadow = false;
+  built.group.add(spark);
+  built.materials.push(sparkMat);
+  built.update = (t) => {
+    const k = 0.75 + 0.25 * Math.sin(t * 3.7) * Math.sin(t * 1.3 + 1);
+    spark.scale.setScalar(k);
+    spark.rotation.z = t * 0.8;
+  };
+  return built;
+}
+
 const MAKERS: Record<HatId, () => BuiltHat> = {
   beanie,
   flower: flowerCrown,
@@ -1693,6 +2247,18 @@ const MAKERS: Record<HatId, () => BuiltHat> = {
   cone: trafficCone,
   mortarboard,
   pumpkin,
+  viking,
+  sombrero,
+  beret,
+  astronaut,
+  ushanka,
+  santa,
+  catears: catEars,
+  ninja,
+  knight,
+  gnome,
+  fedora,
+  unicorn,
 };
 
 export function buildHat(hat: HatId): BuiltHat | null {
@@ -1718,7 +2284,8 @@ export function buildHat(hat: HatId): BuiltHat | null {
  * Whatever the kind, it's then tipped back, lifted, moved back or made smaller, as little as it can be, until it
  * keeps clear of the eyes (and of the town camera's view of them, from above), eye stalks, horns and antlers.
  * `among` says it's worn among the ears, which stay up through it (the devil horns' band), and `tilt` how far back
- * it's worn to start with, if further than usual (radians).
+ * it's worn to start with, if further than usual (radians). `clear` says it can be seen through (the astronaut's glass
+ * bubble), so it may go right over the eyes.
  */
 export interface HatSit {
   kind: 'snug' | 'band' | 'ring' | 'brim' | 'perch' | 'hood' | 'float';
@@ -1726,6 +2293,7 @@ export interface HatSit {
   among?: boolean;
   tilt?: number;
   open?: [number, number, number, number];
+  clear?: boolean;
 }
 
 /**
@@ -1980,7 +2548,7 @@ export function fitHat(hat: HatId, built: BuiltHat, head: HatHead, nudge: HatNud
   // (Turned into the head's own space, for a head that hangs forward.)
   const looks: [THREE.Vector3, THREE.Vector3, number][] = [];
   const droop = new THREE.Matrix3().setFromMatrix4(new THREE.Matrix4().makeRotationX(-(head.droop ?? 0)));
-  for (const side of kind === 'band' ? [] : [1, -1]) {
+  for (const side of kind === 'band' || built.sit.clear ? [] : [1, -1]) {
     const e = new THREE.Vector3(side * eye.at[0], eye.at[1] + (hugging ? eye.r * 0.3 : eye.r + 0.015), eye.at[2] + 0.01);
     for (const [p, w] of CAMERA_PITCHES) for (const az of [0, side * 0.6]) looks.push([e, new THREE.Vector3(Math.sin(az) * Math.cos(p), Math.sin(p), Math.cos(az) * Math.cos(p)).applyMatrix3(droop), w]);
     looks.push([e, new THREE.Vector3(0, 0.15, 1).normalize().applyMatrix3(droop), 5]);
@@ -2033,7 +2601,7 @@ export function fitHat(hat: HatId, built: BuiltHat, head: HatHead, nudge: HatNud
   /** How badly it's in the way, given up on once it's worse than `worst`. */
   const clash = (worst: number) => {
     let cost = 0;
-    for (const p of eyes) if (isIn(p) && (cost += 12) > worst) return cost;
+    if (!built.sit.clear) for (const p of eyes) if (isIn(p) && (cost += 12) > worst) return cost;
     // Something rigid standing off the head (a horn, a stalk) can be hidden right inside the hat, or stand clear of
     // it, but not go through it (even a thin brim).
     for (const b of solid) {

@@ -128,7 +128,7 @@ export function earn(feat: FeatId) {
 }
 
 /** Running counts toward achievements, and the count each needs. */
-export type TallyKey = 'fish' | 'kinds' | 'wishes' | 'snacks' | 'votes' | 'letters' | 'games' | 'talk' | 'gifts' | 'cottages' | 'pigeons' | 'buckets' | 'jobs';
+export type TallyKey = 'fish' | 'kinds' | 'wishes' | 'snacks' | 'votes' | 'letters' | 'games' | 'talk' | 'gifts' | 'cottages' | 'pigeons' | 'buckets' | 'jobs' | 'flowers' | 'seats';
 const GOALS: Record<TallyKey, [number, FeatId]> = {
   fish: [10, 'angler'],
   kinds: [8, 'trainer'],
@@ -144,6 +144,8 @@ const GOALS: Record<TallyKey, [number, FeatId]> = {
   buckets: [10, 'bucket'],
   // Every job with a game to it (see jobs/meta).
   jobs: [12, 'allrounder'],
+  flowers: [15, 'gnomed'],
+  seats: [9, 'sits'],
 };
 
 /** Adds to a count (once per `key`, if one is given, so a reload doesn't count it twice). */
@@ -329,8 +331,19 @@ export function useProgressTracker(view: View | null) {
       const demon = (id: string) => getRole(seats.find((s) => s.id === id)?.roleId)?.team === 'demon';
       if (votes.some((r) => r.nominatorId === meNow.id && demon(r.nomineeId))) earn('gutfeel');
       if (deaths?.[0]?.seatId === meNow.id) earn('firstgo');
+      // Put up three times and still standing at the end.
+      if (!meNow.dead && votes.filter((r) => r.nomineeId === meNow.id).length >= 3) earn('scratch');
     }
   }, [player, meNow, ended, history, nom, execution, deaths, today, view?.room, view?.seats]);
+
+  // A claim and a guess in our notepad for everyone else in a game of six or more.
+  const notesNow = useNotes((s) => s.notes);
+  const everyone = view?.seats;
+  useEffect(() => {
+    if (!player || !everyone) return;
+    const others = everyone.filter((s) => !s.isMe && s.claimed);
+    if (others.length >= 5 && others.every((s) => notesNow[s.id]?.claim && notesNow[s.id]?.guess)) earn('nicelist');
+  }, [player, everyone, notesNow]);
 
   // First to the square when the bell rings (with someone else there after).
   const call = view?.townHall;
