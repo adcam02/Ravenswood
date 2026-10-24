@@ -203,7 +203,7 @@ function loadBook(): Book {
   const raw = loadJSON<Partial<Book> | null>(KEY, null);
   const profiles: Record<string, Profile> = {};
   for (const [key, p] of Object.entries(raw?.profiles ?? {})) if (nameKey(key)) profiles[nameKey(key)] = cleanProfile(p, key);
-  return { v: 1, book: typeof raw?.book === 'string' ? raw.book : uid(), profiles, done: strings(raw?.done, 100, 60) };
+  return { v: 1, book: typeof raw?.book === 'string' ? raw.book : uid(), profiles, done: strings(raw?.done, 2000, 60) };
 }
 
 interface ProfilesStore extends Book {
@@ -589,7 +589,7 @@ export const profiles = {
     for (const [key, p] of Object.entries(raw.profiles).slice(0, 500)) if (nameKey(key)) incoming[nameKey(key)] = cleanProfile(p, key);
     useProfiles.setState({
       profiles: { ...s.profiles, ...incoming },
-      done: [...new Set([...s.done, ...strings(raw.done, 100, 60)])],
+      done: [...new Set([...s.done, ...strings(raw.done, 2000, 60)])],
       // A browser with no profiles of its own takes the book over whole, so players' browsers know it.
       book: typeof raw.book !== 'string' || (Object.keys(s.profiles).length && !adopt) ? s.book : raw.book,
     });
