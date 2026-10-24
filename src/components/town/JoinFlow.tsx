@@ -118,19 +118,25 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
             <h1>Choose your animal</h1>
             {note && <p className="join-note">{note}</p>}
           </div>
-          <LookEditor name={name} look={look} setLook={setLook} locked={false} tab={tab} setTab={setTab} showMine={returning} />
+          <LookEditor
+            name={name}
+            look={look}
+            setLook={setLook}
+            locked={false}
+            tab={tab}
+            setTab={setTab}
+            showMine={returning}
+            confirm={{
+              label: 'This is me!',
+              onClick: () => {
+                setNote(null);
+                setStep('mic');
+              },
+            }}
+          />
           <div className="join-actions">
             <button className="cosy-btn" onClick={() => setStep('name')}>
               Back
-            </button>
-            <button
-              className="cosy-btn primary big"
-              onClick={() => {
-                setNote(null);
-                setStep('mic');
-              }}
-            >
-              This is me!
             </button>
           </div>
         </div>
@@ -160,6 +166,7 @@ export function LookEditor({
   tab,
   setTab,
   showMine = true,
+  confirm,
 }: {
   name: string;
   look: Look;
@@ -169,6 +176,8 @@ export function LookEditor({
   setTab: (t: PickTab) => void;
   /** Scroll the list to the chosen animal when it opens. */
   showMine?: boolean;
+  /** A big button right under the animal, to say it's the one. */
+  confirm?: { label: string; onClick: () => void };
 }) {
   const others = useOthersAnimals();
   const theirs = (id: string) => others.get(id);
@@ -219,6 +228,11 @@ export function LookEditor({
             />
           ))}
         </div>
+        {confirm && (
+          <button className="cosy-btn primary big join-confirm" onClick={confirm.onClick}>
+            {confirm.label}
+          </button>
+        )}
       </div>
       <div className="join-picks">
         <div className="dress-tabs" role="tablist">

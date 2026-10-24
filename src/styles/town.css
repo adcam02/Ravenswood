@@ -835,6 +835,11 @@
   border-radius: 18px;
   background: linear-gradient(180deg, #d6eefb, #eaf6e1);
 }
+/* "This is me!" right under the animal, always in reach. */
+.join-confirm {
+  width: 100%;
+  max-width: 260px;
+}
 /* The animals, hats and pets to choose from: tabs, a line about them, and a list that scrolls. */
 .join-picks {
   display: flex;
@@ -1043,6 +1048,9 @@
   .join-stage > :first-child {
     grid-area: view;
   }
+  .join-confirm {
+    grid-column: 2;
+  }
   .join-stage canvas {
     width: 150px !important;
     height: 150px !important;
@@ -1093,6 +1101,9 @@
   }
   .join-stage > :first-child {
     grid-area: view;
+  }
+  .join-confirm {
+    grid-column: 2;
   }
   .join-stage canvas {
     width: 150px !important;
