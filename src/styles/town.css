@@ -2995,13 +2995,13 @@
   opacity: 0.6;
 }
 
-/* A part of the page still on its way (the casino's tables on a slow line). */
+/* A part of the page still on its way (the casino's tables on a slow line), where it will appear. */
 .part-wait {
   position: fixed;
   left: 50%;
-  bottom: calc(18px + env(safe-area-inset-bottom));
-  transform: translateX(-50%);
-  z-index: 30;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 41;
   display: flex;
   align-items: center;
   gap: 10px;
