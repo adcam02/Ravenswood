@@ -13,6 +13,7 @@ import { AvatarView } from '../src/world/avatar';
 import { EXEC_CAM, ExecStage, execCamera } from '../src/world/exec/stage';
 import type { ExecMethod } from '../src/state/types';
 import { CHAIR_Y, FELT_Y, RL_LOOK, bjSeat, bjSpot, pkAround, pkSeat, rlSeat } from '../src/world/town/casinoLayout';
+import { PIECES, freeSpot, type FlatItem } from '../src/flats/catalogue';
 
 const q = new URLSearchParams(location.search);
 const num = (k: string, d: number) => (q.has(k) ? Number(q.get(k)) : d);
@@ -37,6 +38,41 @@ if (q.has('low')) town.setLowDetail(true);
 town.setTime(num('t', 0));
 if (q.has('day')) town.setDayProgress(num('day', 0.35));
 if (q.has('weather')) town.setWeather(q.get('weather') as Weather);
+// ?zone=flat&furnish=all (every piece, wherever it fits) or demo (a cosy flat), with ?wall=, ?floor= and ?held=<piece>.
+if (zone === 'flat') {
+  const items: FlatItem[] = [];
+  if (q.get('furnish') === 'all') {
+    for (const p of PIECES) {
+      const spot = freeSpot(items, p.id);
+      if (spot) items.push(spot);
+    }
+  } else if (q.get('furnish') === 'demo') {
+    items.push(
+      { id: 'rugBig', x: 3, z: 6, r: 0 },
+      { id: 'sofa', x: 4, z: 9, r: 2 },
+      { id: 'coffee', x: 5, z: 6, r: 0 },
+      { id: 'armchair', x: 1, z: 6, r: 3 },
+      { id: 'fireplace', x: 3, z: 0, r: 0 },
+      { id: 'bookshelf', x: 0, z: 1, r: 3 },
+      { id: 'lamp', x: 9, z: 9, r: 0 },
+      { id: 'bed', x: 14, z: 0, r: 0 },
+      { id: 'side', x: 19, z: 0, r: 0 },
+      { id: 'fishtank', x: 16, z: 8, r: 1 },
+      { id: 'jukebox', x: 13, z: 13, r: 0 },
+      { id: 'plant', x: 0, z: 15, r: 0 },
+      { id: 'fern', x: 18, z: 14, r: 0 },
+      { id: 'petbed', x: 10, z: 6, r: 0 },
+      { id: 'painting', x: 5, z: 0, r: 0 },
+      { id: 'neon', x: 13, z: 0, r: 0 },
+      { id: 'trophies', x: 0, z: 9, r: 1 },
+      { id: 'bunting', x: 19, z: 3, r: 3 },
+      { id: 'mirror', x: 19, z: 10, r: 3 },
+    );
+  }
+  const held = q.get('held');
+  const spot = held ? freeSpot(items, held) : null;
+  town.setFlat({ layout: { wall: q.get('wall') ?? 'cream', floor: q.get('floor') ?? 'oak', items }, held: spot ? { item: spot, index: -1, ok: true } : null, grid: q.has('grid') || Boolean(held) });
+}
 
 // ?door=tavern-in: that door held wide open (as when someone goes in), and the camera on it unless x, z say otherwise.
 const openDoor = q.has('door') ? town.doors.find((d) => d.id === q.get('door')) : undefined;

@@ -179,6 +179,14 @@ const ALL = {
   'club-front': 'x=17.8&z=-21&t=0&dist=12&pitch=0.42&yaw=-0.7&frames=6',
   'club-night': 'x=17.8&z=-21&t=1&dist=12&pitch=0.42&yaw=-0.7&frames=6',
   bouncer: 'x=19.06&z=-19.84&t=0&dist=4.2&pitch=0.22&yaw=-0.9&frames=6',
+  // Wren Court, the apartment block: its front by day and by night, the lobby, and flats furnished every way.
+  'flats-front': 'x=29&z=0&t=0&dist=15&pitch=0.32&yaw=-0.62',
+  'flats-night': 'x=29&z=0&t=1&dist=15&pitch=0.32&yaw=-0.62',
+  'flats-lobby': 'zone=lobby&t=0',
+  'flats-empty': 'zone=flat&t=0',
+  'flats-demo': 'zone=flat&t=0&furnish=demo&wall=sage&floor=herring',
+  'flats-all': 'zone=flat&t=0&furnish=all&wall=night&floor=checker&dist=14',
+  'flats-held': 'zone=flat&t=0&furnish=demo&held=piano&wall=blush&floor=pink',
   'club-inside': 'zone=club&t=0&frames=8',
   'club-inside-close': 'zone=club&x=0&z=-1.5&t=0&dist=9&pitch=0.55&frames=8',
   // The idea box by the noticeboard, and the confession booths out among the trees.

@@ -40,6 +40,7 @@ import { Landing } from './components/Landing';
 import { JoinFlow } from './components/town/JoinFlow';
 import { DoorPrompt, RestorePrompt } from './components/ProfilePrompts';
 import { CasinoPanels } from './components/town/Casino';
+import { FlatsPanels } from './components/town/Flats';
 import {
   ActionPrompt,
   Announce,
@@ -181,6 +182,7 @@ function Storyteller() {
               <NoticeBoard />
               <PitPanel />
               <CasinoPanels />
+              <FlatsPanels />
             </>
           )}
           <SidePanel />
@@ -277,6 +279,7 @@ function Player({ room }: { room: string }) {
               <ProgressWatcher />
               <NoticeBoard />
               <CasinoPanels />
+              <FlatsPanels />
               <HelpCard />
               <Modals />
               <WakeOverlay />

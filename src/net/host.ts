@@ -13,6 +13,7 @@ import { pit } from '../game/pit';
 import { casinoFor, receiveCasino, startCasino, useCasino } from '../casino/host';
 import { hatKey, isShopHat } from '../casino/shop';
 import { leadersNow } from '../game/leaders';
+import { flatFor, receiveFlats, startFlats, useFlats } from '../flats/host';
 import type { ClientMessage, HostMessage } from '../state/types';
 import { local, receiveItem } from '../game/local';
 import { presence } from '../game/presence';
@@ -127,6 +128,8 @@ class HostLink {
     startProfiles();
     // The casino's tables, played for that money.
     startCasino(() => useHostNet.getState().online);
+    // The apartment block's flats, furnished with it.
+    startFlats();
     if (peerDisabled()) useHostNet.setState({ status: 'reconnecting', detail: 'Using the backup route only.' });
     else this.openPeer();
     this.openMesh();
@@ -465,6 +468,9 @@ class HostLink {
       case 'backup':
         backups.receive(pid, msg.copies);
         break;
+      case 'flat':
+        receiveFlats(pid, msg.a);
+        break;
     }
   }
 
@@ -709,7 +715,7 @@ class HostLink {
         meta.sentPublic = pubJson;
         link.send({ t: 'state', s: pub, now: Date.now(), v: __BUILD__ });
       }
-      const priv = { ...toPrivate(g, meta.playerId), profile: profileFor(meta.playerId), casino: casinoFor(meta.playerId) };
+      const priv = { ...toPrivate(g, meta.playerId), profile: profileFor(meta.playerId), casino: casinoFor(meta.playerId), flat: flatFor(meta.playerId) };
       const privJson = JSON.stringify(priv);
       if (privJson !== meta.sentPrivate) {
         meta.sentPrivate = privJson;
@@ -730,5 +736,6 @@ useProfiles.subscribe((s, prev) => {
   if (s.profiles !== prev.profiles || s.book !== prev.book) hostLink.scheduleBackup();
 });
 useCasino.subscribe(() => hostLink.scheduleBroadcast());
+useFlats.subscribe(() => hostLink.scheduleBroadcast());
 
 if (debugHooks()) Object.assign(window, { __host: useHost, __hostNet: useHostNet, __netStats: () => hostLink.stats() });

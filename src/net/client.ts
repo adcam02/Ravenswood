@@ -8,6 +8,7 @@ import { game } from '../game/hud';
 import { presence } from '../game/presence';
 import type { Item, Look, Pose } from '../world/types';
 import type { CasinoAction } from '../casino/types';
+import type { FlatAction } from '../flats/catalogue';
 import { joinMesh, type Mesh } from './mesh';
 import { hostPeerId, linkAlive, peerDisabled, peerOptions, type LinkStatus } from './peer';
 import { reportTo } from '../lib/report';
@@ -425,6 +426,8 @@ export const player = {
   ack: (wakeId: string) => clientLink.send({ t: 'ack', wakeId }),
   /** Anything at the casino: buying a pet, a bet, a card. */
   casino: (a: CasinoAction) => clientLink.send({ t: 'casino', a }),
+  /** Buying furniture for your flat, or laying it out. */
+  flat: (a: FlatAction) => clientLink.send({ t: 'flat', a }),
   reply: (wakeId: string, r: { seatIds?: string[]; roleIds?: string[]; answer?: boolean }) =>
     clientLink.send({ t: 'reply', wakeId, ...r }),
   /** Challenge someone in the pet pit, answer a challenge, or pick a move in a fight. */

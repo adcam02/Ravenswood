@@ -1,5 +1,6 @@
 import type { Alignment, Script } from '../data';
 import type { CasinoAction, CasinoView } from '../casino/types';
+import type { FlatAction, FlatView } from '../flats/catalogue';
 import type { BakeKind, ClothKind, DrinkKind, FlowerKind, Item, Look, PetId, Pose, Progress, TownState, Weather } from '../world/types';
 
 export type Phase = 'night' | 'day';
@@ -400,6 +401,8 @@ export interface PrivateState {
   nomRequests?: NominationRequest[];
   /** The casino's tables and shop, while they're in it (with only their own cards face up). */
   casino?: CasinoView | null;
+  /** The apartment block, while they're in it: the lobby's residents, or the flat they're standing in. */
+  flat?: FlatView | null;
 }
 
 // ---------------------------------------------------------------- the pet pit
@@ -657,4 +660,6 @@ export type ClientMessage =
   /** A bet, a card, a pet from the shop: everything at the casino. */
   | { t: 'casino'; a: CasinoAction }
   /** The copies of books of profiles the Storyteller asked for. */
-  | { t: 'backup'; copies: BackupCopy[] };
+  | { t: 'backup'; copies: BackupCopy[] }
+  /** Buying furniture for your flat, or laying it out. */
+  | { t: 'flat'; a: FlatAction };

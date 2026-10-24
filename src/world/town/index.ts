@@ -44,6 +44,7 @@ import { postFront } from './post';
 import { addCloudShadow, beamUniforms, makeClouds, makeContactShadows, makeDust, makePuddles, type Footprint, type PuddleSpot } from './looks';
 import { signBoard, TextSign } from './sign';
 import { makeCasinoTables } from './casinoTables';
+import type { FlatScene } from './flats';
 import type { CasinoView } from '../../casino/types';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 
@@ -142,6 +143,8 @@ export interface TownWorld {
   shadowsDrawn(): void;
   /** The casino's tables: the cards and chips on them, as this player may see them (and the host's clock, ahead of ours by this many ms, for the roulette wheel). */
   setCasino(view: CasinoView | null, hostOffset?: number): void;
+  /** The flat being visited: its finishes and furniture, and while decorating, the piece in hand. */
+  setFlat(scene: FlatScene | null): void;
 }
 
 // ---------------------------------------------------------------- the day and the night
@@ -964,6 +967,8 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     house: interiors.rooms.house.group,
     club: interiors.rooms.club.group,
     casino: interiors.rooms.casino.group,
+    lobby: interiors.rooms.lobby.group,
+    flat: interiors.rooms.flat.group,
   };
   // The cards, chips and staff at the casino.
   const casinoTables = makeCasinoTables();
@@ -1134,6 +1139,9 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       house: roomColliders('house'),
       club: roomColliders('club'),
       casino: roomColliders('casino'),
+      lobby: roomColliders('lobby'),
+      // A flat's furniture, whichever flat it is (kept up to date by setFlat).
+      flat: interiors.flat.colliders,
     },
     bounds: {
       town: { kind: 'circle', r: TOWN_R - 0.4 },
@@ -1145,6 +1153,8 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       house: { kind: 'rect', hw: ROOMS.house.hw - 0.45, hd: ROOMS.house.hd - 0.45 },
       club: { kind: 'rect', hw: ROOMS.club.hw - 0.45, hd: ROOMS.club.hd - 0.45 },
       casino: { kind: 'rect', hw: ROOMS.casino.hw - 0.45, hd: ROOMS.casino.hd - 0.45 },
+      lobby: { kind: 'rect', hw: ROOMS.lobby.hw - 0.45, hd: ROOMS.lobby.hd - 0.45 },
+      flat: { kind: 'rect', hw: ROOMS.flat.hw - 0.45, hd: ROOMS.flat.hd - 0.45 },
     },
     doors: makeDoors(),
     stations: makeStations(),
@@ -1386,6 +1396,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       const ring = Math.sin((t - bellStart) * 9) * ringK;
       if (zone === 'tower') turnClockwork(interiors.clockwork, ring);
       if (zone === 'casino') casinoTables.update(dt, t);
+      if (zone === 'flat') interiors.flat.update(t);
       if (zone !== 'town') return;
       const dusk = smooth(time);
       clouds.update(dt, (1 - dusk) * (1 - rainK) * (1 - 0.7 * mistK), !lowDetail);
@@ -1550,6 +1561,14 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     shadowsDrawn() {
       drawnDir.copy(sun.position).sub(sun.target.position).normalize();
     },
+    setFlat(scene) {
+      if (!interiors.flat.set(scene)) return;
+      // The seats in it come and go with the furniture.
+      const kept = world.stations.filter((s) => !s.id.startsWith('flat-seat-'));
+      world.stations.splice(0, world.stations.length, ...kept, ...interiors.flat.seats);
+      shadowDirty = true;
+    },
+
     setCasino(view, hostOffset) {
       casinoTables.set(view, hostOffset);
     },

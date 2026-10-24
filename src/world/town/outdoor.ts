@@ -6,6 +6,8 @@ import { G, Paint, frame, local, pick, shade, smoothMesh, type Layers } from './
 import {
   BAKERY,
   CLUB,
+  FLATS,
+  FLATS_NAME,
   IDEA_BOX,
   ROAD_LOOP,
   ROAD_NARROW,
@@ -356,6 +358,11 @@ export const PATHS: { seg: Seg; w: number }[] = (() => {
   {
     const a = local(CASINO.x, CASINO.z, CASINO.ry, 0, CASINO.d / 2 + 0.2);
     const b = local(CASINO.x, CASINO.z, CASINO.ry, 0, CASINO.d / 2 + 4.4);
+    add(a.x, a.z, b.x, b.z, 1.8);
+  }
+  {
+    const a = local(FLATS.x, FLATS.z, FLATS.ry, 0, FLATS.d / 2 + 0.2);
+    const b = local(FLATS.x, FLATS.z, FLATS.ry, 0, FLATS.d / 2 + 3.6);
     add(a.x, a.z, b.x, b.z, 1.8);
   }
   return list;
@@ -1175,6 +1182,103 @@ function casinoFront(p: Paint, r: () => number) {
 }
 
 /**
+ * Wren Court: a three-storey block of flats in cream render over a brick ground floor, with a terracotta roof and
+ * dormers, a balcony with flower boxes on each upper floor, shuttered windows, and a green door under a little porch.
+ */
+function flatsFront(p: Paint, r: () => number) {
+  const W = FLATS.w;
+  const D = FLATS.d;
+  const brick = '#b86a50';
+  const render = '#f3e2c8';
+  const trim = '#fbf4e6';
+  const roof = '#b5553a';
+  const shutter = '#5f8a6a';
+  const STOREY = 2.5;
+  const base = 0.3;
+  const top = base + STOREY * 3;
+  p.block(STONE_DARK, W + 0.3, 0.35, D + 0.3, 0, 0, 0);
+  // Brick up to the first floor, render above, with bands between the floors and quoins up the corners.
+  p.block(brick, W, STOREY, D, 0, base, 0);
+  courses(p, W, STOREY, D, 0, base, 0, 0.25, shade(brick, -0.16), true);
+  p.block(render, W, STOREY * 2, D, 0, base + STOREY, 0);
+  for (const y of [base + STOREY, base + STOREY * 2]) p.box(trim, W + 0.12, 0.14, D + 0.12, 0, y, 0);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (let k = 0; k < 9; k++) p.block(shade(render, -0.06), k % 2 ? 0.32 : 0.24, 0.5, k % 2 ? 0.24 : 0.32, sx * (W / 2), base + STOREY + k * 0.56, sz * (D / 2));
+  p.box(trim, W + 0.3, 0.18, D + 0.3, 0, top + 0.04, 0);
+  for (let x = -W / 2 + 0.3; x < W / 2; x += 0.45) for (const sz of [-1, 1]) p.box(shade(trim, -0.06), 0.12, 0.1, 0.14, x, top - 0.1, sz * (D / 2 + 0.09));
+  p.prism(render, W, 2.3, D, 0, top + 0.12, 0);
+  p.roof(roof, W, D, 2.3, top + 0.12, 0.5, 0.2);
+  chimney(p, '#a8604a', 0.7, 2.6, -2.8, top + 0.2, -1.0, 2);
+  chimney(p, '#a8604a', 0.7, 2.6, 2.8, top + 0.2, -1.0, 2);
+  // Two dormers on the front slope, each with a little window.
+  for (const x of [-2.4, 2.4]) {
+    const z = 1.55;
+    const y = top + 0.12 + 2.3 * (1 - z / (D / 2)) - 0.45;
+    p.block(render, 1.1, 1.0, 1.3, x, y, z - 0.1);
+    p.prism(roof, 1.3, 0.55, 1.5, x, y + 1.0, z - 0.1, Math.PI / 2);
+    wallWindow(p.at(x, y + 0.5, z + 0.56), 0.6, 0.6, trim, GLASS, false);
+  }
+  const f = p.at(0, 0, D / 2 + 0.01);
+  // The front door, under the first floor's balcony on two posts, up a step, with a lantern either side.
+  archedDoor(f.at(0, 0.3, 0), 1.25, 1.75, '#2f6a4f', trim);
+  for (const sx of [-1, 1]) {
+    f.post(trim, 0.07, STOREY, sx * 1.2, 0.3, 0.72, 8);
+    f.torus(trim, 0.08, 0.025, sx * 1.2, 1.5, 0.72, Math.PI / 2);
+    lantern(f.at(sx * 0.95, 2.0, 0));
+  }
+  f.block(STONE, 2.4, 0.15, 1.2, 0, 0, 0.55);
+  f.block(shade(STONE, 0.06), 2.0, 0.15, 0.7, 0, 0.15, 0.35);
+  // Ground-floor windows either side, with window boxes; the bay trees in tubs by the door.
+  for (const x of [-2.9, 2.9]) {
+    wallWindow(f.at(x, 1.7, 0), 1.0, 1.1, trim, GLASS, true, shutter);
+    windowBox(f.at(x, 1.07, 0), r, 1.2);
+  }
+  for (const sx of [-1, 1]) {
+    const pot = f.at(sx * 1.78, 0, 0.75);
+    pot.block('#f3e2c8', 0.5, 0.5, 0.5, 0, 0, 0);
+    pot.box(shade('#f3e2c8', -0.1), 0.56, 0.08, 0.56, 0, 0.48, 0);
+    pot.post(WOOD_DARK, 0.03, 0.7, 0, 0.5, 0, 6);
+    pot.blob('#3f7a42', 0.36, 0, 1.4, 0, 3);
+  }
+  // Upstairs: a balcony with a French door on each floor, and shuttered windows with flower boxes either side.
+  for (let floor = 1; floor <= 2; floor++) {
+    const y = base + STOREY * floor;
+    const bal = f.at(0, y, 0);
+    bal.box('#3a2a22', 1.05, 2.0, 0.06, 0, 1.05, 0.01);
+    bal.glass.box(GLASS, 0.85, 1.8, 0.06, 0, 1.05, 0.04);
+    bal.box(trim, 0.06, 1.8, 0.05, 0, 1.05, 0.08);
+    glowAt(bal, 0, 1.05, 0.25, 2.0, WARM_GLOW);
+    bal.box(trim, 2.8, 0.12, 0.85, 0, 0.0, 0.42);
+    for (let k = 0; k < 3; k++) bal.box(trim, 0.16, 0.16, 0.16, -1.2 + k * 1.2, -0.12, 0.75);
+    // Iron railings, and flower boxes hung over them.
+    bal.box(IRON, 2.8, 0.05, 0.05, 0, 0.95, 0.83);
+    for (const sx of [-1, 1]) bal.box(IRON, 0.05, 0.05, 0.85, sx * 1.38, 0.95, 0.42);
+    for (let k = 0; k <= 14; k++) bal.box(IRON, 0.025, 0.9, 0.025, -1.38 + k * (2.76 / 14), 0.5, 0.83);
+    for (const sx of [-1, 1]) windowBox(bal.at(sx * 0.75, 0.9, 0.7), r, 0.9);
+    if (r() < 0.7) {
+      const pp = bal.at(-1.0, 0.06, 0.25);
+      pp.taper('#c06a48', 1.2, 0.14, 0.3, 0, 0, 0, 10);
+      pp.blob('#5f9e47', 0.22, 0, 0.45, 0, 1);
+    }
+    for (const x of [-2.9, 2.9]) {
+      wallWindow(f.at(x, y + 1.2, 0), 0.9, 1.1, trim, GLASS, true, shutter);
+      windowBox(f.at(x, y + 0.58, 0), r, 1.1);
+    }
+  }
+  // Windows down the sides and along the back, three floors of them.
+  for (const sx of [-1, 1]) {
+    const side = p.at(sx * (W / 2 + 0.01), 0, 0, (sx * Math.PI) / 2);
+    for (let floor = 0; floor < 3; floor++) for (const z of [-1.4, 1.4]) wallWindow(side.at(z, base + STOREY * floor + 1.3, 0), 0.8, 1.0, trim, GLASS, true, shutter);
+  }
+  const back = p.at(0, 0, -D / 2 - 0.01, Math.PI);
+  for (let floor = 0; floor < 3; floor++) for (const x of [-3, -1, 1, 3]) wallWindow(back.at(x, base + STOREY * floor + 1.3, 0), 0.8, 1.0, trim, GLASS, true, null);
+  // A drainpipe down one front corner, and bushes along the front.
+  f.post('#4a4a52', 0.06, top, W / 2 - 0.35, 0, 0.1, 8);
+  for (const x of [-3.9, 3.9]) bush(p.at(x, 0, D / 2 + 0.45), r, r() < 0.6);
+  // A spot on the ridge where a bird may sit.
+  collect?.perches.push(new THREE.Vector3(1.2, top + 2.6, 0).applyMatrix4(p.m));
+}
+
+/**
  * The washhouse: `shell` is the posts, beams and roof (which fade when they hide someone standing under
  * them); `props` is the floor, pump, tubs, basket and rack, which always stay solid.
  */
@@ -1694,6 +1798,7 @@ function blockers(): Blocker[] {
   for (const b of BOOTHS) if (b.zone === 'town') add(b.x, b.z, 3.2);
   add(IDEA_BOX.x, IDEA_BOX.z, 1.6);
   add(CASINO.x, CASINO.z, 7.5);
+  add(FLATS.x, FLATS.z, 7.5);
   for (const bd of beds) add(bd.x, bd.z, 4);
   add(WELL.x, WELL.z, 3);
   add(WOODPILE.x, WOODPILE.z, 2.5);
@@ -1869,6 +1974,17 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   for (const sx of [-1.25, 1.25]) {
     const c = local(CASINO.x, CASINO.z, CASINO.ry, sx, CASINO.d / 2 + 1.4);
     colliders.push({ kind: 'circle', x: c.x, z: c.z, r: 0.12 });
+  }
+
+  // Wren Court, the apartment block, east of the bakery.
+  flatsFront(solo(FLATS.x, FLATS.z, FLATS.ry), rng(909));
+  for (const sx of [-1.55, 1.55]) {
+    const c = local(FLATS.x, FLATS.z, FLATS.ry, sx * 1.15, FLATS.d / 2 + 0.75);
+    colliders.push({ kind: 'circle', x: c.x, z: c.z, r: 0.35 });
+  }
+  for (const sx of [-1.2, 1.2]) {
+    const c = local(FLATS.x, FLATS.z, FLATS.ry, sx, FLATS.d / 2 + 0.73);
+    colliders.push({ kind: 'circle', x: c.x, z: c.z, r: 0.1 });
   }
 
   // The town fence, with a gap for the road south.
@@ -2218,6 +2334,16 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     signMaterials.push(s2.material);
   }
   {
+    // Across Wren Court's front, over the top balcony.
+    const sign = new TextSign({ w: 512, h: 128, bg: '#2f6a4f', fg: '#fbf4e6', border: '#d8b04a', round: false }, [FLATS_NAME]);
+    const { mesh, material } = signBoard(sign, 1.9, 0.48, { lit: true });
+    const p = local(FLATS.x, FLATS.z, FLATS.ry, 0, FLATS.d / 2 + 0.08);
+    mesh.position.set(p.x, 7.56, p.z);
+    mesh.rotation.y = FLATS.ry;
+    group.add(mesh);
+    signMaterials.push(material);
+  }
+  {
     const sign = new TextSign({ w: 512, h: 128, bg: '#5a3d2a', fg: '#f6e3b0', border: '#c9a24f' }, ['Ravenswood Bluff']);
     const { mesh, material } = signBoard(sign, 3.6, 0.9, { lit: true });
     mesh.position.set(0, 2.25, GATE_Z);
@@ -2233,6 +2359,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     { ...local(CLUB.x, CLUB.z, CLUB.ry, 0, CLUB.d / 2 + 1.2), r: 2.8 },
     ...BOOTHS.filter((b) => b.zone === 'town').map((b) => ({ ...local(b.x, b.z, b.ry, -1.85, 0.6), r: 1.8 })),
     { ...local(CASINO.x, CASINO.z, CASINO.ry, 0, CASINO.d / 2 + 1.6), r: 3.2 },
+    { ...local(FLATS.x, FLATS.z, FLATS.ry, 0, FLATS.d / 2 + 1.4), r: 3.0 },
     { x: 0, z: 0, r: 0 },
   ].filter((s) => s.r > 0);
   const pools = lightPools(poolSpots);

@@ -41,6 +41,7 @@ import { signBoard, TextSign } from './sign';
 import { BJ_DEALER, BJ_TABLE, FELT_Y, STEP, PK_DEALER, PK_TABLE, RL_CROUPIER, RL_TABLE, SHOP, SLOTS, bjSeat, pkSeat, rlSeat } from './casinoLayout';
 import { BJ_SEATS, PK_SEATS, RL_SEATS } from '../../casino/types';
 import { placeMatrix } from '../build';
+import { lobbyRoom, makeFlatRoom, type FlatRoom } from './flats';
 
 export type Room = Exclude<ZoneKind, 'town'>;
 
@@ -80,6 +81,8 @@ export interface Interiors {
   boothCurtains: BoothCurtains;
   /** The club's dance floor, disco ball and lights. */
   club: ClubRoom;
+  /** A flat in the apartment block, furnished as whoever's flat is being visited. */
+  flat: FlatRoom;
 }
 
 export interface BoothCurtains {
@@ -88,7 +91,7 @@ export interface BoothCurtains {
   set(closed: number): void;
 }
 
-const WALL_H = 3.3;
+export const WALL_H = 3.3;
 
 /** The halos for the room being built: every flame and lamp adds one where it stands. */
 let haloSpots: GlowSpot[] = [];
@@ -97,18 +100,21 @@ const haloAt = (p: Paint, x: number, y: number, z: number, size: number, color: 
   haloSpots.push({ x: v.x, y: v.y, z: v.z, size, color, flicker });
 };
 
-interface Shell {
+export interface Shell {
   floor: string[];
   wall: string;
   wainscot: string;
   trim: string;
   tiles?: boolean;
+  /** No boards or tiles: the room lays its own floor (the flats in the apartment block do). */
+  bare?: boolean;
 }
 
-function shell(p: Paint, room: Room, s: Shell, r: () => number) {
+export function shell(p: Paint, room: Room, s: Shell, r: () => number) {
   const { hw, hd } = ROOMS[room];
   // Floor: planks or tiles.
-  if (s.tiles) {
+  if (s.bare) p.box('#2a201a', hw * 2, 0.1, hd * 2, 0, -0.07, 0);
+  else if (s.tiles) {
     const n = 1.0;
     for (let x = -hw; x < hw - 0.01; x += n) for (let z = -hd; z < hd - 0.01; z += n) {
       const k = (Math.round(x / n) + Math.round(z / n)) & 1;
@@ -1785,7 +1791,34 @@ export function buildInteriors(): Interiors {
     return g;
   };
   const club = makeClubRoom();
+  const flat = makeFlatRoom(glassMaterial);
   const rooms: Record<Room, Interior> = {
+    lobby: {
+      group: make('lobby', lobbyRoom),
+      hemi: { sky: '#fff0dc', ground: '#5a4a3a', intensity: 1.1 },
+      sun: { color: '#ffe8c8', intensity: 1.2, dir: [0.3, 1, 0.6] },
+      lights: [
+        { pos: [0, 2.6, -2.4], color: '#ffe2a8', intensity: 12, distance: 9 },
+        { pos: [-3.7, 2.2, -3.4], color: '#ffd48a', intensity: 5, distance: 5 },
+        { pos: [2.7, 2.2, -3.4], color: '#ffd48a', intensity: 5, distance: 5 },
+        { pos: [-2.5, 2.4, 2.0], color: '#ffe8c0', intensity: 6, distance: 8 },
+      ],
+    },
+    flat: {
+      group: make('flat', (p) => {
+        // (Everything else in a flat is built for whoever's flat it is: only the light switch by the door stays.)
+        p.box('#f6f6f2', 0.03, 0.14, 0.09, -ROOMS.flat.hw + 0.015, 1.3, ROOMS.flat.hd - 0.9);
+        return flat.group;
+      }),
+      hemi: { sky: '#fff0dc', ground: '#6a4a36', intensity: 1.15 },
+      sun: { color: '#ffe8c8', intensity: 1.3, dir: [0.35, 1, 0.6] },
+      lights: [
+        { pos: [0, 2.0, -3.4], color: '#fff2d8', intensity: 7, distance: 8 },
+        { pos: [-2.6, 2.6, 0.2], color: '#ffe8c0', intensity: 8, distance: 9 },
+        { pos: [2.6, 2.6, 0.2], color: '#ffe8c0', intensity: 8, distance: 9 },
+        { pos: [0, 2.4, 2.6], color: '#ffe8c0', intensity: 4, distance: 7 },
+      ],
+    },
     club: {
       group: make('club', (p, glow, r) => {
         clubRoom(p, glow, r, haloAt);
@@ -1895,5 +1928,5 @@ export function buildInteriors(): Interiors {
   curtains.group.position.set(BOOTHS[0].x, 0, BOOTHS[0].z);
   curtains.group.rotation.y = BOOTHS[0].ry;
   rooms.church.group.add(curtains.group);
-  return { rooms, glassMaterial, ownerSign, seatingChart, clockwork, boothCurtains: curtains, club };
+  return { rooms, glassMaterial, ownerSign, seatingChart, clockwork, boothCurtains: curtains, club, flat };
 }

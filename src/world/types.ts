@@ -674,14 +674,19 @@ export interface Item {
 // ---------------------------------------------------------------- places
 
 /** Every place has its own coordinates. Interiors are centred on 0,0. */
-export type ZoneKind = 'town' | 'tavern' | 'bakery' | 'church' | 'tower' | 'cellar' | 'house' | 'club' | 'casino';
+export type ZoneKind = 'town' | 'tavern' | 'bakery' | 'church' | 'tower' | 'cellar' | 'house' | 'club' | 'casino' | 'lobby' | 'flat';
 
-/** 'town', 'tavern', 'bakery', 'church', 'tower', 'cellar' (under the tavern), 'club', 'house:<seatId>' for someone's bedroom, or 'cottage:<n>' for a cottage in town. */
+/**
+ * 'town', 'tavern', 'bakery', 'church', 'tower', 'cellar' (under the tavern), 'club', 'house:<seatId>' for someone's
+ * bedroom, 'cottage:<n>' for a cottage in town, 'lobby' for the apartment block's hall, or 'flat:<name key>' for a
+ * player's flat in it.
+ */
 export type ZoneId = string;
 
 export function zoneKind(zone: ZoneId): ZoneKind {
   if (zone.startsWith('house:') || zone.startsWith('cottage:')) return 'house';
-  if (zone === 'tavern' || zone === 'bakery' || zone === 'church' || zone === 'tower' || zone === 'cellar' || zone === 'club' || zone === 'casino') return zone;
+  if (zone.startsWith('flat:')) return 'flat';
+  if (zone === 'tavern' || zone === 'bakery' || zone === 'church' || zone === 'tower' || zone === 'cellar' || zone === 'club' || zone === 'casino' || zone === 'lobby') return zone;
   return 'town';
 }
 
@@ -745,6 +750,9 @@ export const houseZone = (seatId: string): ZoneId => `house:${seatId}`;
 export const cottageZone = (slot: number): ZoneId => `cottage:${slot}`;
 export const cottageSlot = (zone: ZoneId): number | null => (zone.startsWith('cottage:') ? Number(zone.slice(8)) : null);
 export const houseOwner = (zone: ZoneId): string | null => (zone.startsWith('house:') ? zone.slice(6) : null);
+/** A player's flat in the apartment block, by the name their profile is kept under (lower case). */
+export const flatZone = (key: string): ZoneId => `flat:${key}`;
+export const flatOwner = (zone: ZoneId): string | null => (zone.startsWith('flat:') ? zone.slice(5) : null);
 
 export type Collider =
   | { kind: 'box'; x: number; z: number; hw: number; hd: number; rot: number }
@@ -809,7 +817,9 @@ export type JobId =
   | 'shop'
   | 'blackjack'
   | 'poker'
-  | 'roulette';
+  | 'roulette'
+  /** The apartment block's lift: choose whose flat to go up to. */
+  | 'flats';
 
 /** The town's best at each game: who, the score, and when. */
 export interface TownRecord {

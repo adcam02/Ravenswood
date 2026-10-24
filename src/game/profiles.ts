@@ -15,6 +15,7 @@
  *   profileOf(who)            their profile as it stands (read only), or null if there's no such name.
  *   addTally(who, kind, by)   adds to one of their running counts (the pet pit's wins, say).
  *   topTally(kind, n)         the n names with the most of a count, most first.
+ *   changeFlat(who, fn)       changes their flat in the apartment block (its furniture and layout, see flats/).
  * `who` is { name } (any spelling), { seat } (a seat id) or { player } (the playerId a message came from).
  * On a player's side, useMoney() and useMyPets() in game/progress.ts are their own money and pets.
  */
@@ -23,6 +24,7 @@ import { debugHooks, loadJSON, saveJSON, uid } from '../lib/util';
 import { seatAlignment, useHost } from '../state/host';
 import type { BackupCopy, GameState, PayLine, ProfileView, ProgressEvent, ProgressSnapshot } from '../state/types';
 import { FEATS, PETS, type FeatId, type PetId } from '../world/types';
+import { cleanFlat, emptyFlat, type FlatStore } from '../flats/catalogue';
 
 /** What players earn, in dollars: all the amounts in one place. */
 export const PAY = {
@@ -167,6 +169,8 @@ export interface Profile extends ProgressSnapshot {
   games?: Record<string, string[]>;
   /** The devices this name plays on, as hashes (never the devices' own secrets): see admitDevice(). */
   devices?: string[];
+  /** Their flat in Wren Court, the apartment block: the furniture they've bought and how it's laid out (flats/). */
+  flat?: FlatStore;
   created: number;
   updated: number;
 }
@@ -207,6 +211,7 @@ export function cleanProfile(raw: unknown, key: string): Profile {
   if (r.games && typeof r.games === 'object') p.games = Object.fromEntries(Object.entries(r.games).slice(-10).map(([g, items]) => [g, strings(items, 8)]));
   const devices = strings(r.devices, DEVICES_KEPT, 64).filter((h) => /^[0-9a-f]{16,64}$/.test(h));
   if (devices.length) p.devices = devices;
+  if (r.flat && typeof r.flat === 'object') p.flat = cleanFlat(r.flat);
   p.created = Number(r.created) || Date.now();
   p.updated = Number(r.updated) || p.created;
   return p;
@@ -383,6 +388,25 @@ export function topTally(kind: string, n: number): { name: string; count: number
     .filter((x) => x.count > 0)
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name))
     .slice(0, n);
+}
+
+/**
+ * Changes a player's flat (made empty if they've none yet). `fn` returns false to change nothing. Returns whether it
+ * changed. The caller checks what goes in (flats/catalogue.ts cleans it).
+ */
+export function changeFlat(who: Who, fn: (f: FlatStore) => boolean | void): boolean {
+  const name = nameOf(who);
+  if (!name) return false;
+  ensure(name);
+  const f = structuredClone(useProfiles.getState().profiles[nameKey(name)].flat ?? emptyFlat());
+  if (fn(f) === false) return false;
+  change(name, (p) => void (p.flat = f));
+  return true;
+}
+
+/** Everyone with a profile, by the key it's kept under: who has a flat in the apartment block. */
+export function residents(): { key: string; name: string }[] {
+  return Object.entries(useProfiles.getState().profiles).map(([key, p]) => ({ key, name: p.name }));
 }
 
 // ---------------------------------------------------------------- from players, and to them

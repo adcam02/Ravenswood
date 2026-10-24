@@ -97,6 +97,19 @@ export const CLUB_NAME = 'The Velvet Horn';
 /** In the club's own frame: the rope's posts (either side of the path, just out from the door) and where the bouncer stands. */
 export const CLUB_ROPE = { lx: 0.85, lz: CLUB.d / 2 + 0.95 };
 export const BOUNCER = { lx: 1.85, lz: CLUB.d / 2 + 0.85 };
+/**
+ * Wren Court, the apartment block: three storeys of flats east of the bakery, out past the ring road, facing the
+ * middle of town. Every player has a flat in it, under their name; the lift in its lobby goes up to any of them.
+ */
+export const FLATS_ANGLE = 90;
+export const FLATS: Building = (() => {
+  const a = (FLATS_ANGLE * Math.PI) / 180;
+  const x = 31.4 * Math.sin(a);
+  const z = -31.4 * Math.cos(a);
+  return { x, z, ry: Math.atan2(-x, -z), w: 9.2, d: 6.2 };
+})();
+export const FLATS_NAME = 'Wren Court';
+
 /** The idea box for the Storyteller, on a post beside the noticeboard. */
 export const IDEA_BOX = { x: 5.4, z: -13.5, ry: -0.2 };
 
@@ -272,6 +285,9 @@ export const ROOMS: Record<Exclude<ZoneKind, 'town'>, { hw: number; hd: number }
   house: { hw: 5, hd: 4 },
   club: { hw: 7, hd: 5.5 },
   casino: CASINO_ROOM,
+  lobby: { hw: 5.5, hd: 4 },
+  // (The same as flats/catalogue.ts's grid: 20 by 16 half-metre cells.)
+  flat: { hw: 5, hd: 4 },
 };
 
 /** Inside each room: where the exit is, and where you appear when you come in. */
@@ -285,6 +301,9 @@ export const ROOM_DOOR: Record<Exclude<ZoneKind, 'town'>, { exit: { x: number; z
   house: { exit: { x: 0, z: 3.3, r: 0.9 }, arrive: { x: 0, z: 1.9, ry: Math.PI } },
   club: { exit: { x: 0, z: 4.8, r: 1.0 }, arrive: { x: 0, z: 3.3, ry: Math.PI } },
   casino: CASINO_DOOR,
+  lobby: { exit: { x: 0, z: 3.3, r: 1.0 }, arrive: { x: 0, z: 2.0, ry: Math.PI } },
+  // A flat's front door, which leads back down to the lobby (the cells in front of it are kept clear).
+  flat: { exit: { x: 0, z: 3.4, r: 0.9 }, arrive: { x: 0, z: 2.1, ry: Math.PI } },
 };
 
 export const BAR = { x0: -6.2, x1: 2.6, z: -2.6, depth: 0.9, h: 1.1 };
@@ -375,6 +394,18 @@ export const CLUB_SOFA_SEATS: Spot[] = [-1.35, 0, 1.35].map((z) => ({ x: -5.95, 
 export const CLUB_TABLE = { x: -4.75, z: 0 };
 export const CLUB_BAR = { x: 6.3, z0: -3.6, z1: 0.6, depth: 0.8, h: 1.05 };
 export const CLUB_STOOLS: Spot[] = [-2.8, -1.5, -0.2].map((z) => ({ x: 5.25, z, ry: Math.PI / 2 }));
+/**
+ * Wren Court's lobby: the lift at the back with the residents' board beside it, the mailboxes down the left wall
+ * with a bench in front of them, and the stairs up the right.
+ */
+export const LIFT = { x: 0, z: -3.75 };
+export const LOBBY_BOARD = { x: -2.3, y: 1.75 };
+export const LOBBY_BENCH = { x: -4.85, z: 1.3, len: 2.0 };
+export const LOBBY_BENCH_SEATS: Spot[] = [-0.5, 0.5].map((dz) => ({ x: LOBBY_BENCH.x + 0.1, z: LOBBY_BENCH.z + dz, ry: Math.PI / 2 }));
+export const LOBBY_STAIRS = { x: 4.45, z0: 1.2, z1: -3.9, w: 1.5, h: 3.3 };
+/** Where you step out of the lift, coming down from a flat. */
+export const LIFT_OUT: Spot = { x: 0, z: -2.4, ry: 0 };
+
 export const onDanceFloor = (x: number, z: number) => Math.abs(x - DANCE_FLOOR.x) < DANCE_FLOOR.hw && Math.abs(z - DANCE_FLOOR.z) < DANCE_FLOOR.hd;
 
 // ---------------------------------------------------------------- doors
@@ -387,6 +418,7 @@ export function makeDoors(): Door[] {
     ['church', CHURCH, churchFront, 'Church'],
     ['club', CLUB, CLUB.d / 2, CLUB_NAME],
     ['casino', CASINO, CASINO.d / 2, 'The Lucky Raven'],
+    ['lobby', FLATS, FLATS.d / 2, FLATS_NAME],
   ];
   for (const [kind, b, front, label] of pub) {
     const trigger = doorPoint(b, 0.55, front);
@@ -423,6 +455,11 @@ export function makeDoors(): Door[] {
   {
     const ex = ROOM_DOOR.cellar.exit;
     doors.push({ id: 'cellar-out', zone: 'cellar', x: ex.x, z: ex.z, r: ex.r, to: 'tavern', spawn: { x: TRAPDOOR.x - 1.2, z: TRAPDOOR.z, ry: -Math.PI / 2 }, label: 'Up to the tavern' });
+  }
+  // Out of a flat's front door and down to the lobby, by the lift.
+  {
+    const ex = ROOM_DOOR.flat.exit;
+    doors.push({ id: 'flat-out', zone: 'flat', x: ex.x, z: ex.z, r: ex.r, to: 'lobby', spawn: LIFT_OUT, label: 'Down to the lobby' });
   }
   const ex = ROOM_DOOR.house.exit;
   doors.push({ id: 'house-out', zone: 'house', x: ex.x, z: ex.z, r: ex.r, to: 'town', spawn: { x: 0, z: 0, ry: 0 }, label: 'Outside' });
@@ -493,6 +530,9 @@ export function makeStations(): Station[] {
       st.push({ id: `pit-bench-${i}-${k}`, zone: 'cellar', x: p.x, z: p.z, r: 0.7, job: 'sit', stand: { x: p.x, z: p.z, ry: b.ry }, y: 0.46, label: 'Sit' });
     }),
   );
+  // Wren Court: the lift, and the bench by the mailboxes.
+  st.push({ id: 'lift', zone: 'lobby', x: LIFT.x, z: LIFT.z + 1.25, r: 1.6, job: 'flats', stand: { x: LIFT.x, z: LIFT.z + 1.2, ry: Math.PI }, label: 'Take the lift' });
+  LOBBY_BENCH_SEATS.forEach((c, i) => st.push({ id: `lobby-bench-${i}`, zone: 'lobby', x: c.x, z: c.z, r: 0.8, job: 'sit', stand: c, y: 0.46, label: 'Sit' }));
   // Home.
   st.push({ id: 'bed', zone: 'house', x: BED.x, z: BED.z + 0.3, r: 1.9, job: 'sleep', stand: { x: BED.x, z: BED.z + 0.25, ry: 0 }, y: BED.top, label: 'Sleep' });
   HOME_CHAIRS.forEach((c, i) => st.push({ id: `home-chair-${i}`, zone: 'house', x: c.x, z: c.z, r: 0.9, job: 'sit', stand: c, y: 0.47, label: 'Sit' }));
@@ -582,6 +622,7 @@ export function townColliders(extra: Collider[]): Collider[] {
   });
   c.push({ kind: 'circle', x: IDEA_BOX.x, z: IDEA_BOX.z, r: 0.35 });
   c.push(box(CASINO, CASINO.w / 2 + 0.15, CASINO.d / 2 + 0.15));
+  c.push(box(FLATS, FLATS.w / 2 + 0.15, FLATS.d / 2 + 0.15));
   // The pond, as overlapping circles, leaving the dock clear.
   for (let x = POND.x - POND.rx; x <= POND.x + POND.rx; x += 1.6) {
     for (let z = POND.z - POND.rz; z <= POND.z + POND.rz; z += 1.6) {
@@ -673,6 +714,19 @@ export function roomColliders(kind: Exclude<ZoneKind, 'town'>): Collider[] {
     for (const s of CLUB_STOOLS) c.push({ kind: 'circle', x: s.x, z: s.z, r: 0.22 });
     // Big potted palms in the front corners.
     for (const sx of [-1, 1]) c.push({ kind: 'circle', x: sx * 6.2, z: 4.6, r: 0.45 });
+  } else if (kind === 'lobby') {
+    c.push(at(LIFT.x, LIFT.z, 1.15, 0.3));
+    c.push(at(-5.25, -0.6, 0.3, 1.5));
+    c.push(at(LOBBY_BENCH.x, LOBBY_BENCH.z, 0.3, LOBBY_BENCH.len / 2));
+    c.push(at(LOBBY_STAIRS.x, (LOBBY_STAIRS.z0 + LOBBY_STAIRS.z1) / 2, LOBBY_STAIRS.w / 2 + 0.1, (LOBBY_STAIRS.z0 - LOBBY_STAIRS.z1) / 2 + 0.1));
+    // Potted plants either side of the lift, and in the front corners.
+    for (const [x, z] of [
+      [-1.6, -3.5],
+      [1.6, -3.5],
+      [-5.0, 3.4],
+      [3.2, 3.4],
+    ])
+      c.push({ kind: 'circle', x, z, r: 0.35 });
   } else if (kind === 'casino') {
     c.push(at(SHOP.x, SHOP.z, SHOP.w / 2, SHOP.d / 2));
     c.push({ kind: 'circle', x: CASHIER.x, z: CASHIER.z, r: 0.35 });
@@ -716,6 +770,7 @@ export function whereIs(zone: string, x: number, z: number): string {
   if (zone === 'cellar') return 'down in the tavern’s cellar';
   if (zone === 'club') return `in ${CLUB_NAME}`;
   if (zone === 'casino') return 'in the Lucky Raven';
+  if (zone === 'lobby' || zone.startsWith('flat:')) return `in ${FLATS_NAME}`;
   if (zone.startsWith('cottage:')) return `in ${COTTAGE_NAMES[Number(zone.slice(8)) % COTTAGE_NAMES.length]}`;
   if (zone.startsWith('house:')) return 'at home';
   const near = (p: { x: number; z: number }, r: number) => Math.hypot(x - p.x, z - p.z) < r;
@@ -735,6 +790,7 @@ export function whereIs(zone: string, x: number, z: number): string {
   if (BOOTHS.some((b) => b.zone === 'town' && near(b, 4))) return 'by a confession booth in the trees';
   if (near(doorPoint(BAKERY, 3), 7)) return 'outside the bakery';
   if (near(doorPoint(CASINO, 3), 7)) return 'outside the Lucky Raven';
+  if (near(doorPoint(FLATS, 3), 7)) return `outside ${FLATS_NAME}`;
   if (Math.abs(x - WASHHOUSE.x) < WASHHOUSE.w / 2 + 3 && Math.abs(z - WASHHOUSE.z) < WASHHOUSE.d / 2 + 3) return 'at the washhouse';
   if (LINE_POS.some((l) => x > l.x0 - 1 && x < l.x1 + 1 && Math.abs(z - l.z) < 1.5)) return 'by the washing lines';
   if (beds.some((b) => near(b, 3))) return 'by the flower beds';

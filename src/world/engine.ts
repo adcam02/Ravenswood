@@ -20,7 +20,7 @@ import { useVoice, voice, type Listener } from '../voice/voice';
 import { AvatarView, type AvatarInfo } from './avatar';
 import { resolve, turnToward } from './collide';
 import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWorld } from './town';
-import { BED, BOUNCER, CLUB, CLUB_NAME, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, GRAVEYARD, MEETING_CENTRE, PIT_CORNERS, PIT_RING, SQUARE_R, STOOL_R, TOWER, doorPoint, groundAt, onDanceFloor, roadDistance } from './town/layout';
+import { BED, BOUNCER, CLUB, CLUB_NAME, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, FLATS, FLATS_NAME, GRAVEYARD, MEETING_CENTRE, PIT_CORNERS, PIT_RING, ROOM_DOOR, SQUARE_R, STOOL_R, TOWER, doorPoint, groundAt, onDanceFloor, roadDistance } from './town/layout';
 import { local as localSpot } from './town/kit';
 import { nearPath } from './town/outdoor';
 import { blocksLine } from './town/occlusion';
@@ -39,6 +39,9 @@ import { casino, casinoNow, hostNow } from '../casino/client';
 import { TableCam } from './tablecam';
 import { CHAIR_Y, FELT_Y, RL_LOOK, bjSpot, pkAround } from './town/casinoLayout';
 import type { CasinoView } from '../casino/types';
+import { decor, flatNav, flatNow, useDecor } from '../flats/client';
+import { emptyLayout, whyNot } from '../flats/catalogue';
+import { shownName } from '../state/nicks';
 
 type TableKind = 'blackjack' | 'poker' | 'roulette';
 /** Who's in a seat at one of the casino's tables. */
@@ -93,6 +96,8 @@ import {
   danceOwned,
   DANCES_KEY,
   houseOwner,
+  flatOwner,
+  flatZone,
   isDance,
   houseZone,
   inBooth,
@@ -246,6 +251,7 @@ const SIGN_TEXT: Partial<Record<Station['job'], string>> = {
   clock: '🕰️ Keep time',
   confess: '🕯️ Confession booth',
   post: '✉️ Post office',
+  flats: '🛗 Up to the flats',
   jukebox: '🎶 Jukebox',
   ideas: '💡 Idea box',
   shop: '🛍️ Shop',
@@ -280,6 +286,8 @@ const PLACE_NAMES: Record<Exclude<ZoneKind, 'house'>, string> = {
   cellar: 'The Pet Pit',
   club: CLUB_NAME,
   casino: 'The Lucky Raven',
+  lobby: FLATS_NAME,
+  flat: 'A flat',
 };
 
 /** Graphics quality: 'high' has shadows and crisp pixels; 'low' is for laptops that can't keep up. */
@@ -497,6 +505,7 @@ export class Engine {
     canvas.addEventListener('webglcontextrestored', this.onContextRestored);
 
     game.interact = () => this.interact();
+    flatNav.go = (key) => this.goToFlat(key);
     game.emote = (a) => this.startEmote(a);
     game.sip = () => this.sip();
     game.give = () => this.give();
@@ -989,6 +998,12 @@ export class Engine {
     }
     // At the pet shop or a card table, the panel has the keys (leaving the table is a button, so a stray Escape can't cash anyone out).
     if (useHud.getState().casino) return;
+    // Choosing a flat in the lobby, or decorating one: the panel has the keys, and the arrows move the piece in hand.
+    if (useDecor.getState().dir) return;
+    if (useDecor.getState().draft) {
+      this.decorKey(e, k);
+      return;
+    }
     if (this.view?.paused || this.job) return;
     if (this.inBed) {
       if (k === 'e' || k === ' ' || k === 'enter') {
@@ -1043,6 +1058,12 @@ export class Engine {
       return;
     }
     if (e.button !== 0 || !this.me || this.view?.paused || this.job || this.inBed || this.tableCam) return;
+    // Decorating: a tap on the floor moves the piece in hand there, or picks up whatever's there.
+    if (useDecor.getState().draft) {
+      const hit = this.floorAt(e.clientX, e.clientY);
+      if (hit) decor.tap(hit.x, hit.z);
+      return;
+    }
     // The Storyteller clicking a player opens their menu; anywhere else, a click walks there (not off a meeting stool).
     if (this.pinned()) return;
     const seat = this.view?.mode === 'st' ? this.avatarAt(e.clientX, e.clientY) : null;
@@ -1064,6 +1085,34 @@ export class Engine {
   private onPointerUp = (e: PointerEvent) => {
     if (this.swing.drag?.id === e.pointerId) this.swing.drag = null;
   };
+
+  /** The floor (or the ground) under a screen point. */
+  private floorAt(clientX: number, clientY: number): THREE.Vector3 | null {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, this.camera);
+    const hit = new THREE.Vector3();
+    return ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), hit);
+  }
+
+  /** The keys while decorating: arrows (or WASD) move the piece in hand, R turns it, Enter puts it down. */
+  private decorKey(e: KeyboardEvent, k: string) {
+    const move: Record<string, [number, number]> = { arrowleft: [-1, 0], a: [-1, 0], arrowright: [1, 0], d: [1, 0], arrowup: [0, -1], w: [0, -1], arrowdown: [0, 1], s: [0, 1] };
+    const held = useDecor.getState().held;
+    if (move[k]) {
+      e.preventDefault();
+      if (held) decor.nudge(...move[k]);
+    } else if (k === 'r') decor.turn();
+    else if (k === 'enter' || k === ' ') {
+      e.preventDefault();
+      if (held) decor.place();
+    } else if (k === 'delete' || k === 'backspace') decor.putAway();
+    else if (k === 'escape') {
+      if (held) decor.cancel();
+      else decor.finish();
+    }
+  }
 
   /** Walks to the ground under a screen point. */
   private walkTo(clientX: number, clientY: number) {
@@ -1434,6 +1483,11 @@ export class Engine {
       useHud.setState({ casino: { kind: 'shop' } });
       return;
     }
+    if (s.job === 'flats') {
+      this.standUp();
+      useDecor.setState({ dir: true });
+      return;
+    }
     if (s.job === 'blackjack' || s.job === 'poker' || s.job === 'roulette') return this.sitAtTable(s);
     const game_ = JOB_GAMES[s.job];
     if (game_) {
@@ -1557,6 +1611,49 @@ export class Engine {
     // Looking down past our own cards towards the middle of the table.
     const at = kind === 'blackjack' ? bjSpot(seat, 0.8) : kind === 'poker' ? pkAround(seat, -0.8) : RL_LOOK;
     this.tableCam = new TableCam(this.renderer.domElement, eye, new THREE.Vector3(at.x, FELT_Y, at.z));
+  }
+
+  /**
+   * Wren Court: the flat on show (as decorated so far, while we're decorating ours), and its name. Leaving our flat
+   * puts down whatever's in hand and stops decorating; leaving the lobby closes its list.
+   */
+  private syncFlats(v: WorldView | null) {
+    const kind = zoneKind(local.zone);
+    const d = useDecor.getState();
+    if (kind !== 'lobby' && d.dir) useDecor.setState({ dir: false });
+    const key = flatOwner(local.zone);
+    const mode = v?.mode ?? 'preview';
+    const fv = key && mode !== 'preview' ? flatNow(mode, { key }) : null;
+    const shown = fv?.flat && fv.flat.key === key ? fv.flat : null;
+    if (d.draft && !shown?.mine) decor.finish();
+    if (kind !== 'flat') return;
+    const draft = shown?.mine ? useDecor.getState().draft : null;
+    const held = draft ? useDecor.getState().held : null;
+    this.town.setFlat({
+      layout: draft ?? shown?.layout ?? emptyLayout(),
+      held: draft && held ? { ...held, ok: !whyNot(draft.items, held.item, held.index) } : null,
+      grid: Boolean(draft),
+    });
+    const place = !shown ? PLACE_NAMES.flat : shown.mine ? 'Your flat' : `${shownName(shown.name)}’s flat`;
+    if (useHud.getState().place !== place) useHud.setState({ place });
+  }
+
+  /** Up in the lobby's lift to someone's flat, with a ding for whoever's in it. */
+  private goToFlat(key: string) {
+    if (!this.me || zoneKind(local.zone) !== 'lobby' || this.entering) return;
+    useDecor.setState({ dir: false });
+    this.stopEverything();
+    const zone = flatZone(key);
+    const at = ROOM_DOOR.flat.arrive;
+    local.entering = zone;
+    doorChime(0.7);
+    const wait = setTimeout(() => {
+      if (this.entering !== wait) return;
+      this.entering = null;
+      local.entering = null;
+      this.place(zone, at.x, at.z, at.ry, true);
+    }, DOOR_WAIT_MS * 0.6);
+    this.entering = wait;
   }
 
   /** Keeps the card table, its panel and the camera together: closing the panel stands us up, and standing up closes it. */
@@ -1820,6 +1917,7 @@ export class Engine {
     if (v) this.runClub(v);
     this.updateOthers(dt, t, v);
     this.syncCasino(v);
+    this.syncFlats(v);
     this.updateCamera(dt, t);
     this.fadeOccluders(dt);
     this.town.follow(this.camTarget.x, this.camTarget.z);
@@ -2207,6 +2305,7 @@ export class Engine {
         const h = this.town.houseSlots[door.slot ?? 0];
         toward = heading(h.x, h.z) > 0.6;
       } else if (toward && door.id === 'club-in') toward = heading(CLUB.x, CLUB.z) > 0.6;
+      else if (toward && door.id === 'lobby-in') toward = heading(FLATS.x, FLATS.z) > 0.6;
       if (toward && performance.now() >= this.doorsShutUntil && !this.job && !this.entering) {
         this.doorsShutUntil = performance.now() + 1000;
         if (door.id.startsWith('tower-in')) this.towerDoor = door;
@@ -2265,7 +2364,7 @@ export class Engine {
     }
     this.nearStation = best;
     let prompt: Prompt | null = null;
-    if (this.job || useHud.getState().casino) prompt = null;
+    if (this.job || useHud.getState().casino || useDecor.getState().dir || useDecor.getState().draft) prompt = null;
     else if (this.inBed) {
       const sheep = useHud.getState().sheep;
       prompt = sheep === 'offer' ? { label: 'Count the sheep', key: 'E' } : sheep === 'playing' ? null : { label: 'Fast asleep until morning', key: '', locked: true };
@@ -2859,6 +2958,11 @@ export class Engine {
       const b = BED;
       wantPos.set(b.x + 1.5, 2.6, b.z + 3.3);
       wantLook.set(b.x - 0.6, 0.9, b.z - 0.6);
+    } else if (this.decorating()) {
+      // Decorating: the whole flat from up in front, the panel along the bottom.
+      const tall = this.camera.aspect < 0.8;
+      wantPos.set(0, tall ? 15.5 : 10.5, tall ? 9.5 : 8.6);
+      wantLook.set(0, 0, tall ? -0.6 : -0.4);
     } else if (this.tableCam) {
       this.tableCam.shot(wantPos, wantLook);
     } else if (this.view?.reading && this.me) {
@@ -2888,7 +2992,7 @@ export class Engine {
       this.camera.updateProjectionMatrix();
     }
     // The table's panel covers the bottom of the screen, so the picture is shifted up to keep the felt in sight.
-    const lift = this.tableCam ? (this.camera.aspect < 0.8 ? 0.26 : 0.17) : 0;
+    const lift = this.tableCam ? (this.camera.aspect < 0.8 ? 0.26 : 0.17) : this.decorating() ? (this.camera.aspect < 0.8 ? 0.22 : 0.2) : 0;
     if (lift !== (this.camera.view?.enabled ? this.camera.view.offsetY / Math.max(1, this.camera.view.fullHeight) : 0)) {
       if (lift) this.camera.setViewOffset(1000, 1000, 0, lift * 1000, 1000, 1000);
       else this.camera.clearViewOffset();
@@ -2907,6 +3011,8 @@ export class Engine {
     this.camera.position.copy(this.camPos);
     this.camera.lookAt(this.camLook);
   }
+
+  private decorating = () => Boolean(useDecor.getState().draft) && zoneKind(local.zone) === 'flat';
 
   private meetCam: { key: string; pos: THREE.Vector3; look: THREE.Vector3 } | null = null;
   private meetProbe = new THREE.PerspectiveCamera();
