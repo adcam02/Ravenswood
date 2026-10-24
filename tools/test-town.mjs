@@ -816,9 +816,10 @@ await check('game: an execution plays out at the gallows for everyone', async ()
   // Held near its start on both screens from the moment it begins, so neither can run on past the puff while the
   // test is still waiting for the other.
   for (const p of [players.abbey, players.steele]) await p.evaluate(() => void (window.__engine.showFreeze = 0.6));
+  // The Storyteller picks the gallows outright (otherwise the town votes, and the wheel could land on anything).
   await st.evaluate((id) => {
     window.__st.st.markSeat(id);
-    window.__st.st.toggleDead(id);
+    window.__st.st.execute(id, 'hang');
   }, id);
   try {
     await until(players.abbey, () => Boolean(window.__engine.show), null, 15000, 'the show to start for Abbey');
