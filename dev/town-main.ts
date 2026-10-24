@@ -4,11 +4,12 @@
 import * as THREE from 'three';
 import { createTown } from '../src/world/town';
 import { swayUniforms } from '../src/world/town/fx';
-import { ANIMALS, animalInfo, emptyTown, type Weather, type ZoneKind } from '../src/world/types';
+import { ANIMALS, animalInfo, emptyTown, type AnimalId, type PetId, type Weather, type ZoneKind } from '../src/world/types';
 import { buildAnimal } from '../src/world/animals';
-import { BED } from '../src/world/town/layout';
+import { BED, groundAt } from '../src/world/town/layout';
 import { NightVisit, bendVictim } from '../src/world/visit';
 import { PigeonFlight } from '../src/world/pigeon';
+import { AvatarView } from '../src/world/avatar';
 import { EXEC_CAM, ExecStage, execCamera } from '../src/world/exec/stage';
 import type { ExecMethod } from '../src/state/types';
 
@@ -196,6 +197,16 @@ function execAt(o: { exec: string; et: number; animal?: string; spared?: boolean
 }
 (window as unknown as { execAt: typeof execAt }).execAt = execAt;
 if (q.has('exec')) execAt({ exec: q.get('exec')!, et: num('et', 2), animal: q.get('animal') ?? undefined, spared: q.has('spared'), hat: q.get('hat') ?? undefined, ry: num('ry', 0), edist: q.has('edist') ? num('edist', 8.5) : undefined });
+// ?walkers=fox:zapmouse,bear:dragon: animals walking towards the camera past the focus, each with its pet in
+// tow (?stop=12 has them stand still for the last 12 frames, the pets catching up; ?ghost makes the second a ghost).
+const walkers: AvatarView[] = [];
+if (q.has('walkers')) {
+  q.get('walkers')!.split(',').forEach((w, i) => {
+    const [animal, pet] = w.split(':') as [AnimalId, PetId];
+    const color = ANIMALS.find((a) => a.id === animal)?.colors[0] ?? '#e2793a';
+    walkers.push(new AvatarView(scene, { name: animal, look: { animal, color, pet }, ghost: q.has('ghost') && i === 1, storyteller: false, isMe: false, role: null, badge: null }));
+  });
+}
 
 const clock = new THREE.Clock();
 let frames = 0;
@@ -226,6 +237,18 @@ function loop() {
     sleeper.root.scale.setScalar(1);
     bendVictim(sleeper.root, pose);
     if (moment && frames - walkStart === steps + 2) (window as unknown as { done: boolean }).done = true;
+  }
+  if (walkers.length) {
+    // In even steps, so a shot lands at the same moment however slowly this draws.
+    const going = frames < settle - num('stop', 0);
+    const walked = Math.min(frames, settle - num('stop', 0)) * 0.05 * 3;
+    walkers.forEach((w, i) => {
+      const x = tx + (i - (walkers.length - 1) / 2) * 1.5;
+      const z = tz - 3 + walked - (i % 2) * 0.7;
+      w.ground = groundAt(x, z);
+      w.setTarget(x, z, 0, w.ground);
+      w.update(0.05, frames * 0.05, going ? 'walk' : 'idle', false, false);
+    });
   }
   if (q.has('sway')) swayUniforms.uSway.value = num('sway', 4);
   if (openDoor) town.openDoor(openDoor.x, openDoor.z);

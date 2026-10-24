@@ -19,6 +19,9 @@ while (Date.now() < end) {
 
 const ALL = {
   'overview-day': 'wide&t=0&z=4&dist=70',
+  // Animals walking with their pets in tow, and standing still with the pets caught up.
+  'pets-walk': 'x=0&z=6&t=0&dist=7&pitch=0.42&frames=32&walkers=fox:zapmouse,bear:dragon,otter:spirit,wolf:balldroid',
+  'pets-stop': 'x=0&z=6&t=0&dist=7&pitch=0.42&frames=30&stop=12&walkers=raccoon:henchling,panda:cube,deer:arcade,frog:astrodroid&ghost',
   'overview-night': 'wide&t=1&z=4&dist=70',
   'square-day': 'x=0&z=6&t=0&meeting',
   'square-night': 'x=0&z=6&t=1&bell',
