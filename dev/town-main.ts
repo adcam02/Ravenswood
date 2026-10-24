@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { createTown } from '../src/world/town';
 import { swayUniforms } from '../src/world/town/fx';
-import { emptyTown, type Weather, type ZoneKind } from '../src/world/types';
+import { BOOTHS, emptyTown, type Weather, type ZoneKind } from '../src/world/types';
 import { buildAnimal } from '../src/world/animals';
 import { BED } from '../src/world/town/layout';
 import { NightVisit } from '../src/world/visit';
@@ -81,8 +81,8 @@ town.setHomeOwner('Abbey');
 town.setGraves(['Colter', 'Mika']);
 if (q.has('meeting')) town.setMeeting({ n: 8, nominee: 2, nominator: 6, hand: 4, active: true, votes: [0, 4, 6] });
 if (q.has('bell')) town.bellRing();
-// ?curtains: the confession booth's curtains drawn (as when someone sits on each side).
-if (q.has('curtains')) town.setBoothCurtains(true);
+// ?curtains: every confession booth's curtains drawn (as when someone sits on each side).
+if (q.has('curtains')) BOOTHS.forEach((_, i) => town.setBoothCurtains(true, i));
 if (q.has('gallows')) town.setGallows({ open: num('gallows', 1), label: 'Steele is executed', ring: num('ring', 0), rope: num('rope', 0.97), swing: num('swing', 0), puff: num('puff', 0) });
 
 // ?visit=0..3&vt=4.2: the hooded figure's night visit, held at vt seconds in, with a fox asleep in the bed (and

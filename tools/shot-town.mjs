@@ -139,6 +139,7 @@ const ALL = {
   'idea-box': 'x=4.6&z=-13.2&t=0&dist=5&pitch=0.3&yaw=0.2',
   'booth-woods-a': 'x=15.25&z=26.41&t=0&dist=9&pitch=0.5&yaw=-2.62',
   'booth-woods-b': 'x=-29.46&z=7.89&t=0&dist=9&pitch=0.5&yaw=1.83',
+  'booth-woods-curtains': 'x=15.25&z=26.41&t=0&dist=7&pitch=0.55&yaw=-2.3&curtains&frames=90',
   'build-1': 'wide&t=0&z=4&dist=70&run=1',
   'build-2': 'wide&t=0&z=4&dist=70&run=2',
   'build-3': 'wide&t=0&z=4&dist=70&run=3',
