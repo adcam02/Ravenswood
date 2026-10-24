@@ -7,6 +7,7 @@ import { Bolts, Bursts, Dizzy, FEATHER, Flames, Mushroom, ease, easeOut, hash, s
 import { Builder, matte } from '../build';
 import { G } from '../town/kit';
 import { signBoard, TextSign } from '../town/sign';
+import { SOUL } from './soul';
 import {
   beamColumn,
   biplane,
@@ -68,8 +69,7 @@ export function execCamera(f: ExecFrame, aspect: number, t: number): { pos: THRE
   return { pos, look: f.look.clone() };
 }
 
-/** The ghost floating up: how long the rise takes, then the little pop as it goes. */
-export const SOUL = { rise: 3.1, pop: 0.3 };
+export { SOUL };
 
 /** How the condemned looks at a moment of the show. Positions are in the world. */
 export interface ExecPose {

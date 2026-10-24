@@ -23,6 +23,47 @@ function Modals() {
     </Guard>
   );
 }
+// The casino's tables and the pet pit's panel only matter once you're there.
+const CasinoLazy = lazyPart(() => import('./components/town/Casino').then((m) => m.CasinoPanels));
+const PitLazy = lazyPart(() => import('./components/town/PitFight').then((m) => m.PitPanel));
+
+/** A part that's still on its way (a slow line, before the quiet preload has got to it): a small note meanwhile. */
+function OnItsWay() {
+  return (
+    <div className="part-wait cosy-panel" role="status">
+      <div className="spinner" />
+      <span>Just a moment…</span>
+    </div>
+  );
+}
+
+function CasinoPanels() {
+  const at = useHud((s) => s.casino);
+  if (!at) return null;
+  return (
+    <Guard fallback={(e) => <CrashNote error={e} close={() => useHud.setState({ casino: null })} />}>
+      <Suspense fallback={<OnItsWay />}>
+        <CasinoLazy />
+      </Suspense>
+    </Guard>
+  );
+}
+
+function PitPanel() {
+  const [here, setHere] = useState(false);
+  useEffect(() => {
+    const t = setInterval(() => setHere(zoneKind(local.zone) === 'cellar'), 300);
+    return () => clearInterval(t);
+  }, []);
+  if (!here) return null;
+  return (
+    <Guard fallback={() => null}>
+      <Suspense fallback={null}>
+        <PitLazy />
+      </Suspense>
+    </Guard>
+  );
+}
 import { Toasts } from './components/Toasts';
 import { BluffBar } from './components/BluffBar';
 import { PickBanner } from './components/PickBanner';
@@ -39,7 +80,6 @@ import { UpdateNotice } from './components/UpdateNotice';
 import { Landing } from './components/Landing';
 import { JoinFlow } from './components/town/JoinFlow';
 import { DoorPrompt, RestorePrompt } from './components/ProfilePrompts';
-import { CasinoPanels } from './components/town/Casino';
 import { FlatsPanels } from './components/town/Flats';
 import {
   ActionPrompt,
@@ -73,7 +113,9 @@ import { PigeonNote } from './components/Pigeon';
 import { World } from './world/World';
 import { MiniGrimoire } from './components/town/MiniGrimoire';
 import { MiniMap } from './components/town/MiniMap';
-import { PitPanel } from './components/town/PitFight';
+import { useHud } from './game/hud';
+import { local } from './game/local';
+import { zoneKind } from './world/types';
 
 type Route = { kind: 'landing' } | { kind: 'st' } | { kind: 'player'; room: string };
 

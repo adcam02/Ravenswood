@@ -1,5 +1,9 @@
-import { joinRoom, type Room } from 'trystero';
+import type { Room } from 'trystero';
+import { lazyModule } from '../lib/lazy';
 import { iceServers } from './peer';
+
+// Most players never need it, so Trystero (and its relays' crypto) is fetched when the route is first opened.
+const trystero = lazyModule(() => import('trystero'));
 
 /**
  * The backup route. If the PeerJS lobby server is down, browsers can still find each other through
@@ -34,29 +38,38 @@ export function joinMesh(
 ): Mesh | null {
   const { disabled, config } = meshOptions();
   if (disabled) return null;
-  let room: Room;
-  try {
-    room = joinRoom({ ...config, password: `town-${roomCode}` }, roomCode.toLowerCase());
-  } catch (e) {
-    console.warn('Backup route unavailable', e);
-    return null;
-  }
-  const action = room.makeAction<string>('msg');
-  action.onMessage = (data, ctx) => {
+  let room: Room | null = null;
+  let send: ((data: string, peerId: string) => void) | null = null;
+  let left = false;
+  const join = ({ joinRoom }: typeof import('trystero')) => {
+    if (left) return;
     try {
-      handlers.onMessage(JSON.parse(data), ctx.peerId);
-    } catch {
-      /* ignore malformed messages */
+      room = joinRoom({ ...config, password: `town-${roomCode}` }, roomCode.toLowerCase());
+    } catch (e) {
+      console.warn('Backup route unavailable', e);
+      return;
     }
+    const act = room.makeAction<string>('msg');
+    act.onMessage = (data, ctx) => {
+      try {
+        handlers.onMessage(JSON.parse(data), ctx.peerId);
+      } catch {
+        /* ignore malformed messages */
+      }
+    };
+    send = (data, peerId) => void act.send(data, { target: peerId }).catch(() => {});
+    room.onPeerJoin = handlers.onJoin;
+    room.onPeerLeave = handlers.onLeave;
   };
-  room.onPeerJoin = handlers.onJoin;
-  room.onPeerLeave = handlers.onLeave;
+  // (If it can't be fetched, offline say, it's tried again in a while.)
+  const open = () => trystero.get().then(join, () => !left && setTimeout(open, 15000));
+  void open();
   return {
-    send: (msg, peerId) => {
-      action.send(JSON.stringify(msg), { target: peerId }).catch(() => {});
-    },
+    // (Nothing goes before it has arrived: there's nobody on this route to send to until then.)
+    send: (msg, peerId) => send?.(JSON.stringify(msg), peerId),
     leave: () => {
-      void room.leave();
+      left = true;
+      void room?.leave();
     },
   };
 }

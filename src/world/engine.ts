@@ -11,8 +11,10 @@ import { ambience } from '../lib/ambience';
 import { doorChime, drumroll, execSound, gavel, pigeonSound, ropeSnap, visitSound } from '../lib/audio';
 import { clubMusic, songById } from '../lib/disco';
 import { execMethod, showStartAt } from '../game/execution';
-import { ExecStage, SOUL, execCamera, type ExecPose } from './exec/stage';
-import { NightVisit, VISIT, VISIT_NAMES, bendVictim, type VictimPose } from './visit';
+import type { ExecStage, ExecPose } from './exec/stage';
+import { SOUL } from './exec/soul';
+import type { NightVisit, VictimPose } from './visit';
+import { lazyModule } from '../lib/lazy';
 import { PIGEON, PigeonFlight } from './pigeon';
 import { ui, useUI } from '../state/ui';
 import { earshot } from '../voice/earshot';
@@ -82,6 +84,10 @@ const TAG_FAR = 26;
 const SHOW = { lower: 0.9, drop: 1.6, puff: 3.3, rise: 0.6, end: 3.3 + SOUL.rise + SOUL.pop + 0.5, spared: 4.3, snap: 0.18 };
 /** Still no method this long after the vote should have closed, something went astray: the show is called off. */
 const SHOW_WAIT_S = 20;
+// Every way but the gallows, and the hooded figure's visits, arrive when first needed (or soon after the page
+// loads, whichever comes first): nobody needs them for the first look at the town.
+const execShows = lazyModule(() => import('./exec/stage'));
+const nightVisits = lazyModule(() => import('./visit'));
 /** Even with nothing changing, the shadow map is redrawn this often, just in case. */
 const SHADOW_SAFETY_S = 10;
 import {
@@ -424,7 +430,7 @@ export class Engine {
   /** The clock tower door we last went in by, to come back out of it. */
   private towerDoor: Door | null = null;
   /** The hooded figure's visit playing in this bedroom, and how the one in bed is jolted by it this frame. */
-  private visit: { id: string; seatId: string; zone: ZoneId; mine: boolean; scene: NightVisit; start: number } | null = null;
+  private visit: { id: string; seatId: string; zone: ZoneId; mine: boolean; scene: NightVisit; start: number; kit: typeof import('./visit') } | null = null;
   private victimPose: VictimPose | null = null;
   private visitsSeen = new Set<string>(loadJSON<string[]>(VISITS_SEEN_KEY, []));
   /** Messenger pigeons flying (or perched, or bursting) here, by id, with whose shoulder each is for. */
@@ -781,10 +787,9 @@ export class Engine {
       const method = ex.method ?? 'hang';
       show.method = method;
       show.start = this.clock.elapsedTime + Math.max(-2, (showStartAt(ex) - Date.now()) / 1000);
-      if (method !== 'hang') {
-        show.stage = new ExecStage(method, show.survives, this.town.gallowsSpot, execSound);
-        this.town.groups.town.add(show.stage.group);
-      }
+      // Any other way's stage goes up in runShow, once its props have arrived. If they can't be fetched at all, the
+      // gallows does it.
+      if (method !== 'hang' && !execShows.now()) execShows.get().catch(() => this.show === show && !show.stage && (show.method = 'hang'));
     } else if (show && !show.method && (!ex || ex.id !== show.id)) {
       // Called off before it was settled (night fell, say).
       this.endShow();
@@ -2117,7 +2122,7 @@ export class Engine {
     me.rig.root.rotation.z = (dangle?.swing ?? 0) + (this.visit?.mine && this.victimPose ? this.victimPose.shake : 0);
     if (this.visit?.mine && this.victimPose) me.rig.root.position.y += this.victimPose.dy;
     me.rig.root.scale.setScalar(dangle?.scale ?? 1);
-    if (this.visit?.mine && this.victimPose) bendVictim(me.rig.root, this.victimPose);
+    if (this.visit?.mine && this.victimPose) this.visit.kit.bendVictim(me.rig.root, this.victimPose);
     // Down in the dark under the gallows (or through the bed), their name tag goes too.
     me.setTagShown(!dangle?.hidden && !(this.visit?.mine && this.victimPose?.hidden));
     if (staged) this.applyStagePose(me, staged);
@@ -2456,6 +2461,17 @@ export class Engine {
   private runShow(t: number) {
     const show = this.show;
     if (!show) return;
+    if (show.method && show.method !== 'hang' && !show.stage && show.start !== null) {
+      const shows = execShows.now();
+      if (shows) {
+        show.stage = new shows.ExecStage(show.method, show.survives, this.town.gallowsSpot, execSound);
+        this.town.groups.town.add(show.stage.group);
+      } else {
+        // Its props are still on their way (a slow line): they wait on the trapdoor and it starts as they arrive,
+        // a beat behind everyone else.
+        show.start = Math.max(show.start, t + 0.1);
+      }
+    }
     const age = this.showAge(t);
     const av = show.mine ? this.me : this.others.get(show.seatId);
     if (show.start === null || age < 0) {
@@ -2540,7 +2556,10 @@ export class Engine {
    * if whoever is watching leaves the room (dawn, say).
    */
   private runVisit(t: number, v: WorldView | null) {
-    if (!this.visit && v && v.phase === 'night' && this.me) {
+    const visits = nightVisits.now();
+    // (Fetched as soon as there's a visit to play, if it hasn't arrived already.)
+    if (!visits && v?.visits.length) nightVisits.want();
+    if (!this.visit && visits && v && v.phase === 'night' && this.me) {
       for (const vis of v.visits) {
         const zone = houseZone(vis.seatId);
         if (this.visitsSeen.has(vis.id) || local.zone !== zone) continue;
@@ -2548,12 +2567,12 @@ export class Engine {
         if ((mine && !this.inBed) || (!mine && v.mode !== 'st')) continue;
         this.visitsSeen.add(vis.id);
         saveJSON(VISITS_SEEN_KEY, [...this.visitsSeen].slice(-50));
-        const variant = Number.isFinite(vis.variant) ? Math.abs(Math.floor(vis.variant)) % VISIT_NAMES.length : 0;
-        const scene = new NightVisit(this.town.groups.house, variant, visitSound);
+        const variant = Number.isFinite(vis.variant) ? Math.abs(Math.floor(vis.variant)) % visits.VISIT_NAMES.length : 0;
+        const scene = new visits.NightVisit(this.town.groups.house, variant, visitSound);
         // Aimed at whoever is in the bed, however their animal lies.
         const victim = mine ? this.me : this.others.get(vis.seatId);
         if (victim) scene.aim(new THREE.Box3().setFromObject(victim.rig.root).translate(this.town.groups.house.position.clone().negate()));
-        this.visit = { id: vis.id, seatId: vis.seatId, zone, mine, scene, start: t };
+        this.visit = { id: vis.id, seatId: vis.seatId, zone, mine, scene, start: t, kit: visits };
         if (mine) useHud.setState({ sheep: 'done', visit: 'playing' });
         break;
       }
@@ -2564,7 +2583,7 @@ export class Engine {
       return;
     }
     const age = t - vis.start;
-    if (local.zone !== vis.zone || age > VISIT.end) {
+    if (local.zone !== vis.zone || age > vis.kit.VISIT.end) {
       vis.scene.dispose();
       this.visit = null;
       this.victimPose = null;
@@ -2575,7 +2594,7 @@ export class Engine {
       return;
     }
     this.victimPose = vis.scene.update(age);
-    if (vis.mine && age > VISIT.dark && useHud.getState().visit !== 'dark') useHud.setState({ visit: 'dark' });
+    if (vis.mine && age > vis.kit.VISIT.dark && useHud.getState().visit !== 'dark') useHud.setState({ visit: 'dark' });
   }
 
   /**
@@ -2848,8 +2867,8 @@ export class Engine {
       av.rig.root.rotation.z = (dangle?.swing ?? 0) + (jolt?.shake ?? 0);
       if (jolt) av.rig.root.position.y += jolt.dy;
       av.rig.root.scale.setScalar(dangle?.scale ?? 1);
-      if (jolt) {
-        bendVictim(av.rig.root, jolt);
+      if (jolt && this.visit) {
+        this.visit.kit.bendVictim(av.rig.root, jolt);
         if (jolt.hidden) av.setTagShown(false);
       }
       if (staged) this.applyStagePose(av, staged);
@@ -2938,9 +2957,10 @@ export class Engine {
     this.camTarget.z += (tz - this.camTarget.z) * k;
     const wantPos = new THREE.Vector3();
     const wantLook = new THREE.Vector3();
-    if (this.show?.stage && this.showAge(t) >= 0 && zoneKind(local.zone) === 'town') {
+    const shows = execShows.now();
+    if (this.show?.stage && shows && this.showAge(t) >= 0 && zoneKind(local.zone) === 'town') {
       // The other ways: from nearly in front, between the posts, framed to take in the props.
-      const shot = execCamera(this.show.stage.framing(), this.camera.aspect, t);
+      const shot = shows.execCamera(this.show.stage.framing(), this.camera.aspect, t);
       wantPos.copy(shot.pos);
       wantLook.copy(shot.look);
     } else if (this.show && zoneKind(local.zone) === 'town') {
