@@ -180,12 +180,16 @@ const ALL = {
   'club-night': 'x=17.8&z=-21&t=1&dist=12&pitch=0.42&yaw=-0.7&frames=6',
   bouncer: 'x=19.06&z=-19.84&t=0&dist=4.2&pitch=0.22&yaw=-0.9&frames=6',
   // Wren Court, the apartment block: its front by day and by night, the lobby, and flats furnished every way.
-  'flats-front': 'x=29&z=0&t=0&dist=24&pitch=0.5&yaw=-0.9',
-  'flats-night': 'x=29&z=0&t=1&dist=24&pitch=0.5&yaw=-0.9',
+  'flats-front': 'x=29.1&z=-11.8&t=0&dist=24&pitch=0.45&yaw=-0.45',
+  'flats-night': 'x=29.1&z=-11.8&t=1&dist=24&pitch=0.45&yaw=-0.45',
   'flats-lobby': 'zone=lobby&t=0',
   'flats-empty': 'zone=flat&t=0',
   'flats-demo': 'zone=flat&t=0&furnish=demo&wall=sage&floor=herring',
   'flats-all': 'zone=flat&t=0&furnish=all&wall=night&floor=checker&dist=14',
+  // Night in a flat: the bedroom's things built in, the moon in the window, and the hooded figure at the bed.
+  'flats-bedroom-night': 'zone=flat&night&t=1&furnish=demo&wall=mint&floor=walnut',
+  'flats-bedroom-day': 'zone=flat&t=0&furnish=demo&wall=mint&floor=walnut',
+  'flats-visit': 'zone=flat&night&t=1&furnish=demo&visit=0&vt=3.82&vcam&frames=40',
   'flats-held': 'zone=flat&t=0&furnish=demo&held=piano&wall=blush&floor=pink',
   'club-inside': 'zone=club&t=0&frames=8',
   'club-inside-close': 'zone=club&x=0&z=-1.5&t=0&dist=9&pitch=0.55&frames=8',

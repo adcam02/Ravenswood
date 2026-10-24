@@ -146,7 +146,7 @@ class Ambience {
       this.muffle!.frequency.setTargetAtTime(muffleHz, t, 0.3);
     }
     // (Down in the cellar, the town is a long way off.)
-    const outdoorLevel = outside ? 1 : kind === 'house' ? 0.12 : kind === 'cellar' ? 0.06 : 0.3;
+    const outdoorLevel = outside ? 1 : kind === 'house' || kind === 'flat' ? 0.12 : kind === 'cellar' ? 0.06 : 0.3;
     const rain = this.weather === 'rain' ? 1 : 0;
     const mist = this.weather === 'mist' ? 1 : 0;
     set('wind', LEVEL.wind * (0.6 + 0.4 * day) * (1 + rain * 0.3) * outdoorLevel);

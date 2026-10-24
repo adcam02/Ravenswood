@@ -44,6 +44,7 @@ import type { CasinoView } from '../casino/types';
 import { decor, flatNav, flatNow, useDecor } from '../flats/client';
 import { emptyLayout, whyNot } from '../flats/catalogue';
 import { shownName } from '../state/nicks';
+import { nameKey } from '../game/profiles';
 
 type TableKind = 'blackjack' | 'poker' | 'roulette';
 /** Who's in a seat at one of the casino's tables. */
@@ -105,7 +106,6 @@ import {
   flatOwner,
   flatZone,
   isDance,
-  houseZone,
   inBooth,
   wrapAngle,
   zoneKind,
@@ -686,7 +686,7 @@ export class Engine {
       // Players answer it themselves (from the bell card, or by walking up to their stool), so nobody is pulled out
       // of whatever they're in the middle of. The Storyteller can still seat anyone who doesn't come.
       // The Storyteller who rang it from inside a house comes out to the middle of the ring.
-      if (v.mode === 'st' && this.me && zoneKind(local.zone) === 'house') this.place('town', MEETING_CENTRE.x, MEETING_CENTRE.z, Math.PI, true);
+      if (v.mode === 'st' && this.me && (zoneKind(local.zone) === 'house' || zoneKind(local.zone) === 'flat')) this.place('town', MEETING_CENTRE.x, MEETING_CENTRE.z, Math.PI, true);
     }
     if (v.weather !== this.weather) {
       this.weather = v.weather;
@@ -810,8 +810,8 @@ export class Engine {
     // Waking someone at night takes the Storyteller to their bedside.
     if (v.mode === 'st' && v.lastWake && v.lastWake.id !== this.lastWakeId) {
       this.lastWakeId = v.lastWake.id;
-      const first = v.lastWake.to.find((id) => presence.others.get(id)?.zone === houseZone(id));
-      if (first && local.zone !== houseZone(first)) this.goTo(first);
+      const first = v.lastWake.to.find((id) => presence.others.get(id)?.zone === this.homeOf(id));
+      if (first && local.zone !== this.homeOf(first)) this.goTo(first);
     }
     for (const [key, av] of this.others) av.setInfo(this.infoFor(key, v));
   }
@@ -891,9 +891,11 @@ export class Engine {
     if (key === this.lastPhaseKey) return;
     const first = !this.lastPhaseKey;
     this.lastPhaseKey = key;
+    // A flat's lights go down at nightfall (and up again at dawn) for whoever is in one.
+    if (zoneKind(local.zone) === 'flat') this.showZone();
     // Morning: the Storyteller leaves the last bedside they visited and comes back out with everyone (inside a
     // house they'd hear nobody).
-    if (this.me && v.mode === 'st' && !first && prev && v.phase === 'day' && zoneKind(local.zone) === 'house') this.goToSquareSpawn(true);
+    if (this.me && v.mode === 'st' && !first && prev && v.phase === 'day' && (zoneKind(local.zone) === 'house' || zoneKind(local.zone) === 'flat')) this.goToSquareSpawn(true);
     if (!this.me || v.mode !== 'player') return;
     if (first || !prev) {
       // Joining (or reloading) in the night still means bed.
@@ -903,7 +905,7 @@ export class Engine {
     if (v.started && v.phase === 'night') {
       this.stopEverything();
       this.goHome(true);
-    } else if (v.phase === 'day' && zoneKind(local.zone) === 'house') {
+    } else if (v.phase === 'day' && (this.inBed || zoneKind(local.zone) === 'flat')) {
       this.inBed = false;
       useHud.setState({ sheep: null });
       this.stopEverything();
@@ -921,14 +923,30 @@ export class Engine {
     this.place('town', s.x + Math.cos(a) * 1.8, s.z + Math.sin(a) * 1.2, s.ry, fade);
   }
 
-  /** Night: straight into bed, asleep, until morning. */
+  /**
+   * Where a seat sleeps at night: their own flat in Wren Court, by the name they play under. (Names are one to a game;
+   * should two ever match, the second gets a flat of their own for the night.)
+   */
+  private homeOf(seatId: string | null | undefined): ZoneId | null {
+    const seats = this.view?.seats ?? [];
+    const seat = seats.find((s) => s.id === seatId);
+    if (!seat) return null;
+    const key = nameKey(seat.name) || seat.id;
+    const first = seats.find((s) => (nameKey(s.name) || s.id) === key);
+    return flatZone(first === seat ? key : `${key}#${seat.id}`);
+  }
+
+  /** Night: straight into bed in our own flat, asleep, until morning. */
   private goHome(fade: boolean) {
     const id = this.view?.mySeatId;
-    if (!id) return;
-    const bed = this.town.stations.find((s) => s.id === 'bed');
+    const home = this.homeOf(id);
+    if (!id || !home) return;
+    if (useDecor.getState().draft) decor.finish();
+    useDecor.setState({ dir: false });
+    const bed = this.town.stations.find((s) => s.id === 'flat-bed');
     const h = bed?.stand ?? this.town.homeSpawn;
     this.inBed = true;
-    this.place(houseZone(id), h.x, h.z, h.ry, fade, () => {
+    this.place(home, h.x, h.z, h.ry, fade, () => {
       if (!this.inBed) return;
       this.seated = { y: bed?.y ?? 0.52, anim: 'sleep' };
       if (this.me) {
@@ -981,8 +999,9 @@ export class Engine {
 
   private showZone() {
     const kind = zoneKind(local.zone);
-    // A bedroom is only ever visited at night: fire out, moon in the window.
-    this.town.show(kind, kind === 'house' && cottageSlot(local.zone) === null);
+    // A flat at night is somebody's bedroom: fire out, moon in the window.
+    const night = Boolean(this.view?.started && this.view.phase === 'night');
+    this.town.show(kind, (kind === 'house' && cottageSlot(local.zone) === null) || (kind === 'flat' && night));
     let place = kind === 'house' ? '' : PLACE_NAMES[kind];
     if (kind === 'house') {
       const slot = cottageSlot(local.zone);
@@ -1008,7 +1027,7 @@ export class Engine {
     if (!v) return;
     const owner = houseOwner(local.zone);
     // (The world's seats come in the grimoire's order.)
-    this.town.setSeating(v.seats.map((s) => ({ name: s.name, dead: s.dead, owner: s.id === owner })));
+    this.town.setSeating(v.seats.map((s) => ({ name: s.name, dead: s.dead, owner: s.id === owner || this.homeOf(s.id) === local.zone })));
   }
 
   // ---------------------------------------------------------------- input
@@ -1667,7 +1686,14 @@ export class Engine {
       held: draft && held ? { ...held, ok: !whyNot(draft.items, held.item, held.index) } : null,
       grid: Boolean(draft),
     });
-    const place = !shown ? PLACE_NAMES.flat : shown.mine ? 'Your flat' : `${shownName(shown.name)}’s flat`;
+    // At night it's somebody's bedroom (the letters and the music in bed go by the place's name).
+    const night = Boolean(v?.started && v.phase === 'night');
+    const sleeper = v?.seats.find((s) => this.homeOf(s.id) === local.zone);
+    const mine = Boolean(shown?.mine) || (sleeper !== undefined && sleeper.id === v?.mySeatId);
+    const name = shown?.name ?? sleeper?.name ?? null;
+    this.town.setHomeOwner(name ? shownName(name) : 'Wren Court');
+    const room = night ? 'bedroom' : 'flat';
+    const place = mine ? `Your ${room}` : name ? `${shownName(name)}’s ${room}` : PLACE_NAMES.flat;
     if (useHud.getState().place !== place) useHud.setState({ place });
   }
 
@@ -1817,9 +1843,9 @@ export class Engine {
     if (!this.me) return;
     const p = presence.others.get(key);
     if (!p) return;
-    if (zoneKind(p.zone) === 'house') {
+    if (zoneKind(p.zone) === 'house' || (zoneKind(p.zone) === 'flat' && p.anim === 'sleep')) {
       // Float at the foot of the bed, looking over whoever is sleeping in it.
-      const bed = this.town.stations.find((s) => s.zone === 'house' && s.job === 'sleep');
+      const bed = this.town.stations.find((s) => s.zone === zoneKind(p.zone) && s.job === 'sleep');
       const bx = bed?.stand.x ?? p.x;
       const bz = bed?.stand.z ?? p.z;
       this.place(p.zone, bx - 1.2, bz + 0.9, Math.atan2(bx - (bx - 1.2), bz - (bz + 0.9)), true);
@@ -2217,7 +2243,7 @@ export class Engine {
       f.zone = local.zone;
       if (cottageSlot(local.zone) !== null) tally('cottages', 1, local.zone);
     }
-    if (v.phase === 'day' && kind !== 'town' && kind !== 'house') {
+    if (v.phase === 'day' && kind !== 'town' && kind !== 'house' && kind !== 'flat') {
       f.places.add(kind);
       if (f.places.size >= 4) earn('tourist');
     }
@@ -2255,7 +2281,7 @@ export class Engine {
       if (amigos >= 2) earn('amigos');
     }
     // Lying on a bed (in the day, not tucked in for the night) while someone else is in the room.
-    const posing = kind === 'house' && this.seated?.anim === 'sleep' && [...presence.others.values()].some((p) => p.zone === local.zone);
+    const posing = (kind === 'house' || kind === 'flat') && this.seated?.anim === 'sleep' && !this.inBed && [...presence.others.values()].some((p) => p.zone === local.zone);
     f.posedSince = posing ? (f.posedSince ?? t) : null;
     if (f.posedSince !== null && t - f.posedSince >= 5) earn('portrait');
     // Out in the rain or the mist for three whole minutes, without going in.
@@ -2589,17 +2615,17 @@ export class Engine {
     if (!visits && v?.visits.length) nightVisits.want();
     if (!this.visit && visits && v && v.phase === 'night' && this.me) {
       for (const vis of v.visits) {
-        const zone = houseZone(vis.seatId);
-        if (this.visitsSeen.has(vis.id) || local.zone !== zone) continue;
+        const zone = this.homeOf(vis.seatId);
+        if (!zone || this.visitsSeen.has(vis.id) || local.zone !== zone) continue;
         const mine = v.mode === 'player' && vis.seatId === v.mySeatId;
         if ((mine && !this.inBed) || (!mine && v.mode !== 'st')) continue;
         this.visitsSeen.add(vis.id);
         saveJSON(VISITS_SEEN_KEY, [...this.visitsSeen].slice(-50));
         const variant = Number.isFinite(vis.variant) ? Math.abs(Math.floor(vis.variant)) % visits.VISIT_NAMES.length : 0;
-        const scene = new visits.NightVisit(this.town.groups.house, variant, visitSound);
+        const scene = new visits.NightVisit(this.town.groups.flat, variant, visitSound);
         // Aimed at whoever is in the bed, however their animal lies.
         const victim = mine ? this.me : this.others.get(vis.seatId);
-        if (victim) scene.aim(new THREE.Box3().setFromObject(victim.rig.root).translate(this.town.groups.house.position.clone().negate()));
+        if (victim) scene.aim(new THREE.Box3().setFromObject(victim.rig.root).translate(this.town.groups.flat.position.clone().negate()));
         this.visit = { id: vis.id, seatId: vis.seatId, zone, mine, scene, start: t, kit: visits };
         if (mine) useHud.setState({ sheep: 'done', visit: 'playing' });
         break;

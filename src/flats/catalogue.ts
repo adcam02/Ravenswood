@@ -213,6 +213,19 @@ export function cellsOf(it: FlatItem, piece = pieceById(it.id)): [number, number
 /** The cells kept clear in front of the door (and the back wall's window, for wall pieces). */
 const DOOR_CELLS = [8, 11, 12, 16];
 const WINDOW_CELLS = [8, 0, 12, 1];
+/**
+ * What every flat has built in from the bedroom (players sleep in their own flat at night): decorating works round
+ * them. Cells on a layer, as in the bedroom (world/town/interiors.ts flatBedroom draws them); the bed's block takes
+ * in the floor beside it, where the hooded figure stands on a visit.
+ */
+const BUILT_IN: { name: string; layer: string; box: number[] }[] = [
+  { name: 'the bed', layer: 'floor', box: [12, 0, 18, 6] },
+  { name: 'the bedside table', layer: 'floor', box: [18, 0, 20, 2] },
+  { name: 'the fireplace', layer: 'floor', box: [3, 0, 9, 4] },
+  { name: 'the rug', layer: 'rug', box: [6, 6, 14, 11] },
+  { name: 'the chimney breast', layer: 'wall0', box: [2, 0, 8, 1] },
+  { name: 'your name over the bed', layer: 'wall0', box: [15, 0, 20, 1] },
+];
 const overlaps = (a: number[], b: number[]) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
 
 /** The layer a piece is on: things only clash with things on the same one (a rug under a sofa is fine). */
@@ -227,6 +240,8 @@ export function whyNot(items: FlatItem[], it: FlatItem, skip = -1): string | nul
   if (piece.kind !== 'wall' && overlaps(box, DOOR_CELLS)) return 'Keep the doorway clear';
   if (piece.kind === 'wall' && it.r === 0 && overlaps(box, WINDOW_CELLS)) return 'That’s the window';
   const layer = layerOf(piece, it.r);
+  const fixed = BUILT_IN.find((b) => b.layer === layer && overlaps(box, b.box));
+  if (fixed) return `That’s where ${fixed.name} is`;
   for (let i = 0; i < items.length; i++) {
     if (i === skip) continue;
     const other = pieceById(items[i].id);

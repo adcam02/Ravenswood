@@ -4,7 +4,7 @@ import type { Collider, Station } from '../types';
 import { CELL, FLAT_HD, FLAT_HW, cellsOf, floorById, pieceById, placeOf, wallById, type FlatItem, type FlatLayout, type Finish } from '../../flats/catalogue';
 import { Paint, pick, shade, smoothMesh, local } from './kit';
 import { IRON, STONE, WOOD, WOOD_DARK, WOOD_LIGHT } from './props';
-import { LIFT, LOBBY_BENCH, LOBBY_BOARD, LOBBY_STAIRS, ROOMS, FLATS_NAME } from './layout';
+import { LIFT, LOBBY_BENCH, LOBBY_BOARD, LOBBY_STAIRS, ROOMS, FLATS_NAME, roomColliders } from './layout';
 import { WALL_H, shell } from './interiors';
 import { TextSign, signBoard } from './sign';
 
@@ -871,6 +871,7 @@ export function makeFlatRoom(glassMaterial: THREE.Material): FlatRoom {
     const shown = items.filter((_, i) => i !== skip);
     for (const m of meshes(shown, mat, (i) => i * 31 + shown[i].x * 7 + shown[i].z)) furniture.add(m);
     colliders.length = 0;
+    colliders.push(...roomColliders('flat'));
     seats.length = 0;
     shown.forEach((it, i) => {
       const piece = pieceById(it.id);

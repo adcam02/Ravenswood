@@ -579,7 +579,7 @@ await check('game: dealing and night sends everyone home with doors locked', asy
     s.reveal(true);
     s.setPhase('night');
   });
-  for (const p of all()) await until(p, () => window.__local.zone.startsWith('house:'), null, 30000, 'to be home');
+  for (const p of all()) await until(p, () => window.__local.zone.startsWith('flat:'), null, 30000, 'to be home');
   // Each player gets a "You are the…" card, which they'd read and close.
   for (const p of all()) {
     await jsClick(p, '.reveal-overlay .btn', 30000);
@@ -589,7 +589,7 @@ await check('game: dealing and night sends everyone home with doors locked', asy
   const a = players.abbey;
   const id = await seatOf('Abbey');
   const zone = (await me(a)).zone;
-  expect(zone === `house:${id}`, `Abbey is in ${zone}`);
+  expect(zone === 'flat:abbey', `Abbey is in ${zone}`);
   await until(a, () => window.__local.anim === 'sleep', null, 10000, 'Abbey to be asleep in bed');
   await sleep(2000);
   await shot(a, '12-home-at-night');
@@ -648,10 +648,10 @@ await check('letters: at night they arrive, for their reader only, and open in b
   await jsClick(c, '.modal-close', 5000);
 });
 
-await check('game: the Storyteller floats into a house to talk', async () => {
+await check('game: the Storyteller floats into a flat to talk', async () => {
   const id = await seatOf('Steele');
   await st.evaluate((id) => window.__engine.goTo(id), id);
-  await until(st, (id) => window.__local.zone === `house:${id}`, id, 5000, 'the Storyteller to be in Steele’s house');
+  await until(st, () => window.__local.zone === 'flat:steele', null, 5000, 'the Storyteller to be in Steele’s flat');
   await sleep(1500);
   const g = await voiceGain(players.steele, 'Storyteller').catch(() => null);
   void g;
@@ -773,11 +773,11 @@ await check('game: nominations and votes raise paws round the clock', async () =
 
 await check('game: waking a player at night takes the Storyteller to their bedside', async () => {
   await st.evaluate(() => window.__st.st.setPhase('night'));
-  for (const p of all()) await until(p, () => window.__local.zone.startsWith('house:'), null, 30000, 'to be home');
+  for (const p of all()) await until(p, () => window.__local.zone.startsWith('flat:'), null, 30000, 'to be home');
   const id = await seatOf('Abbey');
   await st.evaluate(() => window.__engine.place('town', 0, 10, 0, false));
   await st.evaluate((id) => window.__st.st.wake([id], [{ card: 'youAre', signs: [], roleIds: [], seatIds: [], text: '' }], null), id);
-  await until(st, (id) => window.__local.zone === `house:${id}`, id, 10000, 'the Storyteller to drift to Abbey’s bedside');
+  await until(st, () => window.__local.zone === 'flat:abbey', null, 10000, 'the Storyteller to drift to Abbey’s bedside');
   await sleep(1500);
   await shot(players.abbey, '21-night-wake');
   await st.evaluate(() => window.__st.st.sleep());

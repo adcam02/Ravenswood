@@ -27,7 +27,8 @@ export function FlatsPanels() {
   const mine = view.mode === 'player' && fv?.flat?.key === key && fv.flat.mine;
   if (dir) return <Directory />;
   if (draft && mine && fv) return <Decorate view={fv} />;
-  if (mine && fv?.flat) {
+  // (At night the flat is where you sleep: decorating waits for the morning.)
+  if (mine && fv?.flat && view.phase !== 'night') {
     return (
       <button className="flat-decorate cosy-btn primary" onClick={() => decor.start(fv.flat!.layout)}>
         🛋️ Decorate

@@ -677,9 +677,9 @@ export interface Item {
 export type ZoneKind = 'town' | 'tavern' | 'bakery' | 'church' | 'tower' | 'cellar' | 'house' | 'club' | 'casino' | 'lobby' | 'flat';
 
 /**
- * 'town', 'tavern', 'bakery', 'church', 'tower', 'cellar' (under the tavern), 'club', 'house:<seatId>' for someone's
- * bedroom, 'cottage:<n>' for a cottage in town, 'lobby' for the apartment block's hall, or 'flat:<name key>' for a
- * player's flat in it.
+ * 'town', 'tavern', 'bakery', 'church', 'tower', 'cellar' (under the tavern), 'club', 'cottage:<n>' for a cottage in
+ * town, 'lobby' for the apartment block's hall, or 'flat:<name key>' for a player's flat in it (where they sleep at
+ * night). ('house:<seatId>' was a bedroom off screen, before everyone had a flat.)
  */
 export type ZoneId = string;
 
@@ -746,7 +746,6 @@ export const inBooth = (zone: ZoneId, x: number, z: number): boolean => boothAt(
 export const BOOTH = { x0: BOOTHS[0].x - BOOTH_HW, x1: BOOTHS[0].x + BOOTH_HW, z0: BOOTHS[0].z - BOOTH_HD, z1: BOOTHS[0].z + BOOTH_HD };
 export const BOOTH_SEATS: Spot[] = boothSeats(0);
 
-export const houseZone = (seatId: string): ZoneId => `house:${seatId}`;
 export const cottageZone = (slot: number): ZoneId => `cottage:${slot}`;
 export const cottageSlot = (zone: ZoneId): number | null => (zone.startsWith('cottage:') ? Number(zone.slice(8)) : null);
 export const houseOwner = (zone: ZoneId): string | null => (zone.startsWith('house:') ? zone.slice(6) : null);

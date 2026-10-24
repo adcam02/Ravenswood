@@ -89,7 +89,8 @@ export function directory(): { key: string; name: string }[] {
 /** A flat as anyone in it sees it (whose, and its layout), or null if there's nobody by that name. */
 export function flatShown(key: string): { key: string; name: string; layout: FlatLayout } | null {
   const p = useProfiles.getState().profiles[key];
-  return p ? { key, name: p.name, layout: p.flat?.layout ?? emptyFlat().layout } : null;
+  // (Laid out again on the way: a piece put where the bedroom's things now stand goes back into storage.)
+  return p ? { key, name: p.name, layout: p.flat ? cleanLayout(p.flat.layout, p.flat.owned, p.flat.finishes) : emptyFlat().layout } : null;
 }
 
 /** What a player is sent of the apartment block: nothing unless they're in it. */

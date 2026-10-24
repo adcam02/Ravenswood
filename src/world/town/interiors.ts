@@ -1228,6 +1228,65 @@ function home(p: Paint, glow: Builder, r: () => number, sign: TextSign, chart: S
   p.box('#5f8fbf', 0.42, 0.32, 0.045, -1.6, 2.2, -hd + 0.06);
   p.box('#8bc366', 0.42, 0.12, 0.05, -1.6, 2.1, -hd + 0.06);
   p.ico('#f6d55c', 0.04, -1.5, 2.28, -hd + 0.09, 0);
+  bedAndBedside(p, glow);
+  // Fireplace with a rug before it.
+  homeFireplace(p, glow, hd);
+  // Bookshelf on the left wall.
+  const bs = p.at(-hw + 0.3, 0, -1.6, Math.PI / 2);
+  bs.block(WOOD_DARK, 1.9, 2.2, 0.5, 0, 0, 0);
+  for (let s = 0; s < 4; s++) {
+    bs.box(WOOD, 1.8, 0.05, 0.45, 0, 0.35 + s * 0.5, 0.05);
+    let x = -0.8;
+    while (x < 0.8) {
+      const w = 0.08 + r() * 0.06;
+      const h = 0.28 + r() * 0.12;
+      bs.box(pick(r, ['#a8463f', '#3f6f9a', '#5f8a4f', '#c9a24f', '#7b4f7a', '#e8dcc0']), w, h, 0.32, x + w / 2, 0.38 + s * 0.5 + h / 2, 0.1);
+      x += w + 0.01;
+    }
+  }
+  // Table, chairs and tea.
+  p.post(WOOD_DARK, 0.1, 0.72, HOME_TABLE.x, 0, HOME_TABLE.z, 6);
+  p.cyl(WOOD_LIGHT, 0.75, 0.07, HOME_TABLE.x, 0.75, HOME_TABLE.z, 12);
+  p.cyl('#f6f1e6', 0.6, 0.02, HOME_TABLE.x, 0.79, HOME_TABLE.z, 12);
+  p.sphere('#8fc1e8', 0.14, 0.12, 0.14, HOME_TABLE.x, 0.9, HOME_TABLE.z);
+  p.box('#8fc1e8', 0.14, 0.04, 0.04, HOME_TABLE.x + 0.18, 0.93, HOME_TABLE.z);
+  for (const dx of [-0.35, 0.35]) p.post('#ffffff', 0.06, 0.07, HOME_TABLE.x + dx, 0.8, HOME_TABLE.z + 0.2, 8);
+  for (const c of HOME_CHAIRS) chair(p.at(c.x, 0, c.z, c.ry), '#c98a5a');
+  // A big oval rug with a fringe, and a potted plant in a glazed pot.
+  ovalRug(p.at(0.4, 0, 0.7));
+  p.taper('#c06a48', 1.3, 0.28, 0.45, 4.5, 0, 1.6, 14);
+  p.torus('#a8503a', 0.36, 0.03, 4.5, 0.45, 1.6, Math.PI / 2);
+  p.cyl('#5e4130', 0.33, 0.02, 4.5, 0.45, 1.6, 14);
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * Math.PI * 2;
+    p.sphere('#5f9e47', 0.16, 0.42, 0.1, 4.5 + Math.cos(a) * 0.2, 0.85, 1.6 + Math.sin(a) * 0.2, 8, 6);
+    p.rod('#4f8f45', 0.012, 4.5, 0.5, 1.6, 4.5 + Math.cos(a) * 0.2, 0.85, 1.6 + Math.sin(a) * 0.2, 4);
+  }
+  // A coat hook by the door with a coat and a hat on it, a mirror, and a little clock with hands.
+  p.box(WOOD_DARK, 0.9, 0.08, 0.06, -2.2, 1.9, hd - 0.1);
+  for (let k = 0; k < 3; k++) p.rod(IRON, 0.012, -2.5 + k * 0.3, 1.86, hd - 0.1, -2.5 + k * 0.3, 1.8, hd - 0.2, 4);
+  p.box('#3f6f9a', 0.3, 0.6, 0.08, -2.2, 1.5, hd - 0.2);
+  p.sphere('#8a5a36', 0.14, 0.05, 0.14, -2.5, 1.9, hd - 0.2, 12, 6);
+  p.cyl('#8a5a36', 0.09, 0.08, -2.5, 1.94, hd - 0.2, 12);
+  p.box(WOOD_DARK, 0.5, 0.7, 0.04, -3.6, 2.0, -hd + 0.05);
+  p.box('#cfe0ec', 0.42, 0.62, 0.045, -3.6, 2.0, -hd + 0.05);
+  p.cyl('#c9a24f', 0.2, 0.05, -1.0, 2.5, -hd + 0.05, 16, Math.PI / 2);
+  p.cyl('#f6efe0', 0.16, 0.06, -1.0, 2.5, -hd + 0.06, 16, Math.PI / 2);
+  p.box('#2a2530', 0.02, 0.1, 0.01, -1.0, 2.55, -hd + 0.095);
+  p.box('#2a2530', 0.02, 0.07, 0.01, -1.03, 2.52, -hd + 0.095, 0, 0, 1.0);
+  for (let k = 0; k < 12; k++) {
+    const a = (k / 12) * Math.PI * 2;
+    p.box('#2a2530', 0.012, 0.025, 0.008, -1.0 + Math.sin(a) * 0.13, 2.5 + Math.cos(a) * 0.13, -hd + 0.095, 0, 0, -a);
+  }
+  const extra = bedroomWall(sign, chart, hd);
+  extra.add(nightWindow(0.5, 2.0, -hd + 0.093, 1.1, 1.0));
+  return extra;
+}
+
+// ---------------------------------------------------------------- the bedroom's own things (in the cottages and every flat)
+
+/** The bed with its quilt, teddy and slippers, and the bedside table with its lamp, where BED says. */
+function bedAndBedside(p: Paint, glow: Builder) {
   // The bed.
   const b = p.at(BED.x, 0, BED.z);
   b.block(WOOD, BED.w, 0.3, BED.d, 0, 0.05, 0);
@@ -1274,63 +1333,28 @@ function home(p: Paint, glow: Builder, r: () => number, sign: TextSign, chart: S
   p.box('#3f6f9a', 0.2, 0.04, 0.26, 4.3, 0.66, -3.3, 0, 0.3, 0);
   glow.add(new THREE.IcosahedronGeometry(0.08, 1), '#ffe2a0', { pos: [4.45, 0.92, -3.5] });
   haloAt(p, 4.45, 0.92, -3.5, 1.0, '#ffd890', true);
-  // Fireplace with a rug before it.
+}
+
+/** The fireplace on the back wall, a candle either end of the mantel. */
+function homeFireplace(p: Paint, glow: Builder, hd: number) {
   fireplace(p.at(-2.4, 0, -hd + 0.4), glow, '#b5a99a');
   candle(p, glow, -2.9, 1.66, -hd + 0.4, 0.2);
   candle(p, glow, -1.9, 1.66, -hd + 0.4, 0.15);
-  // Bookshelf on the left wall.
-  const bs = p.at(-hw + 0.3, 0, -1.6, Math.PI / 2);
-  bs.block(WOOD_DARK, 1.9, 2.2, 0.5, 0, 0, 0);
-  for (let s = 0; s < 4; s++) {
-    bs.box(WOOD, 1.8, 0.05, 0.45, 0, 0.35 + s * 0.5, 0.05);
-    let x = -0.8;
-    while (x < 0.8) {
-      const w = 0.08 + r() * 0.06;
-      const h = 0.28 + r() * 0.12;
-      bs.box(pick(r, ['#a8463f', '#3f6f9a', '#5f8a4f', '#c9a24f', '#7b4f7a', '#e8dcc0']), w, h, 0.32, x + w / 2, 0.38 + s * 0.5 + h / 2, 0.1);
-      x += w + 0.01;
-    }
-  }
-  // Table, chairs and tea.
-  p.post(WOOD_DARK, 0.1, 0.72, HOME_TABLE.x, 0, HOME_TABLE.z, 6);
-  p.cyl(WOOD_LIGHT, 0.75, 0.07, HOME_TABLE.x, 0.75, HOME_TABLE.z, 12);
-  p.cyl('#f6f1e6', 0.6, 0.02, HOME_TABLE.x, 0.79, HOME_TABLE.z, 12);
-  p.sphere('#8fc1e8', 0.14, 0.12, 0.14, HOME_TABLE.x, 0.9, HOME_TABLE.z);
-  p.box('#8fc1e8', 0.14, 0.04, 0.04, HOME_TABLE.x + 0.18, 0.93, HOME_TABLE.z);
-  for (const dx of [-0.35, 0.35]) p.post('#ffffff', 0.06, 0.07, HOME_TABLE.x + dx, 0.8, HOME_TABLE.z + 0.2, 8);
-  for (const c of HOME_CHAIRS) chair(p.at(c.x, 0, c.z, c.ry), '#c98a5a');
-  // A big oval rug with a fringe, and a potted plant in a glazed pot.
-  p.sphere('#7cc28b', 1.8, 0.02, 1.2, 0.4, 0.02, 0.7, 24, 2);
-  p.sphere('#f6efe0', 1.5, 0.025, 0.95, 0.4, 0.025, 0.7, 24, 2);
-  p.sphere('#f2a7b8', 1.1, 0.03, 0.65, 0.4, 0.03, 0.7, 24, 2);
+}
+
+/** The big oval rug with a fringe, centred on the painter's origin. */
+function ovalRug(p: Paint) {
+  p.sphere('#7cc28b', 1.8, 0.02, 1.2, 0, 0.02, 0, 24, 2);
+  p.sphere('#f6efe0', 1.5, 0.025, 0.95, 0, 0.025, 0, 24, 2);
+  p.sphere('#f2a7b8', 1.1, 0.03, 0.65, 0, 0.03, 0, 24, 2);
   for (let k = 0; k < 40; k++) {
     const a = (k / 40) * Math.PI * 2;
-    p.box('#e8dcc0', 0.04, 0.015, 0.14, 0.4 + Math.cos(a) * 1.86, 0.015, 0.7 + Math.sin(a) * 1.26, 0, -a + Math.PI / 2, 0);
+    p.box('#e8dcc0', 0.04, 0.015, 0.14, Math.cos(a) * 1.86, 0.015, Math.sin(a) * 1.26, 0, -a + Math.PI / 2, 0);
   }
-  p.taper('#c06a48', 1.3, 0.28, 0.45, 4.5, 0, 1.6, 14);
-  p.torus('#a8503a', 0.36, 0.03, 4.5, 0.45, 1.6, Math.PI / 2);
-  p.cyl('#5e4130', 0.33, 0.02, 4.5, 0.45, 1.6, 14);
-  for (let k = 0; k < 7; k++) {
-    const a = (k / 7) * Math.PI * 2;
-    p.sphere('#5f9e47', 0.16, 0.42, 0.1, 4.5 + Math.cos(a) * 0.2, 0.85, 1.6 + Math.sin(a) * 0.2, 8, 6);
-    p.rod('#4f8f45', 0.012, 4.5, 0.5, 1.6, 4.5 + Math.cos(a) * 0.2, 0.85, 1.6 + Math.sin(a) * 0.2, 4);
-  }
-  // A coat hook by the door with a coat and a hat on it, a mirror, and a little clock with hands.
-  p.box(WOOD_DARK, 0.9, 0.08, 0.06, -2.2, 1.9, hd - 0.1);
-  for (let k = 0; k < 3; k++) p.rod(IRON, 0.012, -2.5 + k * 0.3, 1.86, hd - 0.1, -2.5 + k * 0.3, 1.8, hd - 0.2, 4);
-  p.box('#3f6f9a', 0.3, 0.6, 0.08, -2.2, 1.5, hd - 0.2);
-  p.sphere('#8a5a36', 0.14, 0.05, 0.14, -2.5, 1.9, hd - 0.2, 12, 6);
-  p.cyl('#8a5a36', 0.09, 0.08, -2.5, 1.94, hd - 0.2, 12);
-  p.box(WOOD_DARK, 0.5, 0.7, 0.04, -3.6, 2.0, -hd + 0.05);
-  p.box('#cfe0ec', 0.42, 0.62, 0.045, -3.6, 2.0, -hd + 0.05);
-  p.cyl('#c9a24f', 0.2, 0.05, -1.0, 2.5, -hd + 0.05, 16, Math.PI / 2);
-  p.cyl('#f6efe0', 0.16, 0.06, -1.0, 2.5, -hd + 0.06, 16, Math.PI / 2);
-  p.box('#2a2530', 0.02, 0.1, 0.01, -1.0, 2.55, -hd + 0.095);
-  p.box('#2a2530', 0.02, 0.07, 0.01, -1.03, 2.52, -hd + 0.095, 0, 0, 1.0);
-  for (let k = 0; k < 12; k++) {
-    const a = (k / 12) * Math.PI * 2;
-    p.box('#2a2530', 0.012, 0.025, 0.008, -1.0 + Math.sin(a) * 0.13, 2.5 + Math.cos(a) * 0.13, -hd + 0.095, 0, 0, -a);
-  }
+}
+
+/** The owner's name embroidered on a hoop over the bed, and who sits where framed over the bedside table. */
+function bedroomWall(sign: TextSign, chart: SeatingChart, hd: number): THREE.Group {
   // The owner's name, embroidered on a hoop above the bed.
   const hoop = new THREE.Group();
   const face = new THREE.Mesh(
@@ -1355,8 +1379,23 @@ function home(p: Paint, glow: Builder, r: () => number, sign: TextSign, chart: S
   paper.position.z = 0.03;
   chartFrame.add(board, paper);
   chartFrame.position.set(4.36, 2.08, -hd + 0.11);
-  const extra = new THREE.Group();
-  extra.add(hoop, chartFrame, nightWindow(0.5, 2.0, -hd + 0.093, 1.1, 1.0));
+  const g = new THREE.Group();
+  g.add(hoop, chartFrame);
+  return g;
+}
+
+/**
+ * What every flat in Wren Court has built in, from the bedroom (players sleep in their own flat at night): the bed and
+ * the bedside table, the fireplace, the rug, the name over the bed and the seating chart, where they always stand
+ * (flats/catalogue.ts keeps decorating clear of them), and the moon in the window at night.
+ */
+function flatBedroom(p: Paint, glow: Builder, sign: TextSign, chart: SeatingChart): THREE.Object3D {
+  const { hd } = ROOMS.flat;
+  bedAndBedside(p, glow);
+  homeFireplace(p, glow, hd);
+  ovalRug(p.at(0, 0, 0.25));
+  const extra = bedroomWall(sign, chart, hd);
+  extra.add(nightWindow(0, 2.05, -hd + 0.093, 1.3, 1.1));
   return extra;
 }
 
@@ -1805,10 +1844,12 @@ export function buildInteriors(): Interiors {
       ],
     },
     flat: {
-      group: make('flat', (p) => {
-        // (Everything else in a flat is built for whoever's flat it is: only the light switch by the door stays.)
+      group: make('flat', (p, glow) => {
+        // The bedroom's things are the same in every flat; the rest is built for whoever's flat it is.
         p.box('#f6f6f2', 0.03, 0.14, 0.09, -ROOMS.flat.hw + 0.015, 1.3, ROOMS.flat.hd - 0.9);
-        return flat.group;
+        const g = new THREE.Group();
+        g.add(flatBedroom(p, glow, ownerSign, seatingChart), flat.group);
+        return g;
       }),
       hemi: { sky: '#fff0dc', ground: '#6a4a36', intensity: 1.15 },
       sun: { color: '#ffe8c8', intensity: 1.3, dir: [0.35, 1, 0.6] },
@@ -1816,8 +1857,18 @@ export function buildInteriors(): Interiors {
         { pos: [0, 2.0, -3.4], color: '#fff2d8', intensity: 7, distance: 8 },
         { pos: [-2.6, 2.6, 0.2], color: '#ffe8c0', intensity: 8, distance: 9 },
         { pos: [2.6, 2.6, 0.2], color: '#ffe8c0', intensity: 8, distance: 9 },
-        { pos: [0, 2.4, 2.6], color: '#ffe8c0', intensity: 4, distance: 7 },
+        { pos: [-2.4, 0.9, -3.0], color: '#ff9a4a', intensity: 12, distance: 7, flicker: true },
       ],
+      night: {
+        hemi: { sky: '#2b3660', ground: '#0e0b16', intensity: 0.32 },
+        sun: { color: '#8fa6e8', intensity: 0.35, dir: [0.15, 1, -0.7] },
+        lights: [
+          // Moonlight in through the window, the embers in the grate, and the lamp by the bed turned low.
+          { pos: [0, 2.0, -3.4], color: '#a9bcff', intensity: 6, distance: 9 },
+          { pos: [-2.4, 0.5, -3.3], color: '#ff6a2a', intensity: 1.2, distance: 3, flicker: true },
+          { pos: [4.45, 1.0, -3.2], color: '#ffd48a', intensity: 1.0, distance: 3 },
+        ],
+      },
     },
     club: {
       group: make('club', (p, glow, r) => {

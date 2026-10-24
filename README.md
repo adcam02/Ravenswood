@@ -45,9 +45,10 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      Each round both pick in secret: **Attack** (1 damage, plus any charge), **Block** (stops an attack
      and hits back for 2, but not two rounds running) or **Charge** (+1 on your next attack, up to 3).
      Five hearts each; the winner gets $2 (up to five prizes a day), and the wins go up on the chalk board.
-   - **Wren Court**, the apartment block east of the bakery, has a flat for every player. Take the lift
+   - **Wren Court**, the apartment block in the north-east of town, has a flat for every player. Take the lift
      to anyone's flat to visit (and sit on their sofa). In your own, **Decorate** opens a catalogue of 42
-     pieces ($5 to $150) plus wallpapers and floors: buy them, move and turn them, or put them away.
+     pieces ($5 to $150) plus wallpapers and floors: buy them, move and turn them, or put them away. The
+     bed, the fireplace, the rug and the chart on the wall are built in: it's where you sleep at night.
    - **The leaderboard** on the tavern wall shows the top five for money, games won, achievements and
      pet pit wins.
    - **The idea box** beside the noticeboard takes ideas and requests for the Storyteller, who gets
@@ -102,7 +103,7 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      poison vial, a scythe, a giant mallet, a jack-in-the-box, a lightning bolt, a flock of ravens, a
      candle snuffer or a trapdoor; all ten come round before any repeats), then vanishes in a puff of smoke. Only that player sees it (and you, if
      you're at their bedside); everyone else finds out at dawn as before.
-   - **Night**: everyone is tucked up in bed in their own bedroom, fire out, moon and stars in the
+   - **Night**: everyone is tucked up in bed in their own flat in Wren Court, fire out, moon and stars in the
      window, and nobody can get up until morning. Press E for a go at **counting sheep**: how many white
      sheep jumped the fence, from either side? Every jump counts as one; the odd goat or wolf slips
      through too, and they don't count. Get it right and you wear a **gold star** over your head all the next day. One go a night.

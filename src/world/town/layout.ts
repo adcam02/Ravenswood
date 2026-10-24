@@ -26,10 +26,11 @@ export const MEETING_R = 14;
 export const HOUSE_R = 29;
 export const RING_ROAD_R = 25.5;
 /** A few cottages for scenery, in the gaps between the public buildings. Bedrooms are elsewhere. */
-export const HOUSES = 3;
-// (The club stands where Bramble Cottage was, at 40 degrees, and the casino where Rose Cottage was, at 296.)
-export const COTTAGE_ANGLES = [68, 118, 326];
-export const COTTAGE_NAMES = ['Ferncroft', 'The Old Mill', 'Hollow Oak'];
+export const HOUSES = 2;
+// (The club stands where Bramble Cottage was, at 40 degrees, the casino where Rose Cottage was, at 296, and Wren Court
+// where Ferncroft was, at 68.)
+export const COTTAGE_ANGLES = [118, 326];
+export const COTTAGE_NAMES = ['The Old Mill', 'Hollow Oak'];
 /** The gallows, just to the side of the meeting circle, facing it. */
 export const GALLOWS = { x: 8.6, z: 6.2, ry: -Math.PI / 2 };
 /** The churchyard beside the church. */
@@ -98,10 +99,11 @@ export const CLUB_NAME = 'The Velvet Horn';
 export const CLUB_ROPE = { lx: 0.85, lz: CLUB.d / 2 + 0.95 };
 export const BOUNCER = { lx: 1.85, lz: CLUB.d / 2 + 0.85 };
 /**
- * Wren Court, the apartment block: three storeys of flats east of the bakery, out past the ring road, facing the
- * middle of town. Every player has a flat in it, under their name; the lift in its lobby goes up to any of them.
+ * Wren Court, the apartment block: three storeys of flats where Ferncroft cottage stood (north-east, out past the
+ * ring road), facing the middle of town. Every player has a flat in it, under their name; the lift in its lobby goes
+ * up to any of them, and at night everyone sleeps in their own.
  */
-export const FLATS_ANGLE = 90;
+export const FLATS_ANGLE = 68;
 export const FLATS: Building = (() => {
   const a = (FLATS_ANGLE * Math.PI) / 180;
   const x = 31.4 * Math.sin(a);
@@ -535,6 +537,8 @@ export function makeStations(): Station[] {
   LOBBY_BENCH_SEATS.forEach((c, i) => st.push({ id: `lobby-bench-${i}`, zone: 'lobby', x: c.x, z: c.z, r: 0.8, job: 'sit', stand: c, y: 0.46, label: 'Sit' }));
   // Home.
   st.push({ id: 'bed', zone: 'house', x: BED.x, z: BED.z + 0.3, r: 1.9, job: 'sleep', stand: { x: BED.x, z: BED.z + 0.25, ry: 0 }, y: BED.top, label: 'Sleep' });
+  // Every flat's bed, where its owner sleeps at night.
+  st.push({ id: 'flat-bed', zone: 'flat', x: BED.x, z: BED.z + 0.3, r: 1.9, job: 'sleep', stand: { x: BED.x, z: BED.z + 0.25, ry: 0 }, y: BED.top, label: 'Sleep' });
   HOME_CHAIRS.forEach((c, i) => st.push({ id: `home-chair-${i}`, zone: 'house', x: c.x, z: c.z, r: 0.9, job: 'sit', stand: c, y: 0.47, label: 'Sit' }));
   // Town: washing, fishing, gardening, benches.
   TUBS.forEach((t, i) =>
@@ -714,6 +718,11 @@ export function roomColliders(kind: Exclude<ZoneKind, 'town'>): Collider[] {
     for (const s of CLUB_STOOLS) c.push({ kind: 'circle', x: s.x, z: s.z, r: 0.22 });
     // Big potted palms in the front corners.
     for (const sx of [-1, 1]) c.push({ kind: 'circle', x: sx * 6.2, z: 4.6, r: 0.45 });
+  } else if (kind === 'flat') {
+    // The bedroom's things every flat has (the furniture bought for it comes and goes: see town/flats.ts).
+    c.push(at(BED.x, BED.z, BED.w / 2 + 0.05, BED.d / 2 + 0.05));
+    c.push(at(4.45, -3.5, 0.32, 0.27));
+    c.push(at(-2.4, -3.6, 0.95, 0.5));
   } else if (kind === 'lobby') {
     c.push(at(LIFT.x, LIFT.z, 1.15, 0.3));
     c.push(at(-5.25, -0.6, 0.3, 1.5));

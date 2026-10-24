@@ -48,22 +48,18 @@ if (zone === 'flat') {
     }
   } else if (q.get('furnish') === 'demo') {
     items.push(
-      { id: 'rugBig', x: 3, z: 6, r: 0 },
-      { id: 'sofa', x: 4, z: 9, r: 2 },
-      { id: 'coffee', x: 5, z: 6, r: 0 },
-      { id: 'armchair', x: 1, z: 6, r: 3 },
-      { id: 'fireplace', x: 3, z: 0, r: 0 },
+      { id: 'sofa', x: 7, z: 5, r: 0 },
+      { id: 'coffee', x: 8, z: 8, r: 0 },
+      { id: 'armchair', x: 3, z: 7, r: 3 },
       { id: 'bookshelf', x: 0, z: 1, r: 3 },
-      { id: 'lamp', x: 9, z: 9, r: 0 },
-      { id: 'bed', x: 14, z: 0, r: 0 },
-      { id: 'side', x: 19, z: 0, r: 0 },
+      { id: 'lamp', x: 2, z: 5, r: 0 },
       { id: 'fishtank', x: 16, z: 8, r: 1 },
-      { id: 'jukebox', x: 13, z: 13, r: 0 },
+      { id: 'jukebox', x: 14, z: 13, r: 0 },
       { id: 'plant', x: 0, z: 15, r: 0 },
       { id: 'fern', x: 18, z: 14, r: 0 },
-      { id: 'petbed', x: 10, z: 6, r: 0 },
-      { id: 'painting', x: 5, z: 0, r: 0 },
-      { id: 'neon', x: 13, z: 0, r: 0 },
+      { id: 'petbed', x: 13, z: 7, r: 0 },
+      { id: 'painting', x: 12, z: 0, r: 0 },
+      { id: 'neon', x: 0, z: 0, r: 0 },
       { id: 'trophies', x: 0, z: 9, r: 1 },
       { id: 'bunting', x: 19, z: 3, r: 3 },
       { id: 'mirror', x: 19, z: 10, r: 3 },
@@ -142,12 +138,12 @@ let walkStart = 0;
   (window as unknown as { done: boolean }).done = false;
 };
 if (q.has('visit')) {
-  visit = new NightVisit(town.groups.house, num('visit', 0));
+  visit = new NightVisit(town.groups[zone], num('visit', 0));
   const animal = q.get('animal') ?? 'fox';
   sleeper = buildAnimal({ animal: animal as never, color: q.get('color') ?? animalInfo(animal).colors[0], hat: (q.get('hat') ?? null) as never });
   sleeper.root.position.set(BED.x, BED.top, BED.z + 0.25);
   if (q.has('ghost')) sleeper.setGhost(true);
-  town.groups.house.add(sleeper.root);
+  town.groups[zone].add(sleeper.root);
   if (q.has('vcam')) {
     camera.position.set(BED.x + 1.5, 2.6, BED.z + 3.3);
     camera.lookAt(BED.x - 0.6, 0.9, BED.z - 0.6);
@@ -164,7 +160,7 @@ Object.assign(window, {
       sleeper.dispose();
       sleeper = buildAnimal({ animal: id as never, color: color ?? animalInfo(id).colors[0] });
       sleeper.root.position.set(BED.x, BED.top, BED.z + 0.25);
-      town.groups.house.add(sleeper.root);
+      town.groups[zone].add(sleeper.root);
       for (let i = 0; i < 6; i++) sleeper.update({ anim: 'sleep', speed: 0, dt: 0.5, t: num('vt', 3) });
       redrawShadows = true;
     },

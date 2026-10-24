@@ -1939,7 +1939,8 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
 
   // Cottages.
   houseSlots.forEach((h, i) => {
-    cottage(solo(h.x, h.z, h.ry), rng(500 + i), i, smoke);
+    // (Each keeps the look it had when Ferncroft, now Wren Court, came first.)
+    cottage(solo(h.x, h.z, h.ry), rng(501 + i), i + 1, smoke);
     const post = local(h.x, h.z, h.ry, -1.75, HOUSE_D / 2 + 1.9);
     colliders.push({ kind: 'circle', x: post.x, z: post.z, r: 0.15 });
   });
@@ -1976,7 +1977,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     colliders.push({ kind: 'circle', x: c.x, z: c.z, r: 0.12 });
   }
 
-  // Wren Court, the apartment block, east of the bakery.
+  // Wren Court, the apartment block, where Ferncroft cottage stood.
   flatsFront(solo(FLATS.x, FLATS.z, FLATS.ry), rng(909));
   for (const sx of [-1.55, 1.55]) {
     const c = local(FLATS.x, FLATS.z, FLATS.ry, sx * 1.15, FLATS.d / 2 + 0.75);
