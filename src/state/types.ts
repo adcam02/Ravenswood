@@ -512,6 +512,26 @@ export type ProgressEvent =
   /** What this browser had earned before the Storyteller kept it by name: merged in once (nobody loses anything). */
   | { k: string; e: 'merge'; p: ProgressSnapshot };
 
+/**
+ * The Storyteller's book of profiles as players' browsers keep it, in case the Storyteller's is lost: only what's
+ * needed to carry on (no history), and of each device only its hash.
+ */
+export interface BackupCopy {
+  /** Which book it is, and when the Storyteller sent it (their clock). */
+  book: string;
+  at: number;
+  done: string[];
+  /** By name key: each as the Storyteller keeps it, less the history. */
+  profiles: Record<string, unknown>;
+}
+
+/** A kept copy in brief: its book, how many names, and its latest change (the Storyteller's clock). */
+export interface BackupSummary {
+  book: string;
+  n: number;
+  last: number;
+}
+
 // ---------------------------------------------------------------- messages
 
 /** Something a player did around town that everyone can see. */
@@ -558,11 +578,29 @@ export type HostMessage =
   /** `at` is the ping's own time, sent back so the player can tell how long the round trip took. */
   | { t: 'pong'; at?: number }
   | { t: 'host' }
-  | { t: 'error'; message: string };
+  | { t: 'error'; message: string }
+  /** A copy of the Storyteller's book of profiles, for this browser to keep in case theirs is lost. */
+  | { t: 'backup'; b: BackupCopy }
+  /** The Storyteller would like this browser's copies of these books (all of them, without `books`). */
+  | { t: 'backupWanted'; books?: string[] }
+  /**
+   * Joining as a name that belongs to another device: `ok` null while the Storyteller is asked, then whether they
+   * let this one in.
+   */
+  | { t: 'door'; name: string; ok: boolean | null };
 
 export type ClientMessage =
   /** `delta`: this page understands world updates that carry only what changed. */
-  | { t: 'hello'; playerId: string; v?: string; delta?: boolean }
+  | {
+      t: 'hello';
+      playerId: string;
+      v?: string;
+      delta?: boolean;
+      /** This browser's own secret (the Storyteller keeps only its hash), to know the device next time. */
+      device?: string;
+      /** The copies of Storytellers' books of profiles this browser keeps, in brief. */
+      kept?: BackupSummary[];
+    }
   | { t: 'join'; name: string; look: Look }
   /** Looking at an animal in the picker: hold it so nobody else takes it meanwhile (null lets it go). */
   | { t: 'hold'; name: string; animal: string | null }
@@ -598,4 +636,6 @@ export type ClientMessage =
   /** Challenging someone in the pet pit, answering, or picking a move. */
   | { t: 'pit'; a: PitAction }
   /** A bet, a card, a pet from the shop: everything at the casino. */
-  | { t: 'casino'; a: CasinoAction };
+  | { t: 'casino'; a: CasinoAction }
+  /** The copies of books of profiles the Storyteller asked for. */
+  | { t: 'backup'; copies: BackupCopy[] };

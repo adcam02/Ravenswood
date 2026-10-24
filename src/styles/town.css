@@ -1005,6 +1005,16 @@
 .join-mic {
   width: min(520px, 100%);
 }
+/* Joining as a name another device has: waiting for the Storyteller to say it's really them. */
+.join-door {
+  width: min(460px, 100%);
+}
+.join-door .spinner {
+  width: 30px;
+  height: 30px;
+  border-color: rgba(120, 90, 50, 0.2);
+  border-top-color: var(--cosy-accent);
+}
 .mic-meter {
   display: flex;
   align-items: center;

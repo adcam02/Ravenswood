@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react';
 import { money, profiles, useProfiles, type Profile } from '../game/profiles';
 import { ui } from '../state/ui';
+import { hostLink } from '../net/host';
+import { RestoreOffer } from './ProfilePrompts';
 import { FEATS, HATS, PETS } from '../world/types';
 import { Icon } from './Icon';
 import { Modal } from './Modal';
@@ -51,13 +53,17 @@ export function ProfilesModal() {
             <Icon name="upload" /> <span>Import</span>
           </button>
           <input ref={file} type="file" accept="application/json,.json" hidden onChange={(e) => void load(e.target.files?.[0])} />
+          <button className="btn small" onClick={() => hostLink.askForBackups()} title="Players’ browsers keep a copy of these profiles: bring theirs back">
+            <Icon name="users" /> <span>Restore from players</span>
+          </button>
         </div>
       }
     >
       <p className="profiles-blurb">
         Each player’s money, achievements and hats, kept under their name (however they write it) and sent to whichever device they play on. Export
-        them to keep them safe or to host from another browser.
+        them to keep them safe or to host from another browser. Players’ browsers keep a copy too, which can be restored if this one is lost.
       </p>
+      <RestoreOffer />
       {all.length > 6 && <input className="input search profiles-search" placeholder="Find a name" value={query} onChange={(e) => setQuery(e.target.value)} />}
       {!all.length ? (
         <p className="profiles-empty">Nobody has played here yet. Players appear as soon as they join.</p>
@@ -74,6 +80,7 @@ export function ProfilesModal() {
 
 function ProfileRow({ id, p, open, toggle }: { id: string; p: Profile; open: boolean; toggle: () => void }) {
   const hats = HATS.filter((h) => h.id !== 'beanie' && h.unlocked(p));
+  const devices = p.devices?.length ?? 0;
   return (
     <li className={`profile ${open ? 'open' : ''}`}>
       <button className="profile-row" onClick={toggle} aria-expanded={open}>
@@ -81,6 +88,9 @@ function ProfileRow({ id, p, open, toggle }: { id: string; p: Profile; open: boo
         <span className="profile-money">{money(p.coins)}</span>
         <span className="profile-feats" title="Achievements">
           🏆 {p.feats.length}
+        </span>
+        <span className="profile-devices" title={`Plays from ${devices === 1 ? 'one device' : `${devices} devices`}`}>
+          {devices ? `📱 ${devices}` : ''}
         </span>
         <span className="profile-hats" title={hats.map((h) => h.name).join(', ')}>
           {hats.slice(0, 9).map((h) => h.icon)}
@@ -97,6 +107,7 @@ function ProfileDetail({ id, p }: { id: string; p: Profile }) {
   const [amount, setAmount] = useState(10);
   const [forget, setForget] = useState(false);
   const pets = PETS.filter((x) => p.pets.includes(x.id));
+  const devices = p.devices?.length ?? 0;
   return (
     <div className="profile-detail">
       <div className="profile-section">
@@ -116,6 +127,21 @@ function ProfileDetail({ id, p }: { id: string; p: Profile }) {
           <button className="btn small" onClick={() => profiles.adjust(id, -amount)} disabled={p.coins <= 0}>
             <Icon name="minus" /> Take
           </button>
+        </div>
+      </div>
+      <div className="profile-section">
+        <span className="eyebrow">Devices</span>
+        <div className="profile-money-row">
+          <p className="profile-facts">
+            {devices
+              ? `${p.name} plays from ${devices === 1 ? 'one device' : `${devices} devices`}. Anyone joining as ${p.name} from another waits for you to let them in.`
+              : `No device yet: the next one to join as ${p.name} claims the name.`}
+          </p>
+          {devices > 0 && (
+            <button className="btn small" onClick={() => profiles.forgetDevices(id)} title="The next device to join as them claims the name">
+              Forget {devices === 1 ? 'it' : 'them'}
+            </button>
+          )}
         </div>
       </div>
       <div className="profile-section">

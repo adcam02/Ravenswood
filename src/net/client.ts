@@ -11,6 +11,9 @@ import type { CasinoAction } from '../casino/types';
 import { joinMesh, type Mesh } from './mesh';
 import { hostPeerId, linkAlive, peerDisabled, peerOptions, type LinkStatus } from './peer';
 import { reportTo } from '../lib/report';
+import { keepCopy, keptCopies, keptSummary } from '../game/backup';
+import { deviceSecret } from '../game/devices';
+import { ui } from '../state/ui';
 
 interface ClientState {
   status: LinkStatus;
@@ -45,6 +48,12 @@ export const usePosted = create<{ ok: boolean | null; at: number }>(() => ({ ok:
 /** The host's answer to the last idea posted in the idea box: whether it reached the Storyteller, and when it came. */
 export const useIdeaIn = create<{ ok: boolean | null; at: number }>(() => ({ ok: null, at: 0 }));
 
+/**
+ * Joining as a name that belongs to another device: waiting for the Storyteller (`ok` null), or their answer.
+ * Null when there's nothing to say.
+ */
+export const useDoor = create<{ name: string; ok: boolean | null; at: number } | null>(() => null);
+
 /** The host's last "that animal is taken" answer, for the picker to react to. */
 export const useTaken = create<{ animal: string | null; by: string; at: number }>(() => ({ animal: null, by: '', at: 0 }));
 
@@ -56,6 +65,9 @@ export function playerId(): string {
   }
   return id;
 }
+
+/** Saying who we are: this browser's player id and device, and the copies of profiles it keeps. */
+const hello = (): ClientMessage => ({ t: 'hello', playerId: playerId(), v: __BUILD__, delta: true, device: deviceSecret(), kept: keptSummary() });
 
 const RETRYABLE = new Set(['network', 'server-error', 'socket-error', 'socket-closed', 'disconnected']);
 /** How long to wait on the main route before also trying the backup route. */
@@ -175,7 +187,7 @@ class ClientLink {
       this.lastPong = Date.now();
       this.missing = 0;
       this.setPeerState('open');
-      conn.send({ t: 'hello', playerId: playerId(), v: __BUILD__, delta: true } satisfies ClientMessage);
+      conn.send(hello());
       this.resendJoin(true);
       this.flushOutbox();
     });
@@ -209,7 +221,7 @@ class ClientLink {
         const msg = raw as HostMessage;
         if (msg.t === 'host') {
           this.meshHost = peerId;
-          this.mesh?.send({ t: 'hello', playerId: playerId(), v: __BUILD__, delta: true } satisfies ClientMessage, peerId);
+          this.mesh?.send(hello(), peerId);
           this.refresh();
           this.resendJoin(true);
           this.flushOutbox();
@@ -322,6 +334,18 @@ class ClientLink {
       usePosted.setState({ ok: msg.ok === true, at: Date.now() });
     } else if (msg.t === 'ideaIn') {
       useIdeaIn.setState({ ok: msg.ok === true, at: Date.now() });
+    } else if (msg.t === 'backup') {
+      keepCopy(msg.b);
+    } else if (msg.t === 'backupWanted') {
+      const copies = keptCopies(Array.isArray(msg.books) ? msg.books : undefined);
+      if (copies.length) this.send({ t: 'backup', copies });
+    } else if (msg.t === 'door') {
+      const name = String(msg.name ?? '').slice(0, 24);
+      // Waiting on the Storyteller: asking again would only knock again.
+      if (msg.ok === null) this.pendingJoin = null;
+      // (Not after knocking: a rename to that name.)
+      if (msg.ok === false && !useDoor.getState()) ui.toast(`${name} belongs to someone else’s device, so you can’t take that name.`, 'info');
+      else useDoor.setState(msg.ok === true ? null : { name, ok: msg.ok === false ? false : null, at: Date.now() }, true);
     } else if (msg.t === 'summon') {
       if (typeof msg.zone === 'string' && Number.isFinite(msg.x) && Number.isFinite(msg.z)) game.summoned(msg.zone, msg.x, msg.z);
     } else if (msg.t === 'seat') {

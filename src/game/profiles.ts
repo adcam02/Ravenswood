@@ -20,7 +20,7 @@
 import { create } from 'zustand';
 import { debugHooks, loadJSON, saveJSON, uid } from '../lib/util';
 import { seatAlignment, useHost } from '../state/host';
-import type { GameState, PayLine, ProfileView, ProgressEvent, ProgressSnapshot } from '../state/types';
+import type { BackupCopy, GameState, PayLine, ProfileView, ProgressEvent, ProgressSnapshot } from '../state/types';
 import { FEATS, PETS, type FeatId, type PetId } from '../world/types';
 
 /** What players earn, in dollars: all the amounts in one place. */
@@ -154,6 +154,8 @@ export interface Profile extends ProgressSnapshot {
   jobPay?: { day: string; paid: number };
   /** What each game paid them for, so calling a game again only pays (or takes back) the difference. */
   games?: Record<string, string[]>;
+  /** The devices this name plays on, as hashes (never the devices' own secrets): see admitDevice(). */
+  devices?: string[];
   created: number;
   updated: number;
 }
@@ -170,6 +172,8 @@ interface Book {
 const KEY = 'ravenswood:profiles';
 const SEEN_KEPT = 200;
 const PAY_KEPT = 8;
+/** Devices remembered for one name, at most (the oldest is forgotten). */
+const DEVICES_KEPT = 8;
 /** Gifts and achievements handed out here are worth a moment on the player's screen for this long. */
 const NEWS_MS = 60 * 60000;
 
@@ -178,7 +182,7 @@ function blank(name: string): Profile {
   return { ...emptySnapshot(), name: name.trim().slice(0, 24), coins: 0, pets: [], seen: [], pay: [], news: [], created: now, updated: now };
 }
 
-function cleanProfile(raw: unknown, key: string): Profile {
+export function cleanProfile(raw: unknown, key: string): Profile {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<Profile>;
   const p = { ...blank(typeof r.name === 'string' && r.name.trim() ? r.name : key), ...cleanSnapshot(r) };
   p.coins = count(r.coins, 1e9);
@@ -188,6 +192,8 @@ function cleanProfile(raw: unknown, key: string): Profile {
   p.news = Array.isArray(r.news) ? r.news.filter((n) => n && typeof n.feat === 'string').slice(-PAY_KEPT) : [];
   if (r.jobPay && typeof r.jobPay.day === 'string') p.jobPay = { day: r.jobPay.day, paid: count(r.jobPay.paid) };
   if (r.games && typeof r.games === 'object') p.games = Object.fromEntries(Object.entries(r.games).slice(-10).map(([g, items]) => [g, strings(items, 8)]));
+  const devices = strings(r.devices, DEVICES_KEPT, 64).filter((h) => /^[0-9a-f]{16,64}$/.test(h));
+  if (devices.length) p.devices = devices;
   p.created = Number(r.created) || Date.now();
   p.updated = Number(r.updated) || p.created;
   return p;
@@ -500,6 +506,40 @@ export function startProfiles() {
   document.addEventListener('visibilitychange', () => document.visibilityState === 'hidden' && flush());
 }
 
+// ---------------------------------------------------------------- devices, and the copies players keep
+
+/**
+ * Whether a device (its hash) may play as this name: yes if it's one of the name's own, or if the name has none yet
+ * (the first device to come claims it). If not, the Storyteller is asked (trustDevice() if they say yes).
+ */
+export function admitDevice(name: string, hash: string): boolean {
+  const key = nameKey(name);
+  if (!key) return true;
+  const devices = useProfiles.getState().profiles[key]?.devices ?? [];
+  if (devices.includes(hash)) return true;
+  if (devices.length) return false;
+  trustDevice(name, hash);
+  return true;
+}
+
+/** Remembers a device for this name. */
+export function trustDevice(name: string, hash: string) {
+  ensure(name);
+  change(name, (p) => void (p.devices = [...(p.devices ?? []).filter((h) => h !== hash), hash].slice(-DEVICES_KEPT)));
+}
+
+/** The book as players' browsers keep it: everything but the history. */
+export function backupCopy(): BackupCopy {
+  const { book, profiles: list, done } = useProfiles.getState();
+  const out: BackupCopy['profiles'] = {};
+  for (const [key, p] of Object.entries(list)) {
+    const { pay: _pay, news: _news, games: _games, seen, ...rest } = p;
+    // A few of the latest reports, so one counted just before the book was lost isn't counted twice.
+    out[key] = { ...rest, seen: seen.slice(-10) };
+  }
+  return { book, at: Date.now(), done, profiles: out };
+}
+
 // ---------------------------------------------------------------- the Storyteller's panel
 
 export const profiles = {
@@ -523,13 +563,20 @@ export const profiles = {
     const { [key]: _, ...rest } = useProfiles.getState().profiles;
     useProfiles.setState({ profiles: rest });
   },
+  /** Forgets the devices a name plays on: the next one to join as them claims it. */
+  forgetDevices(key: string) {
+    if (useProfiles.getState().profiles[key]?.devices) change(key, (p) => void delete p.devices);
+  },
   /** Every profile, for keeping safe or moving to another browser. */
   exportJSON(): string {
     const { book, profiles: list, done } = useProfiles.getState();
     return JSON.stringify({ ravenswood: 'profiles', v: 1, exported: new Date().toISOString(), book, done, profiles: list }, null, 1);
   },
-  /** Profiles from a file: each replaces any of the same name, and the rest stay. Returns how many, or what's wrong. */
-  importJSON(text: string): number | string {
+  /**
+   * Profiles from a file: each replaces any of the same name, and the rest stay. Returns how many, or what's wrong.
+   * `adopt`: this browser takes the file's book over (restoring a book players kept, into a browser that had lost it).
+   */
+  importJSON(text: string, adopt = false): number | string {
     let raw: Partial<Book> & { ravenswood?: string };
     try {
       raw = JSON.parse(text);
@@ -544,7 +591,7 @@ export const profiles = {
       profiles: { ...s.profiles, ...incoming },
       done: [...new Set([...s.done, ...strings(raw.done, 100, 60)])],
       // A browser with no profiles of its own takes the book over whole, so players' browsers know it.
-      book: Object.keys(s.profiles).length || typeof raw.book !== 'string' ? s.book : raw.book,
+      book: typeof raw.book !== 'string' || (Object.keys(s.profiles).length && !adopt) ? s.book : raw.book,
     });
     for (const key of Object.keys(incoming)) oneOffs(key);
     return Object.keys(incoming).length;

@@ -3033,7 +3033,7 @@
 }
 .profile-row {
   display: grid;
-  grid-template-columns: minmax(90px, 1.2fr) auto auto minmax(0, 2fr) 18px;
+  grid-template-columns: minmax(90px, 1.2fr) auto auto auto minmax(0, 2fr) 18px;
   align-items: center;
   gap: 14px;
   width: 100%;
@@ -3157,9 +3157,38 @@
   display: flex;
   justify-content: flex-end;
 }
+/* Each name's devices, and the players' copies of the book on offer. */
+.profile-devices {
+  min-width: 2.6em;
+  color: var(--text-dim);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.profiles-restore {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(240, 212, 143, 0.45);
+  border-radius: 12px;
+  background: rgba(240, 212, 143, 0.07);
+}
+.profiles-restore h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.profiles-restore p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 14px;
+}
+/* (Over a nomination waiting at the same spot: the door can't wait.) */
+.profile-prompt {
+  z-index: 81;
+}
 @media (max-width: 640px) {
   .profile-row {
-    grid-template-columns: minmax(0, 1fr) auto auto 18px;
+    grid-template-columns: minmax(0, 1fr) auto auto auto 18px;
     gap: 10px;
   }
   .profile-hats {

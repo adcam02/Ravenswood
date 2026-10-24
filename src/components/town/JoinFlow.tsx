@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { create } from 'zustand';
 import { askForNotifications } from '../../lib/notify';
 import { drawless } from '../../lib/util';
-import { player, useClient, useTaken } from '../../net/client';
+import { player, useClient, useDoor, useTaken } from '../../net/client';
 import { useVoice, voice } from '../../voice/voice';
 import { AnimalPreview } from '../../world/AnimalPreview';
 import { animalThumbnail, petThumbnail } from '../../world/animals';
@@ -85,6 +85,21 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
     setStep((s) => (s === 'name' ? s : 'animal'));
   }, [taken.at, taken.animal, taken.by]);
 
+  // The name is another device's: wait while the Storyteller is asked, or back to the name if it isn't ours.
+  const door = useDoor();
+  useEffect(() => {
+    if (door?.ok !== false) return;
+    setNote(`The Storyteller says ${door.name} is someone else. Please choose another name.`);
+    setStep('name');
+    useDoor.setState(null, true);
+  }, [door]);
+  const giveUp = () => {
+    player.leave();
+    useDoor.setState(null, true);
+    setNote(null);
+    setStep('name');
+  };
+
   const finish = (l: Look) => {
     wearLook(name, l);
     askForNotifications();
@@ -92,6 +107,7 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
 
   const afterName = () => {
     if (!name.trim()) return;
+    setNote(null);
     voice.unlock();
     setLook((l) => fixLook(l));
     setStep('animal');
@@ -100,53 +116,69 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
   return (
     <div className="join cosy">
       <div className="join-room">Room {room}</div>
-      {step === 'name' && (
-        <form
-          className="join-card cosy-panel join-name"
-          onSubmit={(e) => {
-            e.preventDefault();
-            afterName();
-          }}
-        >
-          <span className="join-eyebrow">Welcome to Ravenswood</span>
-          <h1>What’s your name?</h1>
-          <input className="cosy-input" value={name} onChange={(e) => setName(e.target.value)} maxLength={24} autoFocus placeholder="As your friends know you" />
-          <button className="cosy-btn primary big" disabled={!name.trim()}>
-            Next
+      {door?.ok === null ? (
+        <div className="join-card cosy-panel join-door" role="status">
+          <AnimalPreview look={look} size={170} spin={false} anim="idle" />
+          <span className="join-eyebrow">Hi {door.name}!</span>
+          <h1>Just a moment…</h1>
+          <p>This name belongs to a device we know. Asking the Storyteller to let you in…</p>
+          <div className="spinner" />
+          <button className="cosy-btn" onClick={giveUp}>
+            Choose another name
           </button>
-        </form>
-      )}
-      {step === 'animal' && (
-        <div className="join-card cosy-panel join-animal">
-          <div className="join-animal-head">
-            <span className="join-eyebrow">Hi {name.trim()}!</span>
-            <h1>Choose your animal</h1>
-            {note && <p className="join-note">{note}</p>}
-          </div>
-          <LookEditor
-            name={name}
-            look={look}
-            setLook={setLook}
-            locked={false}
-            tab={tab}
-            setTab={setTab}
-            showMine={returning}
-            confirm={{
-              label: 'This is me!',
-              onClick: () => {
-                setNote(null);
-                setStep('mic');
-              },
-            }}
-          />
-          <div className="join-actions">
-            <button className="cosy-btn" onClick={() => setStep('name')}>
-              Back
-            </button>
-          </div>
         </div>
+      ) : (
+        <>
+          {step === 'name' && (
+            <form
+              className="join-card cosy-panel join-name"
+              onSubmit={(e) => {
+                e.preventDefault();
+                afterName();
+              }}
+            >
+              <span className="join-eyebrow">Welcome to Ravenswood</span>
+              <h1>What’s your name?</h1>
+              {note && <p className="join-note">{note}</p>}
+              <input className="cosy-input" value={name} onChange={(e) => setName(e.target.value)} maxLength={24} autoFocus placeholder="As your friends know you" />
+              <button className="cosy-btn primary big" disabled={!name.trim()}>
+                Next
+              </button>
+            </form>
+          )}
+          {step === 'animal' && (
+            <div className="join-card cosy-panel join-animal">
+              <div className="join-animal-head">
+                <span className="join-eyebrow">Hi {name.trim()}!</span>
+                <h1>Choose your animal</h1>
+                {note && <p className="join-note">{note}</p>}
+              </div>
+              <LookEditor
+                name={name}
+                look={look}
+                setLook={setLook}
+                locked={false}
+                tab={tab}
+                setTab={setTab}
+                showMine={returning}
+                confirm={{
+                  label: 'This is me!',
+                  onClick: () => {
+                    setNote(null);
+                    setStep('mic');
+                  },
+                }}
+              />
+              <div className="join-actions">
+                <button className="cosy-btn" onClick={() => setStep('name')}>
+                  Back
+                </button>
+              </div>
+            </div>
+          )}
+          {step === 'mic' && <MicStep name={name} look={look} onBack={() => setStep('animal')} onDone={() => finish(look)} />}
+        </>
       )}
-      {step === 'mic' && <MicStep name={name} look={look} onBack={() => setStep('animal')} onDone={() => finish(look)} />}
     </div>
   );
 }

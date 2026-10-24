@@ -6,13 +6,15 @@ import { ui } from '../state/ui';
 import Peer, { type DataConnection } from 'peerjs';
 import { create } from 'zustand';
 import { st, toPrivate, toPublic, useHost } from '../state/host';
-import { profileFor, profileOf, receiveProgress, startProfiles, useProfiles } from '../game/profiles';
+import { admitDevice, backupCopy, nameKey, profileFor, profileOf, receiveProgress, startProfiles, trustDevice, useProfiles } from '../game/profiles';
+import { backups, currentOffer, useBackups } from '../game/backup';
+import { deviceSecret, hashDevice, knocks } from '../game/devices';
 import { pit } from '../game/pit';
 import { casinoFor, receiveCasino, startCasino, useCasino } from '../casino/host';
 import type { ClientMessage, HostMessage } from '../state/types';
 import { local, receiveItem } from '../game/local';
 import { presence } from '../game/presence';
-import { fromPose, toPose, type Item, type Pose } from '../world/types';
+import { fromPose, toPose, type Item, type Look, type Pose } from '../world/types';
 import { meetingSpot } from '../world/town/layout';
 import { joinMesh, type Mesh } from './mesh';
 import { newWorldLink, worldUpdate, type WorldLink } from './world';
@@ -74,9 +76,16 @@ interface LinkMeta {
   /** For older pages: the last full update sent, and when. */
   legacyJson?: string;
   legacyAt?: number;
+  /** Their device, as the hash kept on profiles (null for an older page that doesn't say). */
+  device?: Promise<string | null>;
 }
 
 const RETRYABLE = new Set(['network', 'server-error', 'socket-error', 'socket-closed', 'disconnected']);
+/** Players' copies of the profiles are brought up to date at most this often while things change. */
+const BACKUP_EVERY_MS = 30000;
+
+/** This browser's own device: the Storyteller can always play as any name from here. */
+let ownDevice: Promise<string | null> | null = null;
 
 class HostLink {
   private peer: Peer | null = null;
@@ -284,8 +293,9 @@ class HostLink {
     if (pid && ![...this.links.values()].some((m) => m.playerId === pid)) {
       const seat = useHost.getState().g.seats.find((s) => s.playerId === pid);
       if (seat) presence.remove(seat.id);
-      // Anything they were holding in the animal picker is free again.
+      // Anything they were holding in the animal picker is free again, and they've stopped knocking.
       st.fromPlayer.dropped(pid);
+      knocks.take(pid);
       this.noteSpeed(pid, null);
     }
     this.refreshOnline();
@@ -328,6 +338,15 @@ class HostLink {
       meta.sentPublic = meta.sentPrivate = undefined;
       meta.world = newWorldLink();
       meta.delta = msg.delta === true;
+      meta.device = hashDevice(msg.device);
+      // Back in their seat (a reload, a reconnect): a name with no device yet becomes this one's.
+      void meta.device.then((hash) => {
+        const seat = useHost.getState().g.seats.find((s) => s.playerId === meta.playerId);
+        if (hash && seat && nameKey(seat.name)) admitDevice(seat.name, hash);
+      });
+      // The copies of the profiles they keep that could be worth restoring (asked for), and ours for them to keep.
+      const books = useBackups.getState().asked ? undefined : backups.wanted(msg.kept);
+      if (!books || books.length) link.send({ t: 'backupWanted', books });
       // A refreshed tab replaces its old connection on the same route.
       for (const [other, m] of this.links) {
         if (other !== link && other.kind === link.kind && m.playerId === meta.playerId) {
@@ -337,6 +356,7 @@ class HostLink {
       }
       this.refreshOnline();
       this.flushTo(link, meta);
+      this.sendBackup(link);
       return;
     }
     const pid = meta.playerId;
@@ -344,11 +364,15 @@ class HostLink {
     const p = st.fromPlayer;
     switch (msg.t) {
       case 'join': {
-        // Pets are bought at the casino: one they don't own stays at home.
-        const look = { ...(msg.look ?? {}) };
-        if (look.pet && !profileOf({ name: String(msg.name ?? '') })?.pets.includes(look.pet)) look.pet = null;
-        const refused = p.join(pid, String(msg.name ?? ''), look);
-        if (refused) link.send({ t: 'taken', animal: refused.taken, by: refused.by });
+        const name = String(msg.name ?? '');
+        const look = msg.look ?? {};
+        void this.admit(meta, name).then((ok) => {
+          if (!ok) {
+            // Someone else's name, from a device we don't know: they wait while the Storyteller is asked.
+            knocks.add({ playerId: pid, name: name.trim().slice(0, 24), look: look as Look });
+            link.send({ t: 'door', name: name.trim().slice(0, 24), ok: null });
+          } else this.seat(link, pid, name, look);
+        });
         break;
       }
       case 'hold': {
@@ -369,10 +393,16 @@ class HostLink {
         break;
       case 'leave':
         p.leave(pid);
+        knocks.take(pid);
         break;
-      case 'rename':
-        p.rename(pid, String(msg.name ?? ''));
+      case 'rename': {
+        const name = String(msg.name ?? '');
+        void this.admit(meta, name).then((ok) => {
+          if (ok) p.rename(pid, name);
+          else link.send({ t: 'door', name: name.trim().slice(0, 24), ok: false });
+        });
         break;
+      }
       case 'vote':
         p.vote(pid, Boolean(msg.up));
         break;
@@ -430,7 +460,76 @@ class HostLink {
       case 'casino':
         receiveCasino(pid, msg.a);
         break;
+      case 'backup':
+        backups.receive(pid, msg.copies);
+        break;
     }
+  }
+
+  /**
+   * Whether this player's device may play as this name (claiming it if nobody has): false if not, so the Storyteller
+   * must be asked. Their own name stays theirs, and the Storyteller's own browser may be anyone.
+   */
+  private async admit(meta: LinkMeta, name: string): Promise<boolean> {
+    const hash = (await meta.device) ?? null;
+    const seated = useHost.getState().g.seats.some((s) => s.playerId === meta.playerId && nameKey(s.name) === nameKey(name));
+    ownDevice ??= hashDevice(deviceSecret());
+    if (hash && hash === (await ownDevice)) return true;
+    if (!hash) return seated || !profileOf({ name })?.devices?.length;
+    return admitDevice(name, hash) || seated;
+  }
+
+  /** Takes a seat with a name and a look (once the device is known to be theirs). */
+  private seat(link: Link, playerId: string, name: string, raw: Partial<Look>) {
+    // Pets are bought at the casino: one they don't own stays at home.
+    const look = { ...raw };
+    if (look.pet && !profileOf({ name })?.pets.includes(look.pet)) look.pet = null;
+    const refused = st.fromPlayer.join(playerId, name, look);
+    if (refused) link.send({ t: 'taken', animal: refused.taken, by: refused.by });
+  }
+
+  /** The Storyteller's answer to someone joining as a name from a new device: in they come (a device to remember), or not. */
+  async answerKnock(playerId: string, letIn: boolean) {
+    const k = knocks.take(playerId);
+    if (!k) return;
+    const hash = await [...this.links.values()].find((m) => m.playerId === playerId)?.device;
+    for (const [link, meta] of this.links) {
+      if (meta.playerId !== playerId) continue;
+      link.send({ t: 'door', name: k.name, ok: letIn });
+    }
+    if (!letIn) return;
+    if (hash) trustDevice(k.name, hash);
+    const link = [...this.links].find(([l, m]) => m.playerId === playerId && l.isOpen())?.[0];
+    if (link) this.seat(link, playerId, k.name, k.look);
+  }
+
+  /** Asks everyone here for every copy of the profiles they keep ("Restore from players"). */
+  askForBackups() {
+    backups.ask();
+    for (const [link, meta] of this.links) if (meta.playerId) link.send({ t: 'backupWanted' });
+  }
+
+  /** A copy of the profiles for this player (or everyone) to keep. */
+  private sendBackup(to?: Link) {
+    const s = useProfiles.getState();
+    // Nothing to keep yet, or a new book that the players' copies of an older one may be about to replace.
+    const offer = currentOffer();
+    if (!Object.keys(s.profiles).length || (offer && !offer.ours)) return;
+    const msg: HostMessage = { t: 'backup', b: backupCopy() };
+    this.backupAt = Date.now();
+    for (const [link, meta] of this.links) if ((!to || link === to) && meta.playerId && link.isOpen()) link.send(msg);
+  }
+  private backupAt = 0;
+  private backupTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** The profiles changed: everyone's copies follow, a few seconds later and at most every 30 seconds. */
+  scheduleBackup() {
+    if (this.backupTimer || !this.room) return;
+    const wait = Math.max(3000, this.backupAt + BACKUP_EVERY_MS - Date.now());
+    this.backupTimer = setTimeout(() => {
+      this.backupTimer = null;
+      this.sendBackup();
+    }, wait);
   }
 
   private pose(playerId: string, p: Pose) {
@@ -622,7 +721,10 @@ export const hostLink = new HostLink();
 
 useHost.subscribe(() => hostLink.scheduleBroadcast());
 useHostNet.subscribe((s, prev) => s.online !== prev.online && hostLink.scheduleBroadcast());
-useProfiles.subscribe(() => hostLink.scheduleBroadcast());
+useProfiles.subscribe((s, prev) => {
+  hostLink.scheduleBroadcast();
+  if (s.profiles !== prev.profiles || s.book !== prev.book) hostLink.scheduleBackup();
+});
 useCasino.subscribe(() => hostLink.scheduleBroadcast());
 
 if (debugHooks()) Object.assign(window, { __host: useHost, __hostNet: useHostNet, __netStats: () => hostLink.stats() });

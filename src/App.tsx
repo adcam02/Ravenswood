@@ -38,6 +38,7 @@ import { WorldSeatMenu } from './components/town/WorldSeatMenu';
 import { UpdateNotice } from './components/UpdateNotice';
 import { Landing } from './components/Landing';
 import { JoinFlow } from './components/town/JoinFlow';
+import { DoorPrompt, RestorePrompt } from './components/ProfilePrompts';
 import { CasinoPanels } from './components/town/Casino';
 import {
   ActionPrompt,
@@ -187,6 +188,8 @@ function Storyteller() {
           <NightGuide />
           <SlayerPrompt />
           <NominationPrompt />
+          <DoorPrompt />
+          <RestorePrompt />
           <ExecVote />
           <WinPrompt />
           <GameOverLayer />
