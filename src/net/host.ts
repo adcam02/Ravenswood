@@ -89,6 +89,8 @@ const BACKUP_EVERY_MS = 30000;
 
 /** This browser's own device: the Storyteller can always play as any name from here. */
 let ownDevice: Promise<string | null> | null = null;
+/** How long a player's animal waits where it was after their line drops, for them to come back. */
+const GONE_AFTER_MS = 15000;
 
 class HostLink {
   private peer: Peer | null = null;
@@ -293,11 +295,16 @@ class HostLink {
   private drop(link: Link) {
     const meta = this.links.get(link);
     if (!this.links.delete(link)) return;
-    // Their animal leaves town too, unless the same player is still here on the other route.
+    // Unless the same player is still here on the other route, their animal leaves town too: not straight away,
+    // as a dropped line usually comes back within moments and a refreshed page lands them in the same spot, so
+    // nobody sees them vanish and pop up again.
     const pid = meta?.playerId;
-    if (pid && ![...this.links.values()].some((m) => m.playerId === pid)) {
+    const here = () => [...this.links.values()].some((m) => m.playerId === pid);
+    if (pid && !here()) {
       const seat = useHost.getState().g.seats.find((s) => s.playerId === pid);
-      if (seat) presence.remove(seat.id);
+      const left = seat && presence.others.get(seat.id);
+      if (left) left.speaking = false;
+      if (seat) setTimeout(() => !here() && presence.remove(seat.id), GONE_AFTER_MS);
       // Anything they were holding in the animal picker is free again, and they've stopped knocking.
       st.fromPlayer.dropped(pid);
       knocks.take(pid);

@@ -1,4 +1,4 @@
-import { Suspense, useContext, useEffect, useState } from 'react';
+import { Suspense, useContext, useEffect, useRef, useState } from 'react';
 import { TopBar } from './components/TopBar';
 import { SidePanel } from './components/SidePanel';
 import { CrashNote, Guard } from './components/Guard';
@@ -105,6 +105,7 @@ import { useEffects } from './lib/effects';
 import { clientLink, useClient } from './net/client';
 import { hostLink } from './net/host';
 import { notes } from './state/notes';
+import { voice } from './voice/voice';
 import { useUI } from './state/ui';
 import { ModeContext, usePlayerView, useStorytellerView, ViewContext } from './state/view';
 import { Icon } from './components/Icon';
@@ -258,8 +259,19 @@ function Player({ room }: { room: string }) {
   }, [room]);
   const view = usePlayerView();
   const status = useClient((s) => s.status);
+  // (Our own seat comes just after the town: until it has, someone back again would see the join screen flash up.)
+  const known = useClient((s) => s.priv !== null);
+  const me = view?.seats.find((s) => s.isMe);
+  const joining = !me || !me.look;
+  // Back from a refresh already seated, so straight into town: the mic comes back on by itself.
+  const arrived = useRef(false);
+  useEffect(() => {
+    if (!view || !known || arrived.current) return;
+    arrived.current = true;
+    if (!joining) void voice.resume();
+  }, [view, known, joining]);
   useEffects(view);
-  if (!view) {
+  if (!view || !known) {
     return (
       <div className="app">
         <World mode="preview" />
@@ -284,8 +296,6 @@ function Player({ room }: { room: string }) {
       </div>
     );
   }
-  const me = view.seats.find((s) => s.isMe);
-  const joining = !me || !me.look;
   return (
     <ModeContext.Provider value="player">
       <ViewContext.Provider value={view}>

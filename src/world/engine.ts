@@ -230,6 +230,12 @@ const JOB_LOOK: Record<GameJob, { anim: Anim; item: Item | null }> = {
 
 /** Night visits already seen on this screen, so a reload doesn't play one again. */
 const VISITS_SEEN_KEY = 'ravenswood:visits-seen';
+/** Where we were as the page went (a refresh, the tab closed), and how long that's worth going back to. */
+const PLACE_KEY = 'ravenswood:last-place';
+const PLACE_KEEP_MS = 3 * 60_000;
+type LastPlace = { seat: string; when: string; zone: ZoneId; x: number; z: number; ry: number; at: number };
+/** The part of the game a remembered spot belongs to: a spot from yesterday, or from before the night, is no use. */
+const phaseKey = (v: WorldView) => `${v.started}:${v.phase}:${v.day}`;
 
 const EMOTE_TIME: Partial<Record<Anim, number>> = { wave: 2.4, cheer: 2.6, laugh: 2.6, cry: 3.2, dance: 8, drink: 1.6 };
 /** How long an emote plays: a dance goes on until you move or do something else (on a meeting stool, a while). */
@@ -496,6 +502,10 @@ export class Engine {
     this.resize();
 
     window.addEventListener('keydown', this.onKeyDown);
+    window.addEventListener('pagehide', this.rememberPlace);
+    document.addEventListener('visibilitychange', this.rememberPlace);
+    // (And every few seconds, for a tab closed or a phone's browser killed without a word.)
+    this.placeTimer = setInterval(() => this.notePlace(), 4000);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.onBlur);
     const canvas = this.renderer.domElement;
@@ -600,6 +610,9 @@ export class Engine {
     game.emote = game.goTo = game.jobDone = game.sheepDone = () => {};
     this.ro.disconnect();
     window.removeEventListener('keydown', this.onKeyDown);
+    window.removeEventListener('pagehide', this.rememberPlace);
+    document.removeEventListener('visibilitychange', this.rememberPlace);
+    clearInterval(this.placeTimer);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('blur', this.onBlur);
     for (const a of this.others.values()) a.dispose();
@@ -854,8 +867,23 @@ export class Engine {
       this.goToSquareSpawn(false);
       this.sitOnStool();
     } else {
-      this.goToSquareSpawn(false);
+      // Back from a refresh a moment ago, at the same point in the game: where we were, rather than the square.
+      const back = loadJSON<LastPlace | null>(PLACE_KEY, null);
+      const fresh = back && v.mode === 'player' && back.seat === v.mySeatId && back.when === phaseKey(v) && Date.now() - back.at < PLACE_KEEP_MS;
+      if (fresh && typeof back.zone === 'string' && [back.x, back.z, back.ry].every(Number.isFinite)) this.place(back.zone, back.x, back.z, back.ry, false);
+      else this.goToSquareSpawn(false);
     }
+  }
+
+  /** Notes where we are as the page goes out of sight or away, for spawn to come back to. */
+  private rememberPlace = (e: Event) => {
+    if (e.type !== 'visibilitychange' || document.visibilityState !== 'visible') this.notePlace();
+  };
+  private placeTimer: ReturnType<typeof setInterval> | undefined;
+  private notePlace() {
+    const v = this.view;
+    if (v?.mode !== 'player' || !v.mySeatId || !this.me) return;
+    saveJSON(PLACE_KEY, { seat: v.mySeatId, when: phaseKey(v), zone: local.zone, x: local.x, z: local.z, ry: local.ry, at: Date.now() } satisfies LastPlace);
   }
 
   private applyPhase(v: WorldView, prev: WorldView | null) {

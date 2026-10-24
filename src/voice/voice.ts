@@ -177,6 +177,26 @@ class Voice {
     for (const l of this.links.values()) void l.audio.play().catch(() => {});
   }
 
+  /**
+   * Back after a refresh (or the tab reopened), already seated, so without the join screen's clicks: the mic comes
+   * straight back on if this site may already use it (no prompt), and sound starts at the first click or key.
+   */
+  async resume() {
+    const once = () => {
+      this.unlock();
+      window.removeEventListener('pointerdown', once, true);
+      window.removeEventListener('keydown', once, true);
+    };
+    window.addEventListener('pointerdown', once, true);
+    window.addEventListener('keydown', once, true);
+    try {
+      const allowed = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+      if (allowed.state === 'granted') await this.enableMic();
+    } catch {
+      /* no way to tell: the mic button is there */
+    }
+  }
+
   async enableMic() {
     if (this.mic) return;
     this.unlock();
