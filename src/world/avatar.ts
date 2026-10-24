@@ -96,6 +96,7 @@ const BLOB_TEX = (() => {
 type RigExtras = {
   setHat?: (hat: HatId | null) => void;
   setDetail?: (level: 'high' | 'low') => void;
+  prepareLow?: () => void;
 };
 interface Pet {
   root: THREE.Object3D;
@@ -146,6 +147,9 @@ export class AvatarView {
   tz = 0;
   ty = 0;
   try_ = 0;
+  /** Halfway between where they're drawn and where they were last reported (see update). */
+  private mx = 0;
+  private mz = 0;
   speed = 0;
   placed = false;
 
@@ -190,6 +194,8 @@ export class AvatarView {
 
   private build(info: AvatarInfo): Rig {
     const rig = info.storyteller || !info.look ? buildStoryteller() : buildAnimal(info.look);
+    // Someone else's animal: its far-off model too, while we're at it (see prepareLow).
+    if (!info.isMe) (rig as unknown as RigExtras).prepareLow?.();
     this.key = lookKey(info);
     this.ghost = false;
     rig.root.add(this.label);
@@ -304,8 +310,8 @@ export class AvatarView {
   }
 
   snap() {
-    this.x = this.tx;
-    this.z = this.tz;
+    this.x = this.mx = this.tx;
+    this.z = this.mz = this.tz;
     this.y = this.ty;
     this.ry = this.try_;
     this.placed = true;
@@ -361,9 +367,15 @@ export class AvatarView {
       const d = Math.hypot(this.tx - this.x, this.tz - this.z);
       if (d > 6) this.snap();
       else {
+        // Moves arrive about ten times a second, and not evenly: a beat between their page's timer and the
+        // Storyteller's can bring two at once and then none, more so on a busy frame. Chasing each one directly made
+        // them surge and stall as they walked, so the chase goes through a halfway point that evens it out (at the
+        // cost of being about a tenth of a second further behind).
         const k = 1 - Math.exp(-dt * 11);
-        this.x += (this.tx - this.x) * k;
-        this.z += (this.tz - this.z) * k;
+        this.mx += (this.tx - this.mx) * k;
+        this.mz += (this.tz - this.mz) * k;
+        this.x += (this.mx - this.x) * k;
+        this.z += (this.mz - this.z) * k;
         this.y += (this.ty - this.y) * k;
         let dr = this.try_ - this.ry;
         dr = wrapAngle(dr);

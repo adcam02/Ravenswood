@@ -868,16 +868,27 @@ class AnimalRig implements Rig {
   setDetail(level: 'high' | 'low') {
     if (level === this.detail) return;
     if (level === 'low') {
-      if (!this.lowKit || !this.lowKey) return;
-      let g = lowCache.get(this.lowKey);
-      if (!g) {
-        const lk = lowDetail(this.lowKit);
-        g = skin(lk, this.sk);
-        lowCache.set(this.lowKey, g);
-      }
+      const g = this.prepareLow();
+      if (!g) return;
       this.mesh.geometry = g;
     } else this.mesh.geometry = this.highGeo;
     this.detail = level;
+  }
+
+  /**
+   * Sculpts the far-off model now, if it isn't already (it's kept for every animal of that look). That takes about as
+   * long as building the animal, so it's done along with that, rather than as they first wander off across town,
+   * where it stalled a frame for each animal.
+   */
+  prepareLow(): THREE.BufferGeometry | null {
+    if (!this.lowKit || !this.lowKey) return null;
+    let g = lowCache.get(this.lowKey);
+    if (!g) {
+      const lk = lowDetail(this.lowKit);
+      g = skin(lk, this.sk);
+      lowCache.set(this.lowKey, g);
+    }
+    return g;
   }
 
   setItem(item: Item | null) {
