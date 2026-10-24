@@ -1202,6 +1202,11 @@ class Cube extends Homage {
     );
     const e = new Builder();
     super(b, e, H);
+    // No eyes to blink: drop the empty eye mesh, so nothing trips over a shape with no corners.
+    for (const m of [...this.eyes.children]) {
+      (m as THREE.Mesh).geometry.dispose();
+      m.removeFromParent();
+    }
     this.spin = this.pivotBody([0, H, 0]);
     // The hearts, glowing softly, on their own so they can pulse.
     const heart = new THREE.Shape();
