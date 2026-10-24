@@ -10,7 +10,7 @@ import type { DayTimer, ExecMethod, Execution, Nomination, TownAction, TownHall,
 import { ambience } from '../lib/ambience';
 import { doorChime, drumroll, execSound, gavel, pigeonSound, ropeSnap, visitSound } from '../lib/audio';
 import { execMethod, showStartAt } from '../game/execution';
-import { EXEC_CAM, ExecStage, SOUL, execCamera, type ExecPose } from './exec/stage';
+import { ExecStage, SOUL, execCamera, type ExecPose } from './exec/stage';
 import { NightVisit, VISIT, VISIT_NAMES, bendVictim, type VictimPose } from './visit';
 import { PIGEON, PigeonFlight } from './pigeon';
 import { ui, useUI } from '../state/ui';
@@ -2329,6 +2329,31 @@ export class Engine {
     };
   }
 
+  /**
+   * The gallows (and the wait on the trapdoor while the town votes): from in front of the condemned, a little below
+   * their eyes, their face in full view with the noose above. At the drop the camera rises a touch and tips down
+   * to follow them through the trapdoor, and then the ghost back up out of it.
+   */
+  private gallowsShot(t: number): { pos: THREE.Vector3; look: THREE.Vector3 } {
+    const g = this.town.gallowsSpot;
+    const show = this.show!;
+    const av = show.mine ? this.me : this.others.get(show.seatId);
+    const body = this.bodyOf(av);
+    const age = show.start === null ? -1 : this.showAge(t);
+    const pose = show.method === 'hang' && age >= 0 ? this.showPose(age, body) : null;
+    const head = g.y + body.top * 0.85;
+    // Their head, wherever it is (but no lower than just under the boards).
+    const y = pose ? Math.max(g.y - 0.2, pose.y + body.top * 0.85) : head;
+    const dropped = pose && !show.survives ? Math.min(1, Math.max(0, (age - SHOW.drop) / 0.3)) : 0;
+    // Further back for the tall, and on a screen held upright.
+    const dist = Math.min(7, Math.max(4.2, 2.6 + body.top * 1.8)) * (this.camera.aspect < 1 ? 1.3 : 1);
+    // Straight on, turned a hair to the side so the rope doesn't cross their face.
+    const yaw = g.ry + 0.2;
+    const look = new THREE.Vector3(pose?.x ?? g.x, y - 0.1 * (1 - dropped), pose?.z ?? g.z);
+    const pos = new THREE.Vector3(look.x + Math.sin(yaw) * dist, head - 0.2 + dropped * 0.9, look.z + Math.cos(yaw) * dist);
+    return { pos, look };
+  }
+
   /** Where the stage has the condemned this frame, once its show has begun (null on the gallows, or before). */
   private stagePose(): ExecPose | null {
     const show = this.show;
@@ -2498,9 +2523,9 @@ export class Engine {
       wantPos.copy(shot.pos);
       wantLook.copy(shot.look);
     } else if (this.show && zoneKind(local.zone) === 'town') {
-      const g = this.town.gallowsSpot;
-      wantPos.set(g.x + Math.sin(EXEC_CAM.yaw) * EXEC_CAM.dist, g.y + 1.1 + EXEC_CAM.height, g.z + Math.cos(EXEC_CAM.yaw) * EXEC_CAM.dist);
-      wantLook.set(g.x, g.y + 1.1, g.z);
+      const shot = this.gallowsShot(t);
+      wantPos.copy(shot.pos);
+      wantLook.copy(shot.look);
     } else if (this.pinned()) {
       // On our stool at a town meeting: from behind our seat, looking down into the middle of the circle, far
       // enough back that every stool (and whoever is on it) is in the shot.

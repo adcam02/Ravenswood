@@ -13,6 +13,9 @@ export const EXEC_METHODS: { id: ExecMethod; name: string; icon: string; color: 
   { id: 'missile', name: 'Missile', icon: '🚀', color: '#7a9c4a', sign: (n) => `${n} is sent sky high` },
   { id: 'roast', name: 'Spit roast', icon: '🔥', color: '#e07a2e', sign: (n) => `${n} is roasted` },
   { id: 'kaiju', name: 'Kaiju', icon: '🦖', color: '#3f9a8c', sign: (n) => `${n} faces the kaiju` },
+  { id: 'plane', name: 'Plane crash', icon: '🛩️', color: '#4f8fd0', sign: (n) => `${n} takes a last flight` },
+  { id: 'pigeon', name: 'Giant pigeon', icon: '🕊️', color: '#8e7cb8', sign: (n) => `${n} is fed to the chicks` },
+  { id: 'moon', name: 'Moon blast', icon: '🌕', color: '#5c6a9a', sign: (n) => `${n} is sent to the moon` },
 ];
 
 export const isExecMethod = (m: unknown): m is ExecMethod => EXEC_METHODS.some((x) => x.id === m);

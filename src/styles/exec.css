@@ -50,7 +50,7 @@
 }
 .exec-methods {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 8px;
   width: 100%;
 }
@@ -155,7 +155,7 @@
   color: var(--m);
 }
 
-/* A phone held upright: smaller buttons, still four across. */
+/* A phone held upright: smaller buttons, still five across. */
 @media (max-width: 520px) {
   .exec-vote {
     top: 58px;
@@ -173,9 +173,9 @@
     border-radius: 13px;
   }
   .exec-icon {
-    font-size: 26px;
+    font-size: 24px;
   }
   .exec-name {
-    font-size: 11px;
+    font-size: 10.5px;
   }
 }

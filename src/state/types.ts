@@ -151,7 +151,7 @@ export interface TownHall {
 }
 
 /** The ways to be executed: the gallows, and the town's other entertainments (see src/game/execution.ts). */
-export type ExecMethod = 'hang' | 'squad' | 'guillotine' | 'chair' | 'missile' | 'roast' | 'kaiju';
+export type ExecMethod = 'hang' | 'squad' | 'guillotine' | 'chair' | 'missile' | 'roast' | 'kaiju' | 'plane' | 'pigeon' | 'moon';
 
 /** A player put to death in front of the town: the show plays for everyone who sees it. */
 export interface Execution {

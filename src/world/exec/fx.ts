@@ -18,7 +18,7 @@ export function hash(i: number, salt = 0): number {
   return h - Math.floor(h);
 }
 
-export type BurstKind = 'poof' | 'smoke' | 'soot' | 'dust' | 'fire' | 'steam' | 'sparks' | 'sparkle' | 'flash';
+export type BurstKind = 'poof' | 'smoke' | 'soot' | 'dust' | 'fire' | 'steam' | 'sparks' | 'sparkle' | 'flash' | 'feathers' | 'hay';
 
 interface BurstLook {
   color: string;
@@ -32,6 +32,8 @@ interface BurstLook {
   /** Pulled down as it goes (sparks). */
   fall?: number;
   grow: number;
+  /** Flat bits that tumble and drift down (feathers, straw), rather than balls. */
+  flutter?: boolean;
 }
 
 const LOOKS: Record<BurstKind, BurstLook> = {
@@ -44,6 +46,8 @@ const LOOKS: Record<BurstKind, BurstLook> = {
   sparks: { color: '#ffe680', glow: true, n: 14, size: 0.035, spread: 1.6, rise: 0.9, life: 0.7, fall: 4, grow: 0.6 },
   sparkle: { color: '#fff6c8', glow: true, n: 12, size: 0.05, spread: 0.8, rise: 0.4, life: 1.0, grow: 0.3 },
   flash: { color: '#fffbe8', glow: true, n: 1, size: 0.3, spread: 0, rise: 0, life: 0.16, grow: 2.5 },
+  feathers: { color: '#eef0f6', n: 14, size: 0.16, spread: 1.3, rise: 0.9, life: 2.2, fall: 0.5, grow: 1, flutter: true },
+  hay: { color: '#e8c860', n: 16, size: 0.14, spread: 1.2, rise: 0.8, life: 1.4, fall: 1.4, grow: 1, flutter: true },
 };
 
 interface Burst {
@@ -70,6 +74,14 @@ const STAR = (() => {
   }
   return new THREE.ShapeGeometry(s);
 })();
+/** A little flat feather (or a wisp of straw): a long leaf shape. */
+export const FEATHER = (() => {
+  const s = new THREE.Shape();
+  s.moveTo(0, -1);
+  s.quadraticCurveTo(0.42, -0.2, 0.08, 1);
+  s.quadraticCurveTo(-0.38, 0.1, 0, -1);
+  return new THREE.ShapeGeometry(s, 6);
+})();
 
 export class Bursts {
   readonly group = new THREE.Group();
@@ -81,10 +93,12 @@ export class Bursts {
     const look = LOOKS[kind];
     const material = look.glow
       ? new THREE.MeshBasicMaterial({ color: look.color, transparent: true, depthWrite: false, side: THREE.DoubleSide })
-      : new THREE.MeshLambertMaterial({ color: look.color, emissive: kind === 'soot' ? '#1a1618' : '#8a8494', flatShading: true, transparent: true, depthWrite: false });
+      : look.flutter
+        ? new THREE.MeshLambertMaterial({ color: look.color, emissive: kind === 'hay' ? '#5a4410' : '#6a6a78', side: THREE.DoubleSide, transparent: true, depthWrite: false })
+        : new THREE.MeshLambertMaterial({ color: look.color, emissive: kind === 'soot' ? '#1a1618' : '#8a8494', flatShading: true, transparent: true, depthWrite: false });
     const meshes: THREE.Mesh[] = [];
     for (let i = 0; i < look.n; i++) {
-      const m = new THREE.Mesh(kind === 'sparkle' ? STAR : BALL, material);
+      const m = new THREE.Mesh(kind === 'sparkle' ? STAR : look.flutter ? FEATHER : BALL, material);
       m.visible = false;
       this.group.add(m);
       meshes.push(m);
@@ -99,7 +113,8 @@ export class Bursts {
       for (const m of b.meshes) m.visible = on;
       if (!on) continue;
       const out = easeOut(u * 1.6);
-      b.material.opacity = (b.look.glow ? 1 : 0.92) * Math.pow(1 - u, 1.3);
+      // (Feathers and straw stay solid until near the end of their drift.)
+      b.material.opacity = b.look.flutter ? Math.min(1, (1 - u) * 4) : (b.look.glow ? 1 : 0.92) * Math.pow(1 - u, 1.3);
       b.meshes.forEach((m, i) => {
         const a = hash(i, b.seed) * Math.PI * 2;
         const e = (hash(i, b.seed + 1) - 0.25) * 1.4;
@@ -116,7 +131,12 @@ export class Bursts {
         const s = b.look.size * b.scale * (0.6 + hash(i, b.seed + 3) * 0.8) * (1 + (b.look.grow - 1) * out);
         m.scale.setScalar(s);
         if (camera && m.geometry === STAR) m.quaternion.copy(camera.quaternion);
-        else m.rotation.set(i * 0.7, i * 1.3 + u, 0);
+        else if (b.look.flutter) {
+          // Rocking from side to side as it drifts down, like a falling leaf.
+          const life = u * b.look.life;
+          m.position.x += Math.sin(life * 4 + i) * 0.12 * b.scale * out;
+          m.rotation.set(1.2 + Math.sin(life * 4 + i) * 0.7, i * 1.3, Math.cos(life * 3 + i) * 0.8);
+        } else m.rotation.set(i * 0.7, i * 1.3 + u, 0);
       });
     }
   }
@@ -250,6 +270,65 @@ export class Dizzy {
       const a = t * 4 + (i / this.stars.length) * Math.PI * 2;
       m.position.set(at.x + Math.cos(a) * r, at.y + Math.sin(a * 2) * 0.03, at.z + Math.sin(a) * r);
       if (camera) m.quaternion.copy(camera.quaternion);
+    });
+  }
+
+  dispose() {
+    this.mat.dispose();
+    this.group.removeFromParent();
+  }
+}
+
+/**
+ * A mushroom cloud of cartoon smoke: a fat column boiling up from a spot with a great rolling cap on top, glowing
+ * orange underneath at first and going grey, then thinning away. Held to the show's clock like the bursts.
+ */
+export class Mushroom {
+  readonly group = new THREE.Group();
+  private stem: THREE.Mesh[] = [];
+  private cap: THREE.Mesh[] = [];
+  private mat = new THREE.MeshLambertMaterial({ color: '#8c8288', emissive: '#ff7a2a', flatShading: true, transparent: true, depthWrite: false });
+  private hot = new THREE.Color('#ff7a2a');
+  private cold = new THREE.Color('#3a3438');
+
+  constructor(
+    private at: number,
+    private origin: THREE.Vector3,
+    private size = 1,
+    private life = 3.2,
+  ) {
+    for (let i = 0; i < 7; i++) this.stem.push(new THREE.Mesh(BALL, this.mat));
+    for (let i = 0; i < 14; i++) this.cap.push(new THREE.Mesh(BALL, this.mat));
+    this.group.add(...this.stem, ...this.cap);
+    this.group.visible = false;
+  }
+
+  update(t: number) {
+    const u = (t - this.at) / this.life;
+    this.group.visible = u >= 0 && u < 1;
+    if (!this.group.visible) return;
+    const k = this.size;
+    const up = easeOut(u * 1.8);
+    const top = 1.2 + 3.2 * up;
+    this.mat.opacity = 0.95 * Math.min(1, (1 - u) * 2.2);
+    this.mat.emissive.copy(this.cold).lerp(this.hot, Math.max(0, 1 - u * 3));
+    this.stem.forEach((m, i) => {
+      const f = i / (this.stem.length - 1);
+      const r = (0.55 - f * 0.22) * (0.6 + up * 0.5);
+      m.position.set(this.origin.x + Math.sin(i * 2.1 + t * 2) * 0.06 * k, this.origin.y + f * top * k * 0.92, this.origin.z + Math.cos(i * 1.7 + t * 2) * 0.06 * k);
+      m.scale.setScalar(r * k);
+      m.rotation.set(i, t + i, 0);
+    });
+    // The cap: a ring rolling outwards, and a dome over it.
+    const spread = 0.5 + 1.1 * up;
+    this.cap.forEach((m, i) => {
+      const ring = i < 10;
+      const a = (i / (ring ? 10 : 4)) * Math.PI * 2 + t * 0.6;
+      const r = ring ? spread : spread * 0.45;
+      const y = top + (ring ? 0 : 0.45 * up);
+      m.position.set(this.origin.x + Math.cos(a) * r * k, this.origin.y + y * k, this.origin.z + Math.sin(a) * r * k);
+      m.scale.setScalar((ring ? 0.5 : 0.62) * (0.5 + up * 0.7) * k * (0.85 + hash(i, 3) * 0.3));
+      m.rotation.set(i * 0.7, t + i, 0);
     });
   }
 

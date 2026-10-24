@@ -723,3 +723,497 @@ export function kaiju(): Kaiju {
     },
   };
 }
+
+// ---------------------------------------------------------------- the plane crash
+
+export interface Propeller {
+  group: THREE.Group;
+  /** The blades (they turn about z), and a blur of them for when it's going fast. */
+  blades: THREE.Group;
+  blur: THREE.MeshBasicMaterial;
+}
+
+/** A two-bladed wooden propeller on a brass hub, facing +z, with a faint disc for its blur. */
+export function propeller(): Propeller {
+  const group = new THREE.Group();
+  const blades = new THREE.Group();
+  const b = new Builder();
+  for (const s of [-1, 1]) {
+    b.add(G.rbox(0.4), PALE, { pos: [0, s * 0.19, 0], rot: [0, s * 0.35, 0], scale: [0.1, 0.36, 0.035] });
+    b.add(G.sphere(10, 6), '#d8402f', { pos: [0, s * 0.36, 0], rot: [0, s * 0.35, 0], scale: [0.05, 0.03, 0.02] });
+  }
+  b.add(G.sphere(12, 8), BRASS, { pos: [0, 0, 0.03], scale: [0.07, 0.07, 0.09] });
+  blades.add(mesh(b));
+  group.add(blades);
+  const blur = new THREE.MeshBasicMaterial({ color: '#f4efe6', transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide });
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(0.4, 24), blur);
+  disc.position.z = 0.01;
+  group.add(disc);
+  return { group, blades, blur };
+}
+
+export interface Plane {
+  group: THREE.Group;
+  prop: Propeller;
+  /** Where the pilot sits (their feet, sitting), and where the smoke comes out. */
+  seat: THREE.Vector3;
+  exhaust: THREE.Object3D;
+  /** From the plane's middle down to the bottom of its wheels. */
+  wheels: number;
+  /** The scarf's pieces, each hung on the last, flapping in the wind. */
+  scarf: THREE.Group[];
+  dispose(): void;
+}
+
+/**
+ * A little cartoon biplane, a metre and a half long: a red body tapering to the tail, cream wings above and below
+ * held apart by struts, a round black engine with a wooden propeller, fat wheels, and an open cockpit (the pilot's
+ * long scarf streams out behind). Its origin is the middle of the body at the cockpit, nose along +z.
+ */
+export function biplane(): Plane {
+  const RED = '#d8402f';
+  const CREAM = '#f4e6c4';
+  const group = new THREE.Group();
+  const b = new Builder();
+  // The body, a tapering tail, and a yellow stripe round it.
+  b.add(G.sphere(18, 12), RED, { pos: [0, 0, 0.05], scale: [0.3, 0.3, 0.75] });
+  b.add(G.taper(0.25, 16), RED, { pos: [0, 0.03, -0.62], rot: [-Math.PI / 2, 0, 0], scale: [0.25, 0.75, 0.22] });
+  b.add(G.cyl(18), '#f2c14e', { pos: [0, 0, -0.42], rot: [Math.PI / 2, 0, 0], scale: [0.262, 0.07, 0.25] });
+  // The cockpit's padded rim and a little windscreen.
+  b.add(G.torus(0.22, 6, 18), LEATHER, { pos: [0, 0.24, -0.16], rot: [Math.PI / 2, 0, 0], scale: [0.21, 0.24, 0.2] });
+  b.add(G.box(), '#bfe0f0', { pos: [0, 0.34, 0.14], rot: [-0.45, 0, 0], scale: [0.22, 0.12, 0.012] });
+  // The engine: a black drum with a brass ring, and a pipe out of the side.
+  b.add(G.cyl(18), '#2f2d36', { pos: [0, 0, 0.66], rot: [Math.PI / 2, 0, 0], scale: [0.27, 0.22, 0.27] });
+  b.add(G.torus(0.12, 6, 20), BRASS, { pos: [0, 0, 0.77], scale: 0.24 });
+  b.add(G.cyl(8), IRON, { pos: [0.26, -0.08, 0.45], rot: [Math.PI / 2, 0, 0], scale: [0.04, 0.32, 0.04] });
+  // The wings: two long cream boards with red tips, held apart by struts, with wires crossed between.
+  // (The top one sits well forward, over the engine, so the pilot's face shows over it from above.)
+  for (const [y, z] of [
+    [-0.2, 0.25],
+    [0.55, 0.62],
+  ]) {
+    b.add(G.rbox(0.3), CREAM, { pos: [0, y, z], scale: [1.95, 0.05, 0.4] });
+    for (const sx of [-1, 1]) b.add(G.rbox(0.3), RED, { pos: [sx * 0.9, y, z], scale: [0.18, 0.055, 0.405] });
+  }
+  for (const sx of [-1, 1]) {
+    for (const dz of [-0.12, 0.12]) b.add(G.cyl(6), WOOD, { pos: [sx * 0.68, 0.175, 0.435 + dz], rot: [0.44, 0, 0], scale: [0.018, 0.83, 0.018] });
+    for (const s of [-1, 1]) b.add(G.cyl(4), IRON, { pos: [sx * 0.42, 0.175, 0.435], rot: [0.44, 0, s * 0.9], scale: [0.006, 0.98, 0.006] });
+    // Struts from the body up to the top wing.
+    b.add(G.cyl(6), WOOD, { pos: [sx * 0.13, 0.42, 0.6], rot: [0, 0, sx * -0.35], scale: [0.016, 0.3, 0.016] });
+  }
+  // The tail: a fin and a tailplane.
+  b.add(G.rbox(0.3), CREAM, { pos: [0, 0.2, -0.98], rot: [0.2, 0, 0], scale: [0.04, 0.34, 0.28] });
+  b.add(G.rbox(0.3), RED, { pos: [0, 0.32, -1.02], rot: [0.2, 0, 0], scale: [0.045, 0.1, 0.2] });
+  b.add(G.rbox(0.3), CREAM, { pos: [0, 0.04, -1.0], scale: [0.72, 0.035, 0.24] });
+  // The wheels on their legs, and a skid under the tail.
+  for (const sx of [-1, 1]) {
+    b.add(G.cyl(6), IRON, { pos: [sx * 0.16, -0.36, 0.38], rot: [0, 0, sx * 0.4], scale: [0.02, 0.36, 0.02] });
+    b.add(G.cyl(16), '#24222a', { pos: [sx * 0.3, -0.48, 0.38], rot: [0, 0, Math.PI / 2], scale: [0.13, 0.07, 0.13] });
+    b.add(G.cyl(12), CREAM, { pos: [sx * 0.34, -0.48, 0.38], rot: [0, 0, Math.PI / 2], scale: [0.06, 0.012, 0.06] });
+  }
+  b.add(G.cyl(8), IRON, { pos: [0, -0.48, 0.38], rot: [0, 0, Math.PI / 2], scale: [0.015, 0.6, 0.015] });
+  b.add(G.cyl(6), IRON, { pos: [0, -0.2, -1.02], rot: [-0.5, 0, 0], scale: [0.018, 0.4, 0.018] });
+  group.add(mesh(b));
+  const prop = propeller();
+  prop.group.position.set(0, 0, 0.82);
+  group.add(prop.group);
+  const exhaust = new THREE.Object3D();
+  exhaust.position.set(0.26, -0.08, 0.28);
+  group.add(exhaust);
+  // The pilot's scarf: red and white bands, each piece hung from the one before.
+  const scarf: THREE.Group[] = [];
+  let parent: THREE.Object3D = group;
+  for (let k = 0; k < 6; k++) {
+    const seg = new THREE.Group();
+    seg.position.set(0, 0, k ? -0.13 : -0.36);
+    if (!k) seg.position.y = 0.3;
+    const sb = new Builder();
+    sb.add(G.box(), k % 2 ? '#f4efe6' : RED, { pos: [0, 0, -0.065], scale: [0.09, 0.012, 0.135] });
+    seg.add(mesh(sb));
+    parent.add(seg);
+    parent = seg;
+    scarf.push(seg);
+  }
+  return { group, prop, seat: new THREE.Vector3(0, -0.06, -0.16), exhaust, wheels: 0.61, scarf, dispose: () => {} };
+}
+
+/** A round haystack, with a few loose wisps of straw about it. Its top is about 0.8 up. */
+export function haystack(): THREE.Group {
+  const group = new THREE.Group();
+  const b = new Builder();
+  b.add(G.blob(2, true), '#e3c25a', { pos: [0, 0.32, 0], scale: [0.85, 0.5, 0.75] });
+  b.add(G.blob(4, true), '#d9b24a', { pos: [0.05, 0.62, -0.04], scale: [0.6, 0.28, 0.55] });
+  for (let k = 0; k < 16; k++) {
+    const a = (k / 16) * Math.PI * 2;
+    const r = 0.55 + (k % 3) * 0.12;
+    b.add(G.box(), k % 2 ? '#c9a040' : '#f0d070', { pos: [Math.cos(a) * r, 0.25 + (k % 4) * 0.12, Math.sin(a) * r * 0.9], rot: [k, a, 0.9], scale: [0.012, 0.22, 0.012] });
+  }
+  for (let k = 0; k < 6; k++) b.add(G.box(), '#e3c25a', { pos: [Math.cos(k * 1.9) * 1.0, 0.01, Math.sin(k * 1.9) * 0.9], rot: [0, k, 0], scale: [0.2, 0.012, 0.015] });
+  group.add(mesh(b));
+  return group;
+}
+
+/** A crater in the grass: a scorched ring, a dark hole and lumps of earth thrown up round its rim. */
+export function crater(): THREE.Group {
+  const group = new THREE.Group();
+  const scorch = new THREE.Mesh(new THREE.CircleGeometry(1.7, 28), new THREE.MeshBasicMaterial({ color: '#2e2a26', transparent: true, opacity: 0.6, depthWrite: false }));
+  scorch.rotation.x = -Math.PI / 2;
+  scorch.position.y = 0.04;
+  scorch.renderOrder = 1;
+  const hole = new THREE.Mesh(new THREE.CircleGeometry(0.85, 24), new THREE.MeshBasicMaterial({ color: '#16120f' }));
+  hole.rotation.x = -Math.PI / 2;
+  hole.position.y = 0.06;
+  group.add(scorch, hole);
+  const b = new Builder();
+  for (let k = 0; k < 14; k++) {
+    const a = (k / 14) * Math.PI * 2 + (k % 2) * 0.2;
+    const r = 0.95 + (k % 3) * 0.08;
+    b.add(G.dodeca(), k % 2 ? '#6a4a30' : '#7d5a3a', { pos: [Math.cos(a) * r, 0.06, Math.sin(a) * r], rot: [k, k * 2, 0], scale: [0.2 + (k % 3) * 0.04, 0.14 + (k % 2) * 0.05, 0.18] });
+  }
+  for (let k = 0; k < 7; k++) {
+    const a = k * 0.9 + 0.3;
+    b.add(G.dodeca(), '#5a3e28', { pos: [Math.cos(a) * 1.5, 0.03, Math.sin(a) * 1.45], rot: [k, k, 0], scale: [0.09, 0.06, 0.08] });
+  }
+  group.add(mesh(b));
+  return group;
+}
+
+// ---------------------------------------------------------------- the giant pigeon
+
+// The messenger pigeon's colours (see pigeon.ts).
+const DOVE = '#8a93a8';
+const DOVE_LIGHT = '#a7afc0';
+const DOVE_DARK = '#5d6578';
+
+export interface GiantPigeon {
+  group: THREE.Group;
+  head: THREE.Group;
+  /** Wings on pivots at the shoulders: turning them about z flaps them (left one positive for down). */
+  wings: THREE.Group[];
+  /** The legs swing about x (back to tuck them up, forward to reach); the toes curl about x to grip. */
+  legs: THREE.Group[];
+  toes: THREE.Group[];
+  /** Between the feet, where whatever it carries hangs from. */
+  talons: THREE.Object3D;
+  dispose(): void;
+}
+
+/**
+ * The messenger pigeon's enormous cousin: the same grey with a shimmering green and purple neck, orange eyes and
+ * a pale beak, but a body as big as a cart, wings five metres across, and great pink feet for carrying things off.
+ * Its origin is the middle of its body, facing +z.
+ */
+export function giantPigeon(): GiantPigeon {
+  const group = new THREE.Group();
+  const material = matte();
+  const b = new Builder();
+  b.add(G.sphere(18, 14), DOVE, { scale: [0.55, 0.5, 0.8] });
+  b.add(G.sphere(16, 12), DOVE_LIGHT, { pos: [0, -0.08, 0.24], scale: [0.47, 0.42, 0.6] });
+  b.add(G.sphere(16, 12), '#5aa88a', { pos: [0, 0.32, 0.5], scale: [0.38, 0.33, 0.34] });
+  b.add(G.sphere(16, 12), '#8a5aa8', { pos: [0, 0.22, 0.57], scale: [0.4, 0.24, 0.3] });
+  // The tail, banded dark at its end.
+  b.add(G.rbox(0.2), DOVE, { pos: [0, 0.02, -0.9], rot: [0.22, 0, 0], scale: [0.5, 0.08, 0.6] });
+  b.add(G.rbox(0.2), DOVE_DARK, { pos: [0, -0.04, -1.18], rot: [0.22, 0, 0], scale: [0.52, 0.085, 0.16] });
+  group.add(new THREE.Mesh(b.geometry(), material));
+  const head = new THREE.Group();
+  head.position.set(0, 0.62, 0.62);
+  const h = new Builder();
+  h.add(G.sphere(16, 12), DOVE, { scale: [0.32, 0.32, 0.36] });
+  h.add(G.cone(10), '#e8c27a', { pos: [0, -0.04, 0.44], rot: [Math.PI / 2, 0, 0], scale: [0.085, 0.26, 0.07] });
+  h.add(G.sphere(10, 8), '#f4efe6', { pos: [0, 0.03, 0.33], scale: [0.07, 0.05, 0.07] });
+  for (const sx of [-1, 1]) {
+    h.add(G.sphere(12, 10), '#ff8a3a', { pos: [sx * 0.2, 0.08, 0.2], scale: [0.09, 0.09, 0.07] });
+    h.add(G.sphere(10, 8), '#1d1612', { pos: [sx * 0.235, 0.09, 0.235], scale: [0.045, 0.05, 0.035] });
+    h.add(G.sphere(6, 4), '#ffffff', { pos: [sx * 0.24, 0.115, 0.26], scale: 0.014 });
+  }
+  head.add(new THREE.Mesh(h.geometry(), material));
+  group.add(head);
+  const wings: THREE.Group[] = [];
+  for (const sx of [-1, 1]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(sx * 0.42, 0.18, 0.1);
+    const w = new Builder();
+    w.add(G.sphere(14, 8), DOVE, { pos: [sx * 0.75, 0, -0.1], scale: [0.85, 0.11, 0.5] });
+    for (const k of [0, 1]) w.add(G.rbox(0.3), '#3d4250', { pos: [sx * 0.8, 0.04, -0.3 - k * 0.2], scale: [0.6, 0.06, 0.08] });
+    w.add(G.sphere(12, 6), DOVE_DARK, { pos: [sx * 1.65, 0, -0.25], scale: [0.65, 0.08, 0.38] });
+    for (let k = 0; k < 4; k++) w.add(G.sphere(8, 4), DOVE_DARK, { pos: [sx * (1.85 + k * 0.1), 0, -0.45 + k * 0.12], rot: [0, sx * (0.5 - k * 0.2), 0], scale: [0.35, 0.05, 0.1] });
+    pivot.add(new THREE.Mesh(w.geometry(), material));
+    group.add(pivot);
+    wings.push(pivot);
+  }
+  const legs: THREE.Group[] = [];
+  const toes: THREE.Group[] = [];
+  for (const sx of [-1, 1]) {
+    const leg = new THREE.Group();
+    leg.position.set(sx * 0.2, -0.3, 0.05);
+    const l = new Builder();
+    l.add(G.sphere(12, 8), DOVE, { pos: [0, -0.05, 0], scale: [0.16, 0.2, 0.18] });
+    l.add(G.cyl(8), '#e8908a', { pos: [0, -0.38, 0], scale: [0.045, 0.5, 0.045] });
+    leg.add(new THREE.Mesh(l.geometry(), material));
+    const foot = new THREE.Group();
+    foot.position.set(0, -0.62, 0);
+    const f = new Builder();
+    for (const a of [-0.45, 0, 0.45]) {
+      f.add(G.cyl(6), '#e8908a', { pos: [Math.sin(a) * 0.13, 0, Math.cos(a) * 0.13], rot: [Math.PI / 2, a, 0], scale: [0.032, 0.26, 0.032] });
+      f.add(G.cone(6), '#3d3a40', { pos: [Math.sin(a) * 0.27, 0, Math.cos(a) * 0.27], rot: [Math.PI / 2, a, 0], scale: [0.026, 0.07, 0.026] });
+    }
+    f.add(G.cyl(6), '#e8908a', { pos: [0, 0, -0.1], rot: [Math.PI / 2, 0, 0], scale: [0.03, 0.2, 0.03] });
+    foot.add(new THREE.Mesh(f.geometry(), material));
+    leg.add(foot);
+    group.add(leg);
+    legs.push(leg);
+    toes.push(foot);
+  }
+  const talons = new THREE.Object3D();
+  talons.position.set(0, -0.62, 0.1);
+  legs[0].add(talons);
+  group.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) o.castShadow = true;
+  });
+  return { group, head, wings, legs, toes, talons, dispose: () => material.dispose() };
+}
+
+export interface Chick {
+  group: THREE.Group;
+  /** Turns to look up (negative x) or dive in; the beak's halves open about x. */
+  head: THREE.Group;
+  upper: THREE.Group;
+  lower: THREE.Group;
+}
+
+/** A giant baby pigeon: a ball of yellow fluff with tufts on top, beady eyes, stubby wings and an enormous beak. */
+function chick(material: THREE.Material, k: number): Chick {
+  const FLUFF = k % 2 ? '#ecdc9a' : '#e4d08a';
+  const group = new THREE.Group();
+  const b = new Builder();
+  b.add(G.blob(k, true), FLUFF, { pos: [0, 0.42, 0], scale: [0.46, 0.44, 0.44] });
+  b.add(G.blob(k + 2, true), '#d8c07a', { pos: [0, 0.3, -0.1], scale: [0.4, 0.3, 0.4] });
+  for (const sx of [-1, 1]) b.add(G.sphere(10, 6), '#c9b06a', { pos: [sx * 0.42, 0.45, -0.05], rot: [0, 0, sx * 0.6], scale: [0.08, 0.2, 0.14] });
+  group.add(new THREE.Mesh(b.geometry(), material));
+  const head = new THREE.Group();
+  head.position.set(0, 0.78, 0.05);
+  const h = new Builder();
+  h.add(G.blob(k + 1, true), FLUFF, { pos: [0, 0.16, 0], scale: [0.3, 0.28, 0.29] });
+  for (let i = 0; i < 5; i++) h.add(G.cone(5), '#f2e6b0', { pos: [(i - 2) * 0.05, 0.44, -0.02 + (i % 2) * 0.04], rot: [(i % 2) * 0.3 - 0.15, 0, (i - 2) * 0.35], scale: [0.025, 0.14, 0.025] });
+  for (const sx of [-1, 1]) {
+    h.add(G.sphere(10, 8), '#1d1612', { pos: [sx * 0.15, 0.26, 0.21], scale: [0.06, 0.07, 0.04] });
+    h.add(G.sphere(6, 4), '#ffffff', { pos: [sx * 0.16, 0.29, 0.245], scale: 0.018 });
+  }
+  head.add(new THREE.Mesh(h.geometry(), material));
+  // The beak: two great soft halves, pink inside, hinged at the face.
+  const upper = new THREE.Group();
+  upper.position.set(0, 0.13, 0.22);
+  const u = new Builder();
+  u.add(G.sphere(12, 8), '#f2c24a', { pos: [0, 0.03, 0.22], scale: [0.21, 0.08, 0.28] });
+  u.add(G.sphere(10, 6), '#e8404a', { pos: [0, -0.02, 0.2], scale: [0.17, 0.035, 0.23] });
+  upper.add(new THREE.Mesh(u.geometry(), material));
+  const lower = new THREE.Group();
+  lower.position.set(0, 0.1, 0.22);
+  const lo = new Builder();
+  lo.add(G.sphere(12, 8), '#f6d060', { pos: [0, -0.03, 0.2], scale: [0.2, 0.07, 0.25] });
+  lo.add(G.sphere(10, 6), '#d8303e', { pos: [0, 0.015, 0.18], scale: [0.16, 0.03, 0.2] });
+  lower.add(new THREE.Mesh(lo.geometry(), material));
+  head.add(upper, lower);
+  group.add(head);
+  return { group, head, upper, lower };
+}
+
+export interface NestTree {
+  group: THREE.Group;
+  /** The middle of the nest's floor, in the tree's frame, and the nest's radius. */
+  nest: THREE.Vector3;
+  radius: number;
+  chicks: Chick[];
+  dispose(): void;
+}
+
+/**
+ * A gnarled old tree with a couple of leafy branches and, on top, an enormous nest of sticks with three giant
+ * chicks in it, sitting round the edge facing the middle. Its origin is at the foot of the trunk.
+ */
+export function nestTree(): NestTree {
+  const group = new THREE.Group();
+  const material = matte();
+  const H = 3.3;
+  const R = 1.45;
+  const b = new Builder();
+  b.add(G.taper(0.62, 10), '#6a4a32', { pos: [0, H / 2, 0], scale: [0.42, H, 0.42] });
+  for (let k = 0; k < 5; k++) {
+    const a = (k / 5) * Math.PI * 2;
+    b.add(G.cone(8), '#5d4029', { pos: [Math.cos(a) * 0.36, 0.2, Math.sin(a) * 0.36], rot: [Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9], scale: [0.14, 0.6, 0.14] });
+  }
+  // Knots in the bark, and two branches with clumps of leaves.
+  for (let k = 0; k < 4; k++) b.add(G.sphere(8, 6), '#4e3523', { pos: [Math.cos(k * 2.1) * 0.32, 0.8 + k * 0.6, Math.sin(k * 2.1) * 0.32], scale: [0.08, 0.12, 0.08] });
+  for (const [a, y, l] of [
+    [0.6, 1.9, 1.3],
+    [3.6, 2.4, 1.1],
+  ]) {
+    b.add(G.taper(0.5, 8), '#6a4a32', { pos: [Math.cos(a) * l * 0.45, y + l * 0.25, Math.sin(a) * l * 0.45], rot: [Math.sin(a) * 1.1, 0, -Math.cos(a) * 1.1], scale: [0.13, l, 0.13] });
+    for (let k = 0; k < 3; k++) b.add(G.blob(k + 1, true), k % 2 ? '#6aa04a' : '#5a9440', { pos: [Math.cos(a) * l * 0.95 + (k - 1) * 0.2, y + l * 0.55 + (k % 2) * 0.15, Math.sin(a) * l * 0.95 + (k - 1) * 0.12], scale: 0.38 - k * 0.04 });
+  }
+  // The nest: a deep bowl with a thick rim of sticks going every which way.
+  b.add(G.sphere(18, 10), '#8a6640', { pos: [0, H + 0.05, 0], scale: [R * 0.95, 0.42, R * 0.95] });
+  b.add(G.cyl(18), '#5a4028', { pos: [0, H + 0.3, 0], scale: [R * 0.82, 0.04, R * 0.82] });
+  for (let k = 0; k < 46; k++) {
+    const a = (k / 46) * Math.PI * 2;
+    const r = R * (0.88 + (k % 3) * 0.06);
+    b.add(G.cyl(5), ['#7a5634', '#9a7448', '#6a4a2c'][k % 3], {
+      pos: [Math.cos(a) * r, H + 0.3 + (k % 4) * 0.07, Math.sin(a) * r],
+      rot: [0.4 * Math.sin(k * 1.7), -a, Math.PI / 2 + 0.5 * Math.cos(k * 2.3)],
+      scale: [0.045, 0.85 + (k % 5) * 0.12, 0.045],
+    });
+  }
+  b.add(G.torus(0.3, 8, 28), '#8a6640', { pos: [0, H + 0.36, 0], rot: [Math.PI / 2, 0, 0], scale: [R * 0.92, R * 0.92, R * 0.9] });
+  // A few old feathers stuck in the sticks.
+  for (let k = 0; k < 3; k++) b.add(G.sphere(8, 4), '#eef0f6', { pos: [Math.cos(k * 2.4 + 1) * R * 1.02, H + 0.5, Math.sin(k * 2.4 + 1) * R * 1.02], rot: [0.8, k * 2.4, 0.6], scale: [0.04, 0.2, 0.012] });
+  group.add(new THREE.Mesh(b.geometry(), material));
+  const nest = new THREE.Vector3(0, H + 0.32, 0);
+  const chicks: Chick[] = [];
+  for (let k = 0; k < 3; k++) {
+    const c = chick(material, k);
+    chicks.push(c);
+    group.add(c.group);
+  }
+  group.traverse((o) => {
+    if ((o as THREE.Mesh).isMesh) o.castShadow = true;
+  });
+  return { group, nest, radius: R, chicks, dispose: () => material.dispose() };
+}
+
+// ---------------------------------------------------------------- the moon
+
+/** A matrix placing a part on a sphere's surface at `n` (a direction), its own y along the surface's normal. */
+function onSurface(n: THREE.Vector3, r: number, scale: THREE.Vector3): THREE.Matrix4 {
+  const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), n.clone().normalize());
+  return new THREE.Matrix4().compose(n.clone().normalize().multiplyScalar(r), q, scale);
+}
+
+export interface Moon {
+  group: THREE.Group;
+  /** Glowing cracks all over it, faded in (0 to 1) just before it goes. */
+  cracks: THREE.MeshBasicMaterial;
+  dispose(): void;
+}
+
+/** A little grey moon a metre across, pocked with craters, with cracks of light ready to split it open. */
+export function moon(): Moon {
+  const group = new THREE.Group();
+  const b = new Builder();
+  b.add(G.blob(3, true), '#b8b6b0', { scale: 1 });
+  const dirs = [
+    [0.2, 1, 0.3],
+    [-0.7, 0.4, 0.6],
+    [0.8, 0.2, 0.5],
+    [0.1, -0.3, 1],
+    [-0.4, -0.8, 0.4],
+    [0.6, -0.6, -0.3],
+    [-0.9, 0.1, -0.4],
+    [0.3, 0.5, -0.8],
+    [-0.2, 0.9, -0.4],
+    [0.9, 0.6, -0.2],
+  ];
+  dirs.forEach(([x, y, z], k) => {
+    const n = new THREE.Vector3(x, y, z).normalize();
+    const r = 0.16 + (k % 3) * 0.07;
+    b.add(G.sphere(14, 8), '#8e8c88', onSurface(n, 0.93, new THREE.Vector3(r, 0.06, r)));
+    b.add(G.torus(0.15, 6, 16), '#c8c6c0', onSurface(n, 0.97, new THREE.Vector3(r * 1.05, 0.25, r * 1.05)).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2)));
+  });
+  group.add(mesh(b));
+  // The cracks: zigzags of light across its face.
+  const c = new Builder();
+  for (let k = 0; k < 9; k++) {
+    let p = new THREE.Vector3(Math.sin(k * 2.3), Math.cos(k * 1.7), Math.sin(k * 3.1 + 1)).normalize();
+    let d = new THREE.Vector3(Math.cos(k * 1.3), Math.sin(k * 2.9), Math.cos(k * 0.7)).cross(p).normalize();
+    for (let i = 0; i < 4; i++) {
+      d.applyAxisAngle(p, (i % 2 ? 1 : -1) * 0.7);
+      const next = p.clone().addScaledVector(d, 0.28).normalize();
+      const a = p.clone().multiplyScalar(1.01);
+      const e = next.clone().multiplyScalar(1.01);
+      const m = new THREE.Matrix4().lookAt(a, e, p);
+      m.setPosition(a.clone().add(e).multiplyScalar(0.5));
+      c.add(G.box(), '#ffffff', m.multiply(new THREE.Matrix4().makeScale(0.035, 0.035, a.distanceTo(e) + 0.02)));
+      d = d.sub(next.clone().multiplyScalar(d.dot(next))).normalize();
+      p = next;
+    }
+  }
+  const cracks = new THREE.MeshBasicMaterial({ color: '#d8ffd0', transparent: true, opacity: 0, depthWrite: false });
+  group.add(new THREE.Mesh(c.geometry(), cracks));
+  return { group, cracks, dispose: () => {} };
+}
+
+export interface Station {
+  group: THREE.Group;
+  /** The middle of the dish, the way it faces (both in the station's frame), and where its beams meet. */
+  dish: THREE.Vector3;
+  aim: THREE.Vector3;
+  focus: THREE.Vector3;
+  /** Round the dish's rim, where the beams start. */
+  emitters: THREE.Vector3[];
+  /** The dish's glow, and the little lights round the middle. */
+  glow: THREE.MeshBasicMaterial;
+  lights: THREE.MeshBasicMaterial;
+  dispose(): void;
+}
+
+/**
+ * A battle station: a great round grey ball with a trench round its middle, panel lines and lights all over, and
+ * a big round dish set into its upper face (which faces +z, tilted up). Three metres across.
+ */
+export function station(): Station {
+  const R = 1.5;
+  const group = new THREE.Group();
+  const b = new Builder();
+  b.add(G.sphere(28, 20), '#a4a9b1', { scale: R });
+  // The trench round the middle, and lines of panels above and below it.
+  b.add(G.cyl(32), '#4a4e56', { scale: [R * 1.004, 0.07, R * 1.004] });
+  for (let k = 0; k < 60; k++) {
+    const n = new THREE.Vector3(Math.sin(k * 2.39) * Math.sqrt(1 - ((k / 60) * 2 - 1) ** 2), (k / 60) * 2 - 1, Math.cos(k * 2.39) * Math.sqrt(1 - ((k / 60) * 2 - 1) ** 2));
+    b.add(G.box(), k % 3 ? '#a3a8b0' : '#73787f', onSurface(n, R, new THREE.Vector3(0.14 + (k % 4) * 0.05, 0.04, 0.1 + (k % 3) * 0.05)));
+  }
+  // The dish: set into the upper face, a darker bowl with rings and a rim.
+  const aim = new THREE.Vector3(0, 0.42, 1).normalize();
+  const dish = aim.clone().multiplyScalar(R * 0.9);
+  b.add(G.sphere(24, 10), '#5d626a', onSurface(aim, R * 0.88, new THREE.Vector3(0.6, 0.1, 0.6)));
+  for (const r of [0.6, 0.42, 0.24]) b.add(G.torus(0.08, 4, 28), r === 0.6 ? '#b0b5bc' : '#4a4e56', onSurface(aim, R * (0.9 + (0.6 - r) * 0.04), new THREE.Vector3(r, 0.3, r)).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2)));
+  b.add(G.cone(10), '#4a4e56', onSurface(aim, R * 0.9, new THREE.Vector3(0.06, 0.35, 0.06)).multiply(new THREE.Matrix4().makeTranslation(0, 0.5, 0)));
+  // (A little light of its own, so its shady side still reads against the sky.)
+  group.add(mesh(b, new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#3a3e48' })));
+  const glow = new THREE.MeshBasicMaterial({ color: '#7dff6a', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+  const glowBall = new THREE.Mesh(new THREE.SphereGeometry(0.3, 14, 10), glow);
+  glowBall.position.copy(dish).addScaledVector(aim, 0.1);
+  group.add(glowBall);
+  // Little lit windows round the trench.
+  const lights = new THREE.MeshBasicMaterial({ color: '#fff3b0' });
+  const l = new Builder();
+  for (let k = 0; k < 26; k++) {
+    const a = (k / 26) * Math.PI * 2;
+    l.add(G.box(), '#ffffff', { pos: [Math.sin(a) * R * 1.01, (k % 2) * 0.05 - 0.02, Math.cos(a) * R * 1.01], rot: [0, a, 0], scale: [0.05, 0.025, 0.01] });
+  }
+  group.add(new THREE.Mesh(l.geometry(), lights));
+  const u = new THREE.Vector3().crossVectors(aim, new THREE.Vector3(0, 1, 0)).normalize();
+  const v = new THREE.Vector3().crossVectors(u, aim).normalize();
+  const emitters = Array.from({ length: 6 }, (_, k) => {
+    const a = (k / 6) * Math.PI * 2;
+    return dish.clone().addScaledVector(u, Math.cos(a) * 0.55).addScaledVector(v, Math.sin(a) * 0.55).addScaledVector(aim, 0.05);
+  });
+  return {
+    group,
+    dish,
+    aim,
+    focus: dish.clone().addScaledVector(aim, 1.1),
+    emitters,
+    glow,
+    lights,
+    dispose: () => {
+      glowBall.geometry.dispose();
+    },
+  };
+}
+
+/** A transporter's column of light: a tall glowing tube, open at both ends, its origin at its foot. */
+export function beamColumn(): { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial } {
+  const material = new THREE.MeshBasicMaterial({ color: '#bff4ff', transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 20, 1, true).translate(0, 0.5, 0), material);
+  mesh.renderOrder = 3;
+  return { mesh, material };
+}
