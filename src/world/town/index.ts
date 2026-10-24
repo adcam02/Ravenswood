@@ -132,6 +132,12 @@ export interface TownWorld {
    * engine sets `renderer.shadowMap.autoUpdate = false` and `renderer.shadowMap.needsUpdate = true` on this.
    */
   consumeShadowDirty(): boolean;
+  /**
+   * True, once, when a slow change (the sun creeping round, a flower growing) wants the shadows redrawn, which can
+   * wait for a moment when the camera is still. The engine calls shadowsDrawn() whenever it does redraw them.
+   */
+  consumeShadowDrift(): boolean;
+  shadowsDrawn(): void;
 }
 
 // ---------------------------------------------------------------- the day and the night
@@ -233,6 +239,8 @@ const POINT_LIGHTS = 4;
 const SHADOW_MAP = 4096;
 /** Half the width of the square of ground the sun's shadows cover, centred on the town. */
 const SHADOW_HALF = 46;
+/** How far (radians) the sun can move on from where the shadows were drawn before they're redrawn whatever is going on. */
+const SUN_JUMP = 0.06;
 
 // ---------------------------------------------------------------- small things that come and go
 
@@ -422,7 +430,10 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   sun.shadow.normalBias = 0.045;
   scene.add(hemi, sun, sun.target);
   let shadowDirty = true;
+  let shadowDrift = false;
   const shadowDir = new THREE.Vector3();
+  /** Where the sun was when the shadows were last drawn. */
+  const drawnDir = new THREE.Vector3();
   let shadowZone = '';
   const shadowBox = (half: number, dist: number) => {
     const c = sun.shadow.camera;
@@ -434,14 +445,21 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     c.updateProjectionMatrix();
     shadowDirty = true;
   };
-  /** Notes where the sun now is; a noticeable move means the shadows need drawing again. */
+  /**
+   * Notes where the sun now is; a noticeable move means the shadows need drawing again. Redrawing the whole town's
+   * shadows takes long enough to show as a hitch, so the sun creeping on asks for it whenever suits (see
+   * consumeShadowDrift), and only a bigger move (dusk, or a long walk) asks for it straight away.
+   */
   const noteSun = () => {
     const d = sun.position.clone().sub(sun.target.position).normalize();
     const key = `${zone}:${homeNight}`;
-    if (key !== shadowZone || shadowDir.angleTo(d) > 0.004) {
+    if (key !== shadowZone || drawnDir.angleTo(d) > SUN_JUMP) {
       shadowDir.copy(d);
       shadowZone = key;
       shadowDirty = true;
+    } else if (shadowDir.angleTo(d) > 0.004) {
+      shadowDir.copy(d);
+      shadowDrift = true;
     }
   };
   const lamps = Array.from({ length: POINT_LIGHTS }, () => {
@@ -1386,7 +1404,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         flowers.each((f) => {
           if (f.at && now0 - f.at < 32000) growing = true;
         });
-        if (growing || t < bellUntil) shadowDirty = true;
+        if (growing || t < bellUntil) shadowDrift = true;
       }
       // Water.
       const w = outdoor.water;
@@ -1511,6 +1529,15 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       const e = ((x - POND.x) / POND.rx) ** 2 + ((z - POND.z) / POND.rz) ** 2;
       if (e > 1.02) return;
       ripples.spawn(x, z, size, nowT);
+    },
+
+    consumeShadowDrift() {
+      const d = shadowDrift;
+      shadowDrift = false;
+      return d;
+    },
+    shadowsDrawn() {
+      drawnDir.copy(sun.position).sub(sun.target.position).normalize();
     },
 
     consumeShadowDirty() {

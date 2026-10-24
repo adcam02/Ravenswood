@@ -23,6 +23,7 @@ import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWor
 import { BED, BOUNCER, CLUB, CLUB_NAME, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, GRAVEYARD, MEETING_CENTRE, PIT_CORNERS, PIT_RING, SQUARE_R, STOOL_R, TOWER, doorPoint, groundAt, onDanceFloor, roadDistance } from './town/layout';
 import { local as localSpot } from './town/kit';
 import { nearPath } from './town/outdoor';
+import { blocksLine } from './town/occlusion';
 import { Fireworks } from './fireworks';
 import { reportProblem } from '../lib/report';
 import { earn, hatBoost, notePerfect, noteTopJob, tally, useProgress } from '../game/progress';
@@ -308,6 +309,10 @@ export class Engine {
   private weather: Weather = 'clear';
   private dayProgressAt = -1;
   private lastShadowAt = -999;
+  /** When a slow change first asked for the shadows to be redrawn (they wait for the camera to stop). */
+  private shadowDriftAt: number | null = null;
+  /** Where the camera was last frame, to tell when it's still. */
+  private lastCamAt = new THREE.Vector3();
   private stepAt = 0;
   private othersStepAt = new Map<string, { at: number; x: number; z: number }>();
   private rippleAt = 0;
@@ -352,7 +357,7 @@ export class Engine {
   private signs: { station: Station; el: HTMLDivElement; obj: CSS2DObject }[] = [];
   private wellTimer: ReturnType<typeof setTimeout> | null = null;
   private hearing = 0;
-  private occluderRay = new THREE.Raycaster();
+  private occluderHead = new THREE.Vector3();
   private occluded = new Set<THREE.Mesh>();
   private lastShowId = new Set<string>();
   private gavelled = false;
@@ -1723,14 +1728,23 @@ export class Engine {
     this.footsteps(t, v);
     this.fireworks.update(dt);
 
-    // Shadows are baked: the map is only redrawn when the town says something changed (and now and then).
+    // Shadows are baked: the map is only redrawn when the town says something changed (and now and then). Drawing
+    // the whole town's takes long enough to show as a hitch while walking, so slow changes (the sun creeping round,
+    // the now-and-then) wait until the camera stops moving, or SHADOW_SAFETY_S at most.
     if (fx.consumeShadowDirty && this.renderer.shadowMap.enabled) {
       this.renderer.shadowMap.autoUpdate = false;
-      if (fx.consumeShadowDirty() || t - this.lastShadowAt > SHADOW_SAFETY_S) {
+      if ((fx.consumeShadowDrift() || t - this.lastShadowAt > SHADOW_SAFETY_S) && this.shadowDriftAt === null) this.shadowDriftAt = t;
+      // (Still: drifting less than 10 cm a second, as it settles after we stop.)
+      const still = this.camera.position.distanceTo(this.lastCamAt) < 0.1 * Math.max(dt, 0.001);
+      const drift = this.shadowDriftAt !== null && (still || t - this.shadowDriftAt > SHADOW_SAFETY_S);
+      if (fx.consumeShadowDirty() || drift) {
         this.lastShadowAt = t;
+        this.shadowDriftAt = null;
         this.renderer.shadowMap.needsUpdate = true;
+        fx.shadowsDrawn();
       }
     }
+    this.lastCamAt.copy(this.camera.position);
 
 
     for (const s of this.signs) {
@@ -2672,13 +2686,9 @@ export class Engine {
     const inTown = zoneKind(local.zone) === 'town' && this.me;
     this.occluded.clear();
     if (inTown) {
-      const head = new THREE.Vector3(local.x, 1.1, local.z);
-      const origin = this.camera.position;
-      const dir = head.clone().sub(origin);
-      const far = dir.length();
-      this.occluderRay.set(origin, dir.normalize());
-      this.occluderRay.far = far;
-      for (const hit of this.occluderRay.intersectObjects(this.town.occluders, false)) this.occluded.add(hit.object as THREE.Mesh);
+      // (Not three's raycast, which tests every triangle of the clock tower and made the town stutter: see blocksLine.)
+      this.occluderHead.set(local.x, 1.1, local.z);
+      for (const m of this.town.occluders) if (blocksLine(m, this.camera.position, this.occluderHead)) this.occluded.add(m);
     }
     for (const m of this.town.occluders) {
       const mat = m.material as THREE.Material;
