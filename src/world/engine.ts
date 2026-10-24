@@ -286,6 +286,7 @@ export class Engine {
   private othersStepAt = new Map<string, { at: number; x: number; z: number }>();
   private rippleAt = 0;
   private unsubUI: (() => void) | null = null;
+  private unsubShout: (() => void) | null = null;
 
   private emote: { anim: Anim; until: number } | null = null;
   /** Sitting or lying on something: the y to sit at. */
@@ -457,6 +458,13 @@ export class Engine {
       this.me?.bubble('The Storyteller called you over', 2600);
     };
     this.unsubUI = useUI.subscribe((s) => ambience.setEnabled(s.ambience && !s.muted));
+    // Three shouts inside ten seconds (counted as each starts, however few frames there are).
+    this.unsubShout = useVoice.subscribe((s, prev) => {
+      if (!s.shouting || prev.shouting || !isPlayerView(this.view)) return;
+      const now = performance.now() / 1000;
+      this.feat.shouts = [...this.feat.shouts.filter((at) => now - at < 10), now];
+      if (this.feat.shouts.length >= 3) earn('fusrodah');
+    });
     game.sheepDone = (correct) => {
       // The result stays up until they close it (or nod off); the HUD moves to 'done' then.
       if (correct) {
@@ -502,6 +510,7 @@ export class Engine {
     if (this.partyTimer) clearTimeout(this.partyTimer);
     useHud.setState({ gfxLost: null });
     this.unsubUI?.();
+    this.unsubShout?.();
     ambience.dispose();
     if (this.wellTimer) clearTimeout(this.wellTimer);
     for (const s of this.signs) s.el.remove();
@@ -1795,10 +1804,9 @@ export class Engine {
     danceSince: null as number | null,
     idleSince: null as number | null,
     zone: '' as ZoneId,
-    // For the hats with achievements of their own: shouts lately, out in bad weather since, lying on a bed with company
-    // since, looking down from on high since, and someone we're creeping up behind.
+    // For the hats with achievements of their own: shouts lately (counted in the constructor), out in bad weather
+    // since, lying on a bed with company since, looking down from on high since, and someone we're creeping up behind.
     shouts: [] as number[],
-    shouting: false,
     coldSince: null as number | null,
     posedSince: null as number | null,
     highSince: null as number | null,
@@ -1859,13 +1867,6 @@ export class Engine {
     const idle = !moving && !this.emote && !this.seated && !this.inBed && !this.job && !this.show && Math.abs(turn) < 0.0001;
     f.idleSince = idle ? (f.idleSince ?? t) : null;
     if (f.idleSince !== null && t - f.idleSince >= 300) earn('afk');
-    // Three shouts inside ten seconds.
-    const shout = Boolean(local.shout);
-    if (shout && !f.shouting) {
-      f.shouts = [...f.shouts.filter((at) => t - at < 10), t];
-      if (f.shouts.length >= 3) earn('fusrodah');
-    }
-    f.shouting = shout;
     // Dancing with two others dancing right beside us.
     if (dancing) {
       let amigos = 0;
