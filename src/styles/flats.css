@@ -119,7 +119,8 @@
   position: absolute;
   left: 50%;
   top: 64px;
-  translate: -50% 0;
+  /* Centred with transform: a cosy button's hover lift uses translate, which would undo it. */
+  transform: translateX(-50%);
   z-index: 15;
   box-shadow: 0 4px 0 #d9733f, 0 6px 18px rgba(40, 30, 20, 0.25);
 }
