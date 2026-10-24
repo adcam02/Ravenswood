@@ -182,7 +182,7 @@ function cleanProfile(raw: unknown, key: string): Profile {
   const r = (raw && typeof raw === 'object' ? raw : {}) as Partial<Profile>;
   const p = { ...blank(typeof r.name === 'string' && r.name.trim() ? r.name : key), ...cleanSnapshot(r) };
   p.coins = count(r.coins, 1e9);
-  p.pets = strings(r.pets, 40).filter((x) => PETS.some((pet) => pet.id === x)) as PetId[];
+  p.pets = strings(r.pets, PETS.length).filter((x) => PETS.some((pet) => pet.id === x)) as PetId[];
   p.seen = strings(r.seen, SEEN_KEPT, 80);
   p.pay = Array.isArray(r.pay) ? r.pay.filter((l) => l && typeof l.id === 'string' && Number.isFinite(l.amount)).slice(-PAY_KEPT) : [];
   p.news = Array.isArray(r.news) ? r.news.filter((n) => n && typeof n.feat === 'string').slice(-PAY_KEPT) : [];

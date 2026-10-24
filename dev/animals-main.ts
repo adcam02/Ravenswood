@@ -618,7 +618,13 @@ function frame(now: number) {
     }
     r.rig.update({ anim: r.anim, speed: r.speed, dt, t });
   }
-  for (const p of pets) p.pet.update(dt, t, p.moving);
+  // ?speed=6 sends the pets off along the way they face at that pace (the sheet's cameras follow), for pets
+  // that behave differently at a run.
+  const petSpeed = Number(q.get('speed') ?? 0);
+  for (const p of pets) {
+    if (petSpeed) p.pet.root.position.add(new THREE.Vector3(Math.sin(p.pet.root.rotation.y), 0, Math.cos(p.pet.root.rotation.y)).multiplyScalar(petSpeed * dt));
+    p.pet.update(dt, t, p.moving || petSpeed > 0);
+  }
   // (A sheet is drawn just once: drawing every cell is slow.)
   if (sheetDraw) {
     if (frames === 10) sheetDraw();

@@ -148,7 +148,10 @@ export type PetId =
   | 'puffball' | 'cube' | 'creepling' | 'balldroid' | 'astrodroid' | 'tidybot' | 'dragon'
   // A second set.
   | 'owl' | 'poptart' | 'doge' | 'grumpy' | 'duck' | 'pocketpal' | 'shroom' | 'kweh'
-  | 'mogwai' | 'clip' | 'tribble' | 'luckdragon' | 'skybison' | 'volleyball' | 'feedme';
+  | 'mogwai' | 'clip' | 'tribble' | 'luckdragon' | 'skybison' | 'volleyball' | 'feedme'
+  // Storybook critters from the players' own wish list.
+  | 'gecko' | 'golem' | 'pengling' | 'puffdragon' | 'cockatoo' | 'ent' | 'piglet' | 'noodle'
+  | 'raven' | 'scorpion' | 'tinyrex';
 
 export const PETS: { id: PetId; name: string; icon: string }[] = [
   { id: 'chick', name: 'Chick', icon: '🐤' },
@@ -187,6 +190,17 @@ export const PETS: { id: PetId; name: string; icon: string }[] = [
   { id: 'skybison', name: 'Sky bison', icon: '🦬' },
   { id: 'volleyball', name: 'Castaway ball', icon: '🏐' },
   { id: 'feedme', name: 'Feed-me plant', icon: '🪴' },
+  { id: 'gecko', name: 'Push-up gecko', icon: '🦎' },
+  { id: 'golem', name: 'Pebble golem', icon: '🪨' },
+  { id: 'pengling', name: 'Slidey penguin', icon: '🐧' },
+  { id: 'puffdragon', name: 'Dumpling dragon', icon: '🐲' },
+  { id: 'cockatoo', name: 'Head-bob cockatoo', icon: '🦜' },
+  { id: 'ent', name: 'Old Oakbeard', icon: '🌳' },
+  { id: 'piglet', name: 'Truffle piglet', icon: '🐷' },
+  { id: 'noodle', name: 'Noodle snake', icon: '🐍' },
+  { id: 'raven', name: 'Nevermore', icon: '🐦‍⬛' },
+  { id: 'scorpion', name: 'Snippy scorpion', icon: '🦂' },
+  { id: 'tinyrex', name: 'Tiny rex', icon: '🦖' },
 ];
 
 const pickFrom = <T extends string>(list: { id: T }[], v: unknown): T | null => (list.some((x) => x.id === v) ? (v as T) : null);

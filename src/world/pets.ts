@@ -2642,6 +2642,1042 @@ class FeedMe extends Jointed {
   }
 }
 
+// ---------------------------------------------------------------- storybook critters (the players' own wish list)
+
+/** A pet with pieces on pivots and instanced copies (legs), that knows how fast it's going over the ground. */
+/** A tiny faceted pip (a toe, a pad): just twenty faces. */
+const pip = () => new THREE.IcosahedronGeometry(1, 0);
+
+class Critter extends Homage {
+  /** Its speed over the ground, smoothed, in metres a second (so a penguin can tell a walk from a run). */
+  protected speed = 0;
+  private lastAt: THREE.Vector3 | null = null;
+
+  /** Several copies of one part (legs), moved each frame with placeCopy. */
+  protected copies(b: Builder, n: number, mat = this.mat): THREE.InstancedMesh {
+    const m = new THREE.InstancedMesh(b.geometry(CREASE), mat, n);
+    m.frustumCulled = false;
+    this.addMesh(m, this.bodyGroup, mat);
+    return m;
+  }
+
+  update(dt: number, t: number, moving: boolean) {
+    const p = this.root.position;
+    if (this.lastAt && dt > 0) {
+      const v = Math.min(12, Math.hypot(p.x - this.lastAt.x, p.z - this.lastAt.z) / dt);
+      this.speed += (v - this.speed) * Math.min(1, dt * 4);
+    }
+    (this.lastAt ??= new THREE.Vector3()).copy(p);
+    super.update(dt, t, moving);
+  }
+}
+
+/** 1. A little green gecko with big golden eyes: it scurries along in a wiggle, and does push-ups when it stops. */
+class Gecko extends Critter {
+  private legs: THREE.Group[] = [];
+  private tail: THREE.Group;
+  private pushups = new Act(3, 7, 1.8);
+  constructor() {
+    const green = '#7cc35a';
+    const spot = '#f3a640';
+    const sc = new Sculpt();
+    sc.add(ellipsoid('body', [0, 0.05, -0.025], [0.042, 0.03, 0.072], { name: 'body' }));
+    sc.add(ellipsoid('body', [0, 0.068, 0.07], [0.05, 0.04, 0.048], { k: 0.035, name: 'head' }));
+    sc.add(ellipsoid('body', [0, 0.058, 0.104], [0.036, 0.026, 0.03], { k: 0.02, name: 'head' }));
+    for (const s of [-1, 1]) sc.add(ellipsoid('body', [s * 0.03, 0.084, 0.078], [0.022, 0.022, 0.02], { k: 0.012, name: 'head' }));
+    const cheek = frontZ(sc, 0.036, 0.055);
+    const b = new Builder();
+    b.addColored(
+      sculpted(
+        'gecko',
+        () => ({
+          sc,
+          marks: {
+            base: green,
+            marks: [
+              { color: BLUSH, f: blushes(0.055, cheek, 0.036, 0.011) },
+              { color: '#e6f2b4', f: (q) => q.p.y - 0.034 },
+              { color: spot, f: spots(23, 9, [0, 0.05, -0.025], [0.042, 0.03, 0.072], [0.011, 0.008, 0.011], (d) => d.y > 0.4) },
+            ],
+          },
+        }),
+        0.018,
+      ),
+    );
+    tube(b, onFront(sc, [[-0.016, 0.05], [-0.008, 0.045], [0, 0.044], [0.008, 0.045], [0.016, 0.05]], 0.001), 0.0022, INK, 4);
+    for (const s of [-1, 1]) b.add(bead(), INK, { pos: [s * 0.009, 0.07, frontZ(sc, s * 0.009, 0.07)], scale: 0.0025 });
+    const e = new Builder();
+    irisEyes(e, 0.088, frontZ(sc, 0.03, 0.088) - 0.008, 0.03, 0.016, '#f2c230', 0.62);
+    super(b, e, 0.088);
+    // Four splayed legs, each ending in round toe pads.
+    for (const [s, f] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) {
+      const z0 = f > 0 ? 0.025 : -0.065;
+      const lb = new Builder();
+      const foot: Vec3 = [s * 0.078, 0.01, z0 + f * 0.016];
+      tube(lb, [[s * 0.03, 0.045, z0], [s * 0.064, 0.05, z0 + f * 0.006], foot], 0.0095, green, 5);
+      for (const a of [-0.8, -0.25, 0.3, 0.85]) lb.add(pip(), '#a4d97a', { pos: [foot[0] + s * Math.cos(a) * 0.016, 0.006, foot[2] + f * Math.sin(a) * 0.016], scale: [0.0065, 0.0045, 0.0065] });
+      this.legs.push(this.piece(lb, [s * 0.03, 0.045, z0]));
+    }
+    // A plump tail, banded, curling off to one side.
+    const ts = new Sculpt();
+    ts.add(rod('body', [0, 0.045, -0.08], [0, 0.03, -0.15], 0.024, 0.016, { name: 'tail' }));
+    ts.add(rod('body', [0, 0.03, -0.15], [0.025, 0.017, -0.212], 0.016, 0.009, { k: 0.01, name: 'tail' }));
+    ts.add(rod('body', [0.025, 0.017, -0.212], [0.058, 0.012, -0.236], 0.009, 0.004, { k: 0.008, name: 'tail' }));
+    const tb = new Builder();
+    tb.addColored(sculpted('gecko-tail', () => ({ sc: ts, marks: { base: green, marks: [{ color: '#e6f2b4', f: (q) => q.p.y - 0.02 + (q.p.z + 0.08) * 0.15 }, { color: spot, f: (q) => Math.abs(Math.sin(q.p.z * 75)) - 0.28 }] } }), 0.018));
+    this.tail = this.piece(tb, [0, 0.045, -0.08]);
+  }
+  protected animate(dt: number, t: number, move: number) {
+    // Three quick push-ups: the front rises off straightened arms, the back stays put.
+    const p = this.pushups.step(dt, move < 0.2);
+    const a = p < 0 ? 0 : Math.abs(Math.sin(p * Math.PI * 3)) * 0.45 * Math.min(1, bell(p) * 3);
+    const run = t * 17;
+    this.bodyGroup.rotation.set(-a, Math.sin(run) * 0.16 * move, 0);
+    this.bodyGroup.position.y = Math.sin(a) * 0.065 + Math.abs(Math.sin(run)) * 0.005 * move;
+    // How far the front arms must swing down under it to reach the ground.
+    const reach = clamp((0.035 + Math.sin(a) * 0.09) / 0.059, 0, 1);
+    const straighten = Math.asin(reach) - 0.63;
+    this.legs.forEach((leg, i) => {
+      const s = i % 2 ? 1 : -1;
+      const front = i < 2;
+      const ph = Math.sin(run + (front === s > 0 ? 0 : Math.PI));
+      const lift = Math.max(0, ph) * 0.4 * move;
+      leg.rotation.set(a, ph * 0.5 * move * (front ? 1 : -1) * s, s * lift - (front ? s * Math.max(0, straighten) : 0));
+    });
+    this.tail.rotation.set(a, -Math.sin(run - 0.8) * 0.4 * move + Math.sin(t * 1.3) * 0.15 * (1 - move), 0);
+  }
+}
+
+/** 2. A chunky mossy stone golem with pebble fists: it stomps along, and bumps its fists together now and then. */
+class Golem extends Critter {
+  private arms: THREE.Group[] = [];
+  private legs: THREE.Group[] = [];
+  private bump = new Act(4, 9, 1.6);
+  constructor() {
+    const stone = '#a39d92';
+    const moss = '#79a948';
+    const sc = new Sculpt();
+    sc.add(box('body', [0, 0.158, 0], [0.08, 0.075, 0.062], { round: 0.04, name: 'body' }));
+    sc.add(box('body', [0, 0.258, 0.012], [0.052, 0.044, 0.046], { round: 0.028, k: 0.018, name: 'head' }));
+    for (const s of [-1, 1]) sc.add(ellipsoid('body', [s * 0.088, 0.205, -0.004], [0.046, 0.04, 0.046], { k: 0.02, name: 'shoulder' }));
+    // A heavy brow over the eyes.
+    sc.add(box('body', [0, 0.277, 0.052], [0.046, 0.008, 0.012], { round: 0.007, k: 0.008, name: 'brow' }));
+    sc.add(flatBase(0.08));
+    const wobble = (q: Probe) => Math.sin(q.p.x * 70 + 1) * Math.sin(q.p.z * 60 + 2) * 0.014;
+    const b = new Builder();
+    b.addColored(
+      sculpted(
+        'golem',
+        () => ({
+          sc,
+          marks: {
+            base: stone,
+            marks: [
+              // Moss over the crown, the shoulders and down the back.
+              { color: moss, f: (q) => Math.min(0.284 - q.p.y + wobble(q), Math.max(regionOf(sc, 'shoulder')(q), 0.226 - q.p.y + wobble(q)), Math.max(q.p.z + 0.045, 0.19 - q.p.y + wobble(q))) },
+              { color: '#5f8f38', f: both((q) => 0.29 - q.p.y + wobble(q), (q) => Math.sin(q.p.x * 140) * Math.sin(q.p.z * 120) - 0.5) },
+              { color: BLUSH, f: blushes(0.24, frontZ(sc, 0.034, 0.24), 0.034, 0.011) },
+              { color: '#bdb6a9', f: patch([0, 0.14, 0.06], [0.05, 0.045, 0.03]) },
+              { color: '#8a847a', f: spots(31, 14, [0, 0.158, 0], [0.08, 0.075, 0.062], [0.016, 0.012, 0.016]) },
+            ],
+          },
+        }),
+        0.022,
+      ),
+    );
+    tube(b, onFront(sc, [[-0.014, 0.236], [0, 0.231], [0.014, 0.236]], 0.001), 0.003, '#3d3833', 4);
+    // A little daisy growing out of the moss on its head.
+    tube(b, [[0.022, 0.296, -0.004], [0.026, 0.318, -0.002], [0.024, 0.334, 0.004]], 0.0025, '#5a8a32', 4);
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      b.add(bead(), '#fffaf0', { pos: [0.024 + Math.cos(a) * 0.009, 0.336, 0.006 + Math.sin(a) * 0.009], rot: [0, -a, 0], scale: [0.007, 0.003, 0.0045] });
+    }
+    b.add(bead(), '#f6c843', { pos: [0.024, 0.338, 0.006], scale: 0.0045 });
+    const e = new Builder();
+    addEyes(e, 0.257, frontZ(sc, 0.022, 0.257) - 0.004, 0.022, 0.012);
+    super(b, e, 0.257);
+    // Stubby block legs.
+    const leg = sculpted('golem-leg', () => {
+      const s = new Sculpt();
+      s.add(box('body', [0, 0, 0], [0.034, 0.046, 0.04], { round: 0.02, name: 'leg' }));
+      return { sc: s, marks: { base: '#948e83', marks: [{ color: '#7f796f', f: (q) => q.p.y + 0.036 }] } };
+    }, 0.02);
+    for (const s of [-1, 1]) {
+      const lb = new Builder();
+      lb.addColored(leg, { pos: [s * 0.044, 0.046, 0.004] });
+      this.legs.push(this.piece(lb, [s * 0.044, 0.09, 0]));
+    }
+    // Long arms of stacked stones, hanging down to big pebble fists.
+    for (const s of [-1, 1]) {
+      const ab = new Builder();
+      ab.add(bead(), stone, { pos: [s * 0.122, 0.16, 0.006], scale: [0.027, 0.036, 0.027] });
+      ab.add(bead(), '#9a948a', { pos: [s * 0.128, 0.112, 0.014], rot: [0.3, 0, 0.4], scale: [0.024, 0.03, 0.024] });
+      ab.add(new THREE.IcosahedronGeometry(1, 1), '#b3ac9f', { pos: [s * 0.13, 0.058, 0.024], rot: [0.4, 0.3, 0.2], scale: [0.042, 0.037, 0.042] });
+      ab.add(bead(), moss, { pos: [s * 0.124, 0.19, 0.0], scale: [0.02, 0.01, 0.02] });
+      this.arms.push(this.piece(ab, [s * 0.1, 0.205, 0]));
+    }
+  }
+  protected animate(dt: number, t: number, move: number) {
+    const st = this.bump.step(dt, move < 0.2);
+    const w = Math.sin(t * 7);
+    // A heavy rocking stomp, each foot lifted in turn and set down with a dip.
+    const dip = Math.pow(1 - Math.abs(w), 6) * 0.008 * move;
+    this.bodyGroup.position.y = Math.abs(w) * 0.012 * move - dip;
+    this.bodyGroup.rotation.z = w * 0.09 * move + Math.sin(t * 1.2) * 0.02 * (1 - move);
+    this.bodyGroup.rotation.x = move * 0.06;
+    this.legs.forEach((leg, i) => {
+      const s = i ? 1 : -1;
+      const lift = Math.max(0, w * s) * move;
+      leg.position.y = 0.09 + lift * 0.03;
+      leg.rotation.set(-lift * 0.3 - move * 0.06, 0, -this.bodyGroup.rotation.z);
+    });
+    // Fists up, a knock, a knock, and down again.
+    const up = Math.min(1, bell(st) * 2.2);
+    const knock = st < 0.25 || st > 0.8 ? 0 : Math.pow(Math.abs(Math.sin((st - 0.25) * Math.PI * 4 / 0.55)), 3);
+    this.bodyGroup.position.y -= knock * 0.004;
+    this.arms.forEach((arm, i) => {
+      const s = i ? 1 : -1;
+      arm.rotation.set(-s * w * 0.45 * move - up * 1.15 + Math.sin(t * 1.6) * 0.04 * (1 - move), 0, s * 0.06 - s * up * (0.75 + knock * 0.12));
+    });
+  }
+}
+
+/** 3. A little penguin: it waddles about, and on a run it flops onto its belly and slides along. */
+class Penguin extends Critter {
+  private flippers: THREE.Group[] = [];
+  private feet: THREE.Group[] = [];
+  private slide = 0;
+  private flap = new Act(3, 7, 0.9);
+  constructor() {
+    const navy = '#2e3448';
+    const white = '#f8f7f2';
+    const orange = '#f59a2e';
+    const sc = new Sculpt();
+    sc.add(ellipsoid('body', [0, 0.115, 0], [0.083, 0.108, 0.078], { name: 'body' }));
+    sc.add(ellipsoid('body', [0, 0.205, 0.008], [0.068, 0.06, 0.064], { k: 0.045, name: 'head' }));
+    sc.add(ellipsoid('body', [0, 0.06, -0.075], [0.03, 0.014, 0.03], { rot: [-0.5, 0, 0], k: 0.02, name: 'tail' }));
+    sc.add(flatBase(0.012));
+    const b = new Builder();
+    b.addColored(
+      sculpted(
+        'pengling',
+        () => ({
+          sc,
+          marks: {
+            base: navy,
+            marks: [
+              { color: BLUSH, f: blushes(0.188, frontZ(sc, 0.045, 0.188), 0.045, 0.012) },
+              // A white tummy, and a white face in two round lobes about the eyes.
+              { color: white, f: either(patch([0, 0.1, 0.07], [0.064, 0.088, 0.05]), patch([0.024, 0.205, 0.06], [0.032, 0.034, 0.03]), patch([-0.024, 0.205, 0.06], [0.032, 0.034, 0.03]), patch([0, 0.17, 0.06], [0.04, 0.03, 0.03])) },
+            ],
+          },
+        }),
+        0.02,
+      ),
+    );
+    b.add(spike(5), orange, { pos: [0, 0.193, frontZ(sc, 0, 0.193) + 0.008], rot: [Math.PI / 2, 0, 0], scale: [0.014, 0.024, 0.01] });
+    const e = new Builder();
+    addEyes(e, 0.21, frontZ(sc, 0.026, 0.21) - 0.004, 0.026, 0.0125);
+    super(b, e, 0.21);
+    for (const s of [-1, 1]) {
+      const fb = new Builder();
+      fb.add(gem(), orange, { pos: [s * 0.034, 0.008, 0.035], rot: [0, s * -0.25, 0], scale: [0.022, 0.008, 0.032] });
+      this.feet.push(this.piece(fb, [s * 0.034, 0.008, 0.01]));
+      const wb = new Builder();
+      wb.addColored(
+        sculpted('pengling-flipper', () => {
+          const f = new Sculpt();
+          f.add(ellipsoid('body', [0, -0.045, 0], [0.012, 0.052, 0.026], { rot: [0.15, 0, 0], name: 'flipper' }));
+          return { sc: f, marks: { base: navy, marks: [] } };
+        }, 0.014),
+        { pos: [s * 0.08, 0.158, 0.0], rot: [0, 0, s * 0.18] },
+      );
+      this.flippers.push(this.piece(wb, [s * 0.078, 0.158, 0]));
+    }
+  }
+  protected animate(dt: number, t: number, move: number) {
+    // Faster than a walk, it flops down and toboggans; slower, it waddles.
+    const want = clamp((this.speed - 5) / 1.2, 0, 1) * (move > 0.5 ? 1 : 0);
+    this.slide += (want - this.slide) * Math.min(1, dt * 5);
+    const sl = this.slide;
+    const wd = move * (1 - sl);
+    const w = Math.sin(t * 11);
+    const f = this.flap.step(dt, move < 0.2);
+    this.bodyGroup.rotation.set(sl * 1.0, 0, w * 0.17 * wd + Math.sin(t * 1.5) * 0.03 * (1 - move));
+    this.bodyGroup.position.y = sl * (0.052 + Math.sin(t * 23) * 0.003) + Math.abs(w) * 0.006 * wd + bell(f) * 0.02;
+    this.feet.forEach((foot, i) => {
+      const s = i ? 1 : -1;
+      foot.position.y = 0.008 + Math.max(0, -w * s) * 0.016 * wd;
+      foot.rotation.x = -sl * 1.2;
+    });
+    const flutter = f < 0 ? 0 : Math.abs(Math.sin(f * Math.PI * 5)) * bell(f);
+    this.flippers.forEach((fl, i) => {
+      const s = i ? 1 : -1;
+      fl.rotation.set(sl * 1.1, 0, s * (0.15 + 0.35 * wd + Math.max(0, w * s) * 0.2 * wd + flutter * 1.1 - sl * 0.1));
+    });
+  }
+}
+
+/** 4. A round, pudgy baby dragon in sweet-shop colours, with tiny wings, that puffs smoke rings. */
+class PuffDragon extends Critter {
+  private wings: THREE.Group[] = [];
+  private tail: THREE.Group;
+  private rings: { g: THREE.Group; mat: THREE.MeshStandardMaterial }[] = [];
+  private puff = new Act(3, 7, 2.6);
+  private static MOUTH: Vec3 = [0, 0.19, 0.13];
+  constructor() {
+    const teal = '#7fd3c1';
+    const cream = '#fff0b8';
+    const coral = '#ff9eb5';
+    const sc = new Sculpt();
+    sc.add(ellipsoid('body', [0, 0.1, -0.01], [0.1, 0.092, 0.094], { name: 'body' }));
+    sc.add(ellipsoid('body', [0, 0.205, 0.03], [0.084, 0.072, 0.074], { k: 0.04, name: 'head' }));
+    sc.add(ellipsoid('body', [0, 0.185, 0.094], [0.046, 0.032, 0.032], { k: 0.025, name: 'snout' }));
+    for (const s of [-1, 1]) {
+      sc.add(ellipsoid('body', [s * 0.05, 0.016, 0.04], [0.03, 0.017, 0.036], { k: 0.02, name: 'foot' }));
+      sc.add(ellipsoid('body', [s * 0.078, 0.11, 0.05], [0.022, 0.03, 0.022], { rot: [0.4, 0, s * 0.5], k: 0.015, name: 'arm' }));
+      sc.add(rod('body', [s * 0.038, 0.26, 0.01], [s * 0.058, 0.305, -0.028], 0.016, 0.006, { k: 0.01, name: 'horn' }));
+    }
+    sc.add(flatBase());
+    const belly = patch([0, 0.1, 0.07], [0.068, 0.07, 0.05]);
+    const b = new Builder();
+    b.addColored(
+      sculpted(
+        'puffdragon',
+        () => ({
+          sc,
+          marks: {
+            base: teal,
+            marks: [
+              { color: '#f7e6f0', f: regionOf(sc, 'horn') },
+              { color: BLUSH, f: blushes(0.19, frontZ(sc, 0.058, 0.19), 0.058, 0.014) },
+              // A cream tummy with soft bands across it.
+              { color: '#f4dc8e', f: both(belly, (q) => Math.abs(Math.sin(q.p.y * 120)) - 0.18) },
+              { color: cream, f: either(belly, regionOf(sc, 'snout')) },
+              { color: '#68bfae', f: regionOf(sc, 'foot', 'arm') },
+            ],
+          },
+        }),
+        0.02,
+      ),
+    );
+    for (const s of [-1, 1]) b.add(bead(), '#5a7f78', { pos: [s * 0.014, 0.197, frontZ(sc, s * 0.014, 0.197)], scale: [0.005, 0.004, 0.003] });
+    tube(b, onFront(sc, [[-0.02, 0.176], [-0.01, 0.17], [0, 0.168], [0.01, 0.17], [0.02, 0.176]], 0.001), 0.0026, INK, 4);
+    // Soft coral spines down the back.
+    for (let i = 0; i < 4; i++) b.add(spike(5), coral, { pos: [0, 0.262 - i * 0.045, -0.035 - i * 0.03], rot: [-0.6 - i * 0.35, 0, 0], scale: [0.014, 0.026, 0.01] });
+    const e = new Builder();
+    addEyes(e, 0.218, frontZ(sc, 0.036, 0.218) - 0.005, 0.036, 0.0165);
+    super(b, e, 0.218);
+    // A short tail with a heart-shaped spade.
+    const ts = new Sculpt();
+    ts.add(rod('body', [0, 0.06, -0.085], [0, 0.035, -0.15], 0.032, 0.017, { name: 'tail' }));
+    ts.add(rod('body', [0, 0.035, -0.15], [0, 0.04, -0.19], 0.017, 0.009, { k: 0.01, name: 'tail' }));
+    const tb = new Builder();
+    tb.addColored(sculpted('puffdragon-tail', () => ({ sc: ts, marks: { base: teal, marks: [] } }), 0.016));
+    const heart = new THREE.Shape();
+    heart.moveTo(0, -0.02);
+    heart.bezierCurveTo(-0.03, 0.0, -0.02, 0.022, 0, 0.01);
+    heart.bezierCurveTo(0.02, 0.022, 0.03, 0.0, 0, -0.02);
+    const hg = cutout(heart, 0.008);
+    tb.add(hg, coral, { pos: [0, 0.044, -0.205], rot: [-Math.PI / 2 - 0.3, 0, Math.PI] });
+    hg.dispose();
+    this.tail = this.piece(tb, [0, 0.06, -0.085]);
+    // Tiny lilac wings, fluttering.
+    for (const s of [-1, 1]) {
+      const wb = new Builder();
+      const g = cutout([[0, 0], [0.03, 0.02], [0.07, 0.035], [0.06, 0.008], [0.065, -0.012], [0.04, -0.008], [0.03, -0.022], [0.012, -0.012]].map(([u, v]) => [s * u, v] as [number, number]), 0.006);
+      wb.add(g, '#c7a6f2', { pos: [s * 0.06, 0.16, -0.06], rot: [0, s * 0.5, 0] });
+      g.dispose();
+      const wing = this.piece(wb, [s * 0.06, 0.16, -0.06]);
+      wing.rotation.order = 'YZX';
+      this.wings.push(wing);
+    }
+    // Three smoke rings, each with its own material to fade.
+    for (let i = 0; i < 3; i++) {
+      const rb = new Builder();
+      rb.add(new THREE.TorusGeometry(1, 0.32, 5, 14), '#ffffff', { pos: PuffDragon.MOUTH });
+      const mat = new THREE.MeshStandardMaterial({ color: '#efeaf6', transparent: true, opacity: 0, roughness: 1, depthWrite: false });
+      const g = this.piece(rb, PuffDragon.MOUTH, this.bodyGroup, mat);
+      (g.children[0] as THREE.Mesh).castShadow = false;
+      g.visible = false;
+      this.rings.push({ g, mat });
+    }
+  }
+  protected animate(dt: number, t: number, move: number) {
+    const p = this.puff.step(dt, move < 0.2);
+    // A pudgy bounce along; still, a sway. Before a puff it fills its cheeks and tips its head back.
+    const air = hop(t, move, 0.04, 10);
+    const land = move * Math.max(0, 0.012 - air) * 5;
+    const fill = p < 0 ? 0 : Math.min(1, p / 0.18) * (p < 0.25 ? 1 : Math.max(0, 1 - (p - 0.25) * 2));
+    this.bodyGroup.position.y = air;
+    this.bodyGroup.scale.set(1 + land + fill * 0.05, 1 - land, 1 + land + fill * 0.04);
+    this.bodyGroup.rotation.set(move * 0.1 - (p < 0 ? 0 : Math.min(1, bell(p) * 3)) * 0.14, 0, Math.sin(t * 1.4) * 0.05 * (1 - move));
+    const beat = Math.sin(t * (move > 0.3 ? 30 : 9));
+    this.wings.forEach((wing, i) => {
+      const s = i ? 1 : -1;
+      wing.rotation.y = 0;
+      wing.rotation.z = s * (0.25 + beat * (0.3 + move * 0.3));
+    });
+    this.tail.rotation.y = Math.sin(t * 2.4) * 0.35 * (1 - move) + Math.sin(t * 10) * 0.2 * move;
+    this.rings.forEach(({ g, mat }, i) => {
+      const u = p < 0 ? -1 : (p - 0.28 - i * 0.2) / 0.5;
+      g.visible = u > 0 && u < 1;
+      if (!g.visible) return;
+      const [x, y, z] = PuffDragon.MOUTH;
+      g.position.set(x + Math.sin(u * 5 + i) * 0.01, y + 0.01 + u * 0.15, z + 0.01 + u * 0.07);
+      g.rotation.set(-0.5 + u * 0.3, 0, u * 0.6);
+      g.scale.setScalar(0.014 + u * 0.04);
+      mat.opacity = 0.9 * Math.min(1, u * 6) * (1 - u);
+    });
+  }
+}
+
+/** 5. A white cockatoo with a yellow crest that flicks up: it bobs its head to a tune only it can hear, and hops. */
+class Cockatoo extends Critter {
+  private head: THREE.Group;
+  private crest: THREE.Group;
+  private flick = new Act(2.5, 6, 1.1);
+  constructor() {
+    const white = '#fbfaf4';
+    const yellow = '#ffd43a';
+    const grey = '#4a4850';
+    const b = new Builder();
+    b.addColored(
+      sculpted('cockatoo', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', [0, 0.125, -0.01], [0.072, 0.085, 0.07], { rot: [-0.2, 0, 0], name: 'body' }));
+        sc.add(ellipsoid('body', [0, 0.07, -0.095], [0.038, 0.016, 0.06], { rot: [0.45, 0, 0], k: 0.02, name: 'tail' }));
+        for (const s of [-1, 1]) {
+          sc.add(ellipsoid('body', [s * 0.066, 0.13, -0.025], [0.02, 0.058, 0.058], { rot: [0.3, 0, s * 0.12], k: 0.015, name: 'wing' }));
+          sc.add(rod('body', [s * 0.026, 0.05, 0.005], [s * 0.028, 0.014, 0.012], 0.009, 0.008, { k: 0.01, name: 'leg' }));
+          sc.add(ellipsoid('body', [s * 0.03, 0.009, 0.024], [0.017, 0.008, 0.022], { k: 0.008, name: 'leg' }));
+        }
+        return {
+          sc,
+          marks: {
+            base: white,
+            marks: [
+              { color: '#8d8890', f: regionOf(sc, 'leg') },
+              { color: '#f4ecd0', f: (q) => Math.max(regionOf(sc, 'wing', 'tail')(q), q.p.y - 0.1) },
+            ],
+          },
+        };
+      }, 0.02),
+    );
+    // The head, with its hooked grey beak and pale blue eye rings, on its own pivot for the bobbing.
+    const hs = new Sculpt();
+    hs.add(ellipsoid('body', [0, 0.235, 0.025], [0.062, 0.058, 0.06], { name: 'head' }));
+    hs.add(rod('body', [0, 0.226, 0.076], [0, 0.206, 0.097], 0.016, 0.004, { k: 0.006, name: 'beak' }));
+    hs.add(ellipsoid('body', [0, 0.207, 0.074], [0.012, 0.009, 0.012], { k: 0.005, name: 'beak' }));
+    const e = new Builder();
+    addEyes(e, 0.245, frontZ(hs, 0.032, 0.245) - 0.003, 0.032, 0.012);
+    super(b, e, 0.245);
+    const hb = new Builder();
+    hb.addColored(
+      sculpted('cockatoo-head', () => ({
+        sc: hs,
+        marks: {
+          base: white,
+          marks: [
+            { color: grey, f: regionOf(hs, 'beak') },
+            { color: '#cfe6f6', f: either(patch([0.032, 0.245, 0.072], [0.018, 0.018, 0.02]), patch([-0.032, 0.245, 0.072], [0.018, 0.018, 0.02])) },
+            { color: BLUSH, f: blushes(0.222, 0.07, 0.044, 0.012) },
+          ],
+        },
+      }), 0.016),
+    );
+    this.head = this.piece(hb, [0, 0.2, 0.02]);
+    this.eyesOn(this.head);
+    // The crest: a fan of yellow feathers, curling forward at the tips; laid back at rest.
+    const cb = new Builder();
+    [0.062, 0.075, 0.08, 0.068, 0.05].forEach((len, k) => {
+      const rx = 0.45 - k * 0.3;
+      const dir = new THREE.Vector3(0, Math.cos(rx), Math.sin(rx));
+      const at = new THREE.Vector3(0, 0.282, 0.035);
+      const mid = at.clone().addScaledVector(dir, len * 0.5);
+      const tip = at.clone().addScaledVector(dir, len * 0.95);
+      cb.add(bead(), k % 2 ? '#ffe066' : yellow, { pos: [mid.x + (k - 2) * 0.002, mid.y, mid.z], rot: [rx, 0, 0], scale: [0.009, len * 0.5, 0.013] });
+      cb.add(bead(), yellow, { pos: [tip.x, tip.y, tip.z + 0.008], rot: [rx + 0.9, 0, 0], scale: [0.007, 0.016, 0.009] });
+    });
+    this.crest = this.piece(cb, [0, 0.282, 0.035], this.head);
+  }
+  protected animate(dt: number, t: number, move: number) {
+    const f = this.flick.step(dt);
+    const still = 1 - move;
+    // The beat: a head bob and a little knee bend when still; two-footed hops on the move.
+    const beat = Math.sin(t * 7.5);
+    this.bodyGroup.position.y = hop(t, move, 0.05, 10) + Math.max(0, beat) * 0.006 * still;
+    this.bodyGroup.rotation.set(move * 0.2, 0, Math.sin(t * 3.75) * 0.05 * still);
+    this.head.rotation.set(beat * 0.24 * still - move * 0.15, Math.sin(t * 0.9) * 0.25 * still, 0);
+    // The crest flicks up for a moment, now and then and whenever it sets off.
+    const up = Math.max(f < 0 ? 0 : Math.min(1, bell(f) * 2.5), move * (1 - move) * 3.5);
+    this.crest.rotation.x = -1.15 * (1 - Math.min(1, up)) + Math.sin(t * 20) * 0.05 * up;
+  }
+}
+
+/** 6. An old mossy tree-person, a bark face and a mossy beard, who walks slow and stately on its roots. */
+class Ent extends Critter {
+  private arms: THREE.Group[] = [];
+  private legs: THREE.Group[] = [];
+  private crown: THREE.Group;
+  private leaf: THREE.Group;
+  private fall = new Act(4, 9, 3.2);
+  constructor() {
+    const bark = '#7d5a3c';
+    const moss = '#86b456';
+    const sc = new Sculpt();
+    sc.add(rod('body', [0, 0.085, 0], [0, 0.29, -0.004], 0.07, 0.062, { name: 'trunk' }));
+    sc.add(ellipsoid('body', [0.06, 0.17, 0.02], [0.016, 0.02, 0.015], { k: 0.015, name: 'knot' }));
+    sc.add(ellipsoid('body', [-0.05, 0.12, -0.04], [0.015, 0.017, 0.014], { k: 0.015, name: 'knot' }));
+    sc.add(ellipsoid('body', [0, 0.222, 0.07], [0.011, 0.02, 0.015], { k: 0.01, name: 'nose' }));
+    for (const s of [-1, 1]) {
+      sc.add(rod('body', [s * 0.05, 0.262, 0.05], [s * 0.012, 0.256, 0.066], 0.009, 0.007, { k: 0.008, name: 'brow' }));
+      sc.add(ellipsoid('body', [s * 0.028, 0.24, 0.067], [0.017, 0.014, 0.014], { carve: true, k: 0.006 }));
+    }
+    // A mossy beard, short and full.
+    sc.add(ellipsoid('body', [0, 0.19, 0.06], [0.044, 0.026, 0.022], { k: 0.018, name: 'beard' }));
+    sc.add(ellipsoid('body', [0, 0.163, 0.058], [0.03, 0.028, 0.02], { k: 0.018, name: 'beard' }));
+    const b = new Builder();
+    b.addColored(
+      sculpted(
+        'ent',
+        () => ({
+          sc,
+          marks: {
+            base: bark,
+            marks: [
+              { color: moss, f: regionOf(sc, 'beard', 'brow') },
+              { color: '#5d4029', f: regionOf(sc, 'knot') },
+              { color: '#a17a55', f: patch([0, 0.235, 0.07], [0.058, 0.04, 0.03]) },
+              { color: moss, f: (q) => Math.max(q.p.z + 0.02, 0.255 - q.p.y + Math.sin(q.p.x * 80) * 0.02) },
+              // Bark grooves running up the trunk, wavering.
+              { color: '#644730', f: (q) => Math.abs(Math.sin(Math.atan2(q.p.x, q.p.z) * 4 + Math.sin(q.p.y * 30) * 0.4)) - 0.3 },
+            ],
+          },
+        }),
+        0.024,
+      ),
+    );
+    // A small red toadstool on its side.
+    b.add(new THREE.CylinderGeometry(0.004, 0.005, 0.016, 5), '#f4ead6', { pos: [-0.066, 0.108, 0.022], rot: [0, 0, 0.7] });
+    b.add(new THREE.SphereGeometry(1, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2), '#d8443a', { pos: [-0.072, 0.113, 0.022], rot: [0, 0, 0.7], scale: [0.012, 0.008, 0.012] });
+    const e = new Builder();
+    addEyes(e, 0.24, frontZ(sc, 0.028, 0.24) - 0.002, 0.028, 0.012);
+    super(b, e, 0.24);
+    // Two root legs, each with gnarled toes.
+    for (const s of [-1, 1]) {
+      const lb = new Builder();
+      tube(lb, [[s * 0.035, 0.1, 0], [s * 0.04, 0.05, 0.004], [s * 0.042, 0.016, 0.01]], 0.028, bark, 7);
+      for (const a of [-0.9, 0, 0.9]) tube(lb, [[s * 0.042, 0.02, 0.01], [s * 0.042 + Math.sin(a) * 0.03, 0.01, 0.01 + Math.cos(a) * 0.03], [s * 0.042 + Math.sin(a) * 0.05, 0.004, 0.01 + Math.cos(a) * 0.045]], 0.009, '#6b4c33', 4);
+      this.legs.push(this.piece(lb, [s * 0.035, 0.1, 0]));
+    }
+    // Long twiggy arms, one with a sprig of leaves.
+    for (const s of [-1, 1]) {
+      const ab = new Builder();
+      tube(ab, [[s * 0.055, 0.25, 0], [s * 0.1, 0.215, 0.012], [s * 0.122, 0.16, 0.03], [s * 0.126, 0.11, 0.04]], 0.01, bark, 5);
+      for (const a of [-0.45, 0, 0.45]) tube(ab, [[s * 0.126, 0.115, 0.04], [s * (0.126 + Math.sin(a) * 0.012), 0.09, 0.045 + Math.cos(a) * 0.006], [s * (0.126 + Math.sin(a) * 0.022), 0.075, 0.05]], 0.0035, '#6b4c33', 4);
+      if (s > 0) for (const [dx, dy] of [[0.012, 0.0], [0.022, 0.012]]) ab.add(bead(), '#7cbf4c', { pos: [0.1 + dx, 0.22 + dy, 0.016], rot: [0, 0, -0.6], scale: [0.012, 0.005, 0.008] });
+      this.arms.push(this.piece(ab, [s * 0.055, 0.25, 0]));
+    }
+    // A leafy crown on boughs, in three greens, with a couple of acorns.
+    const cb = new Builder();
+    for (const s of [-1, 1]) tube(cb, [[0, 0.28, -0.005], [s * 0.03, 0.31, 0], [s * 0.055, 0.335, 0.005]], 0.011, bark, 5);
+    const R = rng(41);
+    for (let i = 0; i < 13; i++) {
+      const a = i * 2.4;
+      const r = i < 3 ? 0.02 : 0.06 + R() * 0.015;
+      const y = 0.35 + (i < 3 ? 0.03 : R() * 0.03 - 0.01);
+      cb.add(bead(), ['#5fa040', '#7cbf52', '#4f8c36'][i % 3], { pos: [Math.sin(a) * r, y, Math.cos(a) * r * 0.85 - 0.01], rot: [R(), R(), R()], scale: [0.036, 0.03, 0.034] });
+    }
+    for (const [x, z] of [[0.05, 0.05], [-0.042, 0.055]]) {
+      cb.add(bead(), '#a8743e', { pos: [x, 0.318, z], scale: [0.007, 0.009, 0.007] });
+      cb.add(bead(), '#6b4a2a', { pos: [x, 0.327, z], scale: [0.008, 0.004, 0.008] });
+    }
+    this.crown = this.piece(cb, [0, 0.29, 0]);
+    // A leaf that drifts down from the crown now and then.
+    const fb = new Builder();
+    fb.add(bead(), '#e0a33a', { pos: [0, 0.34, 0.08], scale: [0.014, 0.003, 0.009] });
+    this.leaf = this.piece(fb, [0, 0.34, 0.08]);
+    this.leaf.visible = false;
+  }
+  protected animate(dt: number, t: number, move: number) {
+    // Slow, creaking strides, a gentle sway, the crown following after; still, it breathes and its arms drift.
+    const w = Math.sin(t * 3.6);
+    this.bodyGroup.position.y = Math.abs(w) * 0.008 * move;
+    this.bodyGroup.rotation.set(move * 0.05 + Math.sin(t * 0.5) * 0.02 * (1 - move), Math.sin(t * 3.6) * 0.05 * move, w * 0.05 * move + Math.sin(t * 0.7) * 0.025 * (1 - move));
+    this.legs.forEach((leg, i) => {
+      const s = i ? 1 : -1;
+      leg.rotation.set(w * s * 0.35 * move, 0, -this.bodyGroup.rotation.z);
+      leg.position.y = 0.1 + Math.max(0, w * s) * 0.018 * move;
+    });
+    this.arms.forEach((arm, i) => {
+      const s = i ? 1 : -1;
+      arm.rotation.set(-w * s * 0.3 * move + Math.sin(t * 0.8 + i) * 0.08 * (1 - move), 0, s * (0.05 + Math.sin(t * 0.6 + i * 2) * 0.06 * (1 - move)));
+    });
+    this.crown.rotation.set(Math.sin(t * 3.6 - 0.8) * 0.04 * move, 0, Math.sin(t * 1.1) * 0.04 + Math.sin(t * 3.6 - 0.8) * 0.05 * move);
+    const f = this.fall.step(dt);
+    this.leaf.visible = f >= 0;
+    if (f >= 0) {
+      this.leaf.position.set(0.02 + Math.sin(f * 9) * 0.04, 0.34 - f * 0.33, 0.1 + f * 0.05);
+      this.leaf.rotation.set(Math.sin(f * 9) * 0.5, f * 6, Math.cos(f * 9) * 0.5);
+    }
+  }
+}
+
+/** 7. A round pink piglet with a curly tail: it trots along, and snuffles at the ground when it stops. */
+class Piglet extends Critter {
+  private legs: THREE.Group[] = [];
+  private ears: THREE.Group[] = [];
+  private snout: THREE.Group;
+  private tail: THREE.Group;
+  private snuffle = new Act(2, 5, 1.8);
+  constructor() {
+    const pink = '#f8b4c0';
+    const deep = '#ec93a5';
+    const sc = new Sculpt();
+    sc.add(ellipsoid('body', [0, 0.11, -0.025], [0.086, 0.075, 0.1], { name: 'body' }));
+    sc.add(ellipsoid('body', [0, 0.14, 0.07], [0.074, 0.066, 0.064], { k: 0.04, name: 'head' }));
+    const b = new Builder();
+    b.addColored(
+      sculpted(
+        'piglet',
+        () => ({
+          sc,
+          marks: {
+            base: pink,
+            marks: [
+              { color: '#f27c94', f: blushes(0.12, frontZ(sc, 0.05, 0.12), 0.05, 0.014) },
+              // A splash of mud on one flank.
+              { color: '#a07a5a', f: either(patch([0.075, 0.12, -0.05], [0.03, 0.022, 0.03]), patch([0.08, 0.1, -0.02], [0.016, 0.014, 0.016])) },
+              { color: '#fcd2da', f: patch([0, 0.08, 0.04], [0.05, 0.04, 0.06]) },
+            ],
+          },
+        }),
+        0.02,
+      ),
+    );
+    tube(b, onFront(sc, [[-0.012, 0.1], [0, 0.096], [0.012, 0.1]], 0.001), 0.0022, '#7a3a48', 4);
+    const e = new Builder();
+    addEyes(e, 0.158, frontZ(sc, 0.034, 0.158) - 0.004, 0.034, 0.0115);
+    super(b, e, 0.158);
+    // The snout, on its own pivot so it can wiggle.
+    const nb = new Builder();
+    const nz = frontZ(sc, 0, 0.125);
+    nb.add(new THREE.CylinderGeometry(1, 1, 1, 14), deep, { pos: [0, 0.125, nz + 0.008], rot: [Math.PI / 2, 0, 0], scale: [0.03, 0.022, 0.024] });
+    for (const s of [-1, 1]) nb.add(bead(), '#9c4a5c', { pos: [s * 0.01, 0.125, nz + 0.019], scale: [0.0055, 0.008, 0.003] });
+    this.snout = this.piece(nb, [0, 0.125, nz]);
+    // Floppy ears that bounce as it trots.
+    for (const s of [-1, 1]) {
+      const eb = new Builder();
+      eb.addColored(
+        sculpted(`piglet-ear${s}`, () => {
+          const ear = new Sculpt();
+          ear.add(pyramid('body', [0, 0, 0], 0.017, 0.036, 0.006, { rot: [0.3, 0, -s * 0.5], name: 'ear', thin: true }));
+          return { sc: ear, marks: { base: pink, marks: [{ color: deep, f: (q) => Math.max(regionOf(ear, 'ear')(q), -q.p.z - 0.002 + q.p.y * 0.8) }] } };
+        }, 0.013),
+        { pos: [s * 0.052, 0.185, 0.055] },
+      );
+      this.ears.push(this.piece(eb, [s * 0.052, 0.185, 0.055]));
+    }
+    // Four short legs with little dark trotters.
+    const leg = sculpted('piglet-leg', () => {
+      const l = new Sculpt();
+      l.add(rod('body', [0, 0.045, 0], [0, 0.012, 0.003], 0.02, 0.018, { name: 'leg' }));
+      l.add(flatBase());
+      return { sc: l, marks: { base: pink, marks: [{ color: '#a86872', f: (q) => q.p.y - 0.012 }] } };
+    }, 0.016);
+    for (const [s, z] of [[-1, 0.03], [1, 0.03], [-1, -0.075], [1, -0.075]]) {
+      const lb = new Builder();
+      lb.addColored(leg, { pos: [s * 0.045, 0, z] });
+      this.legs.push(this.piece(lb, [s * 0.045, 0.05, z]));
+    }
+    // A curly tail: a little corkscrew.
+    const pts: Vec3[] = [];
+    for (let i = 0; i <= 12; i++) {
+      const a = (i / 12) * Math.PI * 3;
+      pts.push([Math.sin(a) * 0.012, 0.125 + i * 0.0025 + Math.cos(a) * 0.012 - 0.012, -0.122 - i * 0.002]);
+    }
+    const tb = new Builder();
+    tube(tb, pts, 0.0045, pink, 5);
+    this.tail = this.piece(tb, [0, 0.113, -0.12]);
+  }
+  protected animate(dt: number, t: number, move: number) {
+    const sn = this.snuffle.step(dt, move < 0.2);
+    const down = Math.min(1, bell(sn) * 2.5);
+    const trot = t * 14;
+    this.bodyGroup.position.y = Math.abs(Math.sin(trot)) * 0.016 * move;
+    this.bodyGroup.rotation.set(move * 0.06 + down * 0.22, 0, Math.sin(trot) * 0.03 * move);
+    this.legs.forEach((leg, i) => {
+      const diag = i === 0 || i === 3 ? 1 : -1;
+      leg.rotation.x = Math.sin(trot) * diag * 0.6 * move - down * 0.22 * (i < 2 ? 1 : 0.6);
+    });
+    // Snuffling: the snout wiggles quick and the head nods at the ground.
+    const sniff = Math.sin(t * 26) * (0.5 + down * 0.5);
+    this.snout.scale.set(1 + sniff * 0.06, 1 - sniff * 0.06, 1);
+    this.snout.position.y = 0.125 + down * Math.sin(t * 13) * 0.002;
+    this.ears.forEach((ear, i) => {
+      const s = i ? 1 : -1;
+      ear.rotation.set(Math.abs(Math.sin(trot)) * 0.4 * move + down * 0.3, 0, s * Math.sin(t * 1.7 + i) * 0.08);
+    });
+    this.tail.rotation.set(0, 0, Math.sin(t * (6 + move * 10)) * 0.5);
+  }
+}
+
+/** 8. A cute little snake: coiled up with its head raised when still, slithering along in an S on the move. */
+class Noodle extends Critter {
+  private head: THREE.Group;
+  private tongue: THREE.Group;
+  private segs: THREE.InstancedMesh;
+  private readonly n = 14;
+  constructor() {
+    const green = '#74c46a';
+    // The head is the body mesh, hung on a pivot that's moved to the front of the snake each frame.
+    const hb = new Builder();
+    hb.addColored(
+      sculpted('noodle-head', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', [0, 0, 0], [0.04, 0.03, 0.04], { name: 'head' }));
+        sc.add(ellipsoid('body', [0, -0.006, 0.028], [0.032, 0.022, 0.024], { k: 0.02, name: 'head' }));
+        return {
+          sc,
+          marks: {
+            base: green,
+            marks: [
+              { color: BLUSH, f: blushes(-0.006, 0.036, 0.024, 0.01) },
+              { color: '#e9f3b6', f: (q) => q.p.y + 0.014 },
+              { color: '#4f9e4f', f: patch([0, 0.03, -0.01], [0.012, 0.01, 0.016]) },
+            ],
+          },
+        };
+      }, 0.014),
+    );
+    arc(hb, [0, -0.012, 0.05], 0.011, INK, false, Math.PI * 0.7);
+    const e = new Builder();
+    addEyes(e, 0.016, 0.03, 0.022, 0.012);
+    super(hb, e, 0.016);
+    this.head = this.pivotBody([0, 0, 0]);
+    this.eyesOn(this.head);
+    const fb = new Builder();
+    fb.add(new THREE.BoxGeometry(1, 1, 1), '#e8435a', { pos: [0, -0.012, 0.058], scale: [0.004, 0.002, 0.024] });
+    for (const s of [-1, 1]) fb.add(new THREE.BoxGeometry(1, 1, 1), '#e8435a', { pos: [s * 0.003, -0.012, 0.074], rot: [0, s * 0.5, 0], scale: [0.003, 0.002, 0.012] });
+    this.tongue = this.piece(fb, [0, -0.012, 0.048], this.head);
+    // The body: beads in a row, green over a pale belly, with a dark diamond on each.
+    const sb = new Builder();
+    sb.add(sph(9, 5), green, { scale: [0.029, 0.024, 0.029] });
+    sb.add(sph(7, 3), '#e9f3b6', { pos: [0, -0.008, 0], scale: [0.025, 0.017, 0.027] });
+    sb.add(new THREE.OctahedronGeometry(1, 0), '#4f9e4f', { pos: [0, 0.019, 0], scale: [0.011, 0.007, 0.013] });
+    this.segs = this.copies(sb, this.n);
+  }
+  protected animate(_dt: number, t: number, move: number) {
+    const n = this.n;
+    const ph = t * 7;
+    let hx = 0;
+    let hy = 0;
+    let hz = 0;
+    let yaw = 0;
+    let px = 0;
+    let pz = 0;
+    // Each bead's spot in the coil (tail outside and low, winding up to the neck) and in the S, then between them.
+    for (let i = -1; i < n; i++) {
+      const u = (i + 1) / n;
+      const s = 1 - Math.pow(Math.max(0, u), 1.4) * 0.55;
+      const a = 0.4 + u * Math.PI * 2.2;
+      const r = 0.035 + u * 0.055;
+      const neck = Math.max(0, 0.3 - u) / 0.3;
+      const cx = Math.sin(a) * r * (1 - neck * 0.8);
+      const cz = Math.cos(a) * r * (1 - neck * 0.8) + neck * 0.03;
+      const cy = 0.024 * s + Math.pow(1 - u, 2) * 0.025 + neck * 0.06 + Math.sin(t * 1.3) * 0.004 * neck;
+      const sz = 0.13 - (i + 1) * 0.026;
+      const sx = Math.sin(ph - i * 0.55) * 0.04 * (0.35 + 0.65 * u);
+      const x = cx + (sx - cx) * move;
+      const y = cy + (0.024 * s - cy) * move;
+      const z = cz + (sz - cz) * move;
+      if (i < 0) {
+        hx = x;
+        hy = y + 0.008;
+        hz = z;
+      } else {
+        const along = Math.atan2(px - x, pz - z);
+        if (i === 0) yaw = along;
+        placeCopy(this.segs, i, [x, y, z], [0, along, 0], [s, s, s * 1.3]);
+      }
+      px = x;
+      pz = z;
+    }
+    this.segs.instanceMatrix.needsUpdate = true;
+    this.head.position.set(hx, hy, hz);
+    // Still, it faces its friend and sways; on the move, it looks along the S.
+    const look = Math.sin(t * 1.1) * 0.3 * (1 - move);
+    this.head.rotation.set(-0.1 * (1 - move), yaw * move + look, Math.sin(t * 1.7) * 0.1 * (1 - move));
+    // The tongue flicks out twice, every second or so.
+    const fl = (t * 0.9) % 1;
+    const out = fl < 0.24 ? Math.abs(Math.sin((fl / 0.24) * Math.PI * 2)) : 0;
+    this.tongue.visible = out > 0.05;
+    this.tongue.scale.set(1, 1, Math.max(0.05, out));
+    this.tongue.rotation.x = Math.sin(t * 40) * 0.15;
+  }
+}
+
+/** 9. A glossy black raven, the town's own: it hops about, tilts its head at things, and caws now and then. */
+class Raven extends Critter {
+  private head: THREE.Group;
+  private jaw: THREE.Group;
+  private wings: THREE.Group[] = [];
+  private caw = new Act(3, 7, 1.0);
+  constructor() {
+    const black = '#25222d';
+    const sheen = '#47518a';
+    const beak = '#55525e';
+    const b = new Builder();
+    b.addColored(
+      sculpted('raven', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', [0, 0.115, -0.02], [0.058, 0.068, 0.088], { rot: [-0.45, 0, 0], name: 'body' }));
+        sc.add(ellipsoid('body', [0, 0.085, -0.115], [0.036, 0.011, 0.06], { rot: [0.4, 0, 0], k: 0.02, name: 'tail' }));
+        for (const s of [-1, 1]) {
+          sc.add(rod('body', [s * 0.024, 0.06, 0.0], [s * 0.026, 0.014, 0.008], 0.008, 0.007, { k: 0.008, name: 'leg' }));
+          sc.add(ellipsoid('body', [s * 0.027, 0.009, 0.022], [0.014, 0.007, 0.02], { k: 0.006, name: 'leg' }));
+        }
+        return { sc, marks: { base: black, marks: [{ color: beak, f: regionOf(sc, 'leg') }, { color: sheen, f: (q) => Math.max(regionOf(sc, 'tail')(q), Math.abs(q.p.x) - 0.012) }] } };
+      }, 0.02),
+    );
+    // The head: a shaggy throat, a little tuft, and a big beak whose lower half opens to caw.
+    const hs = new Sculpt();
+    hs.add(ellipsoid('body', [0, 0.215, 0.035], [0.05, 0.046, 0.05], { name: 'head' }));
+    for (const x of [-0.016, 0.016]) hs.add(ellipsoid('body', [x, 0.178, 0.058], [0.018, 0.02, 0.015], { k: 0.012, name: 'hackle' }));
+    hs.add(rod('body', [0, 0.222, 0.07], [0, 0.205, 0.135], 0.021, 0.004, { k: 0.008, name: 'beak', squash: [0.85, 1, 1] }));
+    const e = new Builder();
+    irisEyes(e, 0.226, frontZ(hs, 0.03, 0.226) - 0.004, 0.03, 0.0135, '#6a6288', 0.7);
+    super(b, e, 0.226, wet());
+    const hb = new Builder();
+    hb.addColored(sculpted('raven-head', () => ({ sc: hs, marks: { base: black, marks: [{ color: beak, f: regionOf(hs, 'beak') }, { color: sheen, f: patch([0, 0.26, 0.0], [0.03, 0.02, 0.04]) }] } }), 0.014));
+    for (const [x, rz] of [[-0.006, 0.4], [0.004, -0.1]]) hb.add(spike(4), black, { pos: [x, 0.268, 0.035], rot: [-0.5, 0, rz], scale: [0.006, 0.02, 0.006] });
+    this.head = this.piece(hb, [0, 0.19, 0.03]);
+    this.eyesOn(this.head);
+    const jb = new Builder();
+    jb.add(new THREE.ConeGeometry(1, 1, 6), beak, { pos: [0, 0.204, 0.1], rot: [Math.PI / 2, 0, 0], scale: [0.011, 0.045, 0.006] });
+    this.jaw = this.piece(jb, [0, 0.206, 0.078], this.head);
+    // Folded wings with a blue-purple sheen, that flick out as it caws.
+    for (const s of [-1, 1]) {
+      const wb = new Builder();
+      wb.addColored(
+        sculpted('raven-wing', () => {
+          const w = new Sculpt();
+          w.add(ellipsoid('body', [0, -0.03, -0.045], [0.016, 0.052, 0.075], { rot: [0.5, 0, 0], name: 'wing' }));
+          return { sc: w, marks: { base: '#2c2b44', marks: [{ color: black, f: (q) => -q.p.y - 0.045 }] } };
+        }, 0.014),
+        { pos: [s * 0.058, 0.165, 0.02] },
+      );
+      this.wings.push(this.piece(wb, [s * 0.058, 0.165, 0.02]));
+    }
+  }
+  protected animate(dt: number, t: number, move: number) {
+    const c = this.caw.step(dt, move < 0.3);
+    const cawing = c < 0 ? 0 : Math.min(1, bell(c) * 3);
+    const still = 1 - move;
+    // Hops along with both feet; still, it tilts its head this way and that, as ravens do.
+    this.bodyGroup.position.y = hop(t, move, 0.055, 9);
+    this.bodyGroup.rotation.set(move * 0.15 + cawing * 0.2, 0, 0);
+    const tilt = Math.tanh(Math.sin(t * 0.7) * 4) * 0.35 * still;
+    this.head.rotation.set(-cawing * 0.35 - move * 0.1, Math.tanh(Math.sin(t * 0.43) * 3) * 0.4 * still, tilt * (1 - cawing));
+    // Two caws in a row, the beak opening wide each time.
+    this.jaw.rotation.x = c < 0 ? 0 : Math.pow(Math.abs(Math.sin(c * Math.PI * 2)), 0.7) * 0.6 * cawing;
+    this.wings.forEach((w, i) => {
+      const s = i ? 1 : -1;
+      w.rotation.set(0, 0, s * (cawing * 0.5 + Math.max(0, Math.sin(t * 9)) * 0.15 * move));
+    });
+  }
+}
+
+/** 10. A friendly amber scorpion with big round eyes: it scuttles about on eight legs, clicks its claws and wags its tail. */
+class Scorpion extends Critter {
+  private claws: { arm: THREE.Group; pincer: THREE.Group }[] = [];
+  private tail: THREE.Group;
+  private legs: THREE.InstancedMesh;
+  private click = new Act(1.5, 4, 0.7);
+  constructor() {
+    const amber = '#eaa44c';
+    const dark = '#c97e2e';
+    const sc = new Sculpt();
+    sc.add(ellipsoid('body', [0, 0.05, 0.035], [0.058, 0.032, 0.052], { name: 'body' }));
+    for (let i = 0; i < 3; i++) sc.add(ellipsoid('body', [0, 0.048 - i * 0.003, -0.02 - i * 0.03], [0.054 - i * 0.008, 0.03 - i * 0.002, 0.024], { k: 0.012, name: 'plate' }));
+    for (const s of [-1, 1]) sc.add(ellipsoid('body', [s * 0.022, 0.078, 0.06], [0.021, 0.021, 0.018], { k: 0.012, name: 'eyebump' }));
+    const b = new Builder();
+    b.addColored(
+      sculpted(
+        'scorpion',
+        () => ({
+          sc,
+          marks: {
+            base: amber,
+            marks: [
+              { color: BLUSH, f: blushes(0.05, frontZ(sc, 0.036, 0.05), 0.036, 0.01) },
+              { color: dark, f: (q) => Math.max(regionOf(sc, 'plate')(q), 0.06 - q.p.y) },
+              { color: '#f6cf8a', f: (q) => q.p.y - 0.03 },
+            ],
+          },
+        }),
+        0.016,
+      ),
+    );
+    tube(b, onFront(sc, [[-0.014, 0.045], [-0.007, 0.04], [0, 0.039], [0.007, 0.04], [0.014, 0.045]], 0.001), 0.0022, INK, 4);
+    const e = new Builder();
+    addEyes(e, 0.082, frontZ(sc, 0.022, 0.082) - 0.006, 0.022, 0.0135);
+    super(b, e, 0.082);
+    // The tail: round segments arching up and over the back, ending in a soft round sting.
+    const ts = new Sculpt();
+    const arcAt = (f: number): Vec3 => [0, 0.125 - 0.075 * Math.cos(f), -0.09 - 0.075 * Math.sin(f)];
+    for (let i = 0; i < 8; i++) ts.add(ellipsoid('body', arcAt(0.2 + i * 0.45), [0.022 - i * 0.001, 0.021 - i * 0.001, 0.021 - i * 0.001], { k: 0.006, name: 'seg' }));
+    const tip = arcAt(3.75);
+    ts.add(ellipsoid('body', tip, [0.019, 0.021, 0.019], { k: 0.008, name: 'bulb' }));
+    const tb = new Builder();
+    tb.addColored(sculpted('scorpion-tail', () => ({ sc: ts, marks: { base: amber, marks: [{ color: '#d98a3a', f: regionOf(ts, 'bulb') }, { color: dark, f: (q) => q.p.y - 0.2 + q.p.z * 0.4 }] } }), 0.014));
+    tb.add(spike(5), '#8a5a32', { pos: [0, tip[1] - 0.006, tip[2] + 0.022], rot: [2.1, 0, 0], scale: [0.006, 0.016, 0.006] });
+    this.tail = this.piece(tb, [0, 0.05, -0.085]);
+    // Two claws reaching forward, each with a pincer that snaps.
+    for (const s of [-1, 1]) {
+      const ab = new Builder();
+      tube(ab, [[s * 0.045, 0.045, 0.06], [s * 0.075, 0.05, 0.085], [s * 0.08, 0.056, 0.115]], 0.009, amber, 5);
+      ab.add(bead(), amber, { pos: [s * 0.082, 0.058, 0.13], scale: [0.022, 0.017, 0.024] });
+      ab.add(bead(), '#f0b45c', { pos: [s * 0.092, 0.058, 0.16], rot: [0, s * -0.25, 0], scale: [0.009, 0.009, 0.024] });
+      const arm = this.piece(ab, [s * 0.045, 0.045, 0.06]);
+      const pb = new Builder();
+      pb.add(bead(), '#f0b45c', { pos: [s * 0.072, 0.058, 0.158], rot: [0, s * 0.25, 0], scale: [0.008, 0.008, 0.022] });
+      const pincer = this.piece(pb, [s * 0.075, 0.058, 0.142], arm);
+      this.claws.push({ arm, pincer });
+    }
+    // Eight little legs, as copies of one.
+    const lb = new Builder();
+    tube(lb, [[0, 0, 0], [0.025, 0.018, 0], [0.042, -0.012, 0], [0.048, -0.04, 0]], 0.0045, dark, 4);
+    this.legs = this.copies(lb, 8);
+  }
+  protected animate(dt: number, t: number, move: number) {
+    const k = this.click.step(dt, move < 0.4);
+    const run = t * 18;
+    this.bodyGroup.position.y = Math.abs(Math.sin(run)) * 0.004 * move + Math.sin(t * 2) * 0.002;
+    this.bodyGroup.rotation.set(0, Math.sin(run) * 0.04 * move, Math.sin(run) * 0.03 * move);
+    for (let i = 0; i < 8; i++) {
+      const s = i < 4 ? 1 : -1;
+      const j = i % 4;
+      const z = 0.05 - j * 0.028;
+      const ph = Math.sin(run + j * 1.6 + (s > 0 ? 0 : Math.PI));
+      const fan = (0.45 - j * 0.3) * s;
+      const ry = s > 0 ? -fan : Math.PI - fan;
+      placeCopy(this.legs, i, [s * 0.04, 0.045, z], [0, ry + ph * 0.25 * move, Math.max(0, ph) * 0.3 * move], [1, 1, 1]);
+    }
+    this.legs.instanceMatrix.needsUpdate = true;
+    // Clack clack: the pincers open and snap shut, the claws lifting a little.
+    const snap = k < 0 ? 0 : Math.max(0, Math.sin(k * Math.PI * 3));
+    this.claws.forEach(({ arm, pincer }, i) => {
+      const s = i ? 1 : -1;
+      arm.rotation.set(-bell(k) * 0.25 + Math.sin(run) * 0.12 * move, s * Math.sin(t * 1.3 + i) * 0.08, 0);
+      pincer.rotation.y = s * (0.08 + snap * 0.5);
+    });
+    // A happy wag of the tail, quicker on the move.
+    this.tail.rotation.set(Math.sin(t * 2.2) * 0.08, Math.sin(t * (2.5 + move * 6)) * 0.22, 0);
+  }
+}
+
+/** 11. A tiny green T-rex with tiny arms: it stomps along, and stops now and then for a little roar. */
+class TinyRex extends Critter {
+  private head: THREE.Group;
+  private jaw: THREE.Group;
+  private arms: THREE.Group[] = [];
+  private legs: THREE.Group[] = [];
+  private tail: THREE.Group;
+  private roar = new Act(4, 8, 1.5);
+  constructor() {
+    const green = '#7cc25e';
+    const cream = '#eef3b0';
+    const orange = '#f39a48';
+    const sc = new Sculpt();
+    sc.add(ellipsoid('body', [0, 0.13, -0.02], [0.062, 0.072, 0.08], { rot: [-0.45, 0, 0], name: 'body' }));
+    sc.add(rod('body', [0, 0.17, 0.02], [0, 0.2, 0.045], 0.04, 0.036, { k: 0.02, name: 'body' }));
+    const b = new Builder();
+    b.addColored(
+      sculpted('tinyrex', () => ({ sc, marks: { base: green, marks: [{ color: cream, f: patch([0, 0.13, 0.05], [0.045, 0.07, 0.04]) }, { color: '#62a848', f: (q) => Math.max(-0.02 - q.p.z, Math.abs(Math.sin(q.p.y * 90)) - 0.4) }] } }), 0.02),
+    );
+    for (let i = 0; i < 3; i++) b.add(spike(4), orange, { pos: [0, 0.2 - i * 0.035, -0.03 - i * 0.03], rot: [-0.7 - i * 0.2, 0, 0], scale: [0.009, 0.02, 0.008] });
+    // The big head on its own pivot, with a lower jaw that opens for the roar.
+    const hs = new Sculpt();
+    hs.add(ellipsoid('body', [0, 0.25, 0.055], [0.06, 0.05, 0.06], { name: 'head' }));
+    hs.add(ellipsoid('body', [0, 0.238, 0.105], [0.046, 0.032, 0.044], { k: 0.03, name: 'head' }));
+    for (const s of [-1, 1]) hs.add(ellipsoid('body', [s * 0.03, 0.285, 0.07], [0.016, 0.009, 0.016], { k: 0.012, name: 'brow' }));
+    const e = new Builder();
+    addEyes(e, 0.265, frontZ(hs, 0.03, 0.265) - 0.004, 0.03, 0.0135);
+    super(b, e, 0.265);
+    const hb = new Builder();
+    hb.addColored(
+      sculpted('tinyrex-head', () => ({ sc: hs, marks: { base: green, marks: [{ color: BLUSH, f: blushes(0.235, 0.12, 0.04, 0.012) }, { color: cream, f: (q) => q.p.y - 0.222 }, { color: '#62a848', f: spots(9, 5, [0, 0.25, 0.055], [0.06, 0.05, 0.06], [0.009, 0.006, 0.009], (d) => d.y > 0.5) }] } }), 0.018),
+    );
+    for (const s of [-1, 1]) hb.add(bead(), '#3d6a30', { pos: [s * 0.012, 0.248, frontZ(hs, s * 0.012, 0.248)], scale: [0.004, 0.003, 0.003] });
+    for (const x of [-0.026, -0.009, 0.009, 0.026]) hb.add(spike(4), '#fffdf4', { pos: [x, 0.212, 0.115 + (0.03 - Math.abs(x)) * 0.6], rot: [Math.PI, 0, 0], scale: [0.0045, 0.009, 0.0045] });
+    this.head = this.piece(hb, [0, 0.205, 0.04]);
+    this.eyesOn(this.head);
+    const jb = new Builder();
+    jb.addColored(
+      sculpted('tinyrex-jaw', () => {
+        const j = new Sculpt();
+        j.add(ellipsoid('body', [0, 0.214, 0.09], [0.038, 0.016, 0.044], { name: 'jaw' }));
+        return { sc: j, marks: { base: cream, marks: [{ color: '#e46a7c', f: (q) => 0.222 - q.p.y + Math.max(0, Math.abs(q.p.x) - 0.024) * 2 }] } };
+      }, 0.015),
+    );
+    this.jaw = this.piece(jb, [0, 0.218, 0.06], this.head);
+    // Tiny arms with two little claws each.
+    for (const s of [-1, 1]) {
+      const ab = new Builder();
+      tube(ab, [[s * 0.04, 0.17, 0.05], [s * 0.05, 0.15, 0.07], [s * 0.045, 0.145, 0.088]], 0.007, green, 5);
+      for (const d of [-0.004, 0.004]) ab.add(spike(4), '#fffdf4', { pos: [s * 0.045 + d, 0.142, 0.096], rot: [1.9, 0, 0], scale: [0.0025, 0.008, 0.0025] });
+      this.arms.push(this.piece(ab, [s * 0.04, 0.17, 0.05]));
+    }
+    // Strong hind legs: a thigh, a shin and a big three-toed foot.
+    const leg = sculpted('tinyrex-leg', () => {
+      const l = new Sculpt();
+      l.add(ellipsoid('body', [0, 0.075, -0.01], [0.03, 0.045, 0.042], { name: 'thigh' }));
+      l.add(rod('body', [0, 0.05, -0.02], [0, 0.015, 0.0], 0.016, 0.014, { k: 0.01, name: 'shin' }));
+      l.add(ellipsoid('body', [0, 0.01, 0.022], [0.022, 0.01, 0.034], { k: 0.008, name: 'foot' }));
+      l.add(flatBase());
+      return { sc: l, marks: { base: green, marks: [{ color: '#6db352', f: regionOf(l, 'foot') }] } };
+    }, 0.017);
+    for (const s of [-1, 1]) {
+      const lb = new Builder();
+      lb.addColored(leg, { pos: [s * 0.045, 0, -0.02] });
+      for (const a of [-0.45, 0, 0.45]) lb.add(spike(4), '#fffdf4', { pos: [s * 0.045 + Math.sin(a) * 0.016, 0.008, 0.035 + Math.cos(a) * 0.022], rot: [Math.PI / 2, 0, -a], scale: [0.004, 0.01, 0.004] });
+      this.legs.push(this.piece(lb, [s * 0.045, 0.1, -0.03]));
+    }
+    // The thick tail, sticking out behind for balance, spiky on top.
+    const ts = new Sculpt();
+    ts.add(rod('body', [0, 0.11, -0.08], [0, 0.085, -0.16], 0.04, 0.022, { name: 'tail' }));
+    ts.add(rod('body', [0, 0.085, -0.16], [0.012, 0.07, -0.225], 0.022, 0.007, { k: 0.01, name: 'tail' }));
+    const tb = new Builder();
+    tb.addColored(sculpted('tinyrex-tail', () => ({ sc: ts, marks: { base: green, marks: [{ color: cream, f: (q) => q.p.y - 0.07 + (q.p.z + 0.08) * 0.3 }] } }), 0.016));
+    for (let i = 0; i < 3; i++) tb.add(spike(4), orange, { pos: [i * 0.003, 0.142 - i * 0.022, -0.095 - i * 0.04], rot: [-1.2, 0, 0], scale: [0.008 - i * 0.0015, 0.018 - i * 0.003, 0.007] });
+    this.tail = this.piece(tb, [0, 0.11, -0.08]);
+  }
+  protected animate(dt: number, t: number, move: number) {
+    const r = this.roar.step(dt, move < 0.2);
+    const roaring = r < 0 ? 0 : Math.min(1, bell(r) * 2.5);
+    const shake = roaring * Math.sin(t * 50) * 0.04;
+    // Big stomps: a heavy bob, a lean into the stride, the tail swinging the other way.
+    const w = Math.sin(t * 9);
+    this.bodyGroup.position.y = Math.abs(w) * 0.014 * move - Math.pow(1 - Math.abs(w), 8) * 0.006 * move;
+    this.bodyGroup.rotation.set(move * 0.12 - roaring * 0.12, w * 0.08 * move, w * 0.05 * move);
+    this.legs.forEach((leg, i) => {
+      const s = i ? 1 : -1;
+      leg.rotation.set(w * s * 0.55 * move + roaring * 0.12, 0, 0);
+      leg.position.y = 0.1 + Math.max(0, w * s) * 0.02 * move;
+    });
+    this.tail.rotation.set(Math.sin(t * 1.4) * 0.05 + roaring * 0.15, -w * 0.25 * move + Math.sin(t * 1.1) * 0.15 * (1 - move), 0);
+    // The roar: head back, jaw wide, tiny arms flailing.
+    this.head.rotation.set(-roaring * 0.4 + Math.sin(t * 2) * 0.03 + move * 0.08 + Math.abs(w) * 0.04 * move, shake, shake * 0.5);
+    this.jaw.rotation.x = roaring * 0.55;
+    this.arms.forEach((arm, i) => {
+      const s = i ? 1 : -1;
+      arm.rotation.set(Math.sin(t * 22 + i * Math.PI) * 0.6 * roaring + Math.sin(t * 9 + i) * 0.2 * move, 0, s * roaring * 0.3);
+    });
+  }
+}
+
 const MAKERS: Record<PetId, () => PetRig> = {
   chick: () => new Chick(),
   slime: () => new Slime(),
@@ -2679,6 +3715,17 @@ const MAKERS: Record<PetId, () => PetRig> = {
   skybison: () => new SkyBison(),
   volleyball: () => new Volleyball(),
   feedme: () => new FeedMe(),
+  gecko: () => new Gecko(),
+  golem: () => new Golem(),
+  pengling: () => new Penguin(),
+  puffdragon: () => new PuffDragon(),
+  cockatoo: () => new Cockatoo(),
+  ent: () => new Ent(),
+  piglet: () => new Piglet(),
+  noodle: () => new Noodle(),
+  raven: () => new Raven(),
+  scorpion: () => new Scorpion(),
+  tinyrex: () => new TinyRex(),
 };
 
 export function buildPet(pet: PetId): Pet {
