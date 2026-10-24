@@ -18,6 +18,8 @@ export interface AvatarInfo {
   star?: boolean;
   /** Their hand is up in a vote: a big hand floats over their head so the whole square can see. */
   voting?: boolean;
+  /** They own the trophy hat: a little crown by their name. */
+  crown?: boolean;
 }
 
 /** A big cartoon hand, palm out, fingers up, built once and shared. */
@@ -286,7 +288,7 @@ export class AvatarView {
     this.label.position.y = this.rig.headHeight + 0.28 + (ghost ? 0.35 : 0) + (star ? 0.32 : 0) + (voting ? 0.75 : 0);
     if (this.star) this.star.position.set(0, this.rig.headHeight + 0.26 + (ghost ? 0.35 : 0) + (voting ? 0.75 : 0), 0);
     if (this.hand) this.hand.position.set(0, this.rig.headHeight + 0.55 + (ghost ? 0.35 : 0), 0);
-    this.nameEl.textContent = (star ? '⭐ ' : '') + (info.storyteller ? 'The Storyteller' : info.name || 'Someone');
+    this.nameEl.textContent = (star ? '⭐ ' : '') + (info.crown && !info.storyteller ? '👑 ' : '') + (info.storyteller ? 'The Storyteller' : info.name || 'Someone');
     this.el.classList.toggle('is-ghost', ghost);
     this.el.classList.toggle('is-st', info.storyteller);
     this.el.classList.toggle('is-me', info.isMe);

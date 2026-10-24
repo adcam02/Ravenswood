@@ -20,13 +20,13 @@
  * mid-hand, everyone gets theirs back the next time it opens.
  */
 import { create } from 'zustand';
-import { credit, debit, grantPet, money, profileOf } from '../game/profiles';
+import { credit, debit, grantItem, grantPet, money, profileOf } from '../game/profiles';
 import { presence } from '../game/presence';
 import { debugHooks, loadJSON, saveJSON } from '../lib/util';
 import { useHost } from '../state/host';
 import { PETS, type PetId } from '../world/types';
 import { bestHand, bjTotal, dealerStands, isBlackjack, newShoe, randomBelow, sharePot, splitPots, type Card, type Contribution } from './cards';
-import { petName, petPrice } from './shop';
+import { petName, petPrice, wareOf } from './shop';
 import { isBet, payout } from './roulette';
 import { BJ_MAX, BJ_MIN, BJ_SEATS, HIDDEN, PK, PK_SEATS, RL, RL_SEATS, type BjResult, type RlView, type BjSeatView, type CasinoAction, type CasinoView, type PkSeatView, type PkStage, type PkView } from './types';
 
@@ -175,6 +175,22 @@ function buy(player: string, pet: string) {
   }
   grantPet({ name: seat.name }, pet as PetId);
   tell(player, `The ${petName(pet).toLowerCase()} is yours! Wear it from Customise.`);
+}
+
+/**
+ * A hat or a dance. Unlike a pet, these can be bought from anywhere (a locked dance in the Dances picker opens the
+ * shop wherever you are), and the player's own screen says how it went from their profile.
+ */
+function buyItem(player: string, key: string) {
+  const seat = gameSeat(player);
+  const ware = wareOf(key);
+  if (!seat || !ware) return;
+  const p = profileOf({ name: seat.name });
+  const what = ware.kind === 'dance' ? `“${ware.name}”` : `the ${ware.name.toLowerCase()}`;
+  if (p?.items.includes(key)) return tell(player, `You already have ${what}.`);
+  if (!debit({ name: seat.name }, ware.price, `for ${what}`)) return tell(player, `That’s ${money(ware.price)}, and you have ${money(p?.coins ?? 0)}.`);
+  grantItem({ name: seat.name }, key);
+  tell(player, ware.kind === 'hat' ? `${ware.name}: yours! Wear it from Customise.` : `${ware.name}: yours! It’s in your Dances now.`);
 }
 
 // ---------------------------------------------------------------- blackjack
@@ -947,6 +963,7 @@ export function receiveCasino(player: string, raw: unknown) {
   if (!raw || typeof raw !== 'object') return;
   const a = raw as CasinoAction;
   if (a.k === 'buy') buy(player, String(a.pet));
+  else if (a.k === 'buyItem') buyItem(player, String(a.item));
   else if (a.k === 'bj') {
     if (a.do === 'sit') bjSit(player, wholeDollars(a.seat));
     else if (a.do === 'leave') bjLeave(player);

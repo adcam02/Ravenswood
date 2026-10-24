@@ -11,6 +11,8 @@ import { backups, currentOffer, useBackups } from '../game/backup';
 import { deviceSecret, hashDevice, knocks } from '../game/devices';
 import { pit } from '../game/pit';
 import { casinoFor, receiveCasino, startCasino, useCasino } from '../casino/host';
+import { hatKey, isShopHat } from '../casino/shop';
+import { leadersNow } from '../game/leaders';
 import type { ClientMessage, HostMessage } from '../state/types';
 import { local, receiveItem } from '../game/local';
 import { presence } from '../game/presence';
@@ -484,6 +486,8 @@ class HostLink {
     // Pets are bought at the casino: one they don't own stays at home.
     const look = { ...raw };
     if (look.pet && !profileOf({ name })?.pets.includes(look.pet)) look.pet = null;
+    // So are the shop's hats.
+    if (isShopHat(look.hat) && !profileOf({ name })?.items.includes(hatKey(look.hat!))) look.hat = null;
     const refused = st.fromPlayer.join(playerId, name, look);
     if (refused) link.send({ t: 'taken', animal: refused.taken, by: refused.by });
   }
@@ -692,7 +696,7 @@ class HostLink {
   /** Sends a player the public state and their own private state, if either changed. */
   private publicNow() {
     const g = useHost.getState().g;
-    const pub = toPublic(g, new Set(Object.keys(useHostNet.getState().online)));
+    const pub = { ...toPublic(g, new Set(Object.keys(useHostNet.getState().online))), leaders: leadersNow() };
     return { pub, pubJson: JSON.stringify(pub) };
   }
 

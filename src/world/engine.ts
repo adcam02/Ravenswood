@@ -27,6 +27,7 @@ import { blocksLine } from './town/occlusion';
 import { Fireworks } from './fireworks';
 import { reportProblem } from '../lib/report';
 import { earn, hatBoost, notePerfect, noteTopJob, tally, useProgress } from '../game/progress';
+import { crowned } from '../game/leaders';
 import { PitShow } from './pitfight';
 import type { PitState } from '../state/types';
 
@@ -89,6 +90,7 @@ import {
   cottageSlot,
   cottageZone,
   DANCES,
+  danceOwned,
   DANCES_KEY,
   houseOwner,
   isDance,
@@ -246,7 +248,8 @@ const SIGN_TEXT: Partial<Record<Station['job'], string>> = {
   post: '✉️ Post office',
   jukebox: '🎶 Jukebox',
   ideas: '💡 Idea box',
-  shop: '🐾 Pet shop',
+  shop: '🛍️ Shop',
+  leaders: '🏆 Leaderboard',
   blackjack: '🃏 Blackjack',
   poker: '♠️ Texas hold’em',
   roulette: '🎡 Roulette',
@@ -805,6 +808,7 @@ export class Engine {
       badge,
       star: Boolean(s?.star),
       voting: Boolean(v.nomination && v.nomination.status !== 'done' && v.nomination.votes.includes(key)),
+      crown: crowned(s?.name),
     };
   }
 
@@ -1154,6 +1158,11 @@ export class Engine {
 
   private startEmote(anim: Anim) {
     if (!this.me || this.job || this.inBed) return;
+    // A dance from the shop not bought yet: the shop opens on it instead (the Storyteller has them all).
+    if (this.view?.mode === 'player' && !danceOwned(anim, useProgress.getState())) {
+      useHud.setState({ dances: false, casino: { kind: 'shop', tab: 'dances', away: zoneKind(local.zone) !== 'casino' } });
+      return;
+    }
     // On a meeting stool: wave, laugh and the rest happen sitting there, and "sit" doesn't stand them up.
     if (this.pinned()) {
       if (anim !== 'sit') this.emote = { anim, until: this.clock.elapsedTime + emoteTime(anim, true) };
@@ -1471,6 +1480,8 @@ export class Engine {
       this.talkToBouncer();
     } else if (s.job === 'jukebox') {
       ui.open({ kind: 'jukebox' });
+    } else if (s.job === 'leaders') {
+      ui.open({ kind: 'leaders' });
     } else if (s.job === 'ideas') {
       ui.open({ kind: v?.mode === 'st' ? 'ideas' : 'idea' });
     } else if (s.job === 'post') {
@@ -1560,7 +1571,7 @@ export class Engine {
       if (v?.mode === 'player') casino({ k: this.tableKind === 'blackjack' ? 'bj' : this.tableKind === 'poker' ? 'pk' : 'rl', do: 'leave' });
       if (atTable) useHud.setState({ casino: null });
     } else if (atTable && !this.tableCam) useHud.setState({ casino: null });
-    if (at?.kind === 'shop' && zoneKind(local.zone) !== 'casino') useHud.setState({ casino: null });
+    if (at?.kind === 'shop' && !at.away && zoneKind(local.zone) !== 'casino') useHud.setState({ casino: null });
     if (zoneKind(local.zone) === 'casino' && v && v.mode !== 'preview') this.town.setCasino(casinoNow(v.mode), v.mode === 'st' ? 0 : hostNow() - Date.now());
   }
 

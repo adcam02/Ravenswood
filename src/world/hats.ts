@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Builder, jitter, placeMatrix, rng, soft, wet, type Place, type Vec3 } from './build';
 import type { HatId } from './types';
+import { bearskin, beerhat, bicorne, birthday, centurion, hardhat, reindeer, sharkhat, tiara, topper, trophy } from './hatShop';
 
 /**
  * The hats players earn and wear. Each is modelled for a reference head about half a metre across, with its origin at
@@ -24,13 +25,13 @@ export interface BuiltHat {
   update?: (t: number) => void;
 }
 
-const sph = (w: number, h: number) => new THREE.SphereGeometry(1, w, h);
-const dome = (w: number, h: number) => new THREE.SphereGeometry(1, w, h, 0, Math.PI * 2, 0, Math.PI / 2);
-const cyl = (n: number, top = 1, bottom = 1) => new THREE.CylinderGeometry(top, bottom, 1, n);
-const torus = (tube: number, radial: number, tubular: number) => new THREE.TorusGeometry(1, tube, radial, tubular);
+export const sph = (w: number, h: number) => new THREE.SphereGeometry(1, w, h);
+export const dome = (w: number, h: number) => new THREE.SphereGeometry(1, w, h, 0, Math.PI * 2, 0, Math.PI / 2);
+export const cyl = (n: number, top = 1, bottom = 1) => new THREE.CylinderGeometry(top, bottom, 1, n);
+export const torus = (tube: number, radial: number, tubular: number) => new THREE.TorusGeometry(1, tube, radial, tubular);
 
 /** A flat five-pointed star, a little thick, lying in the xy plane. */
-function starGeo(r = 1, inner = 0.45): THREE.BufferGeometry {
+export function starGeo(r = 1, inner = 0.45): THREE.BufferGeometry {
   const shape = new THREE.Shape();
   for (let i = 0; i < 10; i++) {
     const rr = i % 2 === 0 ? r : r * inner;
@@ -48,7 +49,7 @@ function starGeo(r = 1, inner = 0.45): THREE.BufferGeometry {
  * A cone made of stacked frustums that bends as it rises: `bend` radians in total, spread over the segments. It sets
  * off along `start` (straight up unless told otherwise).
  */
-function bentCone(b: Builder, colors: (i: number) => THREE.ColorRepresentation, base: Vec3, r0: number, height: number, segs: number, bend: number, bendDir: Vec3 = [-1, 0, 0], start: Vec3 = [0, 1, 0]): Vec3 {
+export function bentCone(b: Builder, colors: (i: number) => THREE.ColorRepresentation, base: Vec3, r0: number, height: number, segs: number, bend: number, bendDir: Vec3 = [-1, 0, 0], start: Vec3 = [0, 1, 0]): Vec3 {
   let pos = new THREE.Vector3(...base);
   let dir = new THREE.Vector3(...start).normalize();
   const axis = new THREE.Vector3(...bendDir).normalize();
@@ -73,7 +74,7 @@ function bentCone(b: Builder, colors: (i: number) => THREE.ColorRepresentation, 
  * `segs` rings round, bending `bend` radians as it rises, more towards the tip (where it's thin enough to fold
  * without creasing). Returns the geometry and where its point ends up.
  */
-function bentTube(base: Vec3, r0: number, height: number, segs: number, bend: number, bendDir: Vec3, start: Vec3, radial = 28): { geo: THREE.BufferGeometry; tip: Vec3 } {
+export function bentTube(base: Vec3, r0: number, height: number, segs: number, bend: number, bendDir: Vec3, start: Vec3, radial = 28): { geo: THREE.BufferGeometry; tip: Vec3 } {
   const rings: { at: THREE.Vector3; q: THREE.Quaternion }[] = [];
   let pos = new THREE.Vector3(...base);
   let dir = new THREE.Vector3(...start).normalize();
@@ -97,7 +98,7 @@ function bentTube(base: Vec3, r0: number, height: number, segs: number, bend: nu
   return { geo, tip: [tip.x, tip.y, tip.z] };
 }
 
-function finish(b: Builder, extra: Partial<BuiltHat> & { top: number; sit: HatSit }, material = soft()): BuiltHat {
+export function finish(b: Builder, extra: Partial<BuiltHat> & { top: number; sit: HatSit }, material = soft()): BuiltHat {
   const group = new THREE.Group();
   const mesh = b.mesh(material, { cast: true, receive: false });
   group.add(mesh);
@@ -299,7 +300,7 @@ function halo(): BuiltHat {
 // ---------------------------------------------------------------- the job hats, one for doing each job perfectly
 
 /** A point on an ellipsoid (radii rx, ry, rz) at longitude a and latitude e, and the way out from it there. */
-function onShell(rx: number, ry: number, rz: number, a: number, e: number, y0: number): { p: THREE.Vector3; n: THREE.Vector3 } {
+export function onShell(rx: number, ry: number, rz: number, a: number, e: number, y0: number): { p: THREE.Vector3; n: THREE.Vector3 } {
   const p = new THREE.Vector3(Math.sin(a) * Math.cos(e) * rx, y0 + Math.sin(e) * ry, Math.cos(a) * Math.cos(e) * rz);
   const n = new THREE.Vector3(p.x / (rx * rx), (p.y - y0) / (ry * ry), p.z / (rz * rz)).normalize();
   return { p, n };
@@ -574,7 +575,7 @@ function clockmaker(): BuiltHat {
 // ---------------------------------------------------------------- the achievement hats, and the secret ones
 
 /** Turns a geometry's faces inside out, for linings seen from within. */
-function inward(g: THREE.BufferGeometry): THREE.BufferGeometry {
+export function inward(g: THREE.BufferGeometry): THREE.BufferGeometry {
   const ix = g.getIndex()!;
   for (let i = 0; i < ix.count; i += 3) {
     const a = ix.getX(i + 1);
@@ -585,7 +586,7 @@ function inward(g: THREE.BufferGeometry): THREE.BufferGeometry {
 }
 
 /** Moves every vertex of a geometry through `f`. */
-function warp(g: THREE.BufferGeometry, f: (v: THREE.Vector3) => THREE.Vector3): THREE.BufferGeometry {
+export function warp(g: THREE.BufferGeometry, f: (v: THREE.Vector3) => THREE.Vector3): THREE.BufferGeometry {
   const pos = g.getAttribute('position') as THREE.BufferAttribute;
   const v = new THREE.Vector3();
   for (let i = 0; i < pos.count; i++) {
@@ -1020,7 +1021,7 @@ function paintFaces(geo: THREE.BufferGeometry, paint: (i: number, centre: THREE.
 }
 
 /** A thin rod from a to b (a cord, a strut), as a placement for a unit cylinder. */
-function rod(a: THREE.Vector3, b: THREE.Vector3, r: number): THREE.Matrix4 {
+export function rod(a: THREE.Vector3, b: THREE.Vector3, r: number): THREE.Matrix4 {
   const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), b.clone().sub(a).normalize());
   return new THREE.Matrix4().compose(a.clone().add(b).multiplyScalar(0.5), q, new THREE.Vector3(r, a.distanceTo(b), r));
 }
@@ -1029,7 +1030,7 @@ function rod(a: THREE.Vector3, b: THREE.Vector3, r: number): THREE.Matrix4 {
  * A brim: a ring from rIn out to rOut with a rounded edge, then bent up or down by `bend` (given where a point is and
  * how far out across the brim, 0 to 1). Longer front to back by `oval`.
  */
-function brimGeo(rIn: number, rOut: number, thick: number, segs: number, bend: (x: number, z: number, t: number) => number, oval = 1): THREE.BufferGeometry {
+export function brimGeo(rIn: number, rOut: number, thick: number, segs: number, bend: (x: number, z: number, t: number) => number, oval = 1): THREE.BufferGeometry {
   const pts: THREE.Vector2[] = [];
   const n = 6;
   for (let i = 0; i <= n; i++) pts.push(new THREE.Vector2(rIn + ((rOut - rIn) * i) / n, -thick / 2));
@@ -1685,7 +1686,7 @@ function pumpkin(): BuiltHat {
 // ---------------------------------------------------------------- more pop-culture hats, each for its own achievement
 
 /** Bands of a shell (part of an ellipsoid at C, radii R), from t0 to t1 down from the crown, all the way round. */
-function shellBand(b: Builder, C: Vec3, R: Vec3, t0: number, t1: number, color: string, w = 32) {
+export function shellBand(b: Builder, C: Vec3, R: Vec3, t0: number, t1: number, color: string, w = 32) {
   const g = new THREE.SphereGeometry(1, w, Math.max(2, Math.round((t1 - t0) * 7)), 0, Math.PI * 2, t0, t1 - t0);
   b.add(g, color, { pos: C, scale: R });
   g.dispose();
@@ -2259,6 +2260,17 @@ const MAKERS: Record<HatId, () => BuiltHat> = {
   gnome,
   fedora,
   unicorn,
+  hardhat,
+  reindeer,
+  beerhat,
+  sharkhat,
+  birthday,
+  bicorne,
+  bearskin,
+  centurion,
+  tiara,
+  topper,
+  trophy,
 };
 
 export function buildHat(hat: HatId): BuiltHat | null {

@@ -11,6 +11,7 @@ import {
   CELLAR_STAIRS,
   HOME_CHAIRS,
   HOME_TABLE,
+  LEADERBOARD,
   MOVEMENT,
   OVEN,
   PEW_LEN,
@@ -391,6 +392,40 @@ function tavern(p: Paint, glow: Builder, r: () => number) {
   hangingLamp(p, glow, -4.6, 2.4, 2.6);
   hangingLamp(p, glow, 3.0, 2.4, 2.4);
   trapdoor(p, glow);
+  return leaderBoard(p);
+}
+
+/**
+ * The leaderboard on the tavern's left wall: a chalkboard of four lists (the richest, the most wins, the most
+ * achievements, the pit's champions) under a lit sign. The names themselves are read up close, in a panel.
+ */
+function leaderBoard(p: Paint): THREE.Object3D {
+  const W = 1.7;
+  const H = 1.2;
+  const Y = 1.62;
+  const b = p.at(LEADERBOARD.x + 0.02, 0, LEADERBOARD.z, Math.PI / 2);
+  b.box(WOOD_DARK, W + 0.14, H + 0.14, 0.06, 0, Y, 0.03);
+  b.box('#2c2a28', W, H, 0.03, 0, Y, 0.06);
+  const heads = ['#f6d77a', '#9ad0f0', '#f2a0b8', '#a8e0a0'];
+  const medals = ['#e8b83a', '#c8ccd4', '#c87a3a', '#8a8480'];
+  for (let i = 0; i < 4; i++) {
+    const cx = ((i % 2) - 0.5) * (W / 2);
+    const top = Y + H / 2 - 0.12 - Math.floor(i / 2) * (H / 2);
+    b.box(heads[i], 0.46, 0.05, 0.01, cx, top, 0.08);
+    for (let k = 0; k < 4; k++) {
+      const y = top - 0.12 - k * 0.095;
+      b.cyl(medals[k], 0.025, 0.012, cx - 0.28, y, 0.08, 10, Math.PI / 2);
+      b.box('#ece4d4', 0.44 - ((i * 3 + k * 5) % 4) * 0.06, 0.02, 0.01, cx + 0.03, y, 0.08);
+    }
+  }
+  // The chalk ledge, with a stick of chalk on it.
+  b.box(WOOD_DARK, W + 0.1, 0.05, 0.12, 0, Y - H / 2 - 0.09, 0.08);
+  b.box('#f6efe0', 0.12, 0.025, 0.025, 0.45, Y - H / 2 - 0.055, 0.1);
+  const sign = new TextSign({ w: 768, h: 192, bg: '#3a2418', fg: '#f6d77a', border: '#d8a845', round: true }, ['🏆 Leaderboard']);
+  const s = signBoard(sign, 1.5, 0.375, { lit: true });
+  s.mesh.position.set(LEADERBOARD.x + 0.1, Y + H / 2 + 0.3, LEADERBOARD.z);
+  s.mesh.rotation.y = Math.PI / 2;
+  return s.mesh;
 }
 
 /** The open trapdoor down to the cellar: a dark hole with the top of the stairs showing, its lid propped against the wall. */
@@ -1708,7 +1743,7 @@ function casino(p: Paint, glow: Builder, r: () => number): THREE.Object3D {
   const name = new TextSign({ w: 1024, h: 256, bg: '#1d1a24', fg: '#f6d77a', border: GOLD, round: true }, ['The Lucky Raven']);
   const n = signBoard(name, 3.0, 0.75, { lit: true });
   n.mesh.position.set(0.6, 3.0, -hd + 0.18);
-  const shop = new TextSign({ w: 768, h: 192, bg: '#f6ead2', fg: '#7a1f33', border: GOLD, round: true }, ['🐾 Pet Shop']);
+  const shop = new TextSign({ w: 768, h: 192, bg: '#f6ead2', fg: '#7a1f33', border: GOLD, round: true }, ['🛍️ The Shop']);
   const sh = signBoard(shop, 2.2, 0.55, { lit: true });
   sh.mesh.position.set(SHOP.x, 2.7, -hd + 0.18);
   const bjSign = new TextSign({ w: 768, h: 192, bg: '#1d1a24', fg: '#f6d77a', border: GOLD, round: true }, ['Blackjack · pays 3 to 2']);

@@ -349,6 +349,23 @@ export interface PublicState {
   deaths?: DeathRecord[];
   /** The pet pit, without anyone's secret pick. */
   pit?: PitState;
+  /** The tavern's leaderboard (from everyone's profile, which only the Storyteller has). */
+  leaders?: Leaders;
+}
+
+/** One line on the tavern's leaderboard: a name as they write it, and how many (dollars, wins, achievements). */
+export interface LeaderRow {
+  name: string;
+  n: number;
+}
+
+export interface Leaders {
+  rich: LeaderRow[];
+  wins: LeaderRow[];
+  feats: LeaderRow[];
+  pit: LeaderRow[];
+  /** Everyone who owns the trophy hat (names in lower case), for the crown by their name. */
+  crowns: string[];
 }
 
 export interface DayTimer {
@@ -487,6 +504,8 @@ export interface ProfileView extends ProgressSnapshot {
   name: string;
   coins: number;
   pets: PetId[];
+  /** Hats, dances and the like bought at the shop ('hat:topper', 'dance:worm'). */
+  items?: string[];
   /** Money in and out lately, newest last. */
   pay: PayLine[];
   /** Achievements given on the Storyteller's side (not earned in the player's own browser), to make a moment of. */

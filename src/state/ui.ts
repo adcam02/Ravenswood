@@ -40,6 +40,8 @@ export type Modal =
   | { kind: 'profiles' }
   /** Choosing the song at the club's jukebox. */
   | { kind: 'jukebox' }
+  /** The leaderboard on the tavern wall. */
+  | { kind: 'leaders' }
   /** A player writing an idea or a request for the Storyteller, at the idea box. */
   | { kind: 'idea' }
   /** Storyteller: the ideas and requests players have posted. */

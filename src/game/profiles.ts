@@ -11,6 +11,7 @@
  *   credit(who, amount, why)  adds money. `why` finishes the player's little pop: 'at the casino' → "+$40 at the casino".
  *   debit(who, amount, why)   takes money if they have that much, and says whether it did (nothing changes if not).
  *   grantPet(who, pet)        gives them a pet to keep; false if they already had it.
+ *   grantItem(who, key)       gives them something bought at the shop ('hat:topper', 'dance:worm'); false if they had it.
  *   profileOf(who)            their profile as it stands (read only), or null if there's no such name.
  *   addTally(who, kind, by)   adds to one of their running counts (the pet pit's wins, say).
  *   topTally(kind, n)         the n names with the most of a count, most first.
@@ -108,6 +109,9 @@ export function applyEvent<T extends ProgressSnapshot>(p: T, ev: ProgressEvent):
   }
 }
 
+/** Counts only ever kept here (the pet pit's wins), which a player's own reports can't add to. */
+const HOST_TALLIES = ['pitwins'];
+
 /** A report from the network, checked, or null. */
 function cleanEvent(raw: unknown): ProgressEvent | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -129,10 +133,13 @@ function cleanEvent(raw: unknown): ProgressEvent | null {
       const kind = word(r.kind);
       // (Talk comes ten seconds at a time; nothing else more than one.)
       const by = Math.max(1, Math.min(60, Math.floor(Number(r.by) || 1)));
-      return kind ? { k, e: 'tally', kind: kind.toLowerCase(), by } : null;
+      return kind && !HOST_TALLIES.includes(kind.toLowerCase()) ? { k, e: 'tally', kind: kind.toLowerCase(), by } : null;
     }
-    case 'merge':
-      return { k, e: 'merge', p: cleanSnapshot(r.p) };
+    case 'merge': {
+      const p = cleanSnapshot(r.p);
+      for (const kind of HOST_TALLIES) delete p.tally[kind];
+      return { k, e: 'merge', p };
+    }
   }
   return null;
 }
@@ -144,6 +151,10 @@ export interface Profile extends ProgressSnapshot {
   name: string;
   coins: number;
   pets: PetId[];
+  /** Hats, dances and the like bought at the shop, by key ('hat:topper', 'dance:worm'). */
+  items: string[];
+  /** Games won (counted here as each is paid for, from when the tavern's leaderboard went up). */
+  wins?: number;
   /** Reports already counted, newest last, so one sent twice counts once. */
   seen: string[];
   /** Money in and out lately, newest last. */
@@ -179,7 +190,7 @@ const NEWS_MS = 60 * 60000;
 
 function blank(name: string): Profile {
   const now = Date.now();
-  return { ...emptySnapshot(), name: name.trim().slice(0, 24), coins: 0, pets: [], seen: [], pay: [], news: [], created: now, updated: now };
+  return { ...emptySnapshot(), name: name.trim().slice(0, 24), coins: 0, pets: [], items: [], seen: [], pay: [], news: [], created: now, updated: now };
 }
 
 export function cleanProfile(raw: unknown, key: string): Profile {
@@ -187,6 +198,8 @@ export function cleanProfile(raw: unknown, key: string): Profile {
   const p = { ...blank(typeof r.name === 'string' && r.name.trim() ? r.name : key), ...cleanSnapshot(r) };
   p.coins = count(r.coins, 1e9);
   p.pets = strings(r.pets, PETS.length).filter((x) => PETS.some((pet) => pet.id === x)) as PetId[];
+  p.items = strings(r.items, 200, 40).filter((x) => ITEM_KEY.test(x));
+  if (r.wins) p.wins = count(r.wins);
   p.seen = strings(r.seen, SEEN_KEPT, 80);
   p.pay = Array.isArray(r.pay) ? r.pay.filter((l) => l && typeof l.id === 'string' && Number.isFinite(l.amount)).slice(-PAY_KEPT) : [];
   p.news = Array.isArray(r.news) ? r.news.filter((n) => n && typeof n.feat === 'string').slice(-PAY_KEPT) : [];
@@ -198,6 +211,9 @@ export function cleanProfile(raw: unknown, key: string): Profile {
   p.updated = Number(r.updated) || p.created;
   return p;
 }
+
+/** What a bought thing is kept as: its kind and its id. */
+const ITEM_KEY = /^[a-z]{1,12}:[a-z0-9]{1,24}$/;
 
 function loadBook(): Book {
   const raw = loadJSON<Partial<Book> | null>(KEY, null);
@@ -301,6 +317,9 @@ function nameOf(who: Who): string | null {
   return seat?.name.trim() ? seat.name : null;
 }
 
+/** Games a player has won: counted since the leaderboard went up, or before that, the wins among their last few games. */
+export const winsOf = (p: Readonly<Profile>) => p.wins ?? Object.values(p.games ?? {}).filter((items) => items.includes('win')).length;
+
 /** Adds money (a whole number of dollars) to a player. False if there's nobody by that name or seat. */
 export function credit(who: Who, amount: number, why: string): boolean {
   const name = nameOf(who);
@@ -329,6 +348,16 @@ export function grantPet(who: Who, pet: PetId): boolean {
   ensure(name);
   if (useProfiles.getState().profiles[nameKey(name)].pets.includes(pet)) return false;
   change(name, (p) => void (p.pets = [...p.pets, pet]));
+  return true;
+}
+
+/** Gives a player something bought at the shop (by key, see Profile.items). False if they already have it, or there's nobody. */
+export function grantItem(who: Who, key: string): boolean {
+  const name = nameOf(who);
+  if (!name || !ITEM_KEY.test(key)) return false;
+  ensure(name);
+  if (useProfiles.getState().profiles[nameKey(name)].items.includes(key)) return false;
+  change(name, (p) => void (p.items = [...p.items, key]));
   return true;
 }
 
@@ -418,6 +447,7 @@ export function profileFor(playerId: string): ProfileView | null {
     tally: p.tally,
     coins: p.coins,
     pets: p.pets,
+    items: p.items,
     pay: p.pay.filter((l) => now - l.at < NEWS_MS),
     news: p.news.filter((n) => now - n.at < NEWS_MS),
     book: s.book,
@@ -480,6 +510,8 @@ function payOut(g: GameState) {
       const paid = p.games?.[game] ?? [];
       for (const item of due) if (!paid.includes(item)) addPay(p, WHY[item][0], WHY[item][1]);
       for (const item of paid) if (!due.includes(item) && WHY[item]) addPay(p, -WHY[item][0], `${WHY[item][1]}, taken back`);
+      // (For the leaderboard: a win taken back is one fewer.)
+      if (due.includes('win') !== paid.includes('win')) p.wins = Math.max(0, winsOf(p) + (due.includes('win') ? 1 : -1));
       const games = { ...(p.games ?? {}), [game]: due };
       p.games = Object.fromEntries(Object.entries(games).slice(-10));
     });

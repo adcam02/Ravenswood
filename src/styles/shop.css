@@ -1,0 +1,215 @@
+/* ---------------------------------------------------------------- the Lucky Raven's shop: pets, hats, dances */
+.shop-panel {
+  width: min(680px, 100%);
+}
+.shop-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: #f3e3c0;
+  box-shadow: inset 0 0 0 1.5px #e2c27a;
+}
+.shop-tab {
+  padding: 7px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  font-family: var(--cosy-font);
+  font-size: 15px;
+  font-weight: 600;
+  color: #7a5208;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.shop-tab:hover {
+  background: #fbefd2;
+}
+.shop-tab.on {
+  background: #fff8ea;
+  color: var(--cosy-ink);
+  box-shadow: 0 2px 0 rgba(122, 82, 8, 0.25);
+}
+.shop-pet .shop-need {
+  text-align: center;
+}
+
+/* Trying a hat on: your own animal wearing it, beside its name and price. */
+.try-on {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 8px 14px 8px 8px;
+  border-radius: 18px;
+  background: var(--cosy-bg-2);
+}
+.try-on-picture {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 120px;
+  height: 120px;
+  font-size: 56px;
+  object-fit: contain;
+}
+.try-on-words {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+.try-on-words b {
+  font-size: 19px;
+}
+.try-on-words span {
+  color: var(--cosy-ink-soft);
+}
+.try-on.trophy {
+  background: linear-gradient(135deg, #fff1b8, #f6d266 60%, #fff3c4);
+}
+.shop-hat {
+  cursor: pointer;
+}
+.shop-hat.picked {
+  box-shadow: 0 0 0 2.5px #e2a43a, 0 3px 0 rgba(90, 68, 52, 0.15);
+}
+.shop-hat-buy {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+.shop-pet-icon .pet-picture {
+  margin: 0 auto;
+}
+/* The trophy hat: its own wide golden shelf at the end. */
+.shop-hat.trophy {
+  grid-column: span 2;
+  background: linear-gradient(135deg, #fff4c8, #f4cf5c 55%, #fff0b0);
+  box-shadow: 0 0 0 2px #d8a02a, 0 3px 0 rgba(122, 82, 8, 0.3);
+  animation: trophy-glint 3.2s ease-in-out infinite;
+}
+.shop-hat.trophy.picked {
+  box-shadow: 0 0 0 3px #b8781a, 0 3px 0 rgba(122, 82, 8, 0.3);
+}
+@keyframes trophy-glint {
+  50% {
+    filter: brightness(1.08) saturate(1.1);
+  }
+}
+.shop-trophy-note {
+  max-width: 30ch;
+  font-size: 12px;
+  text-align: center;
+  color: #7a5208;
+}
+.shop-dance-icon {
+  font-size: 52px;
+}
+
+/* ---------------------------------------------------------------- the Dances picker: ones still to buy */
+.dance-choice.locked {
+  color: var(--cosy-ink-soft);
+}
+.dance-choice.locked .emote-icon {
+  opacity: 0.55;
+}
+.dance-price {
+  font-size: 12px;
+  font-weight: 600;
+  color: #7a5208;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- the jukebox's price */
+/* (The jukebox is dark: gold on it.) */
+.jukebox-price {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(246, 215, 122, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(246, 215, 122, 0.5);
+  font-family: var(--cosy-font);
+  font-size: 15px;
+  font-weight: 600;
+  font-style: normal;
+  color: #f6d77a;
+}
+.jukebox-broke {
+  color: #ff9aa8;
+  font-weight: 600;
+}
+
+/* ---------------------------------------------------------------- the leaderboard in the tavern */
+.leaders-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.leaders-list {
+  margin: 0;
+  padding: 10px 12px 12px;
+  border-radius: 12px;
+  background: var(--ink-2);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.leaders-list h3 {
+  margin: 0 0 6px;
+  font-family: var(--font-caps);
+  font-size: 17px;
+  font-weight: 400;
+  color: var(--brass-hi);
+}
+.leaders-list ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+.leaders-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 8px;
+  color: var(--text);
+}
+.leaders-list li.me {
+  background: rgba(240, 212, 143, 0.14);
+}
+.leaders-rank {
+  width: 1.6em;
+  flex: none;
+  text-align: center;
+  color: var(--text-dim);
+}
+.leaders-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.leaders-n {
+  font-variant-numeric: tabular-nums;
+  color: var(--brass-hi);
+}
+.leaders-empty {
+  margin: 0;
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+@media (max-width: 560px) {
+  .shop-tab {
+    padding: 7px 11px;
+    font-size: 14px;
+  }
+  .try-on-picture {
+    width: 92px;
+    height: 92px;
+  }
+  .leaders-grid {
+    grid-template-columns: 1fr;
+  }
+}

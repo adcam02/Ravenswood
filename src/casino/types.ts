@@ -124,6 +124,8 @@ export interface CasinoView {
 /** What a player asks of the casino. `hand` on poker moves is the hand they meant it for. */
 export type CasinoAction =
   | { k: 'buy'; pet: string }
+  /** A hat or a dance from the shop, by key ('hat:topper', 'dance:worm'). */
+  | { k: 'buyItem'; item: string }
   | { k: 'bj'; do: 'sit'; seat: number }
   | { k: 'bj'; do: 'leave' }
   | { k: 'bj'; do: 'deal'; bet: number }

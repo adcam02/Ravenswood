@@ -24,6 +24,7 @@ import { AwardsModal } from './Awards';
 import { PigeonModal } from './Pigeon';
 import { ProfilesModal } from './Profiles';
 import { JukeboxModal } from './Club';
+import { LeadersModal } from './Leaders';
 import { IdeaModal, IdeasModal } from './Ideas';
 import { EndGameSetting, RecapModal } from './GameOver';
 import { useProblems } from '../lib/report';
@@ -85,6 +86,8 @@ export function Modals() {
       return <ProfilesModal />;
     case 'jukebox':
       return <JukeboxModal />;
+    case 'leaders':
+      return <LeadersModal />;
     case 'idea':
       return <IdeaModal />;
     case 'ideas':

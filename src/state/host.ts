@@ -13,6 +13,7 @@ import { loadJSON, roomCode, saveJSON, shuffle, uid } from '../lib/util';
 import { drawMethod, isExecMethod, VOTE_MS } from '../game/execution';
 import { SONGS } from '../lib/disco';
 import { ui } from './ui';
+import { debit } from '../game/profiles';
 import { pitPublic } from '../game/pitRules';
 import {
   ANIMALS,
@@ -672,6 +673,8 @@ function closeMethodVote(id: string) {
 const MAX_FISH_LOG = 20;
 /** A song at the club plays at least this long before anyone can change it. */
 export const SONG_REST_MS = 8000;
+/** What a player pays to put a song on (the Storyteller's are free). */
+export const SONG_PRICE = 1;
 const clip = (v: unknown, n = 24) => String(v ?? '').slice(0, n);
 const stars = (v: unknown) => Math.max(0, Math.min(3, Math.round(Number(v) || 0)));
 const COLOR = /^#[0-9a-f]{6}$/i;
@@ -1531,6 +1534,12 @@ export const st = {
           if (seat && g.phase === 'night') seat.star = g.day;
         });
         return null;
+      }
+      if (action.k === 'song') {
+        // A dollar a song, paid only for one that will go on.
+        const club = hostGame().town.club;
+        if (!SONGS.some((x) => x.id === action.song) || (club && Date.now() - club.at < SONG_REST_MS)) return null;
+        if (!debit({ player: playerId }, SONG_PRICE, 'for a song on the jukebox')) return null;
       }
       return townAction(s.name || 'Someone', action);
     },

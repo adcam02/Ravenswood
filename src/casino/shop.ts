@@ -1,4 +1,4 @@
-import { PETS, type PetId } from '../world/types';
+import { DANCES, HATS, PETS, type Anim, type HatId, type PetId } from '../world/types';
 
 /**
  * The pet shop's prices. Each pet has a tier; a pet not listed here (a new one) is a fancy one. A game pays
@@ -98,3 +98,27 @@ export const petName = (pet: PetId | string) => PETS.find((p) => p.id === pet)?.
 
 /** The shop's shelves: every pet, cheapest first. */
 export const shopPets = () => [...PETS].sort((a, b) => petPrice(a.id) - petPrice(b.id) || a.name.localeCompare(b.name));
+
+// ---------------------------------------------------------------- hats and dances
+
+/** The hats on sale (cheapest first, the trophy last) and the dances. Prices are in HATS and DANCES (world/types.ts). */
+export const shopHats = () => HATS.filter((h) => h.price).sort((a, b) => a.price! - b.price!);
+export const shopDances = () => DANCES.filter((d) => d.price).sort((a, b) => a.price! - b.price!);
+
+/** Something on sale besides pets, by its key ('hat:topper', 'dance:worm'): what it is, its name and its price. */
+export function wareOf(key: string): { kind: 'hat' | 'dance'; id: string; name: string; price: number } | null {
+  const [kind, id] = key.split(':');
+  if (kind === 'hat') {
+    const h = HATS.find((x) => x.id === id && x.price);
+    return h ? { kind, id: h.id, name: h.name, price: h.price! } : null;
+  }
+  if (kind === 'dance') {
+    const d = DANCES.find((x) => x.anim === id && x.price);
+    return d ? { kind, id: d.anim, name: d.label, price: d.price! } : null;
+  }
+  return null;
+}
+export const hatKey = (hat: HatId) => `hat:${hat}`;
+export const danceKey = (anim: Anim) => `dance:${anim}`;
+/** A hat that's bought, not earned. */
+export const isShopHat = (hat: string | null | undefined) => Boolean(hat && HATS.some((h) => h.id === hat && h.price));

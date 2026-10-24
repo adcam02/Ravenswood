@@ -1519,6 +1519,212 @@ class AnimalRig implements Rig {
         ears(0, sin(beat * Math.PI) * 0.15);
         break;
       }
+      default:
+        this.boughtDance(P, A, anim, d);
+    }
+  }
+
+  /**
+   * The dances bought at the shop, `d` seconds in, at the same 120 beats a minute and from the same bones as the
+   * picker's own.
+   */
+  private boughtDance(P: Pose, A: AuxMap, anim: Anim, d: number) {
+    const sin = Math.sin;
+    const cos = Math.cos;
+    const sh = this.shoulder;
+    const beat = d * 2;
+    const smooth = THREE.MathUtils.smoothstep;
+    /** The `out` for reach that puts a paw this far from the middle, on its own side. */
+    const inward = (gap: number) => sh.x + gap;
+    const ears = (x: number, z: number) => {
+      aux(A, 'earL')[0] = aux(A, 'earR')[0] = x;
+      aux(A, 'earL')[2] = aux(A, 'earR')[2] = z;
+    };
+    switch (anim) {
+      case 'chicken': {
+        // The chicken dance, two beats each: beaks snapping in front, wings flapping, a wiggle all the way down,
+        // and four claps.
+        const bar = beat % 8;
+        const snap = sin(d * Math.PI * 8);
+        if (bar < 2) {
+          this.reach(P, 'both', sh.y + 0.03, this.front + this.pawR + 0.1, inward(this.pawR + (snap > 0 ? 0.06 : 0.01)), 'paw');
+          P.hrx = snap > 0 ? -0.12 : 0.05;
+          P.by = Math.abs(snap) * 0.01;
+        } else if (bar < 4) {
+          const f = Math.abs(snap);
+          P.alz = this.armOut + 0.25 + f * 0.75;
+          P.arz = -(this.armOut + 0.25 + f * 0.75);
+          P.alx = P.arx = -0.15;
+          P.el = P.er = 1.7;
+          P.hrx = -0.1 + f * 0.12;
+          P.by = f * 0.02;
+        } else if (bar < 6) {
+          const down = sin(((bar - 4) / 2) * Math.PI);
+          P.by = -0.07 * down;
+          P.brx = 0.25 * down;
+          P.bry = snap * 0.3;
+          P.try = snap * 1.1;
+          P.llz = 0.1 + down * 0.15;
+          P.lrz = -0.1 - down * 0.15;
+          P.alz = this.armOut + 0.45;
+          P.arz = -(this.armOut + 0.45);
+          P.el = P.er = 1.3;
+          aux(A, 'rear')[3] = snap * 0.05;
+        } else {
+          const open = Math.abs(sin(d * Math.PI * 4));
+          this.reach(P, 'both', sh.y - 0.02, this.front + this.pawR + 0.08, inward(this.pawR * 0.8 + open * 0.08), 'paw');
+          P.by = (1 - open) * 0.015;
+          P.hrx = -0.08;
+        }
+        ears(-0.1, snap * 0.15);
+        break;
+      }
+      case 'sprinkler': {
+        // A paw behind the head and the other arm straight out like a nozzle, turning across in little jerks
+        // (a step on each half beat), then sweeping back in one go.
+        const bar = beat % 6;
+        let turn: number;
+        let jolt = 0;
+        if (bar < 4) {
+          const step = Math.floor(bar * 2);
+          const within = (bar * 2) % 1;
+          turn = -0.75 + 1.5 * ((step + Math.min(1, within * 5)) / 8);
+          jolt = Math.max(0, 1 - within * 5);
+        } else turn = 0.75 - 1.5 * smooth((bar - 4) / 2, 0, 1);
+        P.bry = turn;
+        this.reach(P, 'l', this.headC.y + 0.04, this.headC.z - this.headR.z * 0.2, this.besideHead(0.01), 'paw');
+        P.arx = -1.45 + jolt * 0.06;
+        P.arz = -this.armOut - 0.25;
+        P.er = 0;
+        P.hry = turn * 0.3;
+        P.hrz = -0.08;
+        P.llx = -0.25;
+        P.lrx = 0.1;
+        P.by = -0.015 - jolt * 0.012;
+        P.try = turn * 0.6;
+        ears(-0.05, 0);
+        break;
+      }
+      case 'runningman': {
+        // Running on the spot: a knee comes up as the other foot slides back, a hop on every beat, the arms pumping.
+        const left = Math.floor(beat) % 2 === 0;
+        const k = sin((beat % 1) * Math.PI);
+        P.by = 0.015 + k * 0.07;
+        P.llx = left ? -1.0 * k : 0.4 * k;
+        P.lrx = left ? 0.4 * k : -1.0 * k;
+        P.brx = 0.1;
+        P.el = P.er = 1.4;
+        P.alx = left ? -0.1 + 0.4 * k : -0.5 - 0.5 * k;
+        P.arx = left ? -0.5 - 0.5 * k : -0.1 + 0.4 * k;
+        P.alz = this.armOut + 0.1;
+        P.arz = -this.armOut - 0.1;
+        P.hrx = -0.06 + k * 0.06;
+        P.bry = (left ? 1 : -1) * 0.08 * k;
+        P.try = (left ? 1 : -1) * 0.5;
+        ears(-0.2 + k * 0.2, 0);
+        break;
+      }
+      case 'ymca': {
+        // Y, M, C, A, two beats a letter, a bounce on every beat and a little jump into each letter.
+        const bar = beat % 8;
+        const letter = Math.floor(bar / 2);
+        const into = Math.max(0, 1 - (bar % 2) * 4);
+        const top = this.headC.y + this.headR.y;
+        P.by = Math.abs(sin(beat * Math.PI)) * 0.015 + into * 0.04;
+        if (letter === 0) {
+          // Y: both arms up and out.
+          P.alz = Math.PI * 0.78;
+          P.arz = -Math.PI * 0.78;
+          P.alx = P.arx = -0.1;
+          P.hrx = -0.12;
+        } else if (letter === 1) {
+          // M: paws up on top of the head, elbows out.
+          this.raise(P, 'both', top, -0.01);
+          P.hrx = 0.1;
+        } else if (letter === 2) {
+          // C: leaning over, one arm curved up over the head and the other across the front.
+          P.brz = 0.22;
+          P.bx = sh.y * sin(0.22) * 0.5;
+          P.alz = 2.3;
+          P.alx = -0.2;
+          P.el = 0.9;
+          this.reach(P, 'r', sh.y - 0.06, this.front + this.pawR + 0.08, inward(-sh.x * 0.6), 'paw');
+          P.hrz = 0.15;
+        } else {
+          // A: arms straight up, leaning in to meet over the head.
+          P.alz = Math.PI * 0.94;
+          P.arz = -Math.PI * 0.94;
+          P.alx = P.arx = -0.12;
+          P.hrx = -0.15;
+        }
+        P.try = sin(beat * Math.PI) * 0.4;
+        ears(-0.15, 0);
+        break;
+      }
+      case 'carlton': {
+        // Swinging both arms from side to side together, elbows bent, stepping in time with the hips swaying the
+        // other way and the head going with the arms; on the last two beats of every eight, both arms flung up
+        // high and the head thrown back.
+        const bar = beat % 8;
+        if (bar < 6) {
+          const s = cos(beat * Math.PI);
+          const step = Math.abs(sin(beat * Math.PI));
+          P.alz = this.armOut + 0.35 + s * 0.8;
+          P.arz = -(this.armOut + 0.35) + s * 0.8;
+          P.alx = P.arx = -0.55;
+          P.el = P.er = 1.1;
+          P.bry = -s * 0.35;
+          P.brz = -s * 0.07;
+          P.bx = -s * 0.03;
+          P.by = step * 0.03;
+          P.llx = s > 0 ? -0.35 * step : 0.05;
+          P.lrx = s < 0 ? -0.35 * step : 0.05;
+          P.hry = s * 0.25;
+          P.hrz = s * 0.1;
+          P.try = -s * 0.7;
+          ears(0, s * 0.2);
+        } else {
+          const u = smooth(bar - 6, 0, 0.3);
+          P.alz = this.armOut + u * (Math.PI * 0.85 - this.armOut);
+          P.arz = -P.alz;
+          P.alx = P.arx = -0.2;
+          P.hrx = -0.3 * u;
+          P.by = sin(Math.min(1, (bar - 6) / 1.2) * Math.PI) * 0.06;
+          P.brx = -0.08 * u;
+          P.try = 0.8;
+          ears(-0.3, 0);
+        }
+        break;
+      }
+      case 'worm': {
+        // Down flat on the belly, and a ripple running from the tail end to the head over and over: the bum
+        // bobbing up, then the chest, the head lifting last, paws pushing off the floor and the feet kicking up.
+        const w = (beat % 2) / 2;
+        const rear = sin(w * Math.PI * 2);
+        const chest = sin(w * Math.PI * 2 - 1.6);
+        if (!this.hasLegs || this.floats) {
+          // Nothing to lie down on (a snail's foot, a jellyfish): the ripple runs through it where it is.
+          P.brx = 0.3 - chest * 0.25;
+          P.by = Math.max(0, rear) * 0.05;
+          P.hrx = -0.3 - Math.max(0, chest) * 0.3;
+          P.trx = rear * 0.5;
+          break;
+        }
+        P.brx = 1.42 - chest * 0.22 + rear * 0.12;
+        P.by = 0.15 + Math.max(0, rear) * 0.06 + Math.max(0, chest) * 0.05;
+        P.bz = -0.38 + sin(w * Math.PI) * 0.03;
+        P.hrx = -1.0 - Math.max(0, chest) * 0.4;
+        P.alx = P.arx = -2.4 + Math.max(0, chest) * 0.5;
+        P.alz = this.armOut + 0.3;
+        P.arz = -this.armOut - 0.3;
+        P.el = P.er = 0.6 + Math.max(0, -chest) * 0.6;
+        P.llx = P.lrx = 0.3 + Math.max(0, rear) * 0.6;
+        P.llz = 0.08;
+        P.lrz = -0.08;
+        P.trx = 0.5 + rear * 0.4;
+        ears(0.25, 0);
+        break;
+      }
     }
   }
 
@@ -1846,6 +2052,12 @@ class AnimalRig implements Rig {
       case 'moonwalk':
       case 'horse':
       case 'macarena':
+      case 'chicken':
+      case 'sprinkler':
+      case 'runningman':
+      case 'ymca':
+      case 'carlton':
+      case 'worm':
         this.dance(P, A, s.anim, s.t - this.animStart);
         break;
       case 'laugh':
@@ -2706,6 +2918,39 @@ export function petThumbnail(pet: PetId, size = 96): string {
     const url = snap(renderer, scene, camera);
     scene.remove(p.root);
     p.dispose();
+    if (url) thumbCache.set(key, url);
+    return url;
+  } catch {
+    return '';
+  }
+}
+
+/** A hat's picture on its own, seen a little from above and to one side (for the shop). Cached for the visit. */
+export function hatThumbnail(hat: HatId, size = 96): string {
+  const key = `hat:${hat}:${size}`;
+  const hit = thumbCache.get(key);
+  if (hit) return hit;
+  try {
+    const { renderer, scene, camera } = thumbStage(size);
+    const h = buildHat(hat);
+    if (!h) return '';
+    // (Its moving bits a moment in, so a candle's lit and a glint shows.)
+    h.update?.(1.2);
+    h.group.rotation.y = 0.5;
+    scene.add(h.group);
+    h.group.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(h.group);
+    const c = box.getCenter(new THREE.Vector3());
+    // Framed on its longest side (with room for the corners as it's turned), like the pets.
+    const sz = box.getSize(new THREE.Vector3());
+    const r = Math.max(0.05, Math.max(sz.x, sz.y, sz.z) * 0.62);
+    const dist = r / Math.sin(THREE.MathUtils.degToRad(15));
+    camera.position.set(c.x, c.y + dist * 0.42, c.z + dist * 0.9);
+    camera.lookAt(c);
+    const url = snap(renderer, scene, camera);
+    scene.remove(h.group);
+    h.group.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+    for (const m of h.materials) m.dispose();
     if (url) thumbCache.set(key, url);
     return url;
   } catch {

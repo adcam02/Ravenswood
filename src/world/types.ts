@@ -302,7 +302,19 @@ export type HatId =
   | 'knight'
   | 'gnome'
   | 'fedora'
-  | 'unicorn';
+  | 'unicorn'
+  // Bought at the Lucky Raven's shop, and the trophy (very dear, for showing off).
+  | 'bearskin'
+  | 'bicorne'
+  | 'hardhat'
+  | 'beerhat'
+  | 'reindeer'
+  | 'tiara'
+  | 'birthday'
+  | 'centurion'
+  | 'topper'
+  | 'sharkhat'
+  | 'trophy';
 
 /** What a player has done across all their games, kept by the Storyteller under their name. */
 export interface Progress {
@@ -314,12 +326,19 @@ export interface Progress {
   perfect: string[];
   /** Achievements earned (by id, see FEATS). */
   feats: string[];
+  /** Things bought at the shop, by key: 'hat:topper', 'dance:worm' (see owns). */
+  items?: string[];
 }
+
+/** Whether a player has bought something (a key like 'hat:topper' or 'dance:worm'). */
+export const owns = (p: { items?: string[] }, key: string) => Boolean(p.items?.includes(key));
+const bought = (hat: HatId) => (p: Progress) => owns(p, `hat:${hat}`);
 
 const did = (p: Progress, ...jobs: string[]) => jobs.some((j) => p.perfect.includes(j));
 const got = (p: Progress, feat: FeatId) => p.feats.includes(feat);
 
-export const HATS: { id: HatId; name: string; icon: string; how: string; unlocked: (p: Progress) => boolean; secret?: boolean }[] = [
+/** A hat with a `price` is bought at the Lucky Raven's shop rather than earned. */
+export const HATS: { id: HatId; name: string; icon: string; how: string; unlocked: (p: Progress) => boolean; secret?: boolean; price?: number }[] = [
   { id: 'beanie', name: 'Beanie', icon: '🧶', how: 'Free for everyone', unlocked: () => true },
   { id: 'flower', name: 'Flower crown', icon: '🌸', how: 'Earn a gold star counting sheep', unlocked: (p) => p.stars >= 1 },
   { id: 'party', name: 'Party hat', icon: '🥳', how: 'Earn 3 gold stars', unlocked: (p) => p.stars >= 3 },
@@ -371,7 +390,22 @@ export const HATS: { id: HatId; name: string; icon: string; how: string; unlocke
   { id: 'gnome', name: 'Gnome’s hat', icon: '🌱', how: 'Plant 15 flowers', unlocked: (p) => got(p, 'gnomed') },
   { id: 'fedora', name: 'Adventurer’s fedora', icon: '🏺', how: 'Reel in a silver eel', unlocked: (p) => got(p, 'snakes'), secret: true },
   { id: 'unicorn', name: 'Unicorn horn', icon: '🦄', how: 'Wave hello to five different players in one day', unlocked: (p) => got(p, 'friendship'), secret: true },
+  // From the shop, cheapest first.
+  { id: 'hardhat', name: 'Hard hat', icon: '👷', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('hardhat'), price: 30 },
+  { id: 'reindeer', name: 'Reindeer antlers', icon: '🦌', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('reindeer'), price: 35 },
+  { id: 'beerhat', name: 'Drinking helmet', icon: '🍻', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('beerhat'), price: 40 },
+  { id: 'sharkhat', name: 'Shark hat', icon: '🦈', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('sharkhat'), price: 45 },
+  { id: 'birthday', name: 'Birthday cake', icon: '🎂', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('birthday'), price: 50 },
+  { id: 'bicorne', name: 'Emperor’s bicorne', icon: '⚜️', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('bicorne'), price: 60 },
+  { id: 'bearskin', name: 'Guardsman’s bearskin', icon: '💂', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('bearskin'), price: 70 },
+  { id: 'centurion', name: 'Centurion’s helmet', icon: '🏛️', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('centurion'), price: 85 },
+  { id: 'tiara', name: 'Diamond tiara', icon: '💎', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('tiara'), price: 100 },
+  { id: 'topper', name: 'Topper and monocle', icon: '🧐', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('topper'), price: 120 },
+  { id: 'trophy', name: 'Crown of Midas', icon: '✨', how: 'Buy it at the Lucky Raven’s shop, if you can afford it', unlocked: bought('trophy'), price: 500 },
 ];
+
+/** The trophy hat: owning it puts a little crown by your name. */
+export const TROPHY_HAT: HatId = 'trophy';
 
 /** Each hat a player has unlocked makes them a touch quicker about town, walking and running: 0.1% a hat. */
 export const HAT_SPEED = 0.001;
@@ -576,7 +610,14 @@ export type Anim =
   | 'robot'
   | 'moonwalk'
   | 'horse'
-  | 'macarena';
+  | 'macarena'
+  /** Dances bought at the shop. */
+  | 'chicken'
+  | 'sprinkler'
+  | 'runningman'
+  | 'ymca'
+  | 'carlton'
+  | 'worm';
 
 export const EMOTES: { anim: Anim; label: string; key: string }[] = [
   { anim: 'wave', label: 'Wave', key: '1' },
@@ -590,8 +631,11 @@ export const EMOTES: { anim: Anim; label: string; key: string }[] = [
 /** The key that opens the Dances picker; while it's open, 1 to 7 pick from it. */
 export const DANCES_KEY = '7';
 
-/** More dances, in the picker behind the Dances button. They loop until you move or do something else. */
-export const DANCES: { anim: Anim; label: string; icon: string }[] = [
+/**
+ * More dances, in the picker behind the Dances button. They loop until you move or do something else. One with a
+ * `price` is bought at the Lucky Raven's shop (the rest are free).
+ */
+export const DANCES: { anim: Anim; label: string; icon: string; price?: number }[] = [
   { anim: 'twerk', label: 'Twerk', icon: '🍑' },
   { anim: 'griddy', label: 'Griddy', icon: '🥽' },
   { anim: 'floss', label: 'Floss', icon: '🦷' },
@@ -599,7 +643,16 @@ export const DANCES: { anim: Anim; label: string; icon: string }[] = [
   { anim: 'moonwalk', label: 'Moonwalk', icon: '🌙' },
   { anim: 'horse', label: 'Horse ride', icon: '🐎' },
   { anim: 'macarena', label: 'Macarena', icon: '🎶' },
+  { anim: 'chicken', label: 'Chicken dance', icon: '🐔', price: 15 },
+  { anim: 'sprinkler', label: 'Sprinkler', icon: '💦', price: 20 },
+  { anim: 'runningman', label: 'Running man', icon: '🏃', price: 20 },
+  { anim: 'ymca', label: 'Y.M.C.A.', icon: '🙆', price: 25 },
+  { anim: 'carlton', label: 'The Carlton', icon: '🕺', price: 30 },
+  { anim: 'worm', label: 'The worm', icon: '🪱', price: 40 },
 ];
+
+/** Whether a player may do this dance: a free one, or one they've bought. */
+export const danceOwned = (anim: Anim, p: { items?: string[] }): boolean => !DANCES.find((d) => d.anim === anim)?.price || owns(p, `dance:${anim}`);
 
 /** Any dance, the plain one or one from the picker (they all count for the dancing achievements). */
 export const isDance = (a: Anim | null | undefined): boolean => a === 'dance' || DANCES.some((d) => d.anim === a);
@@ -750,7 +803,9 @@ export type JobId =
   | 'jukebox'
   /** Post an idea or a request for the Storyteller in the idea box. */
   | 'ideas'
-  /** The casino: the pet shop's counter, and a seat at either card table. */
+  /** Read the leaderboard on the tavern wall. */
+  | 'leaders'
+  /** The casino: the shop's counter (pets, hats, dances), and a seat at either card table. */
   | 'shop'
   | 'blackjack'
   | 'poker'

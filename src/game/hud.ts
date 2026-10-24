@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import type { GameJob } from '../jobs/meta';
 import type { Anim, Item } from '../world/types';
 
+/** The shop's shelves. */
+export type ShopTab = 'pets' | 'hats' | 'dances';
+
 export interface Prompt {
   label: string;
   key: string;
@@ -36,8 +39,11 @@ interface Hud {
   hearing: number;
   /** The noticeboard is open. */
   notice: boolean;
-  /** At the casino: the pet shop open, or sitting at a card table (which seat). */
-  casino: { kind: 'shop' } | { kind: 'blackjack' | 'poker' | 'roulette'; seat: number } | null;
+  /**
+   * At the casino: the shop open (on which shelf; `away` when it was opened from somewhere else, by a dance not
+   * bought yet), or sitting at a card table (which seat).
+   */
+  casino: { kind: 'shop'; tab?: ShopTab; away?: boolean } | { kind: 'blackjack' | 'poker' | 'roulette'; seat: number } | null;
   /** Sitting on your stool at the town meeting. */
   meetingSeated: boolean;
   /** Night in bed: the counting-sheep game is on offer, being played, or done for tonight. */

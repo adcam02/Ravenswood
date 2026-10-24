@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { bestHand, bjTotal, isCard, type Card } from '../../casino/cards';
 import { casino, hostNow, useCasinoView } from '../../casino/client';
-import { petPrice, shopPets } from '../../casino/shop';
 import { BJ_MAX, BJ_MIN, HIDDEN, PK, RL, type BjSeatView, type CasinoView, type PkSeatView, type PkView } from '../../casino/types';
 import { BET_KEYS, betName, boardCell, colourOf, covers, odds } from '../../casino/roulette';
 import { useHud } from '../../game/hud';
@@ -9,11 +8,10 @@ import { money } from '../../game/profiles';
 import { useMoney, useMyPets } from '../../game/progress';
 import { cardSound, casinoLose, casinoWin, chipSound, rouletteSpin, tillSound } from '../../lib/audio';
 import { useView } from '../../state/view';
-import { fixLook } from '../../world/types';
-import { PetPicture, wearLook } from './JoinFlow';
+import { Shop } from './Shop';
 
 /**
- * The Lucky Raven's panels: the pet shop at the counter, and the card tables, which sit along the bottom of the
+ * The Lucky Raven's panels: the shop at the counter (in Shop.tsx), and the card tables, which sit along the bottom of the
  * screen while the camera looks across the felt from your seat. Everything is dealt and paid by the Storyteller's
  * browser; these only show it and send what you choose.
  */
@@ -24,7 +22,7 @@ export function CasinoPanels() {
   const cv = useCasinoView(mode);
   useCasinoSounds(cv);
   if (!at) return null;
-  if (at.kind === 'shop') return <Shop view={cv} />;
+  if (at.kind === 'shop') return <Shop view={cv} tab={at.tab} away={at.away} />;
   if (!cv) return null;
   if (at.kind === 'roulette') return cv.rl ? <Roulette view={cv} seat={at.seat} /> : null;
   return at.kind === 'blackjack' ? <Blackjack view={cv} seat={at.seat} /> : <Poker view={cv} seat={at.seat} />;
@@ -134,70 +132,6 @@ const handTotal = (cards: Card[]) => {
   const { total, soft } = bjTotal(shown);
   return soft && total < 21 ? `soft ${total}` : String(total);
 };
-
-// ---------------------------------------------------------------- the pet shop
-
-function Shop({ view }: { view: CasinoView | null }) {
-  const coins = useMoney();
-  const pets = useMyPets();
-  const v = useView();
-  const me = v.seats.find((s) => s.isMe);
-  const player = v.mode === 'player';
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-  const wear = (pet: string | null) => {
-    if (!me?.look) return;
-    wearLook(me.name, fixLook({ ...me.look, pet: pet as never }));
-  };
-  return (
-    <div className="notice-layer casino-layer" onClick={close}>
-      <div className="casino-shop cosy-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="The pet shop">
-        <header>
-          <span className="casino-eyebrow">The Lucky Raven</span>
-          <h2>🐾 Pet Shop</h2>
-          {player && (
-            <span className="casino-purse">
-              You have <b>{money(coins)}</b>
-            </span>
-          )}
-        </header>
-        <p className="casino-blurb">A friend to trot along beside you, yours to keep in every game. Money comes from playing: finishing a game, winning, surviving, achievements, and the tables here.</p>
-        <Note view={view} />
-        <div className="shop-grid">
-          {shopPets().map((p) => {
-            const owned = pets.includes(p.id);
-            const price = petPrice(p.id);
-            const wearing = me?.look?.pet === p.id;
-            return (
-              <div key={p.id} className={`shop-pet ${owned ? 'owned' : ''}`}>
-                <span className="shop-pet-icon">
-                  <PetPicture id={p.id} icon={p.icon} />
-                </span>
-                <span className="shop-pet-name">{p.name}</span>
-                {owned ? (
-                  <button className="cosy-btn" disabled={!me?.look} onClick={() => wear(wearing ? null : p.id)}>
-                    {wearing ? 'Wearing ✓' : 'Wear it'}
-                  </button>
-                ) : (
-                  <button className="cosy-btn primary" disabled={!player || coins < price} onClick={() => casino({ k: 'buy', pet: p.id })} title={coins < price ? `You need ${money(price - coins)} more` : undefined}>
-                    Buy {money(price)}
-                  </button>
-                )}
-                {!owned && coins < price && player && <span className="shop-need">{money(price - coins)} more to go</span>}
-              </div>
-            );
-          })}
-        </div>
-        <button className="cosy-btn" onClick={close}>
-          Close <span className="cosy-key">Esc</span>
-        </button>
-      </div>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------- blackjack
 

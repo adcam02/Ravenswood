@@ -5,8 +5,8 @@ import { drawless } from '../../lib/util';
 import { player, useClient, useDoor, useTaken } from '../../net/client';
 import { useVoice, voice } from '../../voice/voice';
 import { AnimalPreview } from '../../world/AnimalPreview';
-import { animalThumbnail, petThumbnail } from '../../world/animals';
-import { ANIMALS_ABC, animalInfo, EXTRA_COLORS, fixLook, HATS, hatsOwned, hatSpeedLabel, type AnimalId, type Look, type PetId } from '../../world/types';
+import { animalThumbnail, hatThumbnail, petThumbnail } from '../../world/animals';
+import { ANIMALS_ABC, animalInfo, EXTRA_COLORS, fixLook, HATS, hatsOwned, hatSpeedLabel, type AnimalId, type HatId, type Look, type PetId } from '../../world/types';
 import { useProgress } from '../../game/progress';
 import { shownName } from '../../state/nicks';
 import { money } from '../../game/profiles';
@@ -316,8 +316,10 @@ function DressUp({ tab, look, setLook }: { tab: 'hat' | 'pet'; look: Look; setLo
     tab === 'hat'
       ? HATS.map((h) => {
           const got = h.unlocked(progress);
-          // Secret hats keep their secret until they're found.
-          return got ? { id: h.id, name: h.name, icon: h.icon } : h.secret ? { id: h.id, name: 'A secret hat', icon: '❓', locked: 'Keep exploring Ravenswood…' } : { id: h.id, name: h.name, icon: h.icon, locked: h.how };
+          // Secret hats keep their secret until they're found; the shop's show their price.
+          if (got) return { id: h.id, name: h.name, icon: h.icon };
+          if (h.price) return { id: h.id, name: h.name, icon: h.icon, price: h.price, locked: `${money(h.price)} at the Lucky Raven’s shop` };
+          return h.secret ? { id: h.id, name: 'A secret hat', icon: '❓', locked: 'Keep exploring Ravenswood…' } : { id: h.id, name: h.name, icon: h.icon, locked: h.how };
         })
           // The ones you have first.
           .sort((a, b) => Number(Boolean(a.locked)) - Number(Boolean(b.locked)))
@@ -444,6 +446,46 @@ export function PetPicture({ id, icon }: { id: PetId; icon: string }) {
     };
   }, [id, key, src]);
   return src ? <img className="pet-picture" src={src} alt="" /> : <>{icon}</>;
+}
+
+/** A hat's little picture on its own (its emoji until it's drawn), kept between visits like the pets'. */
+export function HatPicture({ id, icon }: { id: HatId; icon: string }) {
+  const key = `hat-${id}` as AnimalId;
+  const [src, setSrc] = useState<string | null>(() => loadThumb(key, ''));
+  useEffect(() => {
+    if (src || drawless()) return;
+    let live = true;
+    const cancel = queueThumbnail(() => {
+      if (!live) return;
+      const url = hatThumbnail(id, 96) || null;
+      setSrc(url);
+      if (url) saveThumb(key, '', url);
+    });
+    return () => {
+      live = false;
+      cancel();
+    };
+  }, [id, key, src]);
+  return src ? <img className="pet-picture" src={src} alt="" /> : <>{icon}</>;
+}
+
+/** Your own animal wearing a hat, for trying one on in the shop (its emoji until it's drawn). */
+export function TryOn({ look, icon }: { look: Look; icon: string }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const { animal, color, hat } = look;
+  useEffect(() => {
+    if (drawless()) return;
+    let live = true;
+    // (The last picture stays up until the new one's drawn.)
+    const cancel = queueThumbnail(() => {
+      if (live) setSrc(animalThumbnail({ animal, color, hat }, 160) || null);
+    });
+    return () => {
+      live = false;
+      cancel();
+    };
+  }, [animal, color, hat]);
+  return src ? <img className="try-on-picture" src={src} alt="" /> : <span className="try-on-picture">{icon}</span>;
 }
 
 function AnimalTile({ id, on, owner, locked, onPick }: { id: AnimalId; on: boolean; owner?: { by: string; choosing: boolean }; locked?: boolean; onPick: () => void }) {

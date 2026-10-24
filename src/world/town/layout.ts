@@ -290,6 +290,8 @@ export const ROOM_DOOR: Record<Exclude<ZoneKind, 'town'>, { exit: { x: number; z
 export const BAR = { x0: -6.2, x1: 2.6, z: -2.6, depth: 0.9, h: 1.1 };
 export const counterSpot = (i: number) => ({ x: -5.4 + i * 1.45, y: BAR.h + 0.03, z: BAR.z });
 export const BAR_STOOLS = [-5.4, -3.6, -1.8, 0, 1.8].map((x) => ({ x, z: -1.5 }));
+/** The leaderboard on the tavern's left wall, between the fireplace and the front corner. */
+export const LEADERBOARD = { x: -8, z: 3.95 };
 export const TAVERN_TABLES = [
   { x: -4.6, z: 2.6 },
   { x: 3.0, z: 2.4 },
@@ -444,6 +446,7 @@ export function makeStations(): Station[] {
     ),
   );
   st.push({ id: 'darts', zone: 'tavern', x: 5.4, z: -0.5, r: 1.6, job: 'darts', stand: { x: 5.4, z: -0.5, ry: Math.PI / 2 }, label: 'Throw some darts' });
+  st.push({ id: 'leaders', zone: 'tavern', x: LEADERBOARD.x + 1.1, z: LEADERBOARD.z, r: 1.6, job: 'leaders', stand: { x: LEADERBOARD.x + 1.0, z: LEADERBOARD.z, ry: -Math.PI / 2 }, label: 'Read the leaderboard' });
   // Bakery.
   st.push({ id: 'oven', zone: 'bakery', x: OVEN.x, z: OVEN.z + 1.7, r: 1.8, job: 'baking', stand: { x: OVEN.x, z: OVEN.z + 1.7, ry: Math.PI }, label: 'Bake something' });
   st.push({ id: 'shelf', zone: 'bakery', x: 3.0, z: -3.3, r: 2.0, job: 'takeBread', stand: { x: 3.0, z: -3.4, ry: Math.PI }, label: 'Take a bake' });
@@ -523,7 +526,7 @@ export function makeStations(): Station[] {
     }),
   );
   // The casino: the pet shop's counter, and the seats at the card tables.
-  st.push({ id: 'shop', zone: 'casino', x: SHOP.x, z: SHOP.z + 1.2, r: 1.6, job: 'shop', stand: { x: SHOP.x, z: SHOP.z + 1.15, ry: Math.PI }, label: 'Visit the pet shop' });
+  st.push({ id: 'shop', zone: 'casino', x: SHOP.x, z: SHOP.z + 1.2, r: 1.6, job: 'shop', stand: { x: SHOP.x, z: SHOP.z + 1.15, ry: Math.PI }, label: 'Visit the shop' });
   for (let i = 0; i < BJ_SEATS; i++) {
     const c = bjSeat(i);
     st.push({ id: `bj-${i}`, zone: 'casino', x: c.x, z: c.z, r: 0.85, job: 'blackjack', stand: c, y: CHAIR_Y, label: 'Sit down for blackjack' });

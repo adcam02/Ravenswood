@@ -10,7 +10,9 @@ import { ui, useUI } from '../../state/ui';
 import { nightMusic } from '../../lib/music';
 import { useView } from '../../state/view';
 import { setPersonVolume, useVoice, voice } from '../../voice/voice';
-import { DANCES, DANCES_KEY, EMOTES, isDance, type Item } from '../../world/types';
+import { DANCES, DANCES_KEY, EMOTES, danceOwned, isDance, type Item } from '../../world/types';
+import { useMyItems } from '../../game/progress';
+import { money } from '../../game/profiles';
 import { lazyPart } from '../../lib/lazy';
 import { CrashNote, Guard } from '../Guard';
 import { Icon } from '../Icon';
@@ -246,6 +248,9 @@ export function EmoteBar() {
   const atTable = useHud((s) => Boolean(s.casino && s.casino.kind !== 'shop'));
   const open = useHud((s) => s.dances);
   const bar = useRef<HTMLDivElement>(null);
+  // Dances from the shop show their price until bought (the Storyteller has them all).
+  const items = useMyItems();
+  const st = useView().mode === 'st';
   // The picker closes on a tap anywhere else, or Escape.
   useEffect(() => {
     if (!open) return;
@@ -284,21 +289,26 @@ export function EmoteBar() {
       </button>
       {open && (
         <div className="dance-pick cosy-panel" role="menu" aria-label="Dances">
-          {DANCES.map((d, i) => (
-            <button
-              key={d.anim}
-              role="menuitem"
-              className={`dance-choice ${emote === d.anim ? 'on' : ''}`}
-              onClick={() => {
-                game.emote(d.anim);
-                useHud.setState({ dances: false });
-              }}
-            >
-              <span className="emote-icon">{d.icon}</span>
-              <span className="dance-name">{d.label}</span>
-              <span className="cosy-key">{i + 1}</span>
-            </button>
-          ))}
+          {DANCES.map((d, i) => {
+            const locked = !st && !danceOwned(d.anim, { items });
+            return (
+              <button
+                key={d.anim}
+                role="menuitem"
+                className={`dance-choice ${emote === d.anim ? 'on' : ''} ${locked ? 'locked' : ''}`}
+                title={locked ? `${d.label}: ${money(d.price ?? 0)} at the Lucky Raven’s shop` : undefined}
+                onClick={() => {
+                  // (One not bought yet opens the shop on it.)
+                  game.emote(d.anim);
+                  useHud.setState({ dances: false });
+                }}
+              >
+                <span className="emote-icon">{d.icon}</span>
+                <span className="dance-name">{d.label}</span>
+                {locked ? <span className="dance-price">🔒 {money(d.price ?? 0)}</span> : i < 9 ? <span className="cosy-key">{i + 1}</span> : null}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

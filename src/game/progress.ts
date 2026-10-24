@@ -23,6 +23,8 @@ interface Stored extends ProgressSnapshot {
   /** Money, and pets owned, as the Storyteller last said (only they change these). */
   coins: number;
   pets: PetId[];
+  /** Hats, dances and the like bought at the shop, as the Storyteller last said ('hat:topper', 'dance:worm'). */
+  items: string[];
   /** Whose profile this is (a name, lower case); null for progress from before profiles, not yet anyone's. */
   owner: string | null;
   /** The Storytellers' books (and names) this browser's progress has gone into, so it's only merged in once. */
@@ -44,6 +46,7 @@ function load(): Stored {
     seen: list<string>(raw?.seen, 400).filter((x) => typeof x === 'string'),
     coins: Math.max(0, Math.floor(Number(raw?.coins) || 0)),
     pets: list<PetId>(raw?.pets, 40).filter((x) => PETS.some((p) => p.id === x)),
+    items: list<string>(raw?.items, 200).filter((x) => typeof x === 'string'),
     owner: typeof raw?.owner === 'string' ? raw.owner : null,
     merged: list<string>(raw?.merged, 20).filter((x) => typeof x === 'string'),
     pending: list<ProgressEvent>(raw?.pending, 300).filter((e) => e && typeof e === 'object' && typeof e.k === 'string'),
@@ -65,6 +68,7 @@ const fromView = (p: ProfileView) => ({
   tally: p.tally,
   coins: p.coins,
   pets: p.pets,
+  items: p.items ?? [],
 });
 
 /** What to show: our own copy, or while joining, that with the profile of the name we're joining as. */
@@ -80,6 +84,8 @@ export const useProgress = create<Stored>(() => real);
 /** My money and my pets, as the Storyteller last said. */
 export const useMoney = () => useProgress((s) => s.coins);
 export const useMyPets = () => useProgress((s) => s.pets);
+/** What I've bought at the shop (hats and dances), as the Storyteller last said. */
+export const useMyItems = () => useProgress((s) => s.items);
 
 /** Money in and out lately (newest last, `at` on the Storyteller's clock), for the little pops by the money. */
 export const usePay = create<{ pay: PayLine[] }>(() => ({ pay: [] }));
