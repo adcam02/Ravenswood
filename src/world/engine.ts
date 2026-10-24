@@ -2616,7 +2616,12 @@ export class Engine {
       this.visit = null;
       this.victimPose = null;
       if (vis.mine) {
-        useHud.setState({ visit: null });
+        // A slow frame can jump right past the dark moment: then it shows now, for a few seconds.
+        if (useHud.getState().visit === 'dark') useHud.setState({ visit: null });
+        else {
+          useHud.setState({ visit: 'dark' });
+          setTimeout(() => useHud.getState().visit === 'dark' && !this.visit && useHud.setState({ visit: null }), 3500);
+        }
         earn('visited');
       }
       return;
