@@ -477,6 +477,60 @@
   font-size: 11.5px;
   font-weight: 500;
 }
+/* The Dances picker, popping up above the emote bar. */
+.emote-bar {
+  position: relative;
+}
+/* (Over the help card while it's open.) */
+.player-bottom:has(.dance-pick),
+.st-bottom:has(.dance-pick) {
+  z-index: 16;
+}
+.dance-pick {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2px;
+  width: 260px;
+  padding: 6px;
+  border-radius: 16px;
+  animation: dance-pop 0.16s ease-out;
+}
+@keyframes dance-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+}
+.dance-choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-family: var(--cosy-font);
+  font-size: 14px;
+  color: var(--cosy-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.dance-choice:hover {
+  background: var(--cosy-bg-2);
+}
+.dance-choice.on {
+  background: #ffe1c9;
+}
+.dance-name {
+  flex: 1;
+}
+.dance-choice .cosy-key {
+  opacity: 0.7;
+}
 
 .hand-slot {
   display: flex;
@@ -744,6 +798,10 @@
   }
   .help-card,
   .help-btn {
+    display: none;
+  }
+  /* No keyboard on a phone, so no key hints in the Dances picker. */
+  .dance-choice .cosy-key {
     display: none;
   }
 }

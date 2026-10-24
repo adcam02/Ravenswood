@@ -7,7 +7,7 @@ import { Fold, lowDetail, seedOf, seeded, solid, tube } from './paper';
 import { ellipsoid, rod, type Probe } from './sculpt';
 import { DETAILS, RECIPES, profileOf } from './recipes';
 import { col, colorsFor, mix, newKit, type Kit, type Mannerism, type Part, type Profile, type Shape } from './species';
-import { animalInfo, type Anim, type AnimalId, type HatId, type Item, type ItemKind, type Look } from './types';
+import { animalInfo, isDance, wrapAngle, type Anim, type AnimalId, type HatId, type Item, type ItemKind, type Look } from './types';
 
 export { buildPet, type Pet } from './pets';
 
@@ -46,6 +46,8 @@ export interface Rig {
 // ---------------------------------------------------------------- poses
 
 interface Pose {
+  /** The body shifted sideways (a dance's hips swinging under a steady head). */
+  bx: number;
   by: number;
   bz: number;
   brx: number;
@@ -82,7 +84,7 @@ interface Pose {
   carry: number;
 }
 
-const POSE_KEYS = ['by', 'bz', 'brx', 'bry', 'brz', 'hrx', 'hry', 'hrz', 'alx', 'alz', 'arx', 'arz', 'aly', 'ary', 'wl', 'wr', 'llx', 'llz', 'lrx', 'lrz', 'trx', 'try', 'tilt', 'sl', 'sr', 'el', 'er', 'carry'] as const;
+const POSE_KEYS = ['bx', 'by', 'bz', 'brx', 'bry', 'brz', 'hrx', 'hry', 'hrz', 'alx', 'alz', 'arx', 'arz', 'aly', 'ary', 'wl', 'wr', 'llx', 'llz', 'lrx', 'lrz', 'trx', 'try', 'tilt', 'sl', 'sr', 'el', 'er', 'carry'] as const;
 
 /**
  * How a bat holds its wings folded, like a closed umbrella down each side: hanging, turned so what's left of
@@ -92,6 +94,7 @@ const POSE_KEYS = ['by', 'bz', 'brx', 'bry', 'brz', 'hrx', 'hry', 'hrz', 'alx', 
 const FOLD = { x: 0.31, y: -2.575, z: -0.455, el: 2.4, w: 0.3 };
 
 const restPose = (): Pose => ({
+  bx: 0,
   by: 0,
   bz: 0,
   brx: 0,
@@ -484,6 +487,9 @@ class AnimalRig implements Rig {
   private pose = restPose();
   private auxNow: AuxMap = new Map();
   private phase = 0;
+  /** What it's doing, and since when (rig time), so a dance starts from its first step. */
+  private animNow: Anim = 'idle';
+  private animStart = 0;
   private blinkAt = 2 + Math.random() * 3;
   private blinkT = -1;
   private seed = Math.random() * 100;
@@ -1271,6 +1277,250 @@ class AnimalRig implements Rig {
     }
   }
 
+  /**
+   * The dances from the Dances picker, `d` seconds in (each starts from its beginning). All at 120 beats a minute,
+   * built from the same few bones as everything else, so they work on any body: legs, tentacles or none.
+   */
+  private dance(P: Pose, A: AuxMap, anim: Anim, d: number) {
+    const sin = Math.sin;
+    const cos = Math.cos;
+    const sh = this.shoulder;
+    const hipY = this.sk.rest.get('legL')!.y;
+    const beat = d * 2;
+    const ears = (x: number, z: number) => {
+      aux(A, 'earL')[0] = aux(A, 'earR')[0] = x;
+      aux(A, 'earL')[2] = aux(A, 'earR')[2] = z;
+    };
+    switch (anim) {
+      case 'twerk': {
+        // Bent right over, feet wide, paws on the knees and the bum bouncing and wiggling as fast as it goes, the
+        // tail going like mad, with a cheeky look back over the shoulder now and then.
+        // (Four pops a second, the bum going up with each and swinging to alternate sides.)
+        const pop = Math.abs(sin(d * 13));
+        const w = sin(d * 13);
+        const drift = sin(d * Math.PI);
+        P.brx = 0.62 + pop * 0.16;
+        P.bz = -0.07;
+        P.by = -0.04 + pop * 0.035;
+        P.bry = w * 0.15 + drift * 0.1;
+        // Rocked from side to side about the shoulders, so it's the bum that swings.
+        P.brz = w * 0.24;
+        P.bx = sh.y * sin(P.brz);
+        P.llx = P.lrx = -0.6;
+        P.llz = 0.32;
+        P.lrz = -0.32;
+        this.reach(P, 'both', Math.max(hipY - 0.04, 0.12), this.front + this.pawR + 0.02, 0.06, 'paw');
+        const look = THREE.MathUtils.smoothstep(sin(d * 1.3), 0.3, 0.8);
+        P.hrx = -0.55;
+        P.hry = look * 0.9;
+        P.hrz = look * 0.2;
+        P.trx = 0.7;
+        P.try = w * 0.9;
+        aux(A, 'tail1')[1] = w * 0.5;
+        aux(A, 'tail2')[1] = -w * 0.6;
+        aux(A, 'rear')[3] = w * 0.04;
+        ears(0, w * 0.2);
+        break;
+      }
+      case 'griddy': {
+        // Six beats of heel taps, a hop onto each heel in turn with the arms swinging big, then both paws up round
+        // the eyes like goggles for two.
+        const bar = beat % 8;
+        if (bar < 6) {
+          const side = Math.floor(bar) % 2 ? 1 : -1;
+          const u = bar % 1;
+          const tap = sin(u * Math.PI);
+          P.by = tap * 0.06;
+          P.brx = -0.1;
+          // The heel out in front, toes up; the other leg bent under.
+          P.llx = side > 0 ? -0.75 * tap : 0.15 * tap;
+          P.lrx = side < 0 ? -0.75 * tap : 0.15 * tap;
+          P.bry = side * 0.2 * tap;
+          P.brz = side * 0.05;
+          const swing = side * (0.4 + 0.6 * tap);
+          P.alx = -0.3 - swing;
+          P.arx = -0.3 + swing;
+          P.alz = this.armOut + 0.25;
+          P.arz = -this.armOut - 0.25;
+          P.el = P.er = 0.7;
+          P.hrz = -side * 0.1;
+          P.try = side * 0.6;
+        } else {
+          const e = this.headNow(this.eyePos, -0.15);
+          this.reach(P, 'both', e.y, e.z + this.pawR + 0.04, e.x - Math.abs(sh.x) - 0.02, 'paw');
+          const k = sin(d * 10);
+          P.alx += k * 0.06;
+          P.arx -= k * 0.06;
+          P.hrx = -0.15;
+          P.hry = sin(d * 3) * 0.3;
+          P.by = Math.abs(sin(d * Math.PI * 2)) * 0.03;
+          P.brx = -0.06;
+          P.llz = 0.12;
+          P.lrz = -0.12;
+        }
+        ears(-0.15, 0);
+        break;
+      }
+      case 'floss': {
+        // Straight arms swung from side to side together, in front going one way and behind coming back, the
+        // hips swinging the other way and the head bobbing along.
+        const side = sin(d * Math.PI * 2.2);
+        P.alz = this.armOut + 0.2 + side * 1.15;
+        P.arz = -this.armOut - 0.2 + side * 1.15;
+        P.alx = P.arx = -0.15 - side * 0.95;
+        P.brz = side * 0.16;
+        P.bry = -side * 0.22;
+        P.hrz = -side * 0.22;
+        P.by = Math.abs(cos(d * Math.PI * 2.2)) * 0.025;
+        P.llz = 0.1 - side * 0.12;
+        P.lrz = -0.1 - side * 0.12;
+        P.try = -side * 0.6;
+        ears(0, side * 0.2);
+        break;
+      }
+      case 'robot': {
+        // Stiff, held poses that snap from one to the next on every beat, the head and body turning in jerks.
+        const n = Math.floor(beat) % 8;
+        const up = Math.PI * 0.85;
+        const fwd = -1.5;
+        const poses: [number, number, number, number, number, number, number, number][] = [
+          // alx, alz, arx, arz, elbows, head turn, body turn, head nod
+          [fwd, 0.15, fwd, -0.15, 0, 0, 0, 0],
+          [fwd, 0.15, -0.1, -up, 0, -0.55, 0, 0],
+          [-0.1, 1.5, -0.1, -1.5, 0, 0, 0.45, 0],
+          [-0.1, 1.5, -0.1, -1.5, 1.4, 0.4, 0.45, 0.15],
+          [-0.1, up, fwd, -0.15, 0, 0.55, -0.4, 0],
+          [-0.2, 0.2, -0.2, -0.2, 1.5, 0, -0.4, 0.3],
+          [-0.1, 2.3, -0.1, -0.7, 0.9, -0.3, 0, -0.1],
+          [-0.1, 0.7, -0.1, -2.3, 0.9, 0.3, 0, -0.1],
+        ];
+        const [alx, alz, arx, arz, el, hry, bry, hrx] = poses[n];
+        P.alx = alx;
+        P.alz = alz;
+        P.arx = arx;
+        P.arz = arz;
+        P.el = P.er = el;
+        P.hry = hry;
+        P.bry = bry;
+        P.hrx = hrx;
+        // A little jolt as each pose locks in.
+        P.by = Math.max(0, 1 - (beat % 1) * 6) * 0.025;
+        P.llz = 0.08;
+        P.lrz = -0.08;
+        break;
+      }
+      case 'moonwalk': {
+        // Gliding backwards on the spot with the feet sliding in turn, a spin, and up on the toes with a paw in
+        // the air, then round again.
+        const c = d % 4;
+        if (c < 2.8) {
+          const u = c / 2.8;
+          P.bz = 0.13 - 0.3 * u;
+          const step = sin(u * Math.PI * 4);
+          // One foot slides back flat while the other is bent up on its toe, swapping over.
+          P.llx = step * 0.35;
+          P.lrx = -step * 0.35;
+          P.by = Math.abs(step) * 0.015;
+          P.brx = 0.06;
+          P.alx = -0.2 + step * 0.3;
+          P.arx = -0.2 - step * 0.3;
+          P.el = P.er = 0.8;
+          P.hrx = -0.05 + Math.abs(step) * 0.05;
+          P.try = step * 0.3;
+        } else if (c < 3.4) {
+          const u = THREE.MathUtils.smoothstep((c - 2.8) / 0.6, 0, 1);
+          P.bry = u * Math.PI * 2;
+          P.bz = -0.17 + 0.3 * u;
+          P.alz = this.armOut + 0.6;
+          P.arz = -this.armOut - 0.6;
+          P.llz = 0.05;
+          P.lrz = -0.05;
+          P.try = 0.6;
+        } else {
+          // On tiptoe, a paw up and the head cocked.
+          P.bz = 0.13;
+          P.by = 0.04;
+          P.brx = -0.08;
+          this.raise(P, 'r', this.headC.y + this.headR.y + 0.1, 0);
+          P.alz = this.armOut + 0.3;
+          P.hrz = 0.2;
+          P.hrx = -0.15;
+          P.llz = 0.02;
+          P.lrz = -0.02;
+          ears(-0.3, 0);
+        }
+        break;
+      }
+      case 'horse': {
+        // Riding an invisible horse: a skip from foot to foot, two hops on each, paws crossed at the wrists holding
+        // the reins and bouncing; every fourth bar the right paw goes up to swing a lasso.
+        const q = d * 4;
+        const hop = Math.abs(sin(q * Math.PI));
+        const left = Math.floor(q / 2) % 2 === 0;
+        P.by = hop * 0.06;
+        P.llx = left ? -0.55 * hop : 0.05;
+        P.lrx = left ? 0.05 : -0.55 * hop;
+        P.brx = -0.06;
+        P.bry = (left ? 1 : -1) * 0.12;
+        P.brz = (left ? -1 : 1) * 0.05;
+        this.reach(P, 'both', sh.y - 0.04 + hop * 0.03, this.front + this.pawR + 0.08, sh.x - 0.02, 'paw');
+        if (beat % 16 >= 12) {
+          // The lasso: up over the head, going round.
+          this.raise(P, 'r', this.headC.y + this.headR.y + 0.14, 0.04 + sin(d * 14) * 0.08);
+          P.arx += cos(d * 14) * 0.25;
+          P.hrx = -0.2;
+        } else P.hrx = hop * 0.12 - 0.04;
+        P.try = (left ? 1 : -1) * 0.5;
+        ears(-0.2 + hop * 0.2, 0);
+        break;
+      }
+      case 'macarena': {
+        // Sixteen beats: each paw in turn out front, palm down then up, to the opposite shoulder, behind the head,
+        // to the opposite hip and onto the bum; a wiggle, then a jump and a quarter turn.
+        const bar = beat % 16;
+        const r = Math.floor(bar / 2);
+        const l = Math.floor((bar + 15) / 2) % 8;
+        const across = sh.x * 2 - 0.02;
+        const back = this.shape.tc[2] - this.shape.tr[2] - this.pawR;
+        const place = (side: 'r' | 'l', step: number) => {
+          switch (Math.min(step, 5)) {
+            case 0:
+              this.reach(P, side, sh.y - 0.02, this.front + 0.4, -0.02, 'paw');
+              break;
+            case 1:
+              this.reach(P, side, sh.y + 0.04, this.front + 0.4, -0.02, 'paw');
+              break;
+            case 2:
+              this.reach(P, side, sh.y - 0.02, this.front + this.pawR, across, 'paw');
+              break;
+            case 3:
+              this.reach(P, side, this.headC.y + 0.04, this.headC.z - this.headR.z * 0.2, this.besideHead(0.01), 'paw');
+              break;
+            case 4:
+              this.reach(P, side, hipY + 0.04, this.front + this.pawR, across * 0.6, 'paw');
+              break;
+            default:
+              this.reach(P, side, hipY + 0.02, back, 0.02, 'paw');
+          }
+        };
+        place('r', r);
+        place('l', l);
+        const wiggle = bar >= 12 && bar < 15 ? sin((bar - 12) * Math.PI * 2) : 0;
+        P.bry = wiggle * 0.25;
+        P.brz = -wiggle * 0.08;
+        P.try = wiggle * 0.8;
+        // The jump and the turn, which carries on from wherever the last one left off.
+        const turns = Math.floor(beat / 16) + (bar >= 15 ? THREE.MathUtils.smoothstep(bar - 15, 0, 1) : 0);
+        P.bry += (turns % 4) * (Math.PI / 2);
+        P.by = bar >= 15 ? sin((bar - 15) * Math.PI) * 0.12 : Math.abs(sin(beat * Math.PI)) * 0.015;
+        P.hry = bar < 12 ? (r % 2 ? 0.15 : -0.15) : 0;
+        P.hrz = sin(beat * Math.PI) * 0.06;
+        ears(0, sin(beat * Math.PI) * 0.15);
+        break;
+      }
+    }
+  }
+
   /** The little things it does while standing about, one at a time. */
   private mannerism(P: Pose, A: AuxMap, t: number) {
     if (!this.clip && t >= this.nextClip && this.prof.idles.length) {
@@ -1474,6 +1724,11 @@ class AnimalRig implements Rig {
     const sh = this.shoulder;
     const prof = this.prof;
     if (s.anim !== 'idle') this.clip = null;
+    // (A dance starts from its first step.)
+    if (s.anim !== this.animNow) {
+      this.animNow = s.anim;
+      this.animStart = s.t;
+    }
     this.shut = 0;
     this.flutter = 0;
     switch (s.anim) {
@@ -1583,6 +1838,15 @@ class AnimalRig implements Rig {
         aux(A, 'stalkR')[2] = -0.2 + b * 0.25;
         break;
       }
+      case 'twerk':
+      case 'griddy':
+      case 'floss':
+      case 'robot':
+      case 'moonwalk':
+      case 'horse':
+      case 'macarena':
+        this.dance(P, A, s.anim, s.t - this.animStart);
+        break;
       case 'laugh':
         P.hrx = -0.32 + sin(t * 16) * 0.06;
         P.brz = sin(t * 18) * 0.035;
@@ -1715,7 +1979,7 @@ class AnimalRig implements Rig {
     }
     // Holding something through a gesture: the other paw does the waving and the holding paw keeps hold
     // (a snail's single tendril just keeps hold).
-    if (this.hold && (s.anim === 'wave' || s.anim === 'hand' || s.anim === 'cheer' || s.anim === 'cry' || s.anim === 'laugh' || s.anim === 'dance')) {
+    if (this.hold && (s.anim === 'wave' || s.anim === 'hand' || s.anim === 'cheer' || s.anim === 'cry' || s.anim === 'laugh' || isDance(s.anim))) {
       if ((s.anim === 'wave' || s.anim === 'hand') && !this.tendril) {
         P.alx = P.arx;
         P.alz = -P.arz;
@@ -1814,7 +2078,7 @@ class AnimalRig implements Rig {
     if (this.wings) {
       // A bee's wings buzz the whole time it's up in the air; a dragon's stay folded until it cheers or dances,
       // or flutters them now and then.
-      this.wings.want = this.wings.mode === 'buzz' ? (s.anim === 'sleep' ? 0 : 1) : s.anim === 'cheer' || s.anim === 'dance' ? 1 : this.flutter;
+      this.wings.want = this.wings.mode === 'buzz' ? (s.anim === 'sleep' ? 0 : 1) : s.anim === 'cheer' || isDance(s.anim) ? 1 : this.flutter;
     }
     return { P, A };
   }
@@ -1822,7 +2086,10 @@ class AnimalRig implements Rig {
   private applyPose(k: number, target?: { P: Pose; A: AuxMap }) {
     const P = this.pose;
     if (target) {
+      // Turning about the upright goes the short way round, so a dance's spin carries on rather than unwinding.
+      const bry = P.bry + wrapAngle(target.P.bry - P.bry) * k;
       for (const key of POSE_KEYS) P[key] += (target.P[key] - P[key]) * k;
+      P.bry = wrapAngle(bry);
       for (const name of this.extra) {
         const now = this.auxNow.get(name) ?? restAux();
         const want = target.A.get(name) ?? restAux();
@@ -1830,7 +2097,7 @@ class AnimalRig implements Rig {
         this.auxNow.set(name, now);
       }
     }
-    this.body.position.set(0, P.by, P.bz);
+    this.body.position.set(P.bx, P.by, P.bz);
     this.body.rotation.set(P.brx, P.bry, P.brz);
     this.neck.rotation.set(P.hrx, P.hry, P.hrz);
     this.armL.rotation.set(P.alx, P.aly, P.alz);

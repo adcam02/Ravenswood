@@ -10,7 +10,7 @@ import { ui, useUI } from '../../state/ui';
 import { nightMusic } from '../../lib/music';
 import { useView } from '../../state/view';
 import { setPersonVolume, useVoice, voice } from '../../voice/voice';
-import { EMOTES, type Item } from '../../world/types';
+import { DANCES, DANCES_KEY, EMOTES, isDance, type Item } from '../../world/types';
 import { lazyPart } from '../../lib/lazy';
 import { CrashNote, Guard } from '../Guard';
 import { Icon } from '../Icon';
@@ -242,15 +242,63 @@ export function HandSlot() {
 export function EmoteBar() {
   const emote = useHud((s) => s.emote);
   const job = useHud((s) => s.job);
+  const open = useHud((s) => s.dances);
+  const bar = useRef<HTMLDivElement>(null);
+  // The picker closes on a tap anywhere else, or Escape.
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: PointerEvent) => {
+      if (!bar.current?.contains(e.target as Node)) useHud.setState({ dances: false });
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') useHud.setState({ dances: false });
+    };
+    window.addEventListener('pointerdown', away);
+    window.addEventListener('keydown', esc);
+    return () => {
+      window.removeEventListener('pointerdown', away);
+      window.removeEventListener('keydown', esc);
+    };
+  }, [open]);
   if (job) return null;
+  const picked = isDance(emote) && emote !== 'dance';
   return (
-    <div className="emote-bar cosy-panel" role="toolbar" aria-label="Emotes">
+    <div ref={bar} className="emote-bar cosy-panel" role="toolbar" aria-label="Emotes">
       {EMOTES.map((e) => (
         <button key={e.anim} className={`emote ${emote === e.anim ? 'on' : ''}`} onClick={() => game.emote(e.anim)} title={`${e.label} (${e.key})`}>
           <span className="emote-icon">{({ wave: '👋', dance: '💃', cheer: '🙌', laugh: '😂', cry: '😢', sit: '🪑' } as Record<string, string>)[e.anim]}</span>
           <span className="emote-label">{e.label}</span>
         </button>
       ))}
+      <button
+        className={`emote ${picked || open ? 'on' : ''}`}
+        onClick={() => useHud.setState({ dances: !open })}
+        title={`More dances (${DANCES_KEY})`}
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        <span className="emote-icon">🪩</span>
+        <span className="emote-label">Dances</span>
+      </button>
+      {open && (
+        <div className="dance-pick cosy-panel" role="menu" aria-label="Dances">
+          {DANCES.map((d, i) => (
+            <button
+              key={d.anim}
+              role="menuitem"
+              className={`dance-choice ${emote === d.anim ? 'on' : ''}`}
+              onClick={() => {
+                game.emote(d.anim);
+                useHud.setState({ dances: false });
+              }}
+            >
+              <span className="emote-icon">{d.icon}</span>
+              <span className="dance-name">{d.label}</span>
+              <span className="cosy-key">{i + 1}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -460,7 +508,7 @@ export function HelpCard() {
           <span className="cosy-key">E</span> to use things: doors open as you walk in
         </li>
         <li>
-          <span className="cosy-key">1</span>–<span className="cosy-key">6</span> wave, dance and more
+          <span className="cosy-key">1</span>–<span className="cosy-key">6</span> wave, dance and more, <span className="cosy-key">7</span> for more dances
         </li>
         <li>
           <span className="cosy-key">G</span> give what you’re holding, <span className="cosy-key">Q</span> put it away

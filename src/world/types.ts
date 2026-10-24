@@ -532,7 +532,15 @@ export type Anim =
   /** Tipping a watering can. */
   | 'water'
   /** A sip from whatever is in the right paw. */
-  | 'drink';
+  | 'drink'
+  /** The dances in the Dances picker (see DANCES). */
+  | 'twerk'
+  | 'griddy'
+  | 'floss'
+  | 'robot'
+  | 'moonwalk'
+  | 'horse'
+  | 'macarena';
 
 export const EMOTES: { anim: Anim; label: string; key: string }[] = [
   { anim: 'wave', label: 'Wave', key: '1' },
@@ -542,6 +550,23 @@ export const EMOTES: { anim: Anim; label: string; key: string }[] = [
   { anim: 'cry', label: 'Cry', key: '5' },
   { anim: 'sit', label: 'Sit', key: '6' },
 ];
+
+/** The key that opens the Dances picker; while it's open, 1 to 7 pick from it. */
+export const DANCES_KEY = '7';
+
+/** More dances, in the picker behind the Dances button. They loop until you move or do something else. */
+export const DANCES: { anim: Anim; label: string; icon: string }[] = [
+  { anim: 'twerk', label: 'Twerk', icon: '🍑' },
+  { anim: 'griddy', label: 'Griddy', icon: '🥽' },
+  { anim: 'floss', label: 'Floss', icon: '🦷' },
+  { anim: 'robot', label: 'Robot', icon: '🤖' },
+  { anim: 'moonwalk', label: 'Moonwalk', icon: '🌙' },
+  { anim: 'horse', label: 'Horse ride', icon: '🐎' },
+  { anim: 'macarena', label: 'Macarena', icon: '🎶' },
+];
+
+/** Any dance, the plain one or one from the picker (they all count for the dancing achievements). */
+export const isDance = (a: Anim | null | undefined): boolean => a === 'dance' || DANCES.some((d) => d.anim === a);
 
 export type DrinkKind = 'ale' | 'cider' | 'milk' | 'cocoa';
 export type BakeKind = 'loaf' | 'pie' | 'bun';

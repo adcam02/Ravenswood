@@ -80,7 +80,10 @@ import {
   boothSeats,
   cottageSlot,
   cottageZone,
+  DANCES,
+  DANCES_KEY,
   houseOwner,
+  isDance,
   houseZone,
   inBooth,
   wrapAngle,
@@ -208,6 +211,8 @@ const JOB_LOOK: Record<GameJob, { anim: Anim; item: Item | null }> = {
 const VISITS_SEEN_KEY = 'ravenswood:visits-seen';
 
 const EMOTE_TIME: Partial<Record<Anim, number>> = { wave: 2.4, cheer: 2.6, laugh: 2.6, cry: 3.2, dance: 8, drink: 1.6 };
+/** How long an emote plays: a dance goes on until you move or do something else (on a meeting stool, a while). */
+const emoteTime = (anim: Anim, pinned = false) => (isDance(anim) ? (pinned ? 8 : Infinity) : (EMOTE_TIME[anim] ?? 2.5));
 const SIPPABLE = new Set(['ale', 'cider', 'milk', 'cocoa', 'loaf', 'pie', 'bun', 'water', 'wine']);
 const DRINKS = new Set(['ale', 'cider', 'milk', 'cocoa', 'water', 'wine']);
 
@@ -319,7 +324,8 @@ export class Engine {
   private unsubUI: (() => void) | null = null;
   private unsubShout: (() => void) | null = null;
 
-  private emote: { anim: Anim; until: number } | null = null;
+  /** `face`: the way to turn while it plays (twerking turns its back to the camera). */
+  private emote: { anim: Anim; until: number; face?: number } | null = null;
   /** Sitting or lying on something: the y to sit at. */
   private seated: { y: number; anim: Anim } | null = null;
   /** The meeting stool we're sat on, as "seat/of", so we can move along if the seats are reordered. */
@@ -980,7 +986,13 @@ export class Engine {
     } else if (k === 'g') this.give();
     else if (k === 'q') this.putAway();
     else if (k === 'm') voice.setMuted(!useVoice.getState().muted);
-    else {
+    else if (k === DANCES_KEY) useHud.setState((h) => ({ dances: !h.dances }));
+    else if (useHud.getState().dances && /^[1-9]$/.test(k)) {
+      // The Dances picker is open: its own numbers.
+      const dance = DANCES[Number(k) - 1];
+      if (dance) this.startEmote(dance.anim);
+      useHud.setState({ dances: false });
+    } else {
       const emote = ({ '1': 'wave', '2': 'dance', '3': 'cheer', '4': 'laugh', '5': 'cry', '6': 'sit' } as Record<string, Anim>)[k];
       if (emote) this.startEmote(emote);
     }
@@ -1125,7 +1137,7 @@ export class Engine {
     if (!this.me || this.job || this.inBed) return;
     // On a meeting stool: wave, laugh and the rest happen sitting there, and "sit" doesn't stand them up.
     if (this.pinned()) {
-      if (anim !== 'sit') this.emote = { anim, until: this.clock.elapsedTime + (EMOTE_TIME[anim] ?? 2.5) };
+      if (anim !== 'sit') this.emote = { anim, until: this.clock.elapsedTime + emoteTime(anim, true) };
       return;
     }
     if (anim === 'sit') {
@@ -1134,7 +1146,7 @@ export class Engine {
       return;
     }
     this.seated = null;
-    this.emote = { anim, until: this.clock.elapsedTime + (EMOTE_TIME[anim] ?? 2.5) };
+    this.emote = { anim, until: this.clock.elapsedTime + emoteTime(anim), face: anim === 'twerk' ? this.yaw + Math.PI : undefined };
     this.moveTarget = null;
     // Waving hello to five different players in one day.
     const near = anim === 'wave' && isPlayerView(this.view) ? this.nearestOther(4) : null;
@@ -1144,7 +1156,7 @@ export class Engine {
       if (this.waves.to.size >= 5) earn('friendship');
     }
     // Dancing right in the middle of the meeting circle, up on the dais.
-    if (anim === 'dance' && this.view?.mode === 'player' && local.zone === 'town' && Math.hypot(local.x - MEETING_CENTRE.x, local.z - MEETING_CENTRE.z) < 1.2) earn('disco');
+    if (isDance(anim) && this.view?.mode === 'player' && local.zone === 'town' && Math.hypot(local.x - MEETING_CENTRE.x, local.z - MEETING_CENTRE.z) < 1.2) earn('disco');
   }
 
   private standUp() {
@@ -1152,7 +1164,7 @@ export class Engine {
       this.seated = null;
       if (this.me) this.me.ty = 0;
     }
-    if (this.emote?.anim === 'dance') this.emote = null;
+    if (isDance(this.emote?.anim)) this.emote = null;
   }
 
   private sip() {
@@ -1867,8 +1879,10 @@ export class Engine {
     if (this.job) anim = JOB_LOOK[this.job.job].anim;
     else if (st && v.reading) anim = 'fish';
     else if (voting) anim = 'hand';
-    else if (this.emote) anim = this.emote.anim;
-    else if (this.party && this.party.left > 0 && this.seated?.y === STOOL_Y) {
+    else if (this.emote) {
+      anim = this.emote.anim;
+      if (this.emote.face !== undefined && !moving) local.ry = turnToward(local.ry, this.emote.face, dt * 8);
+    } else if (this.party && this.party.left > 0 && this.seated?.y === STOOL_Y) {
       // Counted in time actually shown, so a stall or the tab being in the background doesn't eat it.
       this.party.left -= dt;
       anim = this.party.anim;
@@ -2006,9 +2020,9 @@ export class Engine {
     if (Math.abs(turn) > 0.0001) f.spin.push({ t, d: turn });
     while (f.spin.length && t - f.spin[0].t > 6) f.spin.shift();
     if (Math.abs(f.spin.reduce((sum, x) => sum + x.d, 0)) >= Math.PI * 10) earn('dizzy');
-    // Dancing a whole minute without a break (each dance lasts a few seconds, so keep it going), and standing
+    // Dancing a whole minute without a break (switching dances is fine), and standing
     // stock still, doing nothing at all, for five (real time, however few frames there are).
-    const dancing = this.emote?.anim === 'dance' && this.emote.until > this.clock.elapsedTime;
+    const dancing = isDance(this.emote?.anim) && this.emote!.until > this.clock.elapsedTime;
     f.danceSince = dancing ? (f.danceSince ?? t) : null;
     if (f.danceSince !== null && t - f.danceSince >= 60) earn('onemore');
     const idle = !moving && !this.emote && !this.seated && !this.inBed && !this.job && !this.show && Math.abs(turn) < 0.0001;

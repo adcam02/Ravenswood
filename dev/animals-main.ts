@@ -5,7 +5,7 @@ import { animalThumbnail, buildAnimal, buildPet, buildStoryteller, type Pet, typ
 import { buildHat } from '../src/world/hats';
 import { buildItem } from '../src/world/items';
 import { audit, resetAudit } from '../src/world/paper';
-import { ANIMALS, EXTRA_COLORS, HATS, PETS, type Anim, type AnimalId, type HatId, type ItemKind, type Look, type PetId } from '../src/world/types';
+import { ANIMALS, DANCES, EXTRA_COLORS, HATS, PETS, type Anim, type AnimalId, type HatId, type ItemKind, type Look, type PetId } from '../src/world/types';
 
 const q = new URLSearchParams(location.search);
 const view = q.get('view') ?? 'grid';
@@ -352,7 +352,7 @@ if (view === 'grid' || view === 'night') {
   camera.lookAt(0, 0.6, 0);
 } else if (view === 'poses') {
   const id = (q.get('animal') ?? 'fox') as AnimalId;
-  const anims: Anim[] = ['idle', 'walk', 'run', 'sit', 'sleep', 'wave', 'dance', 'cheer', 'laugh', 'cry', 'hand', 'work', 'fish', 'water', 'drink'];
+  const anims: Anim[] = ['idle', 'walk', 'run', 'sit', 'sleep', 'wave', 'dance', 'cheer', 'laugh', 'cry', 'hand', 'work', 'fish', 'water', 'drink', ...DANCES.map((d) => d.anim)];
   const items: Partial<Record<Anim, ItemKind>> = { fish: 'rod', water: 'can', drink: 'cocoa', work: 'washing', walk: 'loaf' };
   anims.forEach((a, i) => {
     const r = place(make({ animal: id, color: ANIMALS.find((x) => x.id === id)!.colors[0] }), (i % 5) * 1.6 - 3.2, Math.floor(i / 5) * 1.9 - 1.9, a, a === 'run' ? 4 : a === 'walk' ? 1.6 : 0, 0.5);
@@ -361,8 +361,66 @@ if (view === 'grid' || view === 'night') {
     const it = items[a];
     if (it) r.setItem({ k: it });
   });
-  camera.position.set(0, 5.5, 8.5);
-  camera.lookAt(0, 0.4, 0);
+  camera.position.set(0, 6.5, 10);
+  camera.lookAt(0, 0.4, 1);
+} else if (view === 'dances') {
+  // Key frames of a dance as a contact sheet: a row for each animal (?animal=fox,octopus,...), a column for each
+  // moment (?times=0.3,0.8,... seconds into it, played through from the start), all framed alike. ?anim=twerk picks
+  // the dance; ?angle=front|side|back|game (default a three-quarter view from the front).
+  const ids = (q.get('animal') ?? 'fox,octopus,bat,snail,kaiju,penguin').split(',') as AnimalId[];
+  const anim = (q.get('anim') ?? 'twerk') as Anim;
+  const times = (q.get('times') ?? '0.25,0.5,0.75,1,1.25,1.5').split(',').map(Number);
+  const angles: Record<string, [number, number]> = { three: [0.6, 0.25], front: [0, 0.15], side: [Math.PI / 2, 0.12], back: [Math.PI + 0.5, 0.3], game: [0.62, 0.6] };
+  const [az, el] = angles[q.get('angle') ?? 'three'];
+  const cam = new THREE.PerspectiveCamera(20, 1, 0.05, 80);
+  const labels = document.createElement('div');
+  labels.style.cssText = 'position:absolute;left:0;top:0;font:13px sans-serif;color:#123;pointer-events:none';
+  document.body.appendChild(labels);
+  renderer.setScissorTest(true);
+  sun.shadow.mapSize.set(1024, 1024);
+  Object.assign(sun.shadow.camera, { left: -2.5, right: 2.5, top: 2.5, bottom: -2.5 });
+  sun.shadow.camera.updateProjectionMatrix();
+  sheetDraw = () => {
+    const cols = times.length;
+    const cw = W / cols;
+    const ch = H / ids.length;
+    cam.aspect = cw / ch;
+    cam.updateProjectionMatrix();
+    renderer.setScissor(0, 0, W, H);
+    renderer.setClearColor('#5a6a78');
+    renderer.clear();
+    ids.forEach((id, row) => {
+      const r = id === ('storyteller' as AnimalId) ? buildStoryteller() : make(lookOf(id));
+      if (hatParam) r.setHat(hatParam);
+      scene.add(r.root);
+      // Framed on the animal standing (so how far a dance moves it shows), with room round it for the paws.
+      r.update({ anim: 'idle', speed: 0, dt: 0.05, t: 0 });
+      r.root.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(insideOf(r).mesh);
+      const c = box.getCenter(new THREE.Vector3());
+      const size = box.getSize(new THREE.Vector3());
+      const d = (Math.max(size.y, size.x / cam.aspect) * 1.5) / 2 / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
+      cam.position.set(c.x + Math.sin(az) * Math.cos(el) * d, c.y + Math.sin(el) * d, c.z + Math.cos(az) * Math.cos(el) * d);
+      cam.lookAt(c.x, c.y + size.y * 0.05, c.z);
+      let t = 0;
+      times.forEach((at, col) => {
+        // Played through at 30 frames a second, as in the game.
+        for (; t < at; t += 1 / 30) r.update({ anim, speed: 0, dt: 1 / 30, t });
+        r.root.updateMatrixWorld(true);
+        const x = col * cw;
+        const y = H - (row + 1) * ch;
+        renderer.setViewport(x, y, cw, ch);
+        renderer.setScissor(x + 1, y + 1, cw - 2, ch - 2);
+        renderer.render(scene, cam);
+        const tag = document.createElement('div');
+        tag.textContent = col === 0 ? `${id} ${at}s` : `${at}s`;
+        tag.style.cssText = `position:absolute;left:${x + 4}px;top:${row * ch + 2}px`;
+        labels.appendChild(tag);
+      });
+      scene.remove(r.root);
+    });
+    (window as unknown as { info: unknown }).info = { anim, ids, times };
+  };
 } else if (view === 'items') {
   const kinds: ItemKind[] = ['ale', 'cider', 'milk', 'cocoa', 'loaf', 'pie', 'bun', 'fish', 'flower', 'rod', 'can', 'washing'];
   kinds.forEach((k, i) => {

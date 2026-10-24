@@ -28,6 +28,8 @@ interface Hud {
   gfxLost: number | null;
   /** The emote playing, for highlighting its button. */
   emote: Anim | null;
+  /** The Dances picker is open (above the emote bar). */
+  dances: boolean;
   /** Holding something you can sip. */
   canSip: boolean;
   /** How many people are close enough to hear you right now. */
@@ -56,6 +58,7 @@ export const useHud = create<Hud>(() => ({
   failed: null,
   gfxLost: null,
   emote: null,
+  dances: false,
   canSip: false,
   hearing: 0,
   notice: false,
