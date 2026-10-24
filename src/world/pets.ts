@@ -3168,30 +3168,30 @@ class Ent extends Critter {
     for (const s of [-1, 1]) {
       const lb = new Builder();
       tube(lb, [[s * 0.035, 0.1, 0], [s * 0.04, 0.05, 0.004], [s * 0.042, 0.016, 0.01]], 0.028, bark, 7);
-      for (const a of [-0.9, 0, 0.9]) tube(lb, [[s * 0.042, 0.02, 0.01], [s * 0.042 + Math.sin(a) * 0.03, 0.01, 0.01 + Math.cos(a) * 0.03], [s * 0.042 + Math.sin(a) * 0.05, 0.004, 0.01 + Math.cos(a) * 0.045]], 0.009, '#6b4c33', 4);
+      for (const a of [-0.9, 0, 0.9]) tube(lb, [[s * 0.042, 0.02, 0.01], [s * 0.042 + Math.sin(a) * 0.03, 0.01, 0.01 + Math.cos(a) * 0.03], [s * 0.042 + Math.sin(a) * 0.05, 0.004, 0.01 + Math.cos(a) * 0.045]], 0.009, '#6b4c33', 3);
       this.legs.push(this.piece(lb, [s * 0.035, 0.1, 0]));
     }
     // Long twiggy arms, one with a sprig of leaves.
     for (const s of [-1, 1]) {
       const ab = new Builder();
       tube(ab, [[s * 0.055, 0.25, 0], [s * 0.1, 0.215, 0.012], [s * 0.122, 0.16, 0.03], [s * 0.126, 0.11, 0.04]], 0.01, bark, 5);
-      for (const a of [-0.45, 0, 0.45]) tube(ab, [[s * 0.126, 0.115, 0.04], [s * (0.126 + Math.sin(a) * 0.012), 0.09, 0.045 + Math.cos(a) * 0.006], [s * (0.126 + Math.sin(a) * 0.022), 0.075, 0.05]], 0.0035, '#6b4c33', 4);
-      if (s > 0) for (const [dx, dy] of [[0.012, 0.0], [0.022, 0.012]]) ab.add(bead(), '#7cbf4c', { pos: [0.1 + dx, 0.22 + dy, 0.016], rot: [0, 0, -0.6], scale: [0.012, 0.005, 0.008] });
+      for (const a of [-0.45, 0, 0.45]) tube(ab, [[s * 0.126, 0.115, 0.04], [s * (0.126 + Math.sin(a) * 0.012), 0.09, 0.045 + Math.cos(a) * 0.006], [s * (0.126 + Math.sin(a) * 0.022), 0.075, 0.05]], 0.0035, '#6b4c33', 3);
+      if (s > 0) for (const [dx, dy] of [[0.012, 0.0], [0.022, 0.012]]) ab.add(pip(), '#7cbf4c', { pos: [0.1 + dx, 0.22 + dy, 0.016], rot: [0, 0, -0.6], scale: [0.012, 0.005, 0.008] });
       this.arms.push(this.piece(ab, [s * 0.055, 0.25, 0]));
     }
     // A leafy crown on boughs, in three greens, with a couple of acorns.
     const cb = new Builder();
     for (const s of [-1, 1]) tube(cb, [[0, 0.28, -0.005], [s * 0.03, 0.31, 0], [s * 0.055, 0.335, 0.005]], 0.011, bark, 5);
     const R = rng(41);
-    for (let i = 0; i < 13; i++) {
+    for (let i = 0; i < 10; i++) {
       const a = i * 2.4;
-      const r = i < 3 ? 0.02 : 0.06 + R() * 0.015;
-      const y = 0.35 + (i < 3 ? 0.03 : R() * 0.03 - 0.01);
-      cb.add(bead(), ['#5fa040', '#7cbf52', '#4f8c36'][i % 3], { pos: [Math.sin(a) * r, y, Math.cos(a) * r * 0.85 - 0.01], rot: [R(), R(), R()], scale: [0.036, 0.03, 0.034] });
+      const r = i < 2 ? 0.02 : 0.058 + R() * 0.012;
+      const y = 0.35 + (i < 2 ? 0.032 : R() * 0.03 - 0.01);
+      cb.add(bead(), ['#5fa040', '#7cbf52', '#4f8c36'][i % 3], { pos: [Math.sin(a) * r, y, Math.cos(a) * r * 0.85 - 0.01], rot: [R(), R(), R()], scale: [0.04, 0.033, 0.037] });
     }
     for (const [x, z] of [[0.05, 0.05], [-0.042, 0.055]]) {
-      cb.add(bead(), '#a8743e', { pos: [x, 0.318, z], scale: [0.007, 0.009, 0.007] });
-      cb.add(bead(), '#6b4a2a', { pos: [x, 0.327, z], scale: [0.008, 0.004, 0.008] });
+      cb.add(pip(), '#a8743e', { pos: [x, 0.318, z], scale: [0.007, 0.009, 0.007] });
+      cb.add(pip(), '#6b4a2a', { pos: [x, 0.327, z], scale: [0.008, 0.004, 0.008] });
     }
     this.crown = this.piece(cb, [0, 0.29, 0]);
     // A leaf that drifts down from the crown now and then.
