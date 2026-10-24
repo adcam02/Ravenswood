@@ -13,6 +13,7 @@ import { voice } from '../voice/voice';
 import { earshot } from '../voice/earshot';
 import { Engine, type WorldView } from './engine';
 import { emptyTown } from './types';
+import { clubMusic } from '../lib/disco';
 
 function lastWakeOf(g: { wakes: { id: string; to: string[] }[] }) {
   const w = g.wakes[g.wakes.length - 1];
@@ -48,6 +49,7 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
       pigeons: [],
       pigeonNotes: [],
       pit: null,
+      club: { song: '', at: 0, by: '' },
     };
   }
   return {
@@ -89,6 +91,7 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
     pigeons: view.pigeons,
     pigeonNotes: view.pigeonNotes,
     pit: view.pit,
+    club: view.club,
   };
 }
 
@@ -119,7 +122,7 @@ export function World({ mode }: { mode: 'st' | 'player' | 'preview' }) {
           else player.give(to, item);
         },
       });
-      if (debugHooks()) Object.assign(window, { __engine: engine.current, __local: local, __presence: presence, __hud: useHud, __game: game, __st: { st }, __ambience: ambience, __earshot: earshot });
+      if (debugHooks()) Object.assign(window, { __engine: engine.current, __local: local, __presence: presence, __hud: useHud, __game: game, __st: { st }, __ambience: ambience, __earshot: earshot, __disco: clubMusic });
     } catch (e) {
       console.error(e);
       useHud.setState({ failed: e instanceof Error ? e.message : String(e) });

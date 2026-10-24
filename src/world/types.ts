@@ -471,7 +471,7 @@ export const FEATS: { id: FeatId; name: string; icon: string; how: string; secre
   { id: 'pickme', name: 'Pick me!', icon: '🙋‍♀️', how: 'Nominate yourself', secret: true },
   { id: 'earlybird', name: 'Early bird', icon: '🐦', how: 'Be first to the square when the bell rings' },
   { id: 'allrounder', name: 'Jack of all trades', icon: '🧰', how: 'Have a go at every job in town' },
-  { id: 'nosy', name: 'Nosy neighbour', icon: '🏘️', how: 'Pop into all five cottages' },
+  { id: 'nosy', name: 'Nosy neighbour', icon: '🏘️', how: 'Pop into every cottage in town' },
   { id: 'pigeons', name: 'Pigeon fancier', icon: '🕊️', how: 'Send 5 messenger pigeons' },
   { id: 'bucket', name: 'Thirsty work', icon: '🪣', how: 'Draw 10 buckets of water from the well' },
   { id: 'admirer', name: 'Secret admirer', icon: '💘', how: 'Post a letter without signing it', secret: true },
@@ -560,25 +560,72 @@ export interface Item {
 // ---------------------------------------------------------------- places
 
 /** Every place has its own coordinates. Interiors are centred on 0,0. */
-export type ZoneKind = 'town' | 'tavern' | 'bakery' | 'church' | 'tower' | 'cellar' | 'house';
+export type ZoneKind = 'town' | 'tavern' | 'bakery' | 'church' | 'tower' | 'cellar' | 'house' | 'club';
 
-/** 'town', 'tavern', 'bakery', 'church', 'tower', 'cellar' (under the tavern), 'house:<seatId>' for someone's bedroom, or 'cottage:<n>' for a cottage in town. */
+/** 'town', 'tavern', 'bakery', 'church', 'tower', 'cellar' (under the tavern), 'club', 'house:<seatId>' for someone's bedroom, or 'cottage:<n>' for a cottage in town. */
 export type ZoneId = string;
 
 export function zoneKind(zone: ZoneId): ZoneKind {
   if (zone.startsWith('house:') || zone.startsWith('cottage:')) return 'house';
-  if (zone === 'tavern' || zone === 'bakery' || zone === 'church' || zone === 'tower' || zone === 'cellar') return zone;
+  if (zone === 'tavern' || zone === 'bakery' || zone === 'church' || zone === 'tower' || zone === 'cellar' || zone === 'club') return zone;
   return 'town';
 }
 
 /**
- * The confession booth in the church's front right corner: two closets side by side with a grille between them,
- * a seat in each. Whoever sits in one hears only whoever sits in the other, and nobody outside hears either.
+ * A confession booth: two closets side by side with a grille between them, a seat in each, both doorways on its
+ * front (its own +z). `x, z` is its middle and `ry` the way it faces. Whoever sits in one side hears only whoever
+ * sits in the other, and nobody outside hears either. One stands in the church's front right corner, and two more
+ * out among the trees in quiet corners of town.
  */
-export const BOOTH = { x0: 2.85, x1: 5.85, z0: -8.87, z1: -7.37 };
-export const BOOTH_SEATS: Spot[] = [0, 1].map((i) => ({ x: BOOTH.x0 + 0.75 + i * 1.5, z: -8.12, ry: 0 }));
-export const inBooth = (zone: ZoneId, x: number, z: number): boolean =>
-  zone === 'church' && x > BOOTH.x0 && x < BOOTH.x1 && z > BOOTH.z0 && z < BOOTH.z1;
+export interface Booth {
+  zone: ZoneId;
+  x: number;
+  z: number;
+  ry: number;
+}
+/** Half a booth's width (across both sides) and half its depth. */
+export const BOOTH_HW = 1.5;
+export const BOOTH_HD = 0.75;
+/** Out in town, facing the middle of town, this far out at these angles (clockwise from north). */
+const outdoorBooth = (deg: number, r: number): Booth => {
+  const a = (deg * Math.PI) / 180;
+  const x = r * Math.sin(a);
+  const z = -r * Math.cos(a);
+  return { zone: 'town', x, z, ry: Math.atan2(-x, -z) };
+};
+export const BOOTHS: Booth[] = [{ zone: 'church', x: 4.35, z: -8.12, ry: 0 }, outdoorBooth(150, 30.5), outdoorBooth(255, 30.5)];
+
+/** A point in a booth's own frame (the inverse of placing something at lx, lz in it). */
+function boothLocal(b: Booth, x: number, z: number): { lx: number; lz: number } {
+  const dx = x - b.x;
+  const dz = z - b.z;
+  const c = Math.cos(b.ry);
+  const s = Math.sin(b.ry);
+  return { lx: dx * c - dz * s, lz: dx * s + dz * c };
+}
+/** A spot in a booth's own frame, in the world, facing out of its front. */
+export function boothSpot(i: number, lx: number, lz: number): Spot {
+  const b = BOOTHS[i];
+  const c = Math.cos(b.ry);
+  const s = Math.sin(b.ry);
+  return { x: b.x + lx * c + lz * s, z: b.z - lx * s + lz * c, ry: b.ry };
+}
+/** The seat in each side of booth `i` (left, then right, seen from the front). */
+export const boothSeats = (i: number): Spot[] => [-0.75, 0.75].map((lx) => boothSpot(i, lx, 0));
+/** Which booth this spot is inside, or -1. */
+export function boothAt(zone: ZoneId, x: number, z: number): number {
+  for (let i = 0; i < BOOTHS.length; i++) {
+    const b = BOOTHS[i];
+    if (b.zone !== zone) continue;
+    const { lx, lz } = boothLocal(b, x, z);
+    if (Math.abs(lx) < BOOTH_HW && Math.abs(lz) < BOOTH_HD) return i;
+  }
+  return -1;
+}
+export const inBooth = (zone: ZoneId, x: number, z: number): boolean => boothAt(zone, x, z) >= 0;
+/** The church's booth, as a rectangle and its two seats (it stands square to the room). */
+export const BOOTH = { x0: BOOTHS[0].x - BOOTH_HW, x1: BOOTHS[0].x + BOOTH_HW, z0: BOOTHS[0].z - BOOTH_HD, z1: BOOTHS[0].z + BOOTH_HD };
+export const BOOTH_SEATS: Spot[] = boothSeats(0);
 
 export const houseZone = (seatId: string): ZoneId => `house:${seatId}`;
 export const cottageZone = (slot: number): ZoneId => `cottage:${slot}`;
@@ -635,7 +682,13 @@ export type JobId =
   | 'sleep'
   | 'sit'
   | 'well'
-  | 'notice';
+  | 'notice'
+  /** Have a word with the club's bouncer, to be let in. */
+  | 'bouncer'
+  /** Choose the song at the club's jukebox. */
+  | 'jukebox'
+  /** Post an idea or a request for the Storyteller in the idea box. */
+  | 'ideas';
 
 /** The town's best at each game: who, the score, and when. */
 export interface TownRecord {
@@ -658,6 +711,8 @@ export interface Station {
   y?: number;
   /** For gardening: which flower bed. */
   bed?: number;
+  /** For a confession booth's side: which booth. */
+  booth?: number;
   label: string;
 }
 
@@ -683,6 +738,8 @@ export interface TownState {
   fish: { by: string; kind: string; cm: number; at: number }[];
   /** Town records by game. */
   records: Record<string, TownRecord>;
+  /** The song on at the club, since when (host clock), and who chose it. Nothing chosen yet: the first song, from the start. */
+  club?: { song: string; at: number; by: string };
 }
 
 export const emptyTown = (): TownState => ({ drinks: [], clothes: [], flowers: [], loaves: [], fish: [], records: {} });

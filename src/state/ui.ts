@@ -38,6 +38,12 @@ export type Modal =
   | { kind: 'customise' }
   /** Storyteller: every player's money, achievements and hats, by name. */
   | { kind: 'profiles' }
+  /** Choosing the song at the club's jukebox. */
+  | { kind: 'jukebox' }
+  /** A player writing an idea or a request for the Storyteller, at the idea box. */
+  | { kind: 'idea' }
+  /** Storyteller: the ideas and requests players have posted. */
+  | { kind: 'ideas' }
   | null;
 
 export type Pick =

@@ -6,6 +6,7 @@ import { isTraveller, seatAlignment, useHost, visitFor } from './host';
 import type { AwakeState, DayTimer, DeathRecord, Execution, GameEnd, LetterIn, Nomination, NominationRequest, Phase, Reminder, SlayerShot, TownHall, Visit, VoteRecord, PitState } from './types';
 import type { Look, TownState, Weather } from '../world/types';
 import { nickFor, useNicks } from './nicks';
+import { SONGS } from '../lib/disco';
 import { useUI } from './ui';
 import { pitPublic } from '../game/pitRules';
 
@@ -84,6 +85,8 @@ export interface View {
   pigeonNotes: { id: string; name: string; where: string; at: number }[];
   /** The pet pit in the tavern's cellar (times in this browser's clock), or null before it's opened. */
   pit: PitState | null;
+  /** The song on at the club, since when (in this browser's clock), and who put it on ('' for nobody yet). */
+  club: { song: string; at: number; by: string };
 }
 
 /** The pit with its times moved onto this browser's clock. */
@@ -105,6 +108,9 @@ const localExecution = (ex: Execution, offset: number): Execution => ({
   vote: ex.vote && { ...ex.vote, until: ex.vote.until - offset },
   drawn: ex.drawn && { ...ex.drawn, at: ex.drawn.at - offset },
 });
+
+/** The club's song, in this browser's clock (`offset` is the host's clock less ours). */
+const clubOf = (town: TownState, offset: number) => ({ song: town.club?.song ?? SONGS[0].id, at: (town.club?.at ?? 0) - offset, by: town.club?.by ?? '' });
 
 export function useStorytellerView(): View {
   const g = useHost((s) => s.g);
@@ -163,6 +169,7 @@ export function useStorytellerView(): View {
       pigeons: (g.pigeons ?? []).filter((p) => Date.now() - p.at < 60000).map(({ id, to, at }) => ({ id, to, at })),
       pigeonNotes: [],
       pit: pitHere(g.pit && pitPublic(g.pit), 0),
+      club: clubOf(g.town, 0),
     }),
     [g, online, slow, hide, nicks],
   );
@@ -232,6 +239,7 @@ export function usePlayerView(): View | null {
       pigeons: (Array.isArray(pub.pigeons) ? pub.pigeons : []).map((p) => ({ ...p, at: p.at - (clockOffset ?? 0) })),
       pigeonNotes: (Array.isArray(priv?.pigeons) ? priv.pigeons : []).map((p) => ({ ...p, at: p.at - (clockOffset ?? 0) })),
       pit: pitHere(pub.pit, clockOffset ?? 0),
+      club: clubOf(pub.town, clockOffset ?? 0),
     };
   }, [pub, priv, clockOffset, nicks]);
 }

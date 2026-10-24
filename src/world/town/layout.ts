@@ -1,4 +1,4 @@
-import { BEDS, BED_SPOTS, BOOTH, BOOTH_SEATS, LINES, LINE_SLOTS, type Collider, type Door, type Spot, type Station, type ZoneKind } from '../types';
+import { BEDS, BED_SPOTS, BOOTHS, BOOTH_HD, BOOTH_HW, LINES, LINE_SLOTS, boothSeats, boothSpot, type Collider, type Door, type Spot, type Station, type ZoneKind } from '../types';
 import { local } from './kit';
 
 /**
@@ -24,9 +24,10 @@ export const MEETING_R = 14;
 export const HOUSE_R = 29;
 export const RING_ROAD_R = 25.5;
 /** A few cottages for scenery, in the gaps between the public buildings. Bedrooms are elsewhere. */
-export const HOUSES = 5;
-export const COTTAGE_ANGLES = [40, 68, 118, 296, 326];
-export const COTTAGE_NAMES = ['Bramble Cottage', 'Ferncroft', 'The Old Mill', 'Rose Cottage', 'Hollow Oak'];
+export const HOUSES = 4;
+// (The club stands where Bramble Cottage was, at 40 degrees.)
+export const COTTAGE_ANGLES = [68, 118, 296, 326];
+export const COTTAGE_NAMES = ['Ferncroft', 'The Old Mill', 'Rose Cottage', 'Hollow Oak'];
 /** The gallows, just to the side of the meeting circle, facing it. */
 export const GALLOWS = { x: 8.6, z: 6.2, ry: -Math.PI / 2 };
 /** The churchyard beside the church. */
@@ -79,6 +80,24 @@ export const LINE_POS = [
 ].slice(0, LINES);
 export const LINE_Y = 1.95;
 
+/**
+ * The Velvet Horn, a little night club where Bramble Cottage stood (north-east, out past the ring road), facing the
+ * middle of town. A velvet rope runs across in front of its door, with the bouncer beside it.
+ */
+export const CLUB_ANGLE = 40;
+export const CLUB: Building = (() => {
+  const a = (CLUB_ANGLE * Math.PI) / 180;
+  const x = 31 * Math.sin(a);
+  const z = -31 * Math.cos(a);
+  return { x, z, ry: Math.atan2(-x, -z), w: 7.2, d: 5.4 };
+})();
+export const CLUB_NAME = 'The Velvet Horn';
+/** In the club's own frame: the rope's posts (either side of the path, just out from the door) and where the bouncer stands. */
+export const CLUB_ROPE = { lx: 0.85, lz: CLUB.d / 2 + 0.95 };
+export const BOUNCER = { lx: 1.85, lz: CLUB.d / 2 + 0.85 };
+/** The idea box for the Storyteller, on a post beside the noticeboard. */
+export const IDEA_BOX = { x: 5.4, z: -13.5, ry: -0.2 };
+
 /** On the open grass south-east of the square, inside the ring road and away from the gallows. */
 export const POND = { x: 6.5, z: 17.8, rx: 4.6, rz: 4.0 };
 export const DOCK = { x: 6.5, z0: 12.8, z1: 18.1, w: 2.6 };
@@ -121,6 +140,45 @@ export const FAIRY_RING = { x: -17.8, z: 25.4, r: 0.95 };
 export const POST_COLS = 6;
 export const POST_ROWS = 4;
 export const GATE_Z = TOWN_R + 0.6;
+
+/**
+ * The ring road, as a closed loop of points clockwise from north. It runs round at RING_ROAD_R, except at the top of
+ * town, where the church stands across it: there it bends out round the back of the church, squeezing between the
+ * churchyard and Hollow Oak on the way.
+ */
+export const ROAD_LOOP: { x: number; z: number }[] = (() => {
+  const ring = (deg: number) => {
+    const a = (deg * Math.PI) / 180;
+    return { x: RING_ROAD_R * Math.sin(a), z: -RING_ROAD_R * Math.cos(a) };
+  };
+  const pts = [
+    { x: 5.5, z: -32.6 },
+    { x: 9.8, z: -31.4 },
+    { x: 12.6, z: -28.6 },
+    { x: 13.6, z: -25.0 },
+  ];
+  for (let deg = 32; deg < 333; deg += 5) pts.push(ring(deg));
+  pts.push(ring(333), { x: -11.5, z: -26.0 }, { x: -11.7, z: -29.6 }, { x: -9.6, z: -31.6 }, { x: -5.5, z: -32.6 }, { x: 0, z: -32.8 });
+  return pts;
+})();
+/** The narrow bit of the road, between the churchyard wall and Hollow Oak (indexes into ROAD_LOOP's segments). */
+export const ROAD_NARROW = (i: number) => {
+  const a = ROAD_LOOP[i];
+  return a.x < -11 && a.z < -22 && a.z > -30;
+};
+/** How far a spot is from the middle of the ring road. */
+export function roadDistance(x: number, z: number): number {
+  let best = Infinity;
+  for (let i = 0; i < ROAD_LOOP.length; i++) {
+    const a = ROAD_LOOP[i];
+    const b = ROAD_LOOP[(i + 1) % ROAD_LOOP.length];
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const t = Math.max(0, Math.min(1, ((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz || 1)));
+    best = Math.min(best, Math.hypot(x - (a.x + dx * t), z - (a.z + dz * t)));
+  }
+  return best;
+}
 
 /** Front-door point of a building, `out` metres in front of its front wall. */
 export function doorPoint(b: Building, out: number, frontZ = b.d / 2): { x: number; z: number } {
@@ -210,6 +268,7 @@ export const ROOMS: Record<Exclude<ZoneKind, 'town'>, { hw: number; hd: number }
   tower: { hw: 5, hd: 5 },
   cellar: { hw: 7, hd: 6 },
   house: { hw: 5, hd: 4 },
+  club: { hw: 7, hd: 5.5 },
 };
 
 /** Inside each room: where the exit is, and where you appear when you come in. */
@@ -221,6 +280,7 @@ export const ROOM_DOOR: Record<Exclude<ZoneKind, 'town'>, { exit: { x: number; z
   // The cellar's way out is the foot of its stairs, up to the tavern.
   cellar: { exit: { x: -6.1, z: 5.25, r: 0.8 }, arrive: { x: -4.7, z: 4.4, ry: Math.PI / 2 } },
   house: { exit: { x: 0, z: 3.3, r: 0.9 }, arrive: { x: 0, z: 1.9, ry: Math.PI } },
+  club: { exit: { x: 0, z: 4.8, r: 1.0 }, arrive: { x: 0, z: 3.3, ry: Math.PI } },
 };
 
 export const BAR = { x0: -6.2, x1: 2.6, z: -2.6, depth: 0.9, h: 1.1 };
@@ -296,6 +356,21 @@ export const HOME_CHAIRS = [
   { x: -1.45, z: 0.7, ry: -Math.PI / 2 },
 ];
 
+/**
+ * Inside the Velvet Horn: a dance floor of glowing tiles under the disco ball, the jukebox against the back wall
+ * between two speakers, a long velvet sofa down the left wall, and a juice bar with stools down the right.
+ */
+export const DANCE_FLOOR = { x: 0, z: -1.2, hw: 3, hd: 2 };
+export const DISCO_BALL = { x: 0, y: 2.75, z: -1.2 };
+export const JUKEBOX = { x: 0, z: -4.95 };
+export const CLUB_SPEAKERS = [-1.95, 1.95].map((x) => ({ x, z: -4.95 }));
+export const CLUB_SOFA = { x: -6.3, z: 0, len: 4.4 };
+export const CLUB_SOFA_SEATS: Spot[] = [-1.35, 0, 1.35].map((z) => ({ x: -5.95, z, ry: Math.PI / 2 }));
+export const CLUB_TABLE = { x: -4.75, z: 0 };
+export const CLUB_BAR = { x: 6.3, z0: -3.6, z1: 0.6, depth: 0.8, h: 1.05 };
+export const CLUB_STOOLS: Spot[] = [-2.8, -1.5, -0.2].map((z) => ({ x: 5.25, z, ry: Math.PI / 2 }));
+export const onDanceFloor = (x: number, z: number) => Math.abs(x - DANCE_FLOOR.x) < DANCE_FLOOR.hw && Math.abs(z - DANCE_FLOOR.z) < DANCE_FLOOR.hd;
+
 // ---------------------------------------------------------------- doors
 
 export function makeDoors(): Door[] {
@@ -304,6 +379,7 @@ export function makeDoors(): Door[] {
     ['tavern', TAVERN, TAVERN.d / 2, 'The Raven’s Rest'],
     ['bakery', BAKERY, BAKERY.d / 2, 'Bakery'],
     ['church', CHURCH, churchFront, 'Church'],
+    ['club', CLUB, CLUB.d / 2, CLUB_NAME],
   ];
   for (const [kind, b, front, label] of pub) {
     const trigger = doorPoint(b, 0.55, front);
@@ -375,10 +451,23 @@ export function makeStations(): Station[] {
       st.push({ id: `pew-${row}-${k}`, zone: 'church', x, z, r: 0.8, job: 'sit', stand: { x, z, ry: Math.PI }, y: 0.46, label: 'Sit' }),
     ),
   );
-  // The confession booth: step in at the front of either side, to sit inside (and again to come out).
-  BOOTH_SEATS.forEach((seat, i) =>
-    st.push({ id: `booth-${i}`, zone: 'church', x: seat.x, z: BOOTH.z1 - 0.05, r: 1.0, job: 'confess', stand: seat, y: 0.48, label: 'Step into the confession booth' }),
+  // The confession booths: step in at the front of either side, to sit inside (and again to come out).
+  BOOTHS.forEach((b, booth) =>
+    boothSeats(booth).forEach((seat, i) => {
+      const at = boothSpot(booth, i ? 0.75 : -0.75, BOOTH_HD - 0.05);
+      const id = booth ? `booth-${booth}-${i}` : `booth-${i}`;
+      st.push({ id, zone: b.zone as ZoneKind, x: at.x, z: at.z, r: 1.0, job: 'confess', stand: seat, y: 0.48, booth, label: 'Step into the confession booth' });
+    }),
   );
+  // The club: a word with the bouncer outside, and inside, the jukebox, the sofa and the stools at the juice bar.
+  {
+    const at = local(CLUB.x, CLUB.z, CLUB.ry, BOUNCER.lx - 0.9, BOUNCER.lz + 1.1);
+    const b = local(CLUB.x, CLUB.z, CLUB.ry, BOUNCER.lx, BOUNCER.lz);
+    st.push({ id: 'bouncer', zone: 'town', x: at.x, z: at.z, r: 1.5, job: 'bouncer', stand: { ...at, ry: face(at.x, at.z, b.x, b.z) }, label: 'Have a word with Big Moo' });
+  }
+  st.push({ id: 'jukebox', zone: 'club', x: JUKEBOX.x, z: JUKEBOX.z + 1.0, r: 1.6, job: 'jukebox', stand: { x: JUKEBOX.x, z: JUKEBOX.z + 1.0, ry: Math.PI }, label: 'Choose a song' });
+  CLUB_SOFA_SEATS.forEach((c, i) => st.push({ id: `club-sofa-${i}`, zone: 'club', x: c.x, z: c.z, r: 0.9, job: 'sit', stand: c, y: 0.46, label: 'Sit' }));
+  CLUB_STOOLS.forEach((c, i) => st.push({ id: `club-stool-${i}`, zone: 'club', x: c.x, z: c.z, r: 0.8, job: 'sit', stand: c, y: 0.74, label: 'Sit' }));
   // The clock tower: a stool at the clockmaker's bench and a bench along the wall.
   st.push({ id: 'tower-stool', zone: 'tower', x: WORK_STOOL.x, z: WORK_STOOL.z, r: 0.9, job: 'sit', stand: WORK_STOOL, y: 0.62, label: 'Sit' });
   [0.45, 1.35].forEach((z, i) =>
@@ -420,6 +509,7 @@ export function makeStations(): Station[] {
     const stand = local(POST.x, POST.z, POST.ry, 0, 0.85);
     st.push({ id: 'post', zone: 'town', x: at.x, z: at.z, r: 1.5, job: 'post', stand: { ...stand, ry: POST.ry + Math.PI }, label: 'Write a letter' });
   }
+  st.push({ id: 'ideas', zone: 'town', x: IDEA_BOX.x, z: IDEA_BOX.z + 1.0, r: 1.4, job: 'ideas', stand: { x: IDEA_BOX.x, z: IDEA_BOX.z + 0.9, ry: Math.PI }, label: 'Post an idea for the Storyteller' });
   st.push({ id: 'notice', zone: 'town', x: NOTICEBOARD.x, z: NOTICEBOARD.z + 1.1, r: 1.6, job: 'notice', stand: { x: NOTICEBOARD.x, z: NOTICEBOARD.z + 1.0, ry: Math.PI }, label: 'Read the noticeboard' });
   benches.forEach((b, i) =>
     [-0.5, 0.5].forEach((lx, k) => {
@@ -454,6 +544,21 @@ export function townColliders(extra: Collider[]): Collider[] {
   c.push(box(TAVERN, TAVERN.w / 2 + 0.15, TAVERN.d / 2 + 0.15));
   c.push(box(BAKERY, BAKERY.w / 2 + 0.15, BAKERY.d / 2 + 0.15));
   for (const h of houseSlots) c.push(box(h, HOUSE_W / 2 + 0.2, HOUSE_D / 2 + 0.2));
+  // The club, the posts of its velvet rope, and the bouncer.
+  c.push(box(CLUB, CLUB.w / 2 + 0.2, CLUB.d / 2 + 0.2));
+  for (const sx of [-1, 1]) {
+    const p = local(CLUB.x, CLUB.z, CLUB.ry, sx * CLUB_ROPE.lx, CLUB_ROPE.lz);
+    c.push({ kind: 'circle', x: p.x, z: p.z, r: 0.16 });
+  }
+  {
+    const p = local(CLUB.x, CLUB.z, CLUB.ry, BOUNCER.lx, BOUNCER.lz);
+    c.push({ kind: 'circle', x: p.x, z: p.z, r: 0.5 });
+  }
+  // The confession booths out in town, and the idea box.
+  BOOTHS.forEach((b, i) => {
+    if (b.zone === 'town') c.push(box(boothSpot(i, 0, 0), BOOTH_HW + 0.05, BOOTH_HD + 0.05));
+  });
+  c.push({ kind: 'circle', x: IDEA_BOX.x, z: IDEA_BOX.z, r: 0.35 });
   // The pond, as overlapping circles, leaving the dock clear.
   for (let x = POND.x - POND.rx; x <= POND.x + POND.rx; x += 1.6) {
     for (let z = POND.z - POND.rz; z <= POND.z + POND.rz; z += 1.6) {
@@ -517,7 +622,7 @@ export function roomColliders(kind: Exclude<ZoneKind, 'town'>): Collider[] {
     c.push(at(0, -7.7, 1.4, 0.65));
     for (const z of PEW_ROWS) for (const sx of [-1, 1]) c.push(at(sx * PEW_X, z + 0.1, PEW_LEN / 2, 0.38));
     for (const sx of [-1, 1]) c.push({ kind: 'circle', x: sx * 2.2, z: -7.4, r: 0.25 });
-    c.push(at((BOOTH.x0 + BOOTH.x1) / 2, (BOOTH.z0 + BOOTH.z1) / 2, (BOOTH.x1 - BOOTH.x0) / 2, (BOOTH.z1 - BOOTH.z0) / 2));
+    c.push(at(BOOTHS[0].x, BOOTHS[0].z, BOOTH_HW, BOOTH_HD));
   } else if (kind === 'tower') {
     c.push(at(MOVEMENT.x, MOVEMENT.z, MOVEMENT.hw + 0.15, MOVEMENT.hd + 0.2));
     // The rod from the movement to the back dial runs at head height, so nobody walks through it.
@@ -536,6 +641,15 @@ export function roomColliders(kind: Exclude<ZoneKind, 'town'>): Collider[] {
     c.push(at(-2.4, -3.6, 0.95, 0.5));
     c.push(at(-4.65, -1.6, 0.35, 1.0));
     c.push(at(4.5, 1.6, 0.4, 0.4));
+  } else if (kind === 'club') {
+    c.push(at(JUKEBOX.x, JUKEBOX.z, 0.65, 0.45));
+    for (const sp of CLUB_SPEAKERS) c.push(at(sp.x, sp.z, 0.45, 0.4));
+    c.push(at(CLUB_SOFA.x, CLUB_SOFA.z, 0.5, CLUB_SOFA.len / 2));
+    c.push({ kind: 'circle', x: CLUB_TABLE.x, z: CLUB_TABLE.z, r: 0.45 });
+    c.push(at(CLUB_BAR.x, (CLUB_BAR.z0 + CLUB_BAR.z1) / 2, CLUB_BAR.depth / 2, (CLUB_BAR.z1 - CLUB_BAR.z0) / 2));
+    for (const s of CLUB_STOOLS) c.push({ kind: 'circle', x: s.x, z: s.z, r: 0.22 });
+    // Big potted palms in the front corners.
+    for (const sx of [-1, 1]) c.push({ kind: 'circle', x: sx * 6.2, z: 4.6, r: 0.45 });
   }
   return c;
 }
@@ -557,6 +671,7 @@ export function whereIs(zone: string, x: number, z: number): string {
   if (zone === 'church') return 'in the church';
   if (zone === 'tower') return 'up in the clock tower';
   if (zone === 'cellar') return 'down in the tavern’s cellar';
+  if (zone === 'club') return `in ${CLUB_NAME}`;
   if (zone.startsWith('cottage:')) return `in ${COTTAGE_NAMES[Number(zone.slice(8)) % COTTAGE_NAMES.length]}`;
   if (zone.startsWith('house:')) return 'at home';
   const near = (p: { x: number; z: number }, r: number) => Math.hypot(x - p.x, z - p.z) < r;
@@ -567,10 +682,13 @@ export function whereIs(zone: string, x: number, z: number): string {
   if (near(GALLOWS, 3.5)) return 'by the gallows';
   if (near(WELL, 3)) return 'at the well';
   if (near(NOTICEBOARD, 2.5)) return 'at the noticeboard';
+  if (near(IDEA_BOX, 2)) return 'at the idea box';
   if (near(WOODPILE, 3)) return 'at the woodpile';
   if (Math.abs(x - GRAVEYARD.x) < GRAVEYARD.hw + 2 && Math.abs(z - GRAVEYARD.z) < GRAVEYARD.hd + 2) return 'in the graveyard';
   if (near(doorPoint(CHURCH, 3, churchFront), 6)) return 'outside the church';
   if (near(doorPoint(TAVERN, 3), 7)) return 'outside the Raven’s Rest';
+  if (near(doorPoint(CLUB, 2), 6)) return `outside ${CLUB_NAME}`;
+  if (BOOTHS.some((b) => b.zone === 'town' && near(b, 4))) return 'by a confession booth in the trees';
   if (near(doorPoint(BAKERY, 3), 7)) return 'outside the bakery';
   if (Math.abs(x - WASHHOUSE.x) < WASHHOUSE.w / 2 + 3 && Math.abs(z - WASHHOUSE.z) < WASHHOUSE.d / 2 + 3) return 'at the washhouse';
   if (LINE_POS.some((l) => x > l.x0 - 1 && x < l.x1 + 1 && Math.abs(z - l.z) < 1.5)) return 'by the washing lines';
@@ -578,7 +696,7 @@ export function whereIs(zone: string, x: number, z: number): string {
   const cottage = houseSlots.findIndex((h) => near(h, 6));
   if (cottage >= 0) return `by ${COTTAGE_NAMES[cottage % COTTAGE_NAMES.length]}`;
   const r = Math.hypot(x, z);
-  if (Math.abs(r - RING_ROAD_R) < 2) return 'on the ring road';
+  if (roadDistance(x, z) < 2) return 'on the ring road';
   if (r > RING_ROAD_R + 2) return 'out in the woods';
   return 'around town';
 }

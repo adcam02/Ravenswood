@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Builder, matte, rng } from '../build';
-import { BOOTH, BOOTH_SEATS, type ZoneKind } from '../types';
+import { BOOTHS, BOOTH_HD, BOOTH_HW, type ZoneKind } from '../types';
 import { Paint, pick, shade, smoothMesh } from './kit';
 import {
   BACK_DIAL,
@@ -35,6 +35,7 @@ import { IRON, WOOD, WOOD_DARK, WOOD_LIGHT, barrel, crate } from './props';
 import { makeGlows, type GlowSpot, type Glows } from './fx';
 import { beamGeometry, beamMaterial } from './looks';
 import { SeatingChart } from './seating';
+import { clubRoom, makeClubRoom, type ClubRoom } from './club';
 import { TextSign } from './sign';
 
 export type Room = Exclude<ZoneKind, 'town'>;
@@ -73,6 +74,8 @@ export interface Interiors {
   clockwork: Clockwork;
   /** The confession booth's curtains, drawn while someone sits on each side. */
   boothCurtains: BoothCurtains;
+  /** The club's dance floor, disco ball and lights. */
+  club: ClubRoom;
 }
 
 export interface BoothCurtains {
@@ -617,7 +620,7 @@ function church(p: Paint, glow: Builder, r: () => number): THREE.Object3D {
   }
   for (let k = 0; k < 7; k++) p.post('#c9a24f', 0.1, 1.6 + Math.sin((k / 6) * Math.PI) * 1.1, -4.6 + k * 0.24, 0.2, -hd + 0.25, 8);
   p.block(WOOD_DARK, 2.0, 0.2, 0.5, -3.9, 0, -hd + 0.3);
-  confessional(p, glow);
+  confessional(p.at(BOOTHS[0].x, 0, BOOTHS[0].z, BOOTHS[0].ry), glow);
   // Pews, in two columns, facing the altar.
   for (const z of PEW_ROWS) {
     for (const sx of [-1, 1]) {
@@ -662,24 +665,25 @@ function church(p: Paint, glow: Builder, r: () => number): THREE.Object3D {
 }
 
 /**
- * The confession booth in the front corner: two closets in dark polished wood side by side, open at the top so the
- * camera can see who's inside, with half doors and red velvet curtains drawn back at the front, a seat in each, and
- * a latticed grille in the wall between them.
+ * A confession booth (the church's, in its front corner, or one out in town), in its own frame with its doorways on
+ * +z: two closets in dark polished wood side by side, open at the top so the camera can see who's inside, with half
+ * doors and red velvet curtains drawn back at the front, a seat in each, and a latticed grille in the wall between
+ * them. Indoors a candle burns on a bracket beside it (`glow` for its flame); outside it goes without.
  */
-function confessional(p: Paint, glow: Builder) {
+export function confessional(p: Paint, glow: Builder | null) {
   const wood = '#5a3a26';
   const trim = '#45291a';
   const panel = shade(wood, 0.07);
   const velvet = '#7a1f2e';
   const gold = '#c9a24f';
-  const { x0, x1, z0, z1 } = BOOTH;
-  const cx = (x0 + x1) / 2;
-  const cz = (z0 + z1) / 2;
+  const [x0, x1, z0, z1] = [-BOOTH_HW, BOOTH_HW, -BOOTH_HD, BOOTH_HD];
+  const cx = 0;
+  const cz = 0;
   const w = x1 - x0;
   const d = z1 - z0;
   const base = 0.08;
   const top = 2.3;
-  const mid = BOOTH_SEATS[0].x + (BOOTH_SEATS[1].x - BOOTH_SEATS[0].x) / 2;
+  const mid = 0;
   // The plinth it stands on, and the back against the wall.
   p.block(trim, w + 0.1, base, d + 0.06, cx, 0, cz);
   p.box(wood, w, top - base, 0.07, cx, base + (top - base) / 2, z0 + 0.035);
@@ -720,7 +724,7 @@ function confessional(p: Paint, glow: Builder) {
   p.box(gold, 0.05, 0.36, 0.04, cx, top + 0.3, z0 + 0.09);
   p.box(gold, 0.22, 0.05, 0.04, cx, top + 0.38, z0 + 0.09);
   // Each side: a half door with two raised panels and a brass knob, the curtains drawn back, and a seat inside.
-  for (const seat of BOOTH_SEATS) {
+  for (const seat of SIDES) {
     const left = seat.x < mid ? x0 + 0.11 : mid + 0.04;
     const right = seat.x < mid ? mid - 0.04 : x1 - 0.11;
     const dx = (left + right) / 2;
@@ -741,24 +745,29 @@ function confessional(p: Paint, glow: Builder) {
     p.box(velvet, dw - 0.2, 0.05, 0.44, dx, base + 0.385, seat.z - 0.06);
   }
   // A candle on a bracket on the open side, for the dim corner.
+  if (!glow) return;
   p.box(gold, 0.14, 0.03, 0.04, x0 - 0.07, 1.86, z1 - 0.25);
   candle(p, glow, x0 - 0.12, 1.875, z1 - 0.25, 0.16);
 }
 
+/** The middle of each side of a booth, in its own frame. */
+const SIDES = [-0.75, 0.75].map((x) => ({ x, z: 0 }));
+
 /**
- * Velvet that draws across both doorways of the confession booth while someone sits on each side: each half hangs
- * from beside its tied-back curtain and slides across to meet the other, over the half door.
+ * Velvet that draws across both doorways of a confession booth while someone sits on each side: each half hangs
+ * from beside its tied-back curtain and slides across to meet the other, over the half door. In the booth's own
+ * frame: the caller puts the group where the booth stands.
  */
-function boothCurtains(): BoothCurtains {
-  const { x0, x1, z1 } = BOOTH;
-  const mid = BOOTH_SEATS[0].x + (BOOTH_SEATS[1].x - BOOTH_SEATS[0].x) / 2;
+export function boothCurtains(): BoothCurtains {
+  const [x0, x1, z1] = [-BOOTH_HW, BOOTH_HW, BOOTH_HD];
+  const mid = 0;
   const y0 = 0.08 + 0.92;
   const h = 2.3 - 0.13 - y0;
   const group = new THREE.Group();
   group.name = 'booth-curtains';
   const halves: THREE.Object3D[] = [];
   const material = matte();
-  for (const seat of BOOTH_SEATS) {
+  for (const seat of SIDES) {
     const left = seat.x < mid ? x0 + 0.11 : mid + 0.04;
     const right = seat.x < mid ? mid - 0.04 : x1 - 0.11;
     const span = (right - left) / 2 + 0.02;
@@ -1527,7 +1536,23 @@ export function buildInteriors(): Interiors {
     g.visible = false;
     return g;
   };
+  const club = makeClubRoom();
   const rooms: Record<Room, Interior> = {
+    club: {
+      group: make('club', (p, glow, r) => {
+        clubRoom(p, glow, r, haloAt);
+        return club.group;
+      }),
+      hemi: { sky: '#b8a0e8', ground: '#2a1a30', intensity: 0.75 },
+      sun: { color: '#d8c0ff', intensity: 0.55, dir: [0.3, 1, 0.6] },
+      lights: [
+        // Two coloured lights over the dance floor (they take the song's colours), the juice bar, and the sofa.
+        { pos: [-1.6, 2.6, -1.2], color: '#ff6fcf', intensity: 16, distance: 9 },
+        { pos: [1.6, 2.6, -1.2], color: '#5fe8ff', intensity: 16, distance: 9 },
+        { pos: [5.6, 2.3, -1.4], color: '#ffd6a0', intensity: 5, distance: 5 },
+        { pos: [-5.2, 2.2, 0], color: '#c79aff', intensity: 8, distance: 6 },
+      ],
+    },
     tavern: {
       group: make('tavern', tavern),
       hemi: { sky: '#ffe2b8', ground: '#5a3a2a', intensity: 1.1 },
@@ -1608,6 +1633,8 @@ export function buildInteriors(): Interiors {
   };
   for (const room of Object.keys(rooms) as Room[]) rooms[room].glows = halos[room];
   const curtains = boothCurtains();
+  curtains.group.position.set(BOOTHS[0].x, 0, BOOTHS[0].z);
+  curtains.group.rotation.y = BOOTHS[0].ry;
   rooms.church.group.add(curtains.group);
-  return { rooms, glassMaterial, ownerSign, seatingChart, clockwork, boothCurtains: curtains };
+  return { rooms, glassMaterial, ownerSign, seatingChart, clockwork, boothCurtains: curtains, club };
 }

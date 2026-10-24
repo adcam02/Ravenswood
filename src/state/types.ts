@@ -523,7 +523,9 @@ export type TownAction =
   /** A score at one of the games; the host keeps it if it beats the town record. */
   | { k: 'record'; game: string; score: number }
   /** Counted the sheep right tonight: a gold star to wear tomorrow. */
-  | { k: 'star' };
+  | { k: 'star' }
+  /** Put a song on at the club's jukebox (for everyone in there). */
+  | { k: 'song'; song: string };
 
 export type HostMessage =
   | { t: 'state'; s: PublicState; now?: number; v?: string }
@@ -546,6 +548,8 @@ export type HostMessage =
   | { t: 'posted'; ok: boolean }
   /** Whether the request to nominate just sent reached the Storyteller, or why not. */
   | { t: 'nominated'; ok: boolean; why?: string }
+  /** Whether the idea just posted in the idea box reached the Storyteller. */
+  | { t: 'ideaIn'; ok: boolean }
   /** Whether the pigeon just sent took off (they only fly by day, and need a rest between flights). */
   | { t: 'pigeoned'; ok: boolean; why?: string }
   /** `at` is the ping's own time, sent back so the player can tell how long the round trip took. */
@@ -578,6 +582,8 @@ export type ClientMessage =
   | { t: 'method'; m: ExecMethod }
   /** Post a letter in someone's letterbox (by day), signed or not. */
   | { t: 'letter'; to: string; text: string; signed: boolean }
+  /** An idea or a request for the Storyteller, from the idea box. */
+  | { t: 'idea'; text: string }
   /** Send a messenger pigeon to someone: "<name> wants to speak to you", and where the sender is. */
   | { t: 'pigeon'; to: string; where: string }
   /** Something went wrong in this player's game, so the Storyteller knows. */

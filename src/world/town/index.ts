@@ -1,14 +1,17 @@
 import * as THREE from 'three';
 import { Builder, matte, rng } from '../build';
 import { buildItem, disposeObject } from '../items';
-import { BED_SPOTS, wrapAngle, type Collider, type Door, type Spot, type Station, type TownState, type Weather, type ZoneKind } from '../types';
+import { BED_SPOTS, BOOTHS, wrapAngle, type Collider, type Door, type Spot, type Station, type TownState, type Weather, type ZoneKind } from '../types';
 import { glowUniforms, makeBirds, makeGlows, makeMist, makeRain, makeRipples, makeSky, swayUniforms } from './fx';
-import { G, shade } from './kit';
-import { buildInteriors, turnClockwork, type Room } from './interiors';
+import { G, local, shade } from './kit';
+import { boothCurtains, buildInteriors, turnClockwork, type BoothCurtains, type Room } from './interiors';
+import { makeBouncer, makeRope, type Bouncer } from './club';
 import type { SeatingEntry } from './seating';
 import {
   BED,
   BED_H,
+  BOUNCER,
+  CLUB,
   COTTAGE_NAMES,
   DOCK,
   GALLOWS,
@@ -104,8 +107,16 @@ export interface TownWorld {
   bellRing(): void;
   /** Swings open the front door nearest x, z in town for a moment (someone going in). */
   openDoor(x: number, z: number): void;
-  /** Draws the confession booth's curtains (someone sits on each side) or ties them back; they move over a moment. */
-  setBoothCurtains(closed: boolean): void;
+  /** Draws a confession booth's curtains (someone sits on each side) or ties them back; they move over a moment. */
+  setBoothCurtains(closed: boolean, booth?: number): void;
+  /** The club's music, for its lights to keep time: beats a minute, when the song started (this browser's clock), its colours. */
+  setClubMusic(bpm: number, at: number, colors: string[]): void;
+  /** Where anyone dancing on the club's floor stands, so the tiles light up under them. */
+  setClubDancers(spots: { x: number; z: number }[]): void;
+  /** Lifts the velvet rope at the club's door (or hooks it back across). */
+  setClubRope(open: boolean): void;
+  /** Big Moo, on the club's door. */
+  bouncer: Bouncer;
   /** Low graphics: the forest beyond the fence, the night glows, the birds and the mist sheets are left out. */
   setLowDetail(on: boolean): void;
   /** A little puff of dust kicked up at someone's feet (in town). */
@@ -370,8 +381,33 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   const windowMat = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#ffc46b', emissiveIntensity: 0 });
   const outdoor = buildOutdoor(windowMat);
   const interiors = buildInteriors();
-  let curtainsWant = 0;
-  let curtainsAt = 0;
+  // Each confession booth's curtains: the church's, and those of the booths out in town.
+  const curtains: BoothCurtains[] = BOOTHS.map((b, i) => {
+    if (i === 0) return interiors.boothCurtains;
+    const c = boothCurtains();
+    c.group.position.set(b.x, 0, b.z);
+    c.group.rotation.y = b.ry;
+    outdoor.group.add(c.group);
+    return c;
+  });
+  const curtainsWant = BOOTHS.map(() => 0);
+  const curtainsAt = BOOTHS.map(() => 0);
+  // The club: its rope and its bouncer outside, and the song its lights keep time to.
+  const velvetRope = makeRope();
+  velvetRope.group.position.set(CLUB.x, 0, CLUB.z);
+  velvetRope.group.rotation.y = CLUB.ry;
+  outdoor.group.add(velvetRope.group);
+  let ropeWant = 0;
+  let ropeAt = 0;
+  const bouncer = makeBouncer();
+  {
+    const at = local(CLUB.x, CLUB.z, CLUB.ry, BOUNCER.lx, BOUNCER.lz);
+    bouncer.group.position.set(at.x, 0, at.z);
+    bouncer.group.rotation.y = CLUB.ry;
+    outdoor.group.add(bouncer.group);
+  }
+  let clubBeat = { bpm: 120, at: 0, colors: [new THREE.Color('#ff6fcf'), new THREE.Color('#5fe8ff')] };
+  let clubDancers: { x: number; z: number }[] = [];
   scene.add(outdoor.group);
   for (const room of Object.values(interiors.rooms)) scene.add(room.group);
 
@@ -904,6 +940,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     tower: interiors.rooms.tower.group,
     cellar: interiors.rooms.cellar.group,
     house: interiors.rooms.house.group,
+    club: interiors.rooms.club.group,
   };
   let zone: ZoneKind = 'town';
   let homeNight = false;
@@ -1069,6 +1106,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       tower: roomColliders('tower'),
       cellar: roomColliders('cellar'),
       house: roomColliders('house'),
+      club: roomColliders('club'),
     },
     bounds: {
       town: { kind: 'circle', r: TOWN_R - 0.4 },
@@ -1078,6 +1116,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       tower: { kind: 'rect', hw: ROOMS.tower.hw - 0.45, hd: ROOMS.tower.hd - 0.45 },
       cellar: { kind: 'rect', hw: ROOMS.cellar.hw - 0.45, hd: ROOMS.cellar.hd - 0.45 },
       house: { kind: 'rect', hw: ROOMS.house.hw - 0.45, hd: ROOMS.house.hd - 0.45 },
+      club: { kind: 'rect', hw: ROOMS.club.hw - 0.45, hd: ROOMS.club.hd - 0.45 },
     },
     doors: makeDoors(),
     stations: makeStations(),
@@ -1258,11 +1297,35 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     update(dt, t) {
       nowT = t;
       swingDoors.update(t);
-      // The booth's curtains slide towards wherever they're wanted.
-      if (curtainsAt !== curtainsWant) {
-        curtainsAt = curtainsWant > curtainsAt ? Math.min(curtainsWant, curtainsAt + dt / 0.7) : Math.max(curtainsWant, curtainsAt - dt / 0.7);
-        const k = curtainsAt * curtainsAt * (3 - 2 * curtainsAt);
-        interiors.boothCurtains.set(k);
+      // The booths' curtains slide towards wherever they're wanted.
+      curtains.forEach((c, i) => {
+        const at = curtainsAt[i];
+        const want = curtainsWant[i];
+        if (at === want) return;
+        curtainsAt[i] = want > at ? Math.min(want, at + dt / 0.7) : Math.max(want, at - dt / 0.7);
+        const k = curtainsAt[i] * curtainsAt[i] * (3 - 2 * curtainsAt[i]);
+        c.set(k);
+        if (i > 0) shadowDirty = true;
+      });
+      // The club keeps time with its music: the lights inside, and the bouncer's nodding outside.
+      const beat = (Date.now() - clubBeat.at) / (60000 / clubBeat.bpm);
+      if (zone === 'club') {
+        interiors.club.update(t, beat, clubBeat.colors, clubDancers);
+        const pulse = Math.pow(1 - (beat - Math.floor(beat)), 2);
+        const bar = Math.floor(beat / 4);
+        const n = clubBeat.colors.length;
+        for (let i = 0; i < 2; i++) {
+          lamps[i].color.copy(clubBeat.colors[(bar + i) % n]);
+          lampSpecs[i] = { base: 10 + 10 * pulse, flicker: false };
+        }
+      }
+      if (zone === 'town') {
+        bouncer.update(dt, t, beat);
+        if (ropeAt !== ropeWant) {
+          ropeAt = ropeWant > ropeAt ? Math.min(ropeWant, ropeAt + dt / 0.8) : Math.max(ropeWant, ropeAt - dt / 0.8);
+          velvetRope.set(ropeAt);
+          shadowDirty = true;
+        }
       }
       // Lamp flicker and the fires inside.
       lamps.forEach((l, i) => {
@@ -1413,9 +1476,19 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       if (zone === 'town') dust.puff(x, y, z);
     },
 
-    setBoothCurtains(closed) {
-      curtainsWant = closed ? 1 : 0;
+    setBoothCurtains(closed, booth = 0) {
+      if (booth >= 0 && booth < curtainsWant.length) curtainsWant[booth] = closed ? 1 : 0;
     },
+    setClubMusic(bpm, at, colors) {
+      clubBeat = { bpm, at, colors: colors.map((c) => new THREE.Color(c)) };
+    },
+    setClubDancers(spots) {
+      clubDancers = spots;
+    },
+    setClubRope(open) {
+      ropeWant = open ? 1 : 0;
+    },
+    bouncer,
     openDoor(x, z) {
       swingDoors.open(x, z);
     },

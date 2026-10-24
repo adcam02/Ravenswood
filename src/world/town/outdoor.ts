@@ -1,10 +1,14 @@
 import * as THREE from 'three';
 import { toCreasedNormals } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Builder, SMOOTH_DEG, matte, rng } from '../build';
-import type { Collider } from '../types';
+import { BOOTHS, type Collider } from '../types';
 import { G, Paint, frame, local, pick, shade, smoothMesh, type Layers } from './kit';
 import {
   BAKERY,
+  CLUB,
+  IDEA_BOX,
+  ROAD_LOOP,
+  ROAD_NARROW,
   BED_DEPTH,
   BED_H,
   BED_LEN,
@@ -65,6 +69,8 @@ import {
 import { TextSign, signBoard } from './sign';
 import { addSway, type GlowSpot } from './fx';
 import type { DoorSpot } from './doors';
+import { clubFront } from './club';
+import { confessional } from './interiors';
 
 export interface Outdoor {
   group: THREE.Group;
@@ -88,6 +94,8 @@ export interface Outdoor {
   perches: THREE.Vector3[];
   /** The front doors, for swinging open when someone goes in. */
   doors: DoorSpot[];
+  /** The club's neon and marquee bulbs, bright day and night. */
+  neon: THREE.Mesh;
 }
 
 /** While the town is being built, lamps, lanterns and windows note where their glow goes, and roofs where birds sit. */
@@ -320,16 +328,29 @@ export const PATHS: { seg: Seg; w: number }[] = (() => {
     const a = (deg * Math.PI) / 180;
     add((SQUARE_R - 0.5) * Math.sin(a), -(SQUARE_R - 0.5) * Math.cos(a), RING_ROAD_R * Math.sin(a), -RING_ROAD_R * Math.cos(a), 2.0);
   }
-  const n = 72;
-  for (let i = 0; i < n; i++) {
-    const a0 = (i / n) * Math.PI * 2;
-    const a1 = ((i + 1) / n) * Math.PI * 2;
-    add(RING_ROAD_R * Math.sin(a0), -RING_ROAD_R * Math.cos(a0), RING_ROAD_R * Math.sin(a1), -RING_ROAD_R * Math.cos(a1), 2.4);
-  }
+  // The ring road, round the back of the church (in shorter pieces where it runs round, for a smoother curve).
+  ROAD_LOOP.forEach((a, i) => {
+    const b = ROAD_LOOP[(i + 1) % ROAD_LOOP.length];
+    const w = ROAD_NARROW(i) ? 1.9 : 2.4;
+    const pieces = Math.max(1, Math.round(Math.hypot(b.x - a.x, b.z - a.z) / 2.2));
+    for (let k = 0; k < pieces; k++) add(a.x + ((b.x - a.x) * k) / pieces, a.z + ((b.z - a.z) * k) / pieces, a.x + ((b.x - a.x) * (k + 1)) / pieces, a.z + ((b.z - a.z) * (k + 1)) / pieces, w);
+  });
   for (const h of houseSlots) {
     const a = local(h.x, h.z, h.ry, 0, HOUSE_D / 2 + 0.2);
     const b = local(h.x, h.z, h.ry, 0, HOUSE_D / 2 + 3.4);
     add(a.x, a.z, b.x, b.z, 1.5);
+  }
+  // Up to the club's rope, and out to each confession booth among the trees.
+  {
+    const a = local(CLUB.x, CLUB.z, CLUB.ry, 0, CLUB.d / 2 + 2.2);
+    const b = local(CLUB.x, CLUB.z, CLUB.ry, 0, CLUB.d / 2 + 4.0);
+    add(a.x, a.z, b.x, b.z, 1.5);
+  }
+  for (const booth of BOOTHS) {
+    if (booth.zone !== 'town') continue;
+    const a = local(booth.x, booth.z, booth.ry, 0, 0.9);
+    const b = local(booth.x, booth.z, booth.ry, 0, Math.hypot(booth.x, booth.z) - RING_ROAD_R);
+    add(a.x, a.z, b.x, b.z, 1.3);
   }
   return list;
 })();
@@ -1397,6 +1418,43 @@ function noticeboard(p: Paint, r: () => number) {
   lantern(p.at(0.85, 1.9, 0.06));
 }
 
+/**
+ * The idea box: a little mint post box on a post, with a pink roof, a slot, a light bulb on its front for bright
+ * ideas, and hearts. (Its sign hangs below it; see the signs.)
+ */
+function ideaBox(p: Paint) {
+  const body = '#8fd3c1';
+  const roof = '#f28fb0';
+  p.post(WOOD_DARK, 0.07, 1.05, 0, 0, 0, 10);
+  p.block(shade(WOOD_DARK, -0.1), 0.24, 0.1, 0.24, 0, 0, 0);
+  p.rbox(body, 0.62, 0.5, 0.46, 0, 1.3, 0, 0.05);
+  p.box(shade(body, -0.12), 0.66, 0.05, 0.5, 0, 1.06, 0);
+  p.prism(roof, 0.74, 0.24, 0.56, 0, 1.55, 0, Math.PI / 2);
+  p.box(shade(roof, -0.15), 0.06, 0.06, 0.62, 0, 1.78, 0);
+  // The slot, a little brass flap over it, and a keyhole.
+  p.box('#2a2228', 0.34, 0.035, 0.02, 0, 1.44, 0.235);
+  p.box('#e8c35a', 0.38, 0.06, 0.015, 0, 1.475, 0.24, -0.3);
+  p.cyl('#e8c35a', 0.025, 0.015, 0.2, 1.15, 0.235, 10, Math.PI / 2);
+  // A light bulb for a bright idea.
+  p.sphere('#ffe87a', 0.08, 0.09, 0.03, 0, 1.27, 0.24, 14, 10);
+  p.box('#9aa0a8', 0.06, 0.05, 0.03, 0, 1.17, 0.24);
+  for (const k of [-1, 0, 1]) p.box('#ffe87a', 0.015, 0.06, 0.01, k * 0.13, 1.3 + Math.abs(k) * -0.02 + 0.08, 0.245, 0, 0, -k * 0.6);
+  glowAt(p, 0, 1.27, 0.3, 0.7, '#ffe87a');
+  // Hearts on the sides.
+  for (const sx of [-1, 1]) {
+    const q = p.at(sx * 0.315, 1.3, 0, (sx * Math.PI) / 2);
+    q.sphere('#f25f8a', 0.045, 0.045, 0.015, -0.035, 0.03, 0, 10, 6);
+    q.sphere('#f25f8a', 0.045, 0.045, 0.015, 0.035, 0.03, 0, 10, 6);
+    q.box('#f25f8a', 0.065, 0.065, 0.02, 0, -0.015, 0, 0, 0, Math.PI / 4);
+  }
+  // Flowers round its foot.
+  for (let k = 0; k < 5; k++) {
+    const a = (k / 5) * Math.PI * 2;
+    p.post('#4f8f3f', 0.01, 0.22, Math.cos(a) * 0.22, 0, Math.sin(a) * 0.22, 4);
+    p.sphere(['#f6d55c', '#f2a7b8', '#ffffff'][k % 3], 0.05, 0.035, 0.05, Math.cos(a) * 0.22, 0.24, Math.sin(a) * 0.22, 8, 6);
+  }
+}
+
 /** Where the post office's letterboxes are on its front, in its own frame: the grid the name plates are drawn on. */
 export const POST_GRID = { x0: -1.08, x1: 1.08, y0: 0.28, y1: 1.4, z: 0.21 };
 
@@ -1530,6 +1588,9 @@ function blockers(): Blocker[] {
   for (const l of LINE_POS) for (let x = l.x0; x <= l.x1; x += 2) add(x, l.z, 2.2);
   add(POND.x, POND.z, 10.5);
   for (const h of houseSlots) add(h.x, h.z, 6);
+  add(CLUB.x, CLUB.z, 6.5);
+  for (const b of BOOTHS) if (b.zone === 'town') add(b.x, b.z, 3.2);
+  add(IDEA_BOX.x, IDEA_BOX.z, 1.6);
   for (const bd of beds) add(bd.x, bd.z, 4);
   add(WELL.x, WELL.z, 3);
   add(WOODPILE.x, WOODPILE.z, 2.5);
@@ -1674,6 +1735,27 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     const post = local(h.x, h.z, h.ry, -1.75, HOUSE_D / 2 + 1.9);
     colliders.push({ kind: 'circle', x: post.x, z: post.z, r: 0.15 });
   });
+  // The club, where Bramble Cottage stood, with its neon (bright day and night) on its own mesh.
+  const neonB = new Builder();
+  const club = clubFront(solo(CLUB.x, CLUB.z, CLUB.ry), neonB, { glow: glowAt, door: (p, w, h, color) => doorAt(p, w, h, color, false) });
+  group.add(club.sign);
+  const neon = neonB.mesh(new THREE.MeshBasicMaterial({ vertexColors: true }), { cast: false, receive: false });
+  neon.name = 'neon';
+  group.add(neon);
+  // The confession booths out among the trees: each on a few flagstones, with a lantern on a post beside it.
+  for (const b of BOOTHS) {
+    if (b.zone !== 'town') continue;
+    const p = solo(b.x, b.z, b.ry);
+    confessional(p, null);
+    const ground = painter(b.x, b.z, b.ry);
+    for (let k = 0; k < 5; k++) ground.box(shade(STONE, (k % 3) * 0.04 - 0.04), 0.62, 0.05, 0.5, -1.25 + k * 0.62, 0.025, 1.1);
+    ground.post(WOOD_DARK, 0.06, 1.9, -1.85, 0, 0.6, 8);
+    lantern(ground.at(-1.85, 1.8, 0.6));
+    if (r() < 0.9) flowerPatch(ground.at(1.9, 0, 0.7), r);
+    bush(ground.at(-2.2, 0, -0.6), r, true);
+    colliders.push({ kind: 'circle', ...local(b.x, b.z, b.ry, -1.85, 0.6), r: 0.12 });
+  }
+  ideaBox(painter(IDEA_BOX.x, IDEA_BOX.z, IDEA_BOX.ry));
 
   // The town fence, with a gap for the road south.
   const fenceR = TOWN_R + 0.9;
@@ -1993,6 +2075,16 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     signMaterials.push(material);
   };
   hang(['The Raven’s Rest', 'tavern & inn'], TAVERN, 2.6, TAVERN.d / 2 + 1.0, 3.05, 1.6, 0.95);
+  signMaterials.push(club.material);
+  {
+    const sign = new TextSign({ w: 512, h: 192, bg: '#fff4e0', fg: '#b8506a', border: '#f28fb0', round: false, size: 66 }, ['Ideas & requests', 'for the Storyteller']);
+    const { mesh, material } = signBoard(sign, 0.9, 0.34);
+    const p = local(IDEA_BOX.x, IDEA_BOX.z, IDEA_BOX.ry, 0, 0.09);
+    mesh.position.set(p.x, 0.78, p.z);
+    mesh.rotation.y = IDEA_BOX.ry;
+    group.add(mesh);
+    signMaterials.push(material);
+  }
   // (The bakery's hangs off its front corner, clear of the awning.)
   hang(['Bakery', 'fresh every morning'], BAKERY, BAKERY.w / 2 + 0.12, BAKERY.d / 2 + 1.0, 2.83, 1.5, 0.85, { bg: '#f6e7cf', fg: '#a0523a', border: '#a0523a' });
   {
@@ -2008,6 +2100,8 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     ...[...squareLamps, ...roadLamps, ...pathLamps].map((l) => ({ x: l.x, z: l.z, r: 3.4 })),
     ...houseSlots.map((h) => ({ ...local(h.x, h.z, h.ry, 0.85, HOUSE_D / 2 + 0.9), r: 2.2 })),
     ...[-1.4, 1.4].map((lx) => ({ ...local(TAVERN.x, TAVERN.z, TAVERN.ry, lx, TAVERN.d / 2 + 0.8), r: 2.4 })),
+    { ...local(CLUB.x, CLUB.z, CLUB.ry, 0, CLUB.d / 2 + 1.2), r: 2.8 },
+    ...BOOTHS.filter((b) => b.zone === 'town').map((b) => ({ ...local(b.x, b.z, b.ry, -1.85, 0.6), r: 1.8 })),
     { x: 0, z: 0, r: 0 },
   ].filter((s) => s.r > 0);
   const pools = lightPools(poolSpots);
@@ -2016,6 +2110,6 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   const lampLights = [0, 2, 4, 6].map((i) => new THREE.Vector3(squareLamps[i].x, 2.9, squareLamps[i].z));
 
   collect = null;
-  return { group, colliders, water, clockHands, bell, flag, chimneys, houseSigns, signMaterials, wreaths, pools, lampLights, occluders, glowSpots, perches, doors };
+  return { group, colliders, water, clockHands, bell, flag, chimneys, houseSigns, signMaterials, wreaths, pools, lampLights, occluders, glowSpots, perches, doors, neon };
 }
 

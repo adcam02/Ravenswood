@@ -2718,6 +2718,172 @@
   white-space: nowrap;
 }
 
+/* ---------------------------------------------------------------- the club's jukebox */
+
+.jukebox-now {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 14px;
+  color: var(--text-dim);
+}
+.jukebox-now b {
+  color: var(--text);
+}
+.jukebox-now em {
+  color: var(--text-faint);
+}
+.jukebox-eq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+  margin-right: 4px;
+}
+.jukebox-eq i {
+  width: 3px;
+  height: 100%;
+  border-radius: 2px;
+  background: #ff6fcf;
+  animation: jukebox-eq 0.9s ease-in-out infinite;
+}
+.jukebox-eq i:nth-child(2) {
+  background: #5fe8ff;
+  animation-delay: -0.3s;
+}
+.jukebox-eq i:nth-child(3) {
+  background: #ffd25f;
+  animation-delay: -0.6s;
+}
+@keyframes jukebox-eq {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+.jukebox-eq i {
+  transform-origin: bottom;
+}
+.jukebox-list {
+  display: grid;
+  gap: 8px;
+}
+.jukebox-song {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: linear-gradient(90deg, rgba(255, 111, 207, 0.08), rgba(95, 232, 255, 0.06));
+  text-align: left;
+  transition:
+    transform 0.15s var(--ease-out),
+    background 0.15s;
+}
+.jukebox-song:not(:disabled):hover {
+  transform: translateY(-1px);
+  background: linear-gradient(90deg, rgba(255, 111, 207, 0.18), rgba(95, 232, 255, 0.14));
+}
+.jukebox-song.on {
+  border-color: #ff6fcf;
+  box-shadow: 0 0 0 2px rgba(255, 111, 207, 0.35);
+}
+.jukebox-song:disabled:not(.on) {
+  opacity: 0.55;
+}
+.jukebox-emoji {
+  font-size: 28px;
+}
+.jukebox-name {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+.jukebox-name em {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+.jukebox-bpm {
+  font-size: 12px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.jukebox-song.on .jukebox-bpm {
+  color: #ff8ad8;
+  font-weight: 600;
+}
+.jukebox-foot {
+  margin: 14px 0 0;
+  text-align: center;
+}
+
+/* ---------------------------------------------------------------- the idea box */
+
+.ideas-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.idea {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 10px 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: rgba(239, 227, 198, 0.06);
+}
+.idea.new {
+  border-color: var(--brass-hi);
+}
+.idea.done {
+  opacity: 0.55;
+}
+.idea.done p {
+  text-decoration: line-through;
+}
+.idea-tick {
+  padding-top: 2px;
+}
+.idea-tick input {
+  width: 18px;
+  height: 18px;
+}
+.idea-body {
+  flex: 1;
+  min-width: 0;
+}
+.idea-body p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.idea-who {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+.idea-who b {
+  color: var(--text);
+}
+.idea-new {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--brass-hi);
+  color: #2a1d12;
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 600;
+}
+
 /* ---------------------------------------------------------------- awards */
 
 .awards-tabs {
