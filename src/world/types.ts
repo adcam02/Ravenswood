@@ -239,7 +239,20 @@ export type HatId =
   | 'robot'
   | 'cone'
   | 'mortarboard'
-  | 'pumpkin';
+  | 'pumpkin'
+  // More pop-culture hats, each with an achievement of its own.
+  | 'viking'
+  | 'sombrero'
+  | 'beret'
+  | 'astronaut'
+  | 'ushanka'
+  | 'santa'
+  | 'catears'
+  | 'ninja'
+  | 'knight'
+  | 'gnome'
+  | 'fedora'
+  | 'unicorn';
 
 /** What a player has done across all their games, kept by the Storyteller under their name. */
 export interface Progress {
@@ -296,6 +309,18 @@ export const HATS: { id: HatId; name: string; icon: string; how: string; unlocke
   { id: 'cone', name: 'Traffic cone', icon: '🚧', how: 'Stand perfectly still for five minutes', unlocked: (p) => got(p, 'afk'), secret: true },
   { id: 'mortarboard', name: 'Mortarboard', icon: '🎓', how: 'Get three stars at six different jobs', unlocked: (p) => p.perfect.length >= 6 },
   { id: 'pumpkin', name: 'Jack-o’-lantern', icon: '🎃', how: 'Dance among the graves as a ghost', unlocked: (p) => got(p, 'thriller'), secret: true },
+  { id: 'viking', name: 'Viking helmet', icon: '⚔️', how: 'Shout three times inside ten seconds', unlocked: (p) => got(p, 'fusrodah'), secret: true },
+  { id: 'sombrero', name: 'Sombrero', icon: '🌵', how: 'Dance with two other players dancing right beside you', unlocked: (p) => got(p, 'amigos'), secret: true },
+  { id: 'beret', name: 'Artist’s beret', icon: '🎨', how: 'Lie on a bed while someone else is in the room', unlocked: (p) => got(p, 'portrait'), secret: true },
+  { id: 'astronaut', name: 'Astronaut’s helmet', icon: '🧑‍🚀', how: 'Look down on Ravenswood from as high up as you can go', unlocked: (p) => got(p, 'majortom'), secret: true },
+  { id: 'ushanka', name: 'Ushanka', icon: '❄️', how: 'Stay out in the rain or the mist for three whole minutes', unlocked: (p) => got(p, 'letitgo') },
+  { id: 'santa', name: 'Santa hat', icon: '🎅', how: 'Note down a claim and a guess for every other player in your notepad (five or more)', unlocked: (p) => got(p, 'nicelist') },
+  { id: 'catears', name: 'Cat ears', icon: '🐱', how: 'Sit in nine different seats around town', unlocked: (p) => got(p, 'sits'), secret: true },
+  { id: 'ninja', name: 'Ninja headband', icon: '🥷', how: 'Stand right behind someone for five seconds without them turning round', unlocked: (p) => got(p, 'ninja'), secret: true },
+  { id: 'knight', name: 'Knight’s helm', icon: '🏰', how: 'Be nominated three times in one game and live to see the end', unlocked: (p) => got(p, 'scratch') },
+  { id: 'gnome', name: 'Gnome’s hat', icon: '🌱', how: 'Plant 15 flowers', unlocked: (p) => got(p, 'gnomed') },
+  { id: 'fedora', name: 'Adventurer’s fedora', icon: '🏺', how: 'Reel in a silver eel', unlocked: (p) => got(p, 'snakes'), secret: true },
+  { id: 'unicorn', name: 'Unicorn horn', icon: '🦄', how: 'Wave hello to five different players in one day', unlocked: (p) => got(p, 'friendship'), secret: true },
 ];
 
 /** Each hat a player has unlocked makes them a touch quicker about town, walking and running: 0.1% a hat. */
@@ -364,7 +389,20 @@ export type FeatId =
   | 'teacher'
   | 'moneybags'
   | 'pitwin'
-  | 'pitchamp';
+  | 'pitchamp'
+  // Pop-culture ones, each with a hat.
+  | 'fusrodah'
+  | 'amigos'
+  | 'portrait'
+  | 'majortom'
+  | 'letitgo'
+  | 'nicelist'
+  | 'sits'
+  | 'ninja'
+  | 'scratch'
+  | 'gnomed'
+  | 'snakes'
+  | 'friendship';
 
 /**
  * Things to do around Ravenswood, kept by the Storyteller under the player's name with everything else they've earned
@@ -428,6 +466,19 @@ export const FEATS: { id: FeatId; name: string; icon: string; how: string; secre
   { id: 'moneybags', name: 'Money bags', icon: '💰', how: 'Have $100 at once' },
   { id: 'pitwin', name: 'Top dog', icon: '🥊', how: 'Win a pet fight in the tavern’s cellar' },
   { id: 'pitchamp', name: 'Champion of the pit', icon: '🏆', how: 'Win 5 pet fights' },
+  // Pop-culture ones, each with a hat.
+  { id: 'fusrodah', name: 'Fus Ro Dah!', icon: '📣', how: 'Shout three times inside ten seconds', secret: true, hat: 'viking' },
+  { id: 'amigos', name: 'Three Amigos', icon: '💃', how: 'Dance with two other players dancing right beside you', secret: true, hat: 'sombrero' },
+  { id: 'portrait', name: 'Draw me like one of your French girls', icon: '🖼️', how: 'Lie on a bed while someone else is in the room', secret: true, hat: 'beret' },
+  { id: 'majortom', name: 'Ground Control to Major Tom', icon: '🚀', how: 'Look down on Ravenswood from as high up as you can go', secret: true, hat: 'astronaut' },
+  { id: 'letitgo', name: 'The cold never bothered me anyway', icon: '🌧️', how: 'Stay out in the rain or the mist for three whole minutes', hat: 'ushanka' },
+  { id: 'nicelist', name: 'Making a list, checking it twice', icon: '📜', how: 'Note down a claim and a guess for every other player in your notepad (five or more)', hat: 'santa' },
+  { id: 'sits', name: 'If I fits, I sits', icon: '🐈', how: 'Sit in nine different seats around town', secret: true, hat: 'catears' },
+  { id: 'ninja', name: 'Nothing personal, kid', icon: '👤', how: 'Stand right behind someone for five seconds without them turning round', secret: true, hat: 'ninja' },
+  { id: 'scratch', name: '’Tis but a scratch', icon: '🩹', how: 'Be nominated three times in one game and live to see the end', hat: 'knight' },
+  { id: 'gnomed', name: 'You’ve been gnomed', icon: '🌷', how: 'Plant 15 flowers', hat: 'gnome' },
+  { id: 'snakes', name: 'Snakes. Why’d it have to be snakes?', icon: '🐍', how: 'Reel in a silver eel', secret: true, hat: 'fedora' },
+  { id: 'friendship', name: 'Friendship is magic', icon: '🌈', how: 'Wave hello to five different players in one day', secret: true, hat: 'unicorn' },
 ];
 
 /** The weather the Storyteller can call for. */

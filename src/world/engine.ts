@@ -1086,6 +1086,13 @@ export class Engine {
     this.seated = null;
     this.emote = { anim, until: this.clock.elapsedTime + (EMOTE_TIME[anim] ?? 2.5) };
     this.moveTarget = null;
+    // Waving hello to five different players in one day.
+    const near = anim === 'wave' && isPlayerView(this.view) ? this.nearestOther(4) : null;
+    if (near && near.key !== 'st' && this.view) {
+      if (this.waves.day !== this.view.day) this.waves = { day: this.view.day, to: new Set() };
+      this.waves.to.add(near.key);
+      if (this.waves.to.size >= 5) earn('friendship');
+    }
     // Dancing right in the middle of the meeting circle, up on the dais.
     if (anim === 'dance' && this.view?.mode === 'player' && local.zone === 'town' && Math.hypot(local.x - MEETING_CENTRE.x, local.z - MEETING_CENTRE.z) < 1.2) earn('disco');
   }
@@ -1226,6 +1233,7 @@ export class Engine {
   }
 
   private teaParty = { day: -1, to: new Set<string>() };
+  private waves = { day: -1, to: new Set<string>() };
 
   private putAway() {
     if (!local.item || local.item.k === 'grimoire' || this.job) return;
@@ -1308,6 +1316,8 @@ export class Engine {
       useHud.setState({ place: 'The Confession Booth' });
     } else if (s.job === 'sit' || s.job === 'sleep') {
       if (this.seated) return this.standUp();
+      // Every different seat about town counts (once each, ever).
+      if (s.job === 'sit' && isPlayerView(v)) tally('seats', 1, `seat:${s.id}`);
       local.x = s.stand.x;
       local.z = s.stand.z;
       local.ry = s.stand.ry;
@@ -1348,6 +1358,7 @@ export class Engine {
         case 'gardening': {
           const x = r as NonNullable<JobResults['gardening']>;
           this.hooks.townAction({ k: 'plant', bed: j.station.bed ?? 0, kind: x.kind, color: x.color, stars: x.stars });
+          if (isPlayerView(this.view)) tally('flowers');
           break;
         }
         case 'fishing': {
@@ -1358,6 +1369,7 @@ export class Engine {
           if (this.view?.mode === 'player') {
             tally('kinds', 1, `fishkind:${x.kind}`);
             if (x.kind === 'Old Boot') earn('boot');
+            if (x.kind === 'Silver Eel') earn('snakes');
             if (x.tier === 'legendary') earn('legend');
           }
           if (x.tier === 'rare' || x.tier === 'legendary') this.me?.bubble(`${x.tier === 'legendary' ? '🌙 Legendary' : '✨ Rare'}: ${x.kind}, ${x.cm}cm!`, 5000);
@@ -1783,6 +1795,14 @@ export class Engine {
     danceSince: null as number | null,
     idleSince: null as number | null,
     zone: '' as ZoneId,
+    // For the hats with achievements of their own: shouts lately, out in bad weather since, lying on a bed with company
+    // since, looking down from on high since, and someone we're creeping up behind.
+    shouts: [] as number[],
+    shouting: false,
+    coldSince: null as number | null,
+    posedSince: null as number | null,
+    highSince: null as number | null,
+    sneak: null as { key: string; since: number; ry: number } | null,
   };
   private trackFeats(dt: number, t: number, v: WorldView, moving: boolean) {
     const f = this.feat;
@@ -1839,6 +1859,40 @@ export class Engine {
     const idle = !moving && !this.emote && !this.seated && !this.inBed && !this.job && !this.show && Math.abs(turn) < 0.0001;
     f.idleSince = idle ? (f.idleSince ?? t) : null;
     if (f.idleSince !== null && t - f.idleSince >= 300) earn('afk');
+    // Three shouts inside ten seconds.
+    const shout = Boolean(local.shout);
+    if (shout && !f.shouting) {
+      f.shouts = [...f.shouts.filter((at) => t - at < 10), t];
+      if (f.shouts.length >= 3) earn('fusrodah');
+    }
+    f.shouting = shout;
+    // Dancing with two others dancing right beside us.
+    if (dancing) {
+      let amigos = 0;
+      for (const [key, p] of presence.others) if (key !== 'st' && p.zone === local.zone && p.anim === 'dance' && Math.hypot(p.x - local.x, p.z - local.z) < 3) amigos++;
+      if (amigos >= 2) earn('amigos');
+    }
+    // Lying on a bed (in the day, not tucked in for the night) while someone else is in the room.
+    const posing = kind === 'house' && this.seated?.anim === 'sleep' && [...presence.others.values()].some((p) => p.zone === local.zone);
+    f.posedSince = posing ? (f.posedSince ?? t) : null;
+    if (f.posedSince !== null && t - f.posedSince >= 5) earn('portrait');
+    // Out in the rain or the mist for three whole minutes, without going in.
+    const cold = kind === 'town' && (this.weather === 'rain' || this.weather === 'mist');
+    f.coldSince = cold ? (f.coldSince ?? t) : null;
+    if (f.coldSince !== null && t - f.coldSince >= 180) earn('letitgo');
+    // The camera swung right up overhead and zoomed all the way out, for a few seconds.
+    const high = kind === 'town' && this.dist >= 25.5 && this.swing.pitch >= 0.45;
+    f.highSince = high ? (f.highSince ?? t) : null;
+    if (f.highSince !== null && t - f.highSince >= 4) earn('majortom');
+    // Standing right behind someone, close, for five seconds without them turning round.
+    let behind: { key: string; ry: number } | null = null;
+    for (const [key, p] of presence.others) {
+      const d = Math.hypot(local.x - p.x, local.z - p.z);
+      if (p.zone !== local.zone || d > 1.4 || d < 0.2) continue;
+      if ((Math.sin(p.ry) * (local.x - p.x) + Math.cos(p.ry) * (local.z - p.z)) / d < -0.7) behind = { key, ry: p.ry };
+    }
+    if (!behind || f.sneak?.key !== behind.key || Math.abs(wrapAngle(behind.ry - f.sneak.ry)) > 0.8) f.sneak = behind && { ...behind, since: t };
+    if (f.sneak && t - f.sneak.since >= 5) earn('ninja');
     if (kind === 'town') {
       // The fairy ring, out among the trees.
       if (Math.hypot(local.x - FAIRY_RING.x, local.z - FAIRY_RING.z) < FAIRY_RING.r * 0.75) earn('fairyring');
