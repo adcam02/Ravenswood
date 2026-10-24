@@ -152,6 +152,9 @@ export type PetId =
   // Storybook critters from the players' own wish list.
   | 'gecko' | 'golem' | 'pengling' | 'puffdragon' | 'cockatoo' | 'ent' | 'piglet' | 'noodle'
   | 'raven' | 'scorpion' | 'tinyrex'
+  // A third set of pop-culture favourites (pets4.ts).
+  | 'doghouse' | 'lasagne' | 'lullaby' | 'bulbtoad' | 'flametail' | 'squirt' | 'fluff' | 'headache'
+  | 'teddy' | 'porg' | 'snowman' | 'crab' | 'luckyfin' | 'rooster' | 'raccoon'
   // A fifth set (pets5.ts).
   | 'eggprobe' | 'nursebot' | 'hedgehog' | 'chomper' | 'fairy' | 'moogle' | 'cactus' | 'bean'
   | 'turret' | 'catbus' | 'faceless' | 'hearth' | 'niffler' | 'platypus' | 'dug';
@@ -204,6 +207,21 @@ export const PETS: { id: PetId; name: string; icon: string }[] = [
   { id: 'raven', name: 'Nevermore', icon: '🐦‍⬛' },
   { id: 'scorpion', name: 'Snippy scorpion', icon: '🦂' },
   { id: 'tinyrex', name: 'Tiny rex', icon: '🦖' },
+  { id: 'doghouse', name: 'Doghouse beagle', icon: '🐶' },
+  { id: 'lasagne', name: 'Lasagne cat', icon: '🐈' },
+  { id: 'lullaby', name: 'Lullaby puff', icon: '🎤' },
+  { id: 'bulbtoad', name: 'Bulb toad', icon: '🌷' },
+  { id: 'flametail', name: 'Flame-tail', icon: '🔥' },
+  { id: 'squirt', name: 'Squirt turtle', icon: '🐢' },
+  { id: 'fluff', name: 'Fluff fox', icon: '🦊' },
+  { id: 'headache', name: 'Headache duck', icon: '🤕' },
+  { id: 'teddy', name: 'Forest teddy', icon: '🐻' },
+  { id: 'porg', name: 'Porgling', icon: '🐦' },
+  { id: 'snowman', name: 'Summer snowman', icon: '⛄' },
+  { id: 'crab', name: 'Calypso crab', icon: '🦀' },
+  { id: 'luckyfin', name: 'Lucky fin', icon: '🐠' },
+  { id: 'rooster', name: 'Derpy rooster', icon: '🐓' },
+  { id: 'raccoon', name: 'Space raccoon', icon: '🦝' },
   { id: 'eggprobe', name: 'Egg probe', icon: '🛰️' },
   { id: 'nursebot', name: 'Huggy nurse bot', icon: '🩹' },
   { id: 'hedgehog', name: 'Speedy hedgehog', icon: '🦔' },

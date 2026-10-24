@@ -5,6 +5,7 @@ import { Sculpt, box, ellipsoid, pyramid, rod, type Probe } from './sculpt';
 import type { PetId } from './types';
 import { PETS5_MAKERS } from './pets5';
 import { Act, addEyes, arc, bead, bell, BLUSH, blushes, both, clamp, CREASE, Critter, cutout, either, flatBase, frontZ, gem, Homage, hop, INK, irisEyes, Jointed, onFront, onSurface, patch, PetRig, pip, placeCopy, sculpted, sph, spike, spots, tube, V, type Pet } from './petkit';
+import { PETS4 } from './pets4';
 
 export type { Pet };
 
@@ -3405,6 +3406,7 @@ const MAKERS: Record<PetId, () => PetRig> = {
   raven: () => new Raven(),
   scorpion: () => new Scorpion(),
   tinyrex: () => new TinyRex(),
+  ...PETS4,
   ...PETS5_MAKERS,
 };
 

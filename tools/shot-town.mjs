@@ -22,6 +22,11 @@ const ALL = {
   // Animals walking with their pets in tow, and standing still with the pets caught up.
   'pets-walk': 'x=0&z=6&t=0&dist=7&pitch=0.42&frames=32&walkers=fox:zapmouse,bear:dragon,otter:spirit,wolf:balldroid',
   'pets-stop': 'x=0&z=6&t=0&dist=7&pitch=0.42&frames=30&stop=12&walkers=raccoon:henchling,panda:cube,deer:arcade,frog:astrodroid&ghost',
+  // The third set of pets (pets4.ts), walking with their owners and then stopped (the beagle's doghouse comes up).
+  'pets4-walk': 'low&x=0&z=6&t=0&dist=7&pitch=0.42&frames=32&walkers=fox:doghouse,bear:lasagne,otter:lullaby,wolf:bulbtoad,frog:flametail',
+  'pets4-walk2': 'low&x=0&z=6&t=0&dist=7&pitch=0.42&frames=32&walkers=fox:squirt,bear:fluff,otter:headache,wolf:teddy,frog:porg',
+  'pets4-walk3': 'low&x=0&z=6&t=0&dist=7&pitch=0.42&frames=32&walkers=fox:snowman,bear:crab,otter:luckyfin,wolf:rooster,frog:raccoon',
+  'pets4-stop': 'low&x=0&z=6&t=0&dist=7&pitch=0.42&frames=80&stop=62&walkers=fox:doghouse,bear:lasagne,otter:lullaby,wolf:luckyfin,frog:snowman',
   'overview-night': 'wide&t=1&z=4&dist=70',
   'square-day': 'x=0&z=6&t=0&meeting',
   'square-night': 'x=0&z=6&t=1&bell',
