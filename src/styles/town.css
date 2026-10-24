@@ -2967,3 +2967,20 @@
     padding: 7px 14px 8px;
   }
 }
+
+/* A pet's portrait in the picker and the shop, in place of its emoji. */
+.pet-picture {
+  display: block;
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+.shop-pet-icon .pet-picture {
+  width: 84px;
+  height: 84px;
+}
+/* A pet you don't have yet still shows in colour (it's for sale), just dimmed. */
+.join-item.locked .join-item-icon:has(.pet-picture) {
+  filter: none;
+  opacity: 0.6;
+}

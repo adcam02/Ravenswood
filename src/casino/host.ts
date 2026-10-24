@@ -298,8 +298,8 @@ function settle(s: BjSeat) {
   if (p > 21) result = 'bust';
   else if (pBJ && !dBJ) {
     result = 'blackjack';
-    // 3:2, with a half dollar rounded up.
-    paid = s.bet + Math.round(s.bet * 1.5);
+    // 3:2, with any half dollar rounded down (rounding up made $1 hands better than even for the player).
+    paid = s.bet + Math.floor(s.bet * 1.5);
   } else if (pBJ && dBJ) {
     result = 'push';
     paid = s.bet;

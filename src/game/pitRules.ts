@@ -25,11 +25,12 @@ export const PIT = {
   overMs: 8000,
   /** A challenge left unanswered goes away. */
   challengeMs: 30000,
-  /** From the house: the winner's prize, and each side's for a draw. */
-  prize: 3,
-  drawPrize: 1,
-  /** Prizes a player can win in a day (the house isn't made of money). */
-  dailyWins: 10,
+  /** From the house: the winner's prize, and each side's for a draw (nothing: nobody won). */
+  prize: 2,
+  drawPrize: 0,
+  /** Prizes a player can win in a day (the house isn't made of money, and fighting a friend over and over shouldn't
+   * pay more than playing a game). */
+  dailyWins: 5,
   /** Out of the cellar (or gone quiet) this long and you've walked out of the fight. */
   leaveMs: 3000,
 };

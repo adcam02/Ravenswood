@@ -269,7 +269,18 @@ function ensure(name: string): string {
   // (Keep the way they write it now.)
   else if (p.name !== name.trim().slice(0, 24)) change(name, (x) => void (x.name = name.trim().slice(0, 24)));
   oneOffs(key);
+  welcome(key);
   return key;
+}
+
+/** Everyone starts with enough for one of the cheaper pets (once a name, new or not: pets used to be free). */
+const WELCOME = 25;
+function welcome(key: string) {
+  const s = useProfiles.getState();
+  const id = `welcome:${key}`;
+  if (!s.profiles[key] || s.done.includes(id)) return;
+  useProfiles.setState({ done: [...s.done, id] });
+  change(key, (p) => addPay(p, WELCOME, 'to start you off'));
 }
 
 // ---------------------------------------------------------------- the API for the casino, pets and the rest

@@ -10,7 +10,7 @@ import { useMoney, useMyPets } from '../../game/progress';
 import { cardSound, casinoLose, casinoWin, chipSound, rouletteSpin, tillSound } from '../../lib/audio';
 import { useView } from '../../state/view';
 import { fixLook } from '../../world/types';
-import { wearLook } from './JoinFlow';
+import { PetPicture, wearLook } from './JoinFlow';
 
 /**
  * The Lucky Raven's panels: the pet shop at the counter, and the card tables, which sit along the bottom of the
@@ -173,7 +173,9 @@ function Shop({ view }: { view: CasinoView | null }) {
             const wearing = me?.look?.pet === p.id;
             return (
               <div key={p.id} className={`shop-pet ${owned ? 'owned' : ''}`}>
-                <span className="shop-pet-icon">{p.icon}</span>
+                <span className="shop-pet-icon">
+                  <PetPicture id={p.id} icon={p.icon} />
+                </span>
                 <span className="shop-pet-name">{p.name}</span>
                 {owned ? (
                   <button className="cosy-btn" disabled={!me?.look} onClick={() => wear(wearing ? null : p.id)}>

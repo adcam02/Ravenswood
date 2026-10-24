@@ -5,8 +5,8 @@ import { drawless } from '../../lib/util';
 import { player, useClient, useTaken } from '../../net/client';
 import { useVoice, voice } from '../../voice/voice';
 import { AnimalPreview } from '../../world/AnimalPreview';
-import { animalThumbnail } from '../../world/animals';
-import { ANIMALS_ABC, animalInfo, EXTRA_COLORS, fixLook, HATS, hatsOwned, hatSpeedLabel, type AnimalId, type Look } from '../../world/types';
+import { animalThumbnail, petThumbnail } from '../../world/animals';
+import { ANIMALS_ABC, animalInfo, EXTRA_COLORS, fixLook, HATS, hatsOwned, hatSpeedLabel, type AnimalId, type Look, type PetId } from '../../world/types';
 import { useProgress } from '../../game/progress';
 import { shownName } from '../../state/nicks';
 import { money } from '../../game/profiles';
@@ -321,7 +321,7 @@ function DressUp({ tab, look, setLook }: { tab: 'hat' | 'pet'; look: Look; setLo
             aria-disabled={Boolean(it.locked)}
             title={it.locked ? `${it.name}: ${it.locked}` : it.name}
           >
-            <span className="join-item-icon">{it.icon}</span>
+            <span className="join-item-icon">{tab === 'pet' ? <PetPicture id={it.id as PetId} icon={it.icon} /> : it.icon}</span>
             <span className="join-item-name">{it.name}</span>
             {it.locked && <i>🔒</i>}
             {it.price !== undefined && <span className="join-item-price">{money(it.price)}</span>}
@@ -390,6 +390,27 @@ function saveThumb(id: AnimalId, color: string, url: string) {
   } catch {
     /* storage full or blocked: thumbnails just render each visit */
   }
+}
+
+/** A pet's little portrait (its emoji until the picture is drawn), kept between visits like the animals'. */
+export function PetPicture({ id, icon }: { id: PetId; icon: string }) {
+  const key = `pet-${id}` as AnimalId;
+  const [src, setSrc] = useState<string | null>(() => loadThumb(key, ''));
+  useEffect(() => {
+    if (src || drawless()) return;
+    let live = true;
+    const cancel = queueThumbnail(() => {
+      if (!live) return;
+      const url = petThumbnail(id, 96) || null;
+      setSrc(url);
+      if (url) saveThumb(key, '', url);
+    });
+    return () => {
+      live = false;
+      cancel();
+    };
+  }, [id, key, src]);
+  return src ? <img className="pet-picture" src={src} alt="" /> : <>{icon}</>;
 }
 
 function AnimalTile({ id, on, owner, locked, onPick }: { id: AnimalId; on: boolean; owner?: { by: string; choosing: boolean }; locked?: boolean; onPick: () => void }) {

@@ -7,8 +7,9 @@ import { Fold, lowDetail, seedOf, seeded, solid, tube } from './paper';
 import { ellipsoid, rod, type Probe } from './sculpt';
 import { DETAILS, RECIPES, profileOf } from './recipes';
 import { col, colorsFor, mix, newKit, type Kit, type Mannerism, type Part, type Profile, type Shape } from './species';
-import { animalInfo, isDance, wrapAngle, type Anim, type AnimalId, type HatId, type Item, type ItemKind, type Look } from './types';
+import { animalInfo, isDance, wrapAngle, type Anim, type AnimalId, type HatId, type Item, type ItemKind, type Look, type PetId } from './types';
 
+import { buildPet } from './pets';
 export { buildPet, type Pet } from './pets';
 
 /**
@@ -2585,25 +2586,72 @@ const thumbCache = new Map<string, string>();
 /** Heads whose tops are well above their faces (a squid's mantle, a snail's eye stalks): the picture comes down. */
 const THUMB_NUDGE: Partial<Record<AnimalId, number>> = { squid: -0.2, snail: 0.1 };
 
+/** The renderer, scene and camera for pictures, made when first wanted. */
+function thumbStage(size: number) {
+  if (!thumbRenderer) {
+    thumbRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+    thumbRenderer.setPixelRatio(1);
+    // Lit and toned like the town by day, so the picture matches the animal in the game.
+    thumbRenderer.toneMapping = THREE.NeutralToneMapping;
+    thumbRenderer.toneMappingExposure = 1.06;
+    thumbScene = new THREE.Scene();
+    thumbScene.add(new THREE.HemisphereLight('#cfe8ff', '#a89a80', 1.35));
+    const sun = new THREE.DirectionalLight('#fff1d2', 2.4);
+    sun.position.set(1.5, 3, 2.5);
+    thumbScene.add(sun);
+    thumbCamera = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
+  }
+  thumbRenderer.setSize(size, size, false);
+  return { renderer: thumbRenderer, scene: thumbScene!, camera: thumbCamera! };
+}
+
+/** Draws the picture, then lets the renderer go a few seconds after the last one. '' if the graphics are gone. */
+function snap(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera): string {
+  renderer.render(scene, camera);
+  // A lost context draws nothing: no picture (and nothing kept) rather than a blank one.
+  const lost = renderer.getContext().isContextLost();
+  const url = lost ? '' : renderer.domElement.toDataURL('image/png');
+  if (thumbIdle) clearTimeout(thumbIdle);
+  thumbIdle = setTimeout(releaseThumbRenderer, lost ? 0 : 4000);
+  return url;
+}
+
+/** A pet's portrait, the whole of it, turned a little to one side. Cached for the visit. */
+export function petThumbnail(pet: PetId, size = 96): string {
+  const key = `pet:${pet}:${size}`;
+  const hit = thumbCache.get(key);
+  if (hit) return hit;
+  try {
+    const { renderer, scene, camera } = thumbStage(size);
+    const p = buildPet(pet);
+    for (let i = 0; i < 20; i++) p.update(0.05, i * 0.05, false);
+    p.root.rotation.y = 0.45;
+    scene.add(p.root);
+    p.root.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(p.root);
+    const c = box.getCenter(new THREE.Vector3());
+    // Framed on its longest side (with room for corners as it turns), so little pets fill their tile too.
+    const sz = box.getSize(new THREE.Vector3());
+    const r = Math.max(0.05, Math.max(sz.x, sz.y, sz.z) * 0.75);
+    const dist = (r * 1.08) / Math.sin(THREE.MathUtils.degToRad(15));
+    camera.position.set(c.x + dist * 0.15, c.y + dist * 0.25, c.z + dist);
+    camera.lookAt(c);
+    const url = snap(renderer, scene, camera);
+    scene.remove(p.root);
+    p.dispose();
+    if (url) thumbCache.set(key, url);
+    return url;
+  } catch {
+    return '';
+  }
+}
+
 export function animalThumbnail(look: Look, size = 128): string {
   const key = `${look.animal}:${look.color}:${look.hat ?? ''}:${size}`;
   const hit = thumbCache.get(key);
   if (hit) return hit;
   try {
-    if (!thumbRenderer) {
-      thumbRenderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-      thumbRenderer.setPixelRatio(1);
-      // Lit and toned like the town by day, so the picture matches the animal in the game.
-      thumbRenderer.toneMapping = THREE.NeutralToneMapping;
-      thumbRenderer.toneMappingExposure = 1.06;
-      thumbScene = new THREE.Scene();
-      thumbScene.add(new THREE.HemisphereLight('#cfe8ff', '#a89a80', 1.35));
-      const sun = new THREE.DirectionalLight('#fff1d2', 2.4);
-      sun.position.set(1.5, 3, 2.5);
-      thumbScene.add(sun);
-      thumbCamera = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
-    }
-    thumbRenderer.setSize(size, size, false);
+    const { renderer: thumbRenderer } = thumbStage(size);
     const rig = buildAnimal(look);
     rig.update({ anim: 'idle', speed: 0, dt: 0.016, t: 0 });
     for (let i = 0; i < 30; i++) rig.update({ anim: 'idle', speed: 0, dt: 0.05, t: 0 });
@@ -2617,14 +2665,9 @@ export function animalThumbnail(look: Look, size = 128): string {
     const dist = ((top - bottom) * 1.12) / (2 * Math.tan(THREE.MathUtils.degToRad(15)));
     thumbCamera!.position.set(dist * 0.18, cy + 0.08, dist);
     thumbCamera!.lookAt(0, cy, 0);
-    thumbRenderer.render(thumbScene!, thumbCamera!);
-    // A lost context draws nothing: no picture (and nothing kept) rather than a blank one.
-    const lost = thumbRenderer.getContext().isContextLost();
-    const url = lost ? '' : thumbRenderer.domElement.toDataURL('image/png');
+    const url = snap(thumbRenderer, thumbScene!, thumbCamera!);
     thumbScene!.remove(rig.root);
     rig.dispose();
-    if (thumbIdle) clearTimeout(thumbIdle);
-    thumbIdle = setTimeout(releaseThumbRenderer, lost ? 0 : 4000);
     if (url) thumbCache.set(key, url);
     return url;
   } catch {

@@ -62,6 +62,7 @@ function resolve(f: PitFight, now: number) {
 
 /** Pays a prize, unless they've had all their prizes today. Returns what was paid. */
 function pay(pit: PitState, s: PitSide, amount: number, why: string): number {
+  if (amount <= 0) return 0;
   const key = nameKey(s.name);
   const day = today();
   const had = pit.paid?.[key]?.day === day ? pit.paid[key].wins : 0;

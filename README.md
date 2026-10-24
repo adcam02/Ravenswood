@@ -44,7 +44,7 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    - **The Pet Pit**, down a trapdoor in the tavern: challenge someone and your pets fight in the ring.
      Each round both pick in secret: **Attack** (1 damage, plus any charge), **Block** (stops an attack
      and hits back for 2, but not two rounds running) or **Charge** (+1 on your next attack, up to 3).
-     Five hearts each; the winner gets $3, and the wins go up on the chalk board.
+     Five hearts each; the winner gets $2 (up to five prizes a day), and the wins go up on the chalk board.
    - **The idea box** beside the noticeboard takes ideas and requests for the Storyteller, who gets
      them in an **Ideas** list on their top bar.
    - **The confession booth** stands in the church's front corner (and two more stand among the trees): two closets side by side with a
@@ -217,8 +217,9 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    so you see it all.
 8. **Profiles and money.** Your hats, achievements, stars and money are kept by the Storyteller under
    your name, so they follow you to any device (and a copy stays in your browser). You earn money for
-   finishing a game, a bonus when your team wins, achievements and three-star jobs; spend it at the
-   casino. **Pets are bought at the casino's pet shop** ($20 to $80; 47 of them, many fond takes on pop
+   finishing a game ($10), being on the winning team ($25), surviving ($5), achievements ($5, or $10
+   for a secret one) and three-star jobs ($2, up to $20 a day), and everyone starts with $25; spend it at
+   the casino. **Pets are bought at the casino's pet shop** ($20 to $80; 47 of them, many fond takes on pop
    culture favourites). The Storyteller's **Players' profiles** (in Settings) shows everyone's money and
    achievements, can give or take either, and exports and imports the lot.
 9. **Nicknames.** Tap anyone in your Notepad's Who's who to give them a nickname that only you see, on
