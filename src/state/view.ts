@@ -5,6 +5,7 @@ import { useHostNet } from '../net/host';
 import { isTraveller, seatAlignment, useHost, visitFor } from './host';
 import type { AwakeState, DayTimer, DeathRecord, Execution, GameEnd, LetterIn, Nomination, Phase, Reminder, SlayerShot, TownHall, Visit, VoteRecord } from './types';
 import type { Look, TownState, Weather } from '../world/types';
+import { SONGS } from '../lib/disco';
 import { useUI } from './ui';
 
 export type Mode = 'st' | 'player';
@@ -74,7 +75,12 @@ export interface View {
   pigeons: { id: string; to: string; at: number }[];
   /** Player: the pigeons that came for them, with who sent each and where they were. */
   pigeonNotes: { id: string; name: string; where: string; at: number }[];
+  /** The song on at the club, since when (in this browser's clock), and who put it on ('' for nobody yet). */
+  club: { song: string; at: number; by: string };
 }
+
+/** The club's song, in this browser's clock (`offset` is the host's clock less ours). */
+const clubOf = (town: TownState, offset: number) => ({ song: town.club?.song ?? SONGS[0].id, at: (town.club?.at ?? 0) - offset, by: town.club?.by ?? '' });
 
 const label = (name: string, i: number) => name || `Seat ${i + 1}`;
 
@@ -131,6 +137,7 @@ export function useStorytellerView(): View {
       visits: g.nightDeaths.map((id) => visitFor(g, id)).filter((x): x is Visit => Boolean(x)),
       pigeons: (g.pigeons ?? []).filter((p) => Date.now() - p.at < 60000).map(({ id, to, at }) => ({ id, to, at })),
       pigeonNotes: [],
+      club: clubOf(g.town, 0),
     }),
     [g, online, slow, hide],
   );
@@ -196,6 +203,7 @@ export function usePlayerView(): View | null {
       visits: priv?.visit ? [priv.visit] : [],
       pigeons: (Array.isArray(pub.pigeons) ? pub.pigeons : []).map((p) => ({ ...p, at: p.at - (clockOffset ?? 0) })),
       pigeonNotes: (Array.isArray(priv?.pigeons) ? priv.pigeons : []).map((p) => ({ ...p, at: p.at - (clockOffset ?? 0) })),
+      club: clubOf(pub.town, clockOffset ?? 0),
     };
   }, [pub, priv, clockOffset]);
 }

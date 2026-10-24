@@ -149,6 +149,11 @@
   background: linear-gradient(180deg, #4b3a6e, #2e2448);
   color: #f6dc93;
 }
+.npc-tag .tag-plate {
+  padding: 3px 10px;
+  background: linear-gradient(180deg, #3b2347, #22132b);
+  color: #ffd6f0;
+}
 .tag-badge {
   display: none;
   padding: 1px 7px;

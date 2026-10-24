@@ -9,6 +9,7 @@ import { rememberBest } from '../game/bests';
 import type { DayTimer, Execution, Nomination, TownAction, TownHall, Visit } from '../state/types';
 import { ambience } from '../lib/ambience';
 import { doorChime, drumroll, gavel, pigeonSound, ropeSnap, visitSound } from '../lib/audio';
+import { clubMusic, songById } from '../lib/disco';
 import { NightVisit, VISIT, type VictimPose } from './visit';
 import { PIGEON, PigeonFlight } from './pigeon';
 import { ui, useUI } from '../state/ui';
@@ -17,7 +18,8 @@ import { useVoice, voice, type Listener } from '../voice/voice';
 import { AvatarView, type AvatarInfo } from './avatar';
 import { resolve, turnToward } from './collide';
 import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWorld } from './town';
-import { BED, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, GRAVEYARD, MEETING_CENTRE, RING_ROAD_R, SQUARE_R, STOOL_R, TOWER, groundAt } from './town/layout';
+import { BED, BOUNCER, CLUB, CLUB_NAME, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, GRAVEYARD, MEETING_CENTRE, SQUARE_R, STOOL_R, TOWER, doorPoint, groundAt, onDanceFloor, roadDistance } from './town/layout';
+import { local as localSpot } from './town/kit';
 import { nearPath } from './town/outdoor';
 import { Fireworks } from './fireworks';
 import { reportProblem } from '../lib/report';
@@ -64,8 +66,11 @@ const SHOW = { lower: 0.9, drop: 1.6, puff: 3.3, rise: 0.6, end: 4.3, snap: 0.18
 /** Even with nothing changing, the shadow map is redrawn this often, just in case. */
 const SHADOW_SAFETY_S = 10;
 import {
-  BOOTH,
-  BOOTH_SEATS,
+  BOOTHS,
+  BOOTH_HD,
+  HATS,
+  boothAt,
+  boothSeats,
   cottageSlot,
   cottageZone,
   houseOwner,
@@ -137,6 +142,8 @@ export interface WorldView {
   /** Messenger pigeons in the air lately (this browser's clock), and the notes from those that came for us. */
   pigeons: { id: string; to: string; at: number }[];
   pigeonNotes: { id: string; name: string; where: string; at: number }[];
+  /** The song on at the club, since when (this browser's clock), and who put it on. */
+  club: { song: string; at: number; by: string };
 }
 
 /** What the world asks of the game around it. */
@@ -212,7 +219,25 @@ const SIGN_TEXT: Partial<Record<Station['job'], string>> = {
   clock: '🕰️ Keep time',
   confess: '🕯️ Confession booth',
   post: '✉️ Post office',
+  jukebox: '🎶 Jukebox',
+  ideas: '💡 Idea box',
 };
+
+/**
+ * Big Moo's little chats on the door: what he says, what you say back, and what he says as he lifts the rope.
+ * `{song}` is what's on inside; `{hat}` what you're wearing on your head. A `dance` one has you show him your moves.
+ */
+const BOUNCER_TALK: { moo: string; you: string; then: string; dance?: boolean; hat?: boolean }[] = [
+  { moo: 'Evening. You on the list?', you: 'Um… which list?', then: 'The list of nice people. You’re on it. In you go.' },
+  { moo: 'Hold up. What’s the password?', you: '…please?', then: 'Close enough. Have a good night.' },
+  { moo: 'I’ll need to see some moves first.', you: 'Like this?', then: 'Okay, okay! You’re in. Save some for the floor.', dance: true },
+  { moo: 'No horns, no entry.', you: 'But I don’t have horns…', then: 'Kidding. Get in there, the floor’s warm.' },
+  { moo: 'Nice {hat}. Very sharp.', you: 'Thanks! You too.', then: 'I know. In you go.', hat: true },
+  { moo: 'You like {song}? It’s on right now.', you: 'I love it!', then: 'Then what are you waiting for?' },
+  { moo: 'Shoes off, please. …Hooves? Paws? Never mind.', you: 'Phew.', then: 'Go on in. Mind the glitter.' },
+  { moo: 'Name?', you: 'You know my name, Moo.', then: 'I do. I just like hearing it. Enjoy.' },
+  { moo: 'Strictly juice only in there. No funny business.', you: 'Promise.', then: 'Good. In you pop.' },
+];
 
 const PLACE_NAMES: Record<Exclude<ZoneKind, 'house'>, string> = {
   town: 'Ravenswood',
@@ -220,6 +245,7 @@ const PLACE_NAMES: Record<Exclude<ZoneKind, 'house'>, string> = {
   bakery: 'The Bakery',
   church: 'The Church',
   tower: 'The Clock Tower',
+  club: CLUB_NAME,
 };
 
 /** Graphics quality: 'high' has shadows and crisp pixels; 'low' is for laptops that can't keep up. */
@@ -337,6 +363,14 @@ export class Engine {
   private booth: Station | null = null;
   /** Since when (on the clock) we've been in the booth with someone on the other side, for the achievement. */
   private boothWith: number | null = null;
+  /** Let into the club by Big Moo: good until the night comes (the day and phase it was given on). */
+  private clubPass: string | null = null;
+  /** Which of Big Moo's little chats comes next, and until when (performance clock) he's busy with one. */
+  private bouncerLine = Math.floor(Math.random() * BOUNCER_TALK.length);
+  private bouncerBusy = 0;
+  private bouncerTimers: ReturnType<typeof setTimeout>[] = [];
+  /** The song the club's lights last heard about. */
+  private clubSongKey = '';
 
   constructor(
     private host: HTMLElement,
@@ -460,6 +494,8 @@ export class Engine {
     ambience.dispose();
     if (this.bellTimer) clearTimeout(this.bellTimer);
     if (this.wellTimer) clearTimeout(this.wellTimer);
+    for (const tm of this.bouncerTimers) clearTimeout(tm);
+    clubMusic.setLevel(0, false);
     for (const s of this.signs) s.el.remove();
     for (const k of ['interact', 'sip', 'give', 'putAway', 'takeMeetingSeat', 'goToSquare', 'jobCancel'] as const) game[k] = () => {};
     game.emote = game.goTo = game.jobDone = game.sheepDone = () => {};
@@ -1046,21 +1082,22 @@ export class Engine {
     return best;
   }
 
-  /** Whoever (else) is sitting in this side of the confession booth: by name for the Storyteller, otherwise just someone. */
+  /** Whoever (else) is sitting in this side of a confession booth: by name for the Storyteller, otherwise just someone. */
   private boothTaken(s: Station): string | null {
     for (const [key, p] of presence.others) {
-      if (p.zone !== 'church' || Math.hypot(p.x - s.stand.x, p.z - s.stand.z) > 0.5) continue;
+      if (p.zone !== s.zone || Math.hypot(p.x - s.stand.x, p.z - s.stand.z) > 0.5) continue;
       if (this.view?.mode !== 'st') return 'Someone';
       return key === 'st' ? 'The Storyteller' : this.view?.seats.find((x) => x.id === key)?.name || 'Someone';
     }
     return null;
   }
 
-  /** Whether both sides of the confession booth have someone sitting in them (us included). */
-  private boothFull(): boolean {
-    return BOOTH_SEATS.every((seat) => {
-      if (this.booth && local.zone === 'church' && Math.hypot(local.x - seat.x, local.z - seat.z) < 0.5) return true;
-      for (const p of presence.others.values()) if (p.zone === 'church' && Math.hypot(p.x - seat.x, p.z - seat.z) < 0.5) return true;
+  /** Whether both sides of a confession booth have someone sitting in them (us included). */
+  private boothFull(booth: number): boolean {
+    const zone = BOOTHS[booth].zone;
+    return boothSeats(booth).every((seat) => {
+      if (this.booth && local.zone === zone && Math.hypot(local.x - seat.x, local.z - seat.z) < 0.5) return true;
+      for (const p of presence.others.values()) if (p.zone === zone && Math.hypot(p.x - seat.x, p.z - seat.z) < 0.5) return true;
       return false;
     });
   }
@@ -1071,12 +1108,13 @@ export class Engine {
     this.booth = null;
     if (!s) return;
     this.seated = null;
-    local.x = s.stand.x;
-    local.z = BOOTH.z1 + 0.55;
-    local.ry = 0;
+    const out = BOOTH_HD + 0.55;
+    local.x = s.stand.x + Math.sin(s.stand.ry) * out;
+    local.z = s.stand.z + Math.cos(s.stand.ry) * out;
+    local.ry = s.stand.ry;
     this.me?.setTarget(local.x, local.z, local.ry, 0);
     this.me?.snap();
-    useHud.setState({ place: PLACE_NAMES.church });
+    useHud.setState({ place: PLACE_NAMES[s.zone === 'house' ? 'town' : s.zone] });
   }
 
   /**
@@ -1087,9 +1125,10 @@ export class Engine {
     const s = this.booth;
     if (!s) return;
     const myKey = v.mode === 'st' ? 'st' : (v.mySeatId ?? '');
+    const mine = s.booth ?? 0;
     let other = false;
     for (const [key, p] of presence.others) {
-      if (!inBooth(p.zone, p.x, p.z)) continue;
+      if (boothAt(p.zone, p.x, p.z) !== mine) continue;
       if (Math.hypot(p.x - s.stand.x, p.z - s.stand.z) < 0.5) {
         if (key < myKey) {
           this.leaveBooth();
@@ -1101,6 +1140,91 @@ export class Engine {
     // (Real time on the clock, not frames, which a slow machine has few of.)
     this.boothWith = other ? (this.boothWith ?? t) : null;
     if (this.boothWith !== null && t - this.boothWith > 20 && v.mode === 'player') earn('confess');
+  }
+
+  private hasClubPass(v: WorldView): boolean {
+    return this.clubPass === `${v.day}:${v.phase}`;
+  }
+
+  /**
+   * A word with Big Moo on the club's door: he says something, you answer, and he lifts the rope (a different little
+   * chat each time). Once he's let you in, he lets you in until night falls.
+   */
+  private talkToBouncer() {
+    const v = this.view;
+    if (!v || !this.me || performance.now() < this.bouncerBusy) return;
+    const moo = this.town.bouncer;
+    const at = localSpot(CLUB.x, CLUB.z, CLUB.ry, BOUNCER.lx, BOUNCER.lz);
+    local.ry = Math.atan2(at.x - local.x, at.z - local.z);
+    this.moveTarget = null;
+    moo.lookAt(local.x, local.z);
+    if (v.mode !== 'player' || this.hasClubPass(v)) {
+      moo.say(['Back again? Go on in.', 'Looking good. In you go.', 'Rope’s up for you.'][Math.floor(Math.random() * 3)], 2600);
+      return;
+    }
+    const hatId = v.seats.find((s) => s.id === v.mySeatId)?.look?.hat;
+    const hat = hatId ? (HATS.find((h) => h.id === hatId)?.name.toLowerCase() ?? null) : null;
+    let line = BOUNCER_TALK[this.bouncerLine++ % BOUNCER_TALK.length];
+    while (line.hat && !hat) line = BOUNCER_TALK[this.bouncerLine++ % BOUNCER_TALK.length];
+    const fill = (text: string) => text.replace('{song}', songById(v.club.song).name).replace('{hat}', hat ?? 'hat');
+    const pass = `${v.day}:${v.phase}`;
+    this.bouncerBusy = performance.now() + 4300;
+    moo.say(fill(line.moo), 2300);
+    const later = (ms: number, fn: () => void) => this.bouncerTimers.push(setTimeout(fn, ms));
+    later(1500, () => {
+      this.me?.bubble(fill(line.you), 2200);
+      if (line.dance) this.startEmote('dance');
+    });
+    later(3500, () => {
+      moo.say(fill(line.then), 3400);
+      this.clubPass = pass;
+    });
+  }
+
+  /**
+   * The club: its music (inside, and faintly through the walls out by the door), its lights keeping time, the rope,
+   * and Big Moo keeping an eye on whoever comes close.
+   */
+  private runClub(v: WorldView) {
+    const song = songById(v.club.song);
+    const key = `${song.id}:${v.club.at}`;
+    if (key !== this.clubSongKey) {
+      this.clubSongKey = key;
+      this.town.setClubMusic(song.bpm, v.club.at, song.colors);
+    }
+    const kind = zoneKind(local.zone);
+    let level = 0;
+    let muffled = false;
+    if (kind === 'club') level = 1;
+    else if (kind === 'town') {
+      const door = doorPoint(CLUB, 1);
+      const d = Math.hypot(local.x - door.x, local.z - door.z);
+      if (d < 11) {
+        level = 0.35 * Math.pow(1 - d / 11, 1.5);
+        muffled = true;
+      }
+    }
+    if (useUI.getState().muted || v.mode === 'preview' || !v.joined || v.dim) level = 0;
+    clubMusic.setSong(song.id, v.club.at);
+    clubMusic.setLevel(level, muffled);
+    // The rope is up for anyone Big Moo has let in (and for the Storyteller, who goes where they like).
+    this.town.setClubRope(v.mode === 'st' || this.hasClubPass(v));
+    const moo = this.town.bouncer;
+    if (kind === 'town') {
+      const b = localSpot(CLUB.x, CLUB.z, CLUB.ry, BOUNCER.lx, BOUNCER.lz);
+      const d = Math.hypot(local.x - b.x, local.z - b.z);
+      if (performance.now() >= this.bouncerBusy) {
+        if (d < 5 && this.me) moo.lookAt(local.x, local.z);
+        else moo.lookAway();
+      }
+      moo.setNear(d < 16);
+    } else if (kind === 'club') {
+      // The tiles light up under anyone on the dance floor.
+      const spots: { x: number; z: number }[] = [];
+      if (this.me && onDanceFloor(local.x, local.z)) spots.push({ x: local.x, z: local.z });
+      for (const p of presence.others.values()) if (p.zone === 'club' && onDanceFloor(p.x, p.z)) spots.push({ x: p.x, z: p.z });
+      this.town.setClubDancers(spots);
+    }
   }
 
   private give() {
@@ -1184,6 +1308,12 @@ export class Engine {
       }, 1600);
     } else if (s.job === 'notice') {
       useHud.setState({ notice: true });
+    } else if (s.job === 'bouncer') {
+      this.talkToBouncer();
+    } else if (s.job === 'jukebox') {
+      ui.open({ kind: 'jukebox' });
+    } else if (s.job === 'ideas') {
+      ui.open({ kind: v?.mode === 'st' ? 'ideas' : 'idea' });
     } else if (s.job === 'post') {
       if (v?.mode !== 'player') this.me.bubble('Only players post letters', 2000);
       else ui.open({ kind: 'letter' });
@@ -1458,12 +1588,13 @@ export class Engine {
     const drama = Boolean(this.show || this.visit);
     if (drama !== useHud.getState().drama) useHud.setState({ drama });
     if (this.me && v) this.moveMe(dt, t, v);
+    if (v) this.runClub(v);
     this.updateOthers(dt, t, v);
     this.updateCamera(dt, t);
     this.fadeOccluders(dt);
     this.town.follow(this.camTarget.x, this.camTarget.z);
-    // The confession booth's curtains close while someone sits on each side.
-    this.town.setBoothCurtains(this.boothFull());
+    // A confession booth's curtains close while someone sits on each side.
+    for (let i = 0; i < BOOTHS.length; i++) this.town.setBoothCurtains(this.boothFull(i), i);
     this.town.update(dt, t);
     this.footsteps(t, v);
     this.fireworks.update(dt);
@@ -1591,6 +1722,8 @@ export class Engine {
     // What we're doing, in order of importance.
     const nom = v.nomination;
     const voting = Boolean(nom && v.mySeatId && nom.votes.includes(v.mySeatId) && nom.status !== 'done');
+    // Dancing on the club's floor keeps going until you walk off it.
+    if (this.emote?.anim === 'dance' && local.zone === 'club' && onDanceFloor(local.x, local.z) && this.emote.until - t < 1) this.emote.until = t + (EMOTE_TIME.dance ?? 8);
     if (this.emote && t > this.emote.until) this.emote = null;
     let anim: Anim = moving ? (this.keys.has('shift') ? 'run' : 'walk') : 'idle';
     if (this.job) anim = JOB_LOOK[this.job.job].anim;
@@ -1691,8 +1824,8 @@ export class Engine {
       if (f.places.size >= 4) earn('tourist');
     }
     // A lap of the ring road, keeping going: the angle round the town adds up while on the road and moving.
-    const r = Math.hypot(local.x, local.z);
-    const onRoad = kind === 'town' && Math.abs(r - RING_ROAD_R) < 2.2;
+    // (It bends round the back of the church, so it's the road itself that counts, not a circle.)
+    const onRoad = kind === 'town' && roadDistance(local.x, local.z) < 2.2;
     f.still = moving ? 0 : f.still + dt;
     if (!onRoad || f.still > 2) {
       f.lapAngle = 0;
@@ -1747,6 +1880,8 @@ export class Engine {
       return { zone: 'town', ...this.town.spawn };
     }
     if (nightLocked) return { locked: 'It’s night. Stay home' };
+    // Into the club only once Big Moo has let you in.
+    if (door.to === 'club' && !st && !this.hasClubPass(v)) return { locked: 'Big Moo wants a word first' };
     // Out of the clock tower by the door you came in through.
     const back = door.id === 'tower-out' ? this.towerDoor?.back : undefined;
     if (back) return { zone: door.to, x: back.x, z: back.z, ry: back.ry };
@@ -1834,7 +1969,7 @@ export class Engine {
     else if (this.inBed) {
       const sheep = useHud.getState().sheep;
       prompt = sheep === 'offer' ? { label: 'Count the sheep', key: 'E' } : sheep === 'playing' ? null : { label: 'Fast asleep until morning', key: '', locked: true };
-    } else if (this.nearDoor?.locked) prompt = { label: this.nearDoor.locked, key: '', locked: true };
+    } else if (this.nearDoor?.locked && best?.job !== 'bouncer') prompt = { label: this.nearDoor.locked, key: '', locked: true };
     else if (best) {
       let label = best.label;
       let locked = false;
@@ -1845,6 +1980,11 @@ export class Engine {
         label = 'The shelf is empty';
         locked = true;
       } else if ((best.job === 'sit' || best.job === 'sleep') && this.seated) label = 'Get up';
+      else if (best.job === 'bouncer' && (v.mode === 'st' || this.hasClubPass(v))) label = 'Say hello to Big Moo';
+      else if (best.job === 'bouncer' && performance.now() < this.bouncerBusy) {
+        label = 'Big Moo is thinking it over…';
+        locked = true;
+      } else if (best.job === 'ideas' && v.mode === 'st') label = 'Read the ideas';
       else if (best.job === 'confess') {
         const who = this.booth ? null : this.boothTaken(best);
         if (this.booth) label = 'Step out of the booth';

@@ -22,6 +22,8 @@ import { ReadLettersModal, SeatingModal, WriteLetterModal } from './Letters';
 import { AwardsModal } from './Awards';
 import { PigeonModal } from './Pigeon';
 import { ProfilesModal } from './Profiles';
+import { JukeboxModal } from './Club';
+import { IdeaModal, IdeasModal } from './Ideas';
 import { EndGameSetting, RecapModal } from './GameOver';
 import { useProblems } from '../lib/report';
 import { ReminderToken, Token } from './Token';
@@ -74,6 +76,12 @@ export function Modals() {
       return <CustomiseModal />;
     case 'profiles':
       return <ProfilesModal />;
+    case 'jukebox':
+      return <JukeboxModal />;
+    case 'idea':
+      return <IdeaModal />;
+    case 'ideas':
+      return <IdeasModal />;
   }
 }
 

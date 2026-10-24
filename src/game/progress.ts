@@ -8,6 +8,7 @@ import type { PayLine, PrivateState, ProfileView, ProgressEvent, ProgressSnapsho
 import type { View } from '../state/view';
 import { FEATS, HAT_SPEED, HATS, PETS, hatsOwned, type FeatId, type HatId, type PetId } from '../world/types';
 import { applyEvent, cleanSnapshot, mergeSnapshot } from './profiles';
+import { HOUSES } from '../world/town/layout';
 
 const KEY = 'ravenswood:progress';
 
@@ -139,7 +140,8 @@ const GOALS: Record<TallyKey, [number, FeatId]> = {
   games: [5, 'regular'],
   talk: [600, 'chatterbox'],
   gifts: [5, 'generous'],
-  cottages: [5, 'nosy'],
+  // (However many cottages there are: the club stands where one was.)
+  cottages: [HOUSES, 'nosy'],
   pigeons: [5, 'pigeons'],
   buckets: [10, 'bucket'],
   // Every job with a game to it (see jobs/meta).

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { local } from '../../game/local';
 import { presence } from '../../game/presence';
 import { useView } from '../../state/view';
-import { BAKERY, CHURCH, GALLOWS, GRAVEYARD, MEETING_CENTRE, POND, SQUARE_R, STOOL_R, TAVERN, TOWN_R, WASHHOUSE, WELL, houseSlots } from '../../world/town/layout';
+import { BAKERY, CHURCH, CLUB, GALLOWS, GRAVEYARD, MEETING_CENTRE, POND, SQUARE_R, STOOL_R, TAVERN, TOWN_R, WASHHOUSE, WELL, houseSlots } from '../../world/town/layout';
 import { cottageSlot, houseOwner, inBooth, zoneKind, type Look } from '../../world/types';
 
 // Twice the first version's size.
@@ -20,6 +20,8 @@ function placeOf(zone: string, x: number, z: number, seatIndex: (id: string) => 
       return [CHURCH.x, CHURCH.z];
     case 'tower':
       return [0, 0];
+    case 'club':
+      return [CLUB.x, CLUB.z];
     case 'house': {
       const slot = cottageSlot(zone);
       if (slot !== null) {
@@ -120,6 +122,7 @@ export function MiniMap() {
       ctx.fillStyle = '#6b6b78';
       ctx.fill();
       for (const h of houseSlots) box(h.x, h.z, 5.2, 4.6, '#d8c8a8', h.ry);
+      box(CLUB.x, CLUB.z, CLUB.w, CLUB.d, '#7a3f8a', CLUB.ry);
       // Everyone.
       const dot = (cx: number, cz: number, m: Marker, r: number) => {
         ctx.beginPath();

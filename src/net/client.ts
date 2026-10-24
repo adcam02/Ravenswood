@@ -38,6 +38,9 @@ export const usePigeoned = create<{ ok: boolean | null; why: string; at: number 
 /** The host's answer to the last letter posted: whether it went in, and when it came. */
 export const usePosted = create<{ ok: boolean | null; at: number }>(() => ({ ok: null, at: 0 }));
 
+/** The host's answer to the last idea posted in the idea box: whether it reached the Storyteller, and when it came. */
+export const useIdeaIn = create<{ ok: boolean | null; at: number }>(() => ({ ok: null, at: 0 }));
+
 /** The host's last "that animal is taken" answer, for the picker to react to. */
 export const useTaken = create<{ animal: string | null; by: string; at: number }>(() => ({ animal: null, by: '', at: 0 }));
 
@@ -311,6 +314,8 @@ class ClientLink {
       usePigeoned.setState({ ok: msg.ok === true, why: typeof msg.why === 'string' ? msg.why.slice(0, 80) : '', at: Date.now() });
     } else if (msg.t === 'posted') {
       usePosted.setState({ ok: msg.ok === true, at: Date.now() });
+    } else if (msg.t === 'ideaIn') {
+      useIdeaIn.setState({ ok: msg.ok === true, at: Date.now() });
     } else if (msg.t === 'summon') {
       if (typeof msg.zone === 'string' && Number.isFinite(msg.x) && Number.isFinite(msg.z)) game.summoned(msg.zone, msg.x, msg.z);
     }
@@ -351,7 +356,7 @@ class ClientLink {
 }
 
 /** Actions worth holding for a moment while reconnecting; positions and pings just go stale. */
-const OUTBOX = new Set<ClientMessage['t']>(['vote', 'slay', 'reply', 'ack', 'town', 'give', 'rename', 'sleep', 'hold', 'letter']);
+const OUTBOX = new Set<ClientMessage['t']>(['vote', 'slay', 'reply', 'ack', 'town', 'give', 'rename', 'sleep', 'hold', 'letter', 'idea']);
 /** Long enough for a reconnect, short enough that an old vote can't land on a later nomination. */
 const OUTBOX_MS = 20000;
 
@@ -378,6 +383,8 @@ export const player = {
   pigeon: (to: string, where: string) => clientLink.send({ t: 'pigeon', to, where }),
   /** Post a letter in someone's letterbox. */
   letter: (to: string, text: string, signed: boolean) => clientLink.send({ t: 'letter', to, text, signed }),
+  /** Post an idea or a request for the Storyteller in the idea box. */
+  idea: (text: string) => clientLink.send({ t: 'idea', text }),
   ack: (wakeId: string) => clientLink.send({ t: 'ack', wakeId }),
   reply: (wakeId: string, r: { seatIds?: string[]; roleIds?: string[]; answer?: boolean }) =>
     clientLink.send({ t: 'reply', wakeId, ...r }),

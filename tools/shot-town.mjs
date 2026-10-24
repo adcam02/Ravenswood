@@ -126,6 +126,19 @@ const ALL = {
   'forest-hills': 'x=0&z=-30&t=0&dist=30&pitch=0.35&yaw=3.1',
   'shadow-cottage': 'x=25.6&z=13.6&t=0&dist=9&yaw=0.6',
   // The same view three times, for a steadier build time.
+  // Straight down on the whole town, and on the church end of the ring road.
+  top: 'wide&t=0&dist=95&pitch=1.55',
+  'top-church': 'x=0&z=-24&t=0&dist=40&pitch=1.5',
+  // The Velvet Horn: its front by day and by night, Big Moo up close, and inside.
+  'club-front': 'x=17.8&z=-21&t=0&dist=12&pitch=0.42&yaw=-0.7&frames=6',
+  'club-night': 'x=17.8&z=-21&t=1&dist=12&pitch=0.42&yaw=-0.7&frames=6',
+  bouncer: 'x=19.06&z=-19.84&t=0&dist=4.2&pitch=0.22&yaw=-0.9&frames=6',
+  'club-inside': 'zone=club&t=0&frames=8',
+  'club-inside-close': 'zone=club&x=0&z=-1.5&t=0&dist=9&pitch=0.55&frames=8',
+  // The idea box by the noticeboard, and the confession booths out among the trees.
+  'idea-box': 'x=4.6&z=-13.2&t=0&dist=5&pitch=0.3&yaw=0.2',
+  'booth-woods-a': 'x=15.25&z=26.41&t=0&dist=9&pitch=0.5&yaw=-2.62',
+  'booth-woods-b': 'x=-29.46&z=7.89&t=0&dist=9&pitch=0.5&yaw=1.83',
   'build-1': 'wide&t=0&z=4&dist=70&run=1',
   'build-2': 'wide&t=0&z=4&dist=70&run=2',
   'build-3': 'wide&t=0&z=4&dist=70&run=3',

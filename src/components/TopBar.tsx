@@ -7,6 +7,7 @@ import { ui, useUI, type Panel } from '../state/ui';
 import { useView } from '../state/view';
 import { Icon, type IconName } from './Icon';
 import { HallButton } from './TownHall';
+import { useUnseenIdeas } from './Ideas';
 
 function ToolButton({ icon, label, onClick, active, badge }: { icon: IconName; label: string; onClick: () => void; active?: boolean; badge?: number }) {
   return (
@@ -82,6 +83,7 @@ export function TopBar() {
   const isST = view.mode === 'st';
   const toggle = (p: Exclude<Panel, null>) => () => ui.togglePanel(p);
   const awake = Object.values(view.seats).filter((s) => s.awake).length;
+  const newIdeas = useUnseenIdeas();
 
   return (
     <header className="topbar">
@@ -113,6 +115,7 @@ export function TopBar() {
             onClick={() => useUI.setState({ hideGrimoire: !hide })}
           />
           <ToolButton icon={muted ? 'mute' : 'volume'} label={muted ? 'Sound off' : 'Sound on'} onClick={() => useUI.setState({ muted: !muted })} />
+          <ToolButton icon="sparkle" label="Ideas" badge={newIdeas} onClick={() => ui.open({ kind: 'ideas' })} />
           <ToolButton icon="cog" label="Game" onClick={() => ui.open({ kind: 'settings' })} />
         </nav>
       )}

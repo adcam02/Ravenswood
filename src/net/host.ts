@@ -1,6 +1,7 @@
 import { debugHooks } from '../lib/util';
 import { steadyInterval } from '../lib/ticker';
 import { noteProblem } from '../lib/report';
+import { ideas } from '../game/ideas';
 import { ui } from '../state/ui';
 import Peer, { type DataConnection } from 'peerjs';
 import { create } from 'zustand';
@@ -377,6 +378,11 @@ class HostLink {
       case 'letter':
         link.send({ t: 'posted', ok: p.letter(pid, String(msg.to ?? ''), String(msg.text ?? ''), msg.signed === true) });
         break;
+      case 'idea': {
+        const who = useHost.getState().g.seats.find((s) => s.playerId === pid)?.name || 'A player';
+        link.send({ t: 'ideaIn', ok: ideas.receive(pid, who, String(msg.text ?? '')) });
+        break;
+      }
       case 'oops': {
         // A handful per connection at most: a broken page mustn't bury the Storyteller in notes.
         meta.oops = (meta.oops ?? 0) + 1;

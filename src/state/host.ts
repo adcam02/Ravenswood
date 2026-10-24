@@ -9,6 +9,7 @@ import {
   type Script,
 } from '../data';
 import { loadJSON, roomCode, saveJSON, shuffle, uid } from '../lib/util';
+import { SONGS } from '../lib/disco';
 import { ui } from './ui';
 import {
   ANIMALS,
@@ -549,6 +550,8 @@ function runClock() {
 // ---------------------------------------------------------------- around town
 
 const MAX_FISH_LOG = 20;
+/** A song at the club plays at least this long before anyone can change it. */
+export const SONG_REST_MS = 8000;
 const clip = (v: unknown, n = 24) => String(v ?? '').slice(0, n);
 const stars = (v: unknown) => Math.max(0, Math.min(3, Math.round(Number(v) || 0)));
 const COLOR = /^#[0-9a-f]{6}$/i;
@@ -612,6 +615,13 @@ export function townAction(by: string, a: TownAction): Item | null {
       case 'fish': {
         t.fish.push({ by: clip(by), kind: clip(a.kind, 30), cm: Math.max(0, Math.min(500, Math.round(Number(a.cm) || 0))), at: Date.now() });
         if (t.fish.length > MAX_FISH_LOG) t.fish.splice(0, t.fish.length - MAX_FISH_LOG);
+        break;
+      }
+      case 'song': {
+        // Any of the jukebox's songs, but not straight over one somebody has only just put on.
+        if (!SONGS.some((x) => x.id === a.song)) return;
+        if (t.club && Date.now() - t.club.at < SONG_REST_MS) return;
+        t.club = { song: a.song, at: Date.now(), by: clip(by) };
         break;
       }
       case 'record': {
