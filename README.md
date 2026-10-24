@@ -11,11 +11,11 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
 
 1. **The Storyteller opens the site** and chooses **Host a game**. The invite link is under the room
    code at the top left.
-2. **Players open the link**, type their name and pick an animal and colour (41 to choose from, from
+2. **Players open the link**, type their name and pick an animal and colour (43 to choose from, from
    wolf and fox to axolotl, snail, squid, a bat that flaps its wings, jellyfish, gecko, ferret, dugong,
    sea cucumber, ibis, crab, turtle, a kaiju with plates down its back, a little robot, a homunculus, a
    mushroom, a pudgy dragon, a bee that buzzes about, a chameleon that slowly shifts colour, a whale
-   shark and a prawn). Aquatic animals are a little bit wet, and up close there are little touches: toes
+   shark, a prawn, a meerkat and a friendly skeleton that rattles as it walks). Up close there are little touches: toes
    on the paws, the bear's claws, the deer's fawn spots, the frog's and gecko's spots, suckers down the
    octopus's tentacles. Each animal belongs to one player: animals someone
    else has, or is looking at right now, are greyed out with their name, and if two people click the
@@ -27,11 +27,27 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    the Storyteller calls it) your animal and its colour stay as they are, so everyone keeps track of
    who's who; the hat and pet can change any time, and once the game is over (or the Storyteller sets
    up a new one) you can be any animal that's free.
-3. **Wander around town.** Talk to whoever is near you. Step into the tavern, the bakery, the church,
-   the clock tower or anyone's house to talk privately. The clock tower has a door on every side (you
+3. **Wander around town.** Talk to whoever is near you (full volume within a couple of metres, gone by
+   about ten); **hold H** (or the Shout button) to shout, which carries nearly three times as far. A muted
+   player's name plate turns red with a crossed-out mic, for everyone. Hold the right mouse button and drag
+   to swing the camera round. Step into the tavern, the bakery, the church, the clock tower or anyone's
+   house to talk privately: going in takes a moment at the door, and a ding-dong tells everyone inside
+   someone's coming. The map shows everyone in each building. The clock tower has a door on every side (you
    come back out of the one you went in by), into the clock room: the dials glow from behind (showing the real time, backwards), the movement ticks once a
    second with its pendulum swinging, and the bell rope jumps whenever the bell rings.
-   - **The confession booth** stands in the church's front corner: two closets side by side with a
+   - **The Velvet Horn**, a night club, has Big Moo the minotaur on the door: talk to him (E) and he lets
+     you in. Inside, the dance floor lights up to the beat and anyone at the jukebox picks one of six
+     songs, which everyone inside hears in time (and faintly outside the door).
+   - **The Lucky Raven** casino: a pet shop, blackjack against the dealer, Texas hold'em between players
+     and roulette, all for real money from your profile and run by the Storyteller's browser so nobody can
+     cheat. Sitting at a table takes you to a seat's-eye view (drag with the right button to look round).
+   - **The Pet Pit**, down a trapdoor in the tavern: challenge someone and your pets fight in the ring.
+     Each round both pick in secret: **Attack** (1 damage, plus any charge), **Block** (stops an attack
+     and hits back for 2, but not two rounds running) or **Charge** (+1 on your next attack, up to 3).
+     Five hearts each; the winner gets $3, and the wins go up on the chalk board.
+   - **The idea box** beside the noticeboard takes ideas and requests for the Storyteller, who gets
+     them in an **Ideas** list on their top bar.
+   - **The confession booth** stands in the church's front corner (and two more stand among the trees): two closets side by side with a
      latticed grille between them. Step into either side (E at its curtain) to sit inside. Whoever is in
      one side hears only whoever is in the other, and nobody outside hears them, even standing right by
      the booth. One person to a side; walking off (or E again) steps you back out. While someone sits on
@@ -77,8 +93,9 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    player only ever sees that Townsfolk, and your grimoire shows their Townsfolk token with an "Is the
    Drunk" reminder beside it (the Marionette works the same way).
    - **Killed in the night**: when you kill a player at night, a hooded figure with glowing eyes comes in
-     at their bedroom door, glides to the bedside and does it one of four ways (a dagger, a pillow, a
-     poison vial or a scythe), then vanishes in a puff of smoke. Only that player sees it (and you, if
+     at their bedroom door, glides to the bedside and does it one of ten ways (a dagger, a pillow, a
+     poison vial, a scythe, a giant mallet, a jack-in-the-box, a lightning bolt, a flock of ravens, a
+     candle snuffer or a trapdoor; all ten come round before any repeats), then vanishes in a puff of smoke. Only that player sees it (and you, if
      you're at their bedside); everyone else finds out at dawn as before.
    - **Night**: everyone is tucked up in bed in their own bedroom, fire out, moon and stars in the
      window, and nobody can get up until morning. Press E for a go at **counting sheep**: how many white
@@ -113,10 +130,13 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      everyone else. Nominations and votes play out in 3D: a sign over the tower says who is nominated
      and the count, the red and blue hands on the cobbles sweep from stool to stool, and a big paw goes
      up over anyone voting. Executing the player on the block (mark them, then Kill) plays out at the
-     gallows for the whole town: a drumroll, the gavel, the trapdoor drops, a short swing and a puff of
-     smoke, then they walk on as a ghost. For someone who survives being executed (the Devil's
+     gallows for the whole town. First everyone gets five seconds to vote on how: the gallows, a firing
+     squad, the guillotine, the electric chair, a missile, a spit roast, a kaiju, a plane crash, a giant
+     pigeon or the moon. A wheel spins, each slice its share of the votes, and lands on what happens
+     (you can also just pick one). The hanging is watched from in front; whatever it is, the ghost floats
+     up out of it afterwards. For someone who survives being executed (the Devil's
      Advocate's choice, the Fool, a Tea Lady's neighbour), **Execute, but they survive** in their seat
-     menu plays the same hanging, but the trapdoor jams, the rope snaps and they're left standing.
+     menu plays the same, but with a lucky escape (the rope snaps, the blade jams, the squad misses...).
    - **Nominating**: by day, every living player has a **Nominate** button, in their menu and by their
      stool at a meeting. They choose who (anyone, dead or alive, themselves included), once a day, and
      nobody can be nominated twice in a day. You get a box: **Start the nomination** sets it up on the
@@ -180,7 +200,7 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    **Wear it now** button. Hats are remembered in each player's own browser and chosen in the animal
    picker (or with **Customise**); locked ones say how to earn them. Every hat you own makes you a
    touch quicker about town, walking and running: 0.1% each (40 hats is 4%).
-7. **Achievements.** 36 more things to do, with twenty more hats: win on the good team (a laurel wreath)
+7. **Achievements.** Over 70 more things to do, with more than thirty more hats: win on the good team (a laurel wreath)
    or the evil team (devil horns), catch 10 fish (a pirate's tricorn), run a whole lap of the ring
    road (a jogger's headband), talk with someone through the confession booth (a confessor's candle),
    post 5 letters (a postie's cap), plus surviving to the end, being hanged, being nominated,
@@ -189,11 +209,20 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    characters right in your notepad by the end of a game (a deerstalker), catch eight kinds of fish (a
    trainer's cap) and get three stars at six different jobs (a mortarboard), and plenty of secrets: a
    fez, a tin foil hat, a Mad Hatter's hat, a cowboy hat, a robot helmet, a traffic cone and a
-   jack-o'-lantern, each for something a bit silly. Secret ones stay a question mark until found. The
+   jack-o'-lantern (dance among the graves as a ghost), each for something a bit silly; and twelve
+   more pop-culture ones, from a viking helmet (shout three times in ten seconds) to an adventurer's
+   fedora (reel in a silver eel). Secret ones stay a question mark until found. The
    **Awards** button lists them all. Anything new pops up straight away, but waits for a hanging, a
    night visit, a vote or a banner on screen to finish; one earned by dying waits eight seconds more,
    so you see it all.
-   Everything (your name, animal, hats and achievements) is kept in your own browser.
+8. **Profiles and money.** Your hats, achievements, stars and money are kept by the Storyteller under
+   your name, so they follow you to any device (and a copy stays in your browser). You earn money for
+   finishing a game, a bonus when your team wins, achievements and three-star jobs; spend it at the
+   casino. **Pets are bought at the casino's pet shop** ($20 to $80; 47 of them, many fond takes on pop
+   culture favourites). The Storyteller's **Players' profiles** (in Settings) shows everyone's money and
+   achievements, can give or take either, and exports and imports the lot.
+9. **Nicknames.** Tap anyone in your Notepad's Who's who to give them a nickname that only you see, on
+   their name plate and everywhere else. Nobody else's screen (nor the grimoire) changes.
 
 ### Controls
 
@@ -202,9 +231,12 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
 | W A S D, arrows, or click the ground | Walk (Shift to run) |
 | E | Use things: jobs, benches, beds, the bar |
 | 1 to 6 | Wave, dance, cheer, laugh, cry, sit |
+| 7, then 1 to 7 | Dances: twerk, griddy, floss, robot, moonwalk, horse ride, macarena |
+| H (hold) | Shout |
+| Right mouse button, drag | Swing the camera round |
 | G / Q | Give what you're holding / put it away |
 | M / V | Mute / hold to talk (if push-to-talk is on) |
-| Scroll | Zoom in and out (the camera always looks across the town from the south) |
+| Scroll | Zoom in and out |
 | Tab | Storyteller: open or close the grimoire |
 | B | Storyteller: speak to everyone |
 
