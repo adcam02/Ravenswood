@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { Builder, SMOOTH_LOOK, eyeMaterial, glow, soft, wet, type Place, type Vec3 } from './build';
-import { regionOf, sculptGeometry, type Field, type Markings } from './forms';
-import { Sculpt, box, ellipsoid, rod, type Probe } from './sculpt';
+import { Builder, SMOOTH_LOOK, eyeMaterial, glow, rng, soft, wet, type Place, type Vec3 } from './build';
+import { all, regionOf, sculptGeometry, type Field, type Markings } from './forms';
+import { Sculpt, box, ellipsoid, pyramid, rod, type Probe } from './sculpt';
 import type { PetId } from './types';
 
 /**
@@ -1637,6 +1637,1011 @@ class Dragon extends Homage {
   }
 }
 
+// ---------------------------------------------------------------- pop-culture pets (a second set)
+
+/** A pet with moving parts of its own (wings, ears, a jaw), each hung on a pivot. */
+class Jointed extends PetRig {
+  /** A part built by `b` (placed relative to its pivot), on a pivot at `at` inside `parent`. */
+  protected part(b: Builder, at: Vec3, parent: THREE.Object3D = this.bodyGroup, mat: THREE.Material = soft()): THREE.Group {
+    const g = new THREE.Group();
+    g.position.set(...at);
+    parent.add(g);
+    this.addMesh(b.mesh(mat, { cast: true, receive: false, crease: CREASE }), g, mat);
+    return g;
+  }
+
+  /** Several copies of one part (legs, trail pieces, body segments), moved each frame with setMatrixAt. */
+  protected copies(b: Builder, n: number, mat: THREE.Material = soft()): THREE.InstancedMesh {
+    const m = new THREE.InstancedMesh(b.geometry(CREASE), mat, n);
+    m.frustumCulled = false;
+    this.addMesh(m, this.bodyGroup, mat);
+    return m;
+  }
+
+  /** Moves the blinking eyes onto a part that turns (a head), leaving them where they were. */
+  protected eyesOn(pivot: THREE.Group) {
+    const p = pivot.position;
+    this.eyes.position.set(-p.x, this.eyes.position.y - p.y, -p.z);
+    pivot.add(this.eyes);
+  }
+}
+
+const M4 = new THREE.Matrix4();
+const Q4 = new THREE.Quaternion();
+const E4 = new THREE.Euler();
+const V4 = new THREE.Vector3();
+const S4 = new THREE.Vector3();
+/** Places copy `i` of an instanced part. */
+function placeCopy(m: THREE.InstancedMesh, i: number, pos: Vec3, rot: Vec3 = [0, 0, 0], scale: Vec3 = [1, 1, 1]) {
+  m.setMatrixAt(i, M4.compose(V4.set(...pos), Q4.setFromEuler(E4.set(...rot)), S4.set(...scale)));
+}
+
+/** Little spots scattered over an ellipsoid's surface (where `keep` likes the direction), for speckles and fur. */
+function spots(seed: number, n: number, c: Vec3, r: Vec3, size: Vec3, keep: (d: THREE.Vector3) => boolean = () => true): Field {
+  const R = rng(seed);
+  const fs: Field[] = [];
+  for (let tries = 0; fs.length < n && tries < n * 60; tries++) {
+    const d = new THREE.Vector3(R() * 2 - 1, R() * 2 - 1, R() * 2 - 1);
+    if (d.lengthSq() > 1 || d.lengthSq() < 0.01) continue;
+    d.normalize();
+    if (keep(d)) fs.push(patch([c[0] + d.x * r[0], c[1] + d.y * r[1], c[2] + d.z * r[2]], size));
+  }
+  return either(...fs);
+}
+
+/** Eyes with a coloured iris, a pupil and a shine (owls, chocobos, mogwai). */
+function irisEyes(b: Builder, y: number, z: number, x: number, r: number, iris: string, pupil = 0.55) {
+  for (const s of [-1, 1]) {
+    b.add(gem(), iris, { pos: [s * x, y, z], scale: [r, r * 1.08, r * 0.6] });
+    b.add(gem(), INK, { pos: [s * x, y, z + r * 0.32], scale: [r * pupil, r * pupil * 1.1, r * 0.4] });
+    b.add(new THREE.IcosahedronGeometry(1, SMOOTH_LOOK ? 1 : 0), '#fffdf8', { pos: [s * x + r * 0.3, y + r * 0.35, z + r * 0.62], scale: r * 0.3 });
+  }
+}
+
+/** A little arc of a line (a mouth): `up` true for a frown, false for a smile. */
+const arc = (b: Builder, pos: Vec3, r: number, color: string, up: boolean, open = Math.PI, rot: Vec3 = [0, 0, 0]) =>
+  b.add(new THREE.TorusGeometry(1, 0.2, 4, 10, open), color, { pos, rot: [rot[0], rot[1], (up ? 0 : Math.PI) + (Math.PI - open) / 2 + rot[2]], scale: r });
+
+/** 1. A snowy owl with a letter in its beak: it flies when on the move, and turns its head right round when still. */
+class Owl extends Jointed {
+  private head: THREE.Group;
+  private wings: THREE.Group[] = [];
+  constructor() {
+    const b = new Builder();
+    const white = '#f7f6f0';
+    const fleck = '#4a4446';
+    b.addColored(
+      sculpted('owl', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', [0, 0.13, 0], [0.105, 0.12, 0.1], { name: 'body' }));
+        sc.add(ellipsoid('body', [0, 0.07, -0.1], [0.05, 0.022, 0.055], { rot: [0.5, 0, 0], k: 0.03, name: 'tail' }));
+        for (const s of [-1, 1]) sc.add(ellipsoid('body', [s * 0.042, 0.014, 0.05], [0.028, 0.014, 0.032], { k: 0.02, name: 'foot' }));
+        return {
+          sc,
+          marks: {
+            base: white,
+            marks: [
+              { color: fleck, f: spots(11, 16, [0, 0.13, 0], [0.105, 0.12, 0.1], [0.013, 0.007, 0.013], (d) => d.z < 0.55 && d.y > -0.6) },
+              { color: '#ebe6dc', f: regionOf(sc, 'foot') },
+            ],
+          },
+        };
+      }),
+    );
+    // Little dark talons.
+    for (const s of [-1, 1]) for (const dx of [-0.014, 0, 0.014]) b.add(spike(4), '#3b3436', { pos: [s * 0.042 + dx, 0.01, 0.083], rot: [Math.PI / 2, 0, 0], scale: [0.005, 0.014, 0.005] });
+    const e = new Builder();
+    irisEyes(e, 0.262, 0.088, 0.036, 0.022, '#f2c230');
+    super(b, e, 0.262);
+    // The head, with its beak and the letter, turns on its own.
+    const hb = new Builder();
+    const at: Vec3 = [0, 0.245, 0.01];
+    hb.addColored(
+      sculpted('owl-head', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', [0, 0, 0], [0.092, 0.078, 0.082], { name: 'head' }));
+        sc.add(ellipsoid('body', [0, -0.004, 0.04], [0.078, 0.062, 0.045], { k: 0.02, name: 'face' }));
+        return {
+          sc,
+          marks: {
+            base: white,
+            marks: [
+              { color: fleck, f: spots(5, 6, [0, 0, 0], [0.092, 0.078, 0.082], [0.01, 0.006, 0.01], (d) => d.z < -0.2 && d.y > 0) },
+              { color: BLUSH, f: blushes(-0.02, 0.07, 0.055, 0.014) },
+              { color: '#fffefa', f: regionOf(sc, 'face') },
+            ],
+          },
+        };
+      }),
+    );
+    hb.add(spike(4), '#3b3436', { pos: [0, -0.012, 0.09], rot: [Math.PI / 2 + 0.6, 0, 0], scale: [0.013, 0.03, 0.011] });
+    // The letter: a cream envelope with its flap and a red seal, held crosswise in the beak.
+    const letter = new THREE.Matrix4().compose(new THREE.Vector3(0.02, -0.045, 0.1), new THREE.Quaternion().setFromEuler(new THREE.Euler(0.15, 0, -0.18)), new THREE.Vector3(1, 1, 1));
+    hb.add(new THREE.BoxGeometry(1, 1, 1), '#f3e6c4', { scale: [0.1, 0.06, 0.006] }, letter);
+    for (const s of [-1, 1]) hb.add(new THREE.BoxGeometry(1, 1, 1), '#d9c8a0', { pos: [s * 0.024, 0.012, 0.0035], rot: [0, 0, s * -0.5], scale: [0.056, 0.004, 0.002] }, letter);
+    hb.add(new THREE.CylinderGeometry(1, 1, 1, 8), '#c0392b', { pos: [0, -0.002, 0.004], rot: [Math.PI / 2, 0, 0], scale: [0.009, 0.004, 0.009] }, letter);
+    this.head = this.part(hb, at);
+    this.eyesOn(this.head);
+    for (const s of [-1, 1]) {
+      const wb = new Builder();
+      wb.addColored(
+        sculpted('owl-wing', () => {
+          const sc = new Sculpt();
+          sc.add(ellipsoid('body', [0, -0.065, -0.012], [0.02, 0.07, 0.058], { name: 'wing' }));
+          sc.add(ellipsoid('body', [0, -0.125, -0.04], [0.014, 0.04, 0.034], { k: 0.02, name: 'tip' }));
+          return { sc, marks: { base: white, marks: [{ color: fleck, f: (q) => Math.max(-0.11 - q.p.y, Math.abs(Math.sin(q.p.z * 160)) - 0.35) }] } };
+        }, 0.02),
+      );
+      this.wings.push(this.part(wb, [s * 0.092, 0.205, -0.005]));
+    }
+  }
+  protected animate(_dt: number, t: number, move: number) {
+    // On the move it takes off and flaps; still, it perches, ruffles now and then, and turns its head about.
+    this.bodyGroup.position.y = move * (0.24 + Math.sin(t * 6.5) * 0.025) + Math.sin(t * 2) * 0.004;
+    this.bodyGroup.rotation.x = move * 0.3;
+    const ruffle = Math.pow(Math.max(0, Math.sin(t * 0.8)), 24) * 0.5;
+    const spread = 0.1 + ruffle + move * (1.15 + Math.sin(t * 13) * 0.75);
+    this.wings.forEach((w, i) => (w.rotation.z = (i ? 1 : -1) * spread));
+    const still = 1 - move;
+    this.head.rotation.y = Math.tanh(Math.sin(t * 0.45) * 5) * 0.9 * still;
+    this.head.rotation.z = Math.sin(t * 0.7) * 0.18 * still;
+    this.head.rotation.x = -move * 0.2;
+  }
+}
+
+/** 2. A grey cat with a pop-tart for a body, floating along on a rainbow. */
+class PopTart extends Jointed {
+  private legs: THREE.InstancedMesh;
+  private trail: THREE.InstancedMesh;
+  private tail: THREE.Group;
+  constructor() {
+    const b = new Builder();
+    const grey = '#9b9aa2';
+    const crust = '#f3c58c';
+    const icing = '#f7a3d2';
+    b.addColored(
+      sculpted('poptart', () => {
+        const sc = new Sculpt();
+        sc.add(box('body', [0, 0.1, -0.025], [0.06, 0.075, 0.09], { round: 0.018, name: 'tart' }));
+        sc.add(ellipsoid('body', [0, 0.072, 0.1], [0.066, 0.054, 0.05], { k: 0.012, name: 'head' }));
+        for (const s of [-1, 1]) sc.add(pyramid('body', [s * 0.036, 0.106, 0.1], 0.022, 0.042, 0.012, { rot: [0, 0, -s * 0.25], k: 0.01, name: 'ear' }));
+        const tart = regionOf(sc, 'tart');
+        const icingF: Field = (q) => Math.max(tart(q), 0.045 - Math.abs(q.p.x), Math.abs(q.p.y - 0.1) - 0.056, Math.abs(q.p.z + 0.025) - 0.07);
+        return {
+          sc,
+          marks: {
+            base: grey,
+            marks: [
+              { color: icing, f: icingF },
+              { color: crust, f: tart },
+              { color: '#f4a6b4', f: (q) => Math.max(regionOf(sc, 'ear')(q), 0.103 - q.p.z) },
+              { color: BLUSH, f: blushes(0.062, 0.14, 0.044, 0.012) },
+            ],
+          },
+        };
+      }, 0.02),
+    );
+    for (const s of [-1, 1]) arc(b, [s * 0.0085, 0.058, 0.147], 0.0085, INK, false);
+    // Sprinkles scattered over the icing on both sides.
+    const R = rng(7);
+    for (let i = 0; i < 20; i++) {
+      const s = i % 2 ? 1 : -1;
+      b.add(new THREE.BoxGeometry(1, 1, 1), '#e2337f', { pos: [s * 0.0605, 0.058 + R() * 0.084, -0.085 + R() * 0.12], rot: [R() * Math.PI, 0, 0], scale: [0.003, 0.004, 0.012] });
+    }
+    const e = new Builder();
+    addEyes(e, 0.083, 0.14, 0.026, 0.011);
+    super(b, e, 0.083);
+    // Four stubby legs, paddling the air.
+    const lb = new Builder();
+    lb.add(gem(), grey, { pos: [0, -0.018, 0], scale: [0.017, 0.026, 0.017] });
+    this.legs = this.copies(lb, 4);
+    const tb = new Builder();
+    tb.add(new THREE.CapsuleGeometry(1, 2, 2, 6), grey, { pos: [0, 0.012, -0.03], rot: [-1.0, 0, 0], scale: [0.012, 0.012, 0.012] });
+    this.tail = this.part(tb, [0, 0.08, -0.11]);
+    // The rainbow: six stripes in one piece, a few copies end to end stepping up and down behind.
+    const rb = new Builder();
+    ['#ff4d4d', '#ff9f2e', '#ffe03d', '#5fd65a', '#3fa6ff', '#8b5cff'].forEach((c, i) => rb.add(new THREE.BoxGeometry(1, 1, 1), c, { pos: [0, 0.14 - i * 0.016, 0], scale: [0.026, 0.016, 1] }));
+    const rmat = new THREE.MeshBasicMaterial({ vertexColors: true });
+    this.trail = this.copies(rb, 6, rmat);
+    this.trail.castShadow = false;
+  }
+  protected animate(_dt: number, t: number, move: number) {
+    // It floats, bobbing on a two-step beat, its legs paddling; the rainbow stretches out behind as it goes.
+    const step = Math.floor(t * 5) % 2;
+    this.bodyGroup.position.y = 0.12 + step * 0.012 + Math.sin(t * 1.7) * 0.012 + move * 0.03;
+    this.bodyGroup.rotation.x = move * 0.06;
+    [
+      [-0.035, 0.04],
+      [0.035, 0.04],
+      [-0.035, -0.085],
+      [0.035, -0.085],
+    ].forEach(([x, z], i) => placeCopy(this.legs, i, [x, 0.03, z], [Math.sin(t * (8 + move * 6) + i * 1.6) * 0.6, 0, 0]));
+    this.legs.instanceMatrix.needsUpdate = true;
+    this.tail.rotation.y = Math.sin(t * 5) * 0.5;
+    const len = 0.04 + move * 0.05;
+    for (let i = 0; i < 6; i++) {
+      const y = ((i + step) % 2 ? 0.006 : -0.006) - 0.012;
+      placeCopy(this.trail, i, [0, y, -0.11 - (i + 0.5) * len], [0, 0, 0], [1, 1, len * (1 - i * 0.04)]);
+    }
+    this.trail.instanceMatrix.needsUpdate = true;
+  }
+}
+
+/** 3. A shiba inu giving you the side-eye, curly tail wagging. */
+class Doge extends Jointed {
+  private tail: THREE.Group;
+  constructor() {
+    const b = new Builder();
+    const tan = '#dc9149';
+    const cream = '#f8ead2';
+    b.addColored(
+      sculpted('doge', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', [0, 0.1, -0.025], [0.062, 0.058, 0.088], { name: 'torso' }));
+        sc.add(ellipsoid('body', [0, 0.2, 0.06], [0.082, 0.072, 0.072], { k: 0.03, name: 'head' }));
+        for (const s of [-1, 1]) sc.add(ellipsoid('body', [s * 0.042, 0.17, 0.09], [0.04, 0.034, 0.04], { k: 0.02, name: 'cheek' }));
+        sc.add(ellipsoid('body', [0, 0.172, 0.13], [0.038, 0.03, 0.036], { k: 0.02, name: 'muzzle' }));
+        for (const s of [-1, 1]) sc.add(pyramid('body', [s * 0.048, 0.252, 0.055], 0.024, 0.058, 0.013, { rot: [0.1, 0, -s * 0.3], k: 0.008, thin: true, name: 'ear' }));
+        for (const s of [-1, 1]) for (const z of [0.035, -0.085]) sc.add(rod('body', [s * 0.034, 0.07, z], [s * 0.035, 0.014, z + 0.008], 0.021, 0.018, { k: 0.015, name: 'leg' }));
+        return {
+          sc,
+          marks: {
+            base: tan,
+            marks: [
+                            { color: cream, f: either(regionOf(sc, 'muzzle'), (q) => Math.max(regionOf(sc, 'cheek')(q), q.p.y - 0.185 + (q.p.z - 0.09) * 0.3)) },
+              { color: cream, f: either(patch([0, 0.115, 0.05], [0.05, 0.05, 0.04]), (q) => q.p.y - 0.032) },
+              { color: cream, f: either(patch([0.03, 0.242, 0.112], [0.009, 0.006, 0.008]), patch([-0.03, 0.242, 0.112], [0.009, 0.006, 0.008])) },
+              { color: BLUSH, f: blushes(0.175, 0.12, 0.06, 0.013) },
+            ],
+          },
+        };
+      }, 0.022),
+    );
+    b.add(gem(), INK, { pos: [0, 0.188, 0.165], scale: [0.014, 0.01, 0.01] });
+    // A knowing little smirk, off to one side.
+    arc(b, [0.012, 0.164, 0.158], 0.012, INK, false, Math.PI * 0.7, [0.2, 0.2, 0.25]);
+    const e = new Builder();
+    // The side-eye: white showing, pupils hard over to one side.
+    for (const s of [-1, 1]) {
+      e.add(gem(), '#fffdf8', { pos: [s * 0.032, 0.212, 0.122], scale: [0.017, 0.012, 0.009] });
+      e.add(gem(), INK, { pos: [s * 0.032 + 0.009, 0.212, 0.128], scale: [0.009, 0.011, 0.007] });
+    }
+    super(b, e, 0.212);
+    const tb = new Builder();
+    tb.add(new THREE.TorusGeometry(0.03, 0.015, 6, 12, Math.PI * 1.5), tan, { pos: [0, 0.03, 0], rot: [0, Math.PI / 2, -0.4] });
+    tb.add(gem(), cream, { pos: [0, 0.03 + 0.03 * Math.sin(1.1), 0.03 * Math.cos(1.1) - 0.0], scale: 0.016 });
+    this.tail = this.part(tb, [0, 0.13, -0.1]);
+  }
+  protected animate(_dt: number, t: number, move: number) {
+    this.bodyGroup.position.y = hop(t, move, 0.03, 13) + Math.sin(t * 2.4) * 0.003;
+    this.bodyGroup.rotation.x = move * 0.08;
+    // A doubtful head tilt when still.
+    this.bodyGroup.rotation.z = Math.tanh(Math.sin(t * 0.6) * 3) * 0.08 * (1 - move);
+    this.tail.rotation.z = Math.sin(t * (10 + move * 8)) * 0.35;
+  }
+}
+
+/** 4. A flat-faced cat who is not impressed, and shakes its head about it now and then. */
+class Grumpy extends Jointed {
+  private head: THREE.Group;
+  constructor() {
+    const b = new Builder();
+    const cream = '#efe3cf';
+    const dusk = '#8a776a';
+    b.addColored(
+      sculpted('grumpy', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', [0, 0.09, -0.02], [0.085, 0.088, 0.1], { name: 'body' }));
+        for (const s of [-1, 1]) sc.add(ellipsoid('body', [s * 0.036, 0.018, 0.075], [0.024, 0.018, 0.034], { k: 0.015, name: 'paw' }));
+        sc.add(rod('body', [0.075, 0.03, -0.085], [0.07, 0.022, 0.07], 0.021, 0.017, { k: 0.015, name: 'tail' }));
+        return {
+          sc,
+          marks: {
+            base: cream,
+            marks: [
+              { color: dusk, f: either(regionOf(sc, 'tail'), (q) => Math.max(regionOf(sc, 'body')(q), 0.14 - q.p.y - q.p.z * 1.2)) },
+              { color: '#fbf7ef', f: regionOf(sc, 'paw') },
+            ],
+          },
+        };
+      }),
+    );
+    const e = new Builder();
+    // Blue eyes under heavy, cross lids.
+    for (const s of [-1, 1]) {
+      e.add(gem(), '#79b4e0', { pos: [s * 0.032, 0.208, 0.107], scale: [0.016, 0.014, 0.008] });
+      e.add(gem(), INK, { pos: [s * 0.032, 0.206, 0.112], scale: [0.008, 0.009, 0.005] });
+      e.add(gem(), '#6e5e54', { pos: [s * 0.032, 0.216, 0.109], rot: [0, 0, s * 0.35], scale: [0.02, 0.009, 0.01] });
+    }
+    super(b, e, 0.208);
+    const hb = new Builder();
+    const at: Vec3 = [0, 0.18, 0.03];
+    hb.addColored(
+      sculpted('grumpy-head', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', [0, 0.02, 0.01], [0.09, 0.074, 0.074], { name: 'head' }));
+        sc.add(ellipsoid('body', [0, -0.005, 0.066], [0.042, 0.026, 0.025], { k: 0.02, name: 'muzzle' }));
+        for (const s of [-1, 1]) sc.add(pyramid('body', [s * 0.05, 0.07, 0.0], 0.03, 0.055, 0.013, { rot: [0, 0, -s * 0.42], k: 0.01, name: 'ear' }));
+        return {
+          sc,
+          marks: {
+            base: cream,
+            marks: [
+              { color: '#fbf7ef', f: regionOf(sc, 'muzzle') },
+              { color: dusk, f: either(regionOf(sc, 'ear'), patch([0.032, 0.03, 0.07], [0.024, 0.019, 0.03]), patch([-0.032, 0.03, 0.07], [0.024, 0.019, 0.03]), patch([0, 0.035, 0.08], [0.011, 0.03, 0.02]), (q) => Math.max(-0.03 - q.p.z, 0.03 - q.p.y)) },
+            ],
+          },
+        };
+      }),
+    );
+    hb.add(gem(), '#d68a8e', { pos: [0, 0.01, 0.089], scale: [0.011, 0.007, 0.006] });
+    // The famous frown.
+    arc(hb, [0, -0.026, 0.086], 0.026, '#3a2a28', true, Math.PI * 0.8);
+    this.head = this.part(hb, at);
+    this.eyesOn(this.head);
+  }
+  protected animate(_dt: number, t: number, move: number) {
+    // A reluctant plod, a heavy sigh, and now and then a slow shake of the head.
+    this.bodyGroup.position.y = hop(t, move, 0.018, 8);
+    this.bodyGroup.rotation.z = Math.sin(t * 8) * 0.05 * move;
+    const sigh = 1 + Math.sin(t * 1.4) * 0.025 * (1 - move);
+    this.bodyGroup.scale.set(sigh, 1 / sigh, sigh);
+    const no = Math.pow(Math.max(0, Math.sin(t * 0.45)), 20);
+    this.head.rotation.y = Math.sin(t * 9) * 0.3 * no;
+    this.head.rotation.x = 0.05 + move * 0.05;
+  }
+}
+
+/** 5. A yellow rubber duck: bobs as if on bathwater, and gives a squeak (a squash) now and then. */
+class Duck extends PetRig {
+  constructor() {
+    const b = new Builder();
+    const yellow = '#ffd43b';
+    const orange = '#f5932a';
+    b.addColored(
+      sculpted('duck', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', [0, 0.085, -0.015], [0.1, 0.075, 0.12], { name: 'body' }));
+        sc.add(ellipsoid('body', [0, 0.125, -0.115], [0.045, 0.04, 0.035], { rot: [0.7, 0, 0], k: 0.04, name: 'tail' }));
+        sc.add(ellipsoid('body', [0, 0.2, 0.045], [0.07, 0.068, 0.066], { k: 0.035, name: 'head' }));
+        for (const s of [-1, 1]) sc.add(ellipsoid('body', [s * 0.088, 0.1, -0.025], [0.024, 0.042, 0.065], { rot: [0.25, 0, 0], k: 0.02, name: 'wing' }));
+        sc.add(ellipsoid('body', [0, 0.183, 0.11], [0.044, 0.016, 0.04], { k: 0.012, name: 'beak' }));
+        sc.add(ellipsoid('body', [0, -0.5, 0], [0.6, 0.505, 0.6], { k: 0.01, carve: true }));
+        return {
+          sc,
+          marks: {
+            base: yellow,
+            marks: [
+              { color: '#c96a1c', f: (q) => Math.max(regionOf(sc, 'beak')(q), Math.abs(q.p.y - 0.181) - 0.0025, 0.11 - q.p.z) },
+              { color: orange, f: regionOf(sc, 'beak') },
+              { color: '#f6c22a', f: regionOf(sc, 'wing') },
+              { color: BLUSH, f: blushes(0.19, 0.095, 0.05, 0.014) },
+            ],
+          },
+        };
+      }),
+    );
+    const e = new Builder();
+    addEyes(e, 0.218, 0.1, 0.034, 0.014);
+    super(b, e, 0.218);
+  }
+  protected animate(_dt: number, t: number, move: number) {
+    const squeak = Math.pow(Math.max(0, Math.sin(t * 1.6)), 30);
+    this.bodyGroup.scale.set(1 + squeak * 0.12, 1 - squeak * 0.2, 1 + squeak * 0.12);
+    this.bodyGroup.position.y = hop(t, move, 0.025, 10);
+    this.bodyGroup.rotation.x = Math.sin(t * 2.1) * 0.09 + move * 0.08;
+    this.bodyGroup.rotation.z = Math.sin(t * 1.7) * 0.06 + Math.sin(t * 10) * 0.08 * move;
+  }
+}
+
+/** 6. An egg-shaped pocket pet gadget, a little pixel critter on its screen, hopping on stubby feet. */
+class PocketPal extends PetRig {
+  constructor() {
+    const b = new Builder();
+    const shell = '#f59cc4';
+    b.addColored(
+      sculpted('pocketpal', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', [0, 0.155, 0], [0.105, 0.125, 0.058], { name: 'shell' }));
+        sc.add(ellipsoid('body', [0, 0.115, 0], [0.11, 0.088, 0.06], { k: 0.05, name: 'shell' }));
+        for (const s of [-1, 1]) sc.add(ellipsoid('body', [s * 0.042, 0.016, 0.008], [0.022, 0.014, 0.024], { k: 0.015, name: 'foot' }));
+        return {
+          sc,
+          marks: {
+            base: shell,
+            marks: [
+              { color: '#fff3f8', f: (q) => Math.max(patch([0, 0.15, 0.05], [0.078, 0.098, 0.05])(q), 0.02 - q.p.z) },
+              { color: '#ffd6e7', f: spots(3, 10, [0, 0.15, 0], [0.105, 0.125, 0.058], [0.011, 0.011, 0.011], (d) => d.z < 0.2) },
+              { color: '#e07aa8', f: regionOf(sc, 'foot') },
+            ],
+          },
+        };
+      }, 0.02),
+    );
+    // The screen in its frame, and three buttons under it.
+    b.add(new THREE.BoxGeometry(1, 1, 1), '#6a5378', { pos: [0, 0.17, 0.058], scale: [0.092, 0.076, 0.016] });
+    b.add(new THREE.BoxGeometry(1, 1, 1), '#c9dfb0', { pos: [0, 0.17, 0.06], scale: [0.08, 0.064, 0.016] });
+    for (const x of [-0.032, 0, 0.032]) b.add(gem(), '#ffcf4a', { pos: [x, 0.088 - Math.abs(x) * 0.25, 0.06], scale: [0.011, 0.011, 0.008] });
+    // A keyring loop on top.
+    b.add(new THREE.TorusGeometry(1, 0.2, 5, 12), '#c9ccd6', { pos: [0, 0.292, 0], rot: [0, Math.PI / 2, 0], scale: 0.02 });
+    // The pixel critter: a round little blob, its eyes (in the eye mesh, to blink) and a smile.
+    const art = ['..####..', '.#....#.', '#.e..e.#', '#......#', '#..##..#', '.######.'];
+    const px = 0.0074;
+    const top = 0.19;
+    const e = new Builder();
+    art.forEach((row, r) =>
+      [...row].forEach((c, i) => {
+        if (c === '.') return;
+        (c === 'e' ? e : b).add(new THREE.BoxGeometry(1, 1, 1), '#2f3b2a', { pos: [(i - 3.5) * px, top - r * px, 0.0685], scale: [px * 0.9, px * 0.9, 0.002] });
+      }),
+    );
+    super(b, e, top - 2 * px);
+  }
+  protected animate(_dt: number, t: number, move: number) {
+    const air = hop(t, move, 0.05, 9);
+    this.bodyGroup.position.y = air;
+    const land = move * Math.max(0, 0.02 - air) * 6;
+    this.bodyGroup.scale.set(1 + land, 1 - land, 1 + land);
+    this.bodyGroup.rotation.z = Math.sin(t * 2.2) * 0.08 * (1 - move);
+    this.bodyGroup.rotation.x = move * 0.1;
+  }
+}
+
+/** 7. A cross little brown mushroom on big feet, stomping along. */
+class Shroom extends Jointed {
+  private feet: THREE.InstancedMesh;
+  constructor() {
+    const b = new Builder();
+    const brown = '#8e5530';
+    const tan = '#f1d09c';
+    b.addColored(
+      sculpted('shroom', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', [0, 0.205, 0], [0.14, 0.085, 0.125], { name: 'cap' }));
+        sc.add(ellipsoid('body', [0, 0.145, 0.012], [0.11, 0.075, 0.1], { k: 0.04, name: 'face' }));
+        sc.add(ellipsoid('body', [0, 0.075, 0], [0.058, 0.05, 0.052], { k: 0.02, name: 'stem' }));
+        return {
+          sc,
+          marks: {
+            base: brown,
+            marks: [
+              { color: '#3a2420', f: (q) => Math.max(Math.abs(Math.hypot(q.p.x, q.p.y - 0.165) - 0.05) - 0.003, q.p.y - 0.123, 0.06 - q.p.z) },
+              { color: tan, f: (q) => q.p.y - 0.135 - Math.max(0, -q.p.z) * 0.4 },
+            ],
+          },
+        };
+      }, 0.022),
+    );
+    // Thick cross brows and two little fangs.
+    for (const s of [-1, 1]) {
+      b.add(new THREE.BoxGeometry(1, 1, 1), '#2a1c18', { pos: [s * 0.034, 0.212, 0.113], rot: [-0.3, 0, s * 0.42], scale: [0.042, 0.013, 0.014] });
+      b.add(spike(4), '#fffaf0', { pos: [s * 0.03, 0.124, 0.099], scale: [0.009, 0.02, 0.008] });
+    }
+    const e = new Builder();
+    for (const s of [-1, 1]) {
+      e.add(gem(), '#fffdf8', { pos: [s * 0.024, 0.18, 0.112], scale: [0.019, 0.03, 0.011] });
+      e.add(gem(), INK, { pos: [s * 0.021, 0.177, 0.12], scale: [0.009, 0.016, 0.006] });
+    }
+    super(b, e, 0.18);
+    const fb = new Builder();
+    fb.add(gem(), '#4a2b1d', { pos: [0, 0.02, 0.012], scale: [0.034, 0.022, 0.045] });
+    this.feet = this.copies(fb, 2);
+  }
+  protected animate(_dt: number, t: number, move: number) {
+    // A side-to-side stomp, each foot lifting in turn; still, a cross little bounce now and then.
+    const w = Math.sin(t * 9);
+    const huff = Math.pow(Math.max(0, Math.sin(t * 1.1)), 16) * 0.025 * (1 - move);
+    this.bodyGroup.position.y = Math.abs(w) * 0.012 * move + huff;
+    this.bodyGroup.rotation.z = w * 0.1 * move;
+    [-1, 1].forEach((s, i) => placeCopy(this.feet, i, [s * 0.045, Math.max(0, w * s) * 0.03 * move - this.bodyGroup.position.y, 0], [-Math.max(0, w * s) * 0.4 * move, 0, -this.bodyGroup.rotation.z]));
+    this.feet.instanceMatrix.needsUpdate = true;
+  }
+}
+
+/** 8. A fluffy yellow chocobo chick with a feathery crest, running about. */
+class Kweh extends Jointed {
+  private crest: THREE.Group;
+  constructor() {
+    const b = new Builder();
+    const yellow = '#ffd23f';
+    const orange = '#f08a24';
+    b.addColored(
+      sculpted('kweh', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', [0, 0.115, -0.015], [0.08, 0.075, 0.088], { name: 'body' }));
+        sc.add(ellipsoid('body', [0, 0.215, 0.03], [0.075, 0.07, 0.07], { k: 0.04, name: 'head' }));
+        for (const s of [-1, 1]) sc.add(ellipsoid('body', [s * 0.08, 0.125, -0.025], [0.018, 0.045, 0.05], { rot: [0.3, 0, s * 0.5], k: 0.015, name: 'wing' }));
+        sc.add(ellipsoid('body', [0, 0.14, -0.1], [0.04, 0.022, 0.045], { rot: [-0.7, 0, 0], k: 0.02, name: 'tail' }));
+        sc.add(ellipsoid('body', [0, 0.196, 0.1], [0.03, 0.018, 0.04], { rot: [0.15, 0, 0], k: 0.012, name: 'beak' }));
+        for (const s of [-1, 1]) {
+          sc.add(rod('body', [s * 0.03, 0.06, 0], [s * 0.032, 0.014, 0.008], 0.011, 0.009, { k: 0.008, name: 'leg' }));
+          sc.add(ellipsoid('body', [s * 0.033, 0.009, 0.03], [0.022, 0.009, 0.03], { k: 0.01, name: 'leg' }));
+        }
+        return {
+          sc,
+          marks: {
+            base: yellow,
+            marks: [
+              { color: orange, f: regionOf(sc, 'leg') },
+              { color: '#f5a84a', f: regionOf(sc, 'beak') },
+              { color: '#f4b52a', f: regionOf(sc, 'wing', 'tail') },
+              { color: BLUSH, f: blushes(0.2, 0.085, 0.055, 0.014) },
+            ],
+          },
+        };
+      }, 0.022),
+    );
+    const e = new Builder();
+    irisEyes(e, 0.232, 0.087, 0.036, 0.019, '#3d8fb0');
+    super(b, e, 0.232);
+    // The crest: three long feathers swept back, bouncing as it runs.
+    const cb = new Builder();
+    for (const [x, rz, len] of [
+      [-0.016, 0.35, 0.05],
+      [0, 0, 0.065],
+      [0.016, -0.35, 0.05],
+    ]) {
+      cb.add(gem(), yellow, { pos: [x, len * 0.85, -len * 0.4], rot: [-0.55, 0, rz], scale: [0.011, len, 0.016] });
+    }
+    this.crest = this.part(cb, [0, 0.27, 0.025]);
+  }
+  protected animate(_dt: number, t: number, move: number) {
+    this.bodyGroup.position.y = hop(t, move, 0.045, 14) + Math.sin(t * 2.5) * 0.004;
+    this.bodyGroup.rotation.x = move * 0.18;
+    this.bodyGroup.rotation.z = Math.sin(t * 14) * 0.08 * move;
+    this.crest.rotation.x = Math.sin(t * 14) * 0.25 * move + Math.sin(t * 1.9) * 0.08;
+  }
+}
+
+/** 9. A brown-and-white mogwai with great wide ears that twitch; it hums along, swaying. */
+class Mogwai extends Jointed {
+  private ears: THREE.Group[] = [];
+  constructor() {
+    const b = new Builder();
+    const brown = '#8a5a3a';
+    const white = '#f7f0e6';
+    b.addColored(
+      sculpted('mogwai', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', [0, 0.08, -0.01], [0.068, 0.07, 0.064], { name: 'body' }));
+        sc.add(ellipsoid('body', [0, 0.19, 0.02], [0.08, 0.072, 0.072], { k: 0.03, name: 'head' }));
+        sc.add(ellipsoid('body', [0, 0.165, 0.076], [0.04, 0.028, 0.026], { k: 0.02, name: 'muzzle' }));
+        for (const s of [-1, 1]) sc.add(ellipsoid('body', [s * 0.062, 0.09, 0.03], [0.019, 0.035, 0.02], { rot: [0.3, 0, s * 0.45], k: 0.012, name: 'arm' }));
+        for (const s of [-1, 1]) sc.add(ellipsoid('body', [s * 0.034, 0.013, 0.038], [0.024, 0.013, 0.03], { k: 0.015, name: 'foot' }));
+        return {
+          sc,
+          marks: {
+            base: brown,
+            marks: [
+              { color: '#e8c4b0', f: regionOf(sc, 'foot') },
+              // Brown round the eyes, a white blaze up the middle, white cheeks, muzzle and tummy.
+              { color: '#6a4028', f: either(patch([0.034, 0.2, 0.07], [0.03, 0.026, 0.03]), patch([-0.034, 0.2, 0.07], [0.03, 0.026, 0.03])) },
+              { color: white, f: either(regionOf(sc, 'muzzle'), patch([0, 0.2, 0.08], [0.012, 0.07, 0.03]), patch([0, 0.155, 0.06], [0.07, 0.03, 0.04]), patch([0, 0.08, 0.06], [0.045, 0.05, 0.03])) },
+              { color: BLUSH, f: blushes(0.165, 0.08, 0.055, 0.012) },
+            ],
+          },
+        };
+      }, 0.022),
+    );
+    b.add(gem(), '#6b3a32', { pos: [0, 0.178, 0.1], scale: [0.011, 0.007, 0.007] });
+    arc(b, [0, 0.157, 0.098], 0.012, '#5a3226', false, Math.PI * 0.7);
+    const e = new Builder();
+    for (const s of [-1, 1]) {
+      e.add(gem(), '#2e1a12', { pos: [s * 0.034, 0.2, 0.085], scale: [0.023, 0.025, 0.014] });
+      e.add(new THREE.IcosahedronGeometry(1, SMOOTH_LOOK ? 1 : 0), '#fffdf8', { pos: [s * 0.034 + 0.008, 0.209, 0.097], scale: 0.0075 });
+      e.add(new THREE.IcosahedronGeometry(1, 0), '#fffdf8', { pos: [s * 0.034 - 0.007, 0.192, 0.098], scale: 0.0035 });
+    }
+    super(b, e, 0.2);
+    for (const s of [-1, 1]) {
+      const eb = new Builder();
+      eb.addColored(
+        sculpted(`mogwai-ear${s}`, () => {
+          const sc = new Sculpt();
+          sc.add(ellipsoid('body', [s * 0.058, 0, 0], [0.062, 0.038, 0.011], { rot: [0.35, 0, s * -0.15], name: 'ear' }));
+          return {
+            sc,
+            marks: {
+              base: brown,
+              marks: [
+                { color: '#6a4028', f: patch([s * 0.075, 0.012, 0.01], [0.012, 0.01, 0.02]) },
+                { color: '#f0b9ae', f: (q) => Math.max(patch([s * 0.055, -0.003, 0], [0.05, 0.028, 0.03])(q), -q.p.z + 0.002 - (q.p.y) * 0.3) },
+              ],
+            },
+          };
+        }, 0.016),
+      );
+      this.ears.push(this.part(eb, [s * 0.07, 0.21, 0.01]));
+    }
+  }
+  protected animate(_dt: number, t: number, move: number) {
+    this.bodyGroup.position.y = hop(t, move, 0.025, 11) + Math.sin(t * 3.2) * 0.003;
+    this.bodyGroup.rotation.z = Math.sin(t * 1.6) * 0.07 * (1 - move) + Math.sin(t * 11) * 0.06 * move;
+    this.bodyGroup.rotation.x = move * 0.1;
+    const twitch = Math.pow(Math.max(0, Math.sin(t * 1.3)), 12);
+    this.ears.forEach((ear, i) => {
+      const s = i ? 1 : -1;
+      ear.rotation.z = s * (Math.sin(t * 22) * 0.2 * twitch - 0.12 * move + Math.sin(t * 2.1) * 0.05);
+    });
+  }
+}
+
+/** 10. A paperclip helper with googly eyes and busy eyebrows, hopping along on its bottom curve. */
+class Clip extends Jointed {
+  private brows: THREE.Group;
+  constructor() {
+    const b = new Builder();
+    // The wire: down the outer side, round the big bottom loop, up and over the top, round the small loop, up the middle.
+    const w = 0.055;
+    const g = 0.022;
+    const pts: THREE.Vector3[] = [];
+    const line = (x: number, y0: number, y1: number) => {
+      for (let i = 0; i <= 4; i++) pts.push(new THREE.Vector3(x, y0 + ((y1 - y0) * i) / 4, 0));
+    };
+    const turn = (cx: number, cy: number, r: number, a0: number, a1: number) => {
+      for (let i = 1; i < 10; i++) {
+        const a = a0 + ((a1 - a0) * i) / 10;
+        pts.push(new THREE.Vector3(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 0));
+      }
+    };
+    const yb = 0.072;
+    const yt = 0.25;
+    line(-w, 0.2, yb);
+    turn(0, yb, w, Math.PI, Math.PI * 2);
+    line(w, yb, yt);
+    turn(g / 2, yt, w - g / 2, 0, Math.PI);
+    line(-w + g, yt, yb + 0.03);
+    turn(-g / 2, yb + 0.03, w - 1.5 * g, Math.PI, Math.PI * 2);
+    line(w - 2 * g, yb + 0.03, 0.2);
+    const path = new THREE.CurvePath<THREE.Vector3>();
+    for (let i = 1; i < pts.length; i++) if (pts[i].distanceTo(pts[i - 1]) > 1e-5) path.add(new THREE.LineCurve3(pts[i - 1], pts[i]));
+    const tube = new THREE.TubeGeometry(path, 90, 0.0085, 6, false);
+    b.add(tube, '#c7ccd6', { rot: [-0.12, 0, 0] });
+    tube.dispose();
+    const e = new Builder();
+    for (const s of [-1, 1]) {
+      e.add(gem(), '#fffdf8', { pos: [s * 0.022, 0.2, 0.004], scale: [0.02, 0.023, 0.014] });
+      e.add(gem(), INK, { pos: [s * 0.022 - 0.004, 0.196, 0.016], scale: [0.008, 0.009, 0.005] });
+    }
+    super(b, e, 0.2);
+    const bb = new Builder();
+    for (const s of [-1, 1]) arc(bb, [s * 0.024, 0, 0], 0.016, '#2a2228', true, Math.PI * 0.75, [0, 0, s * -0.25]);
+    this.brows = this.part(bb, [0, 0.222, 0.004]);
+  }
+  protected animate(_dt: number, t: number, move: number) {
+    const air = hop(t, move, 0.06, 9);
+    this.bodyGroup.position.y = air;
+    const land = move * Math.max(0, 0.02 - air) * 5;
+    this.bodyGroup.scale.set(1 + land, 1 - land, 1);
+    this.bodyGroup.rotation.x = move * 0.15;
+    this.bodyGroup.rotation.z = Math.sin(t * 1.5) * 0.1 * (1 - move);
+    // The eyebrows go up when it has a suggestion (often).
+    const idea = Math.pow(Math.max(0, Math.sin(t * 1.2)), 6);
+    this.brows.position.y = 0.222 + (idea * (1 - move) + move * 0.5) * 0.014;
+    this.brows.rotation.z = Math.sin(t * 2.4) * 0.12 * idea;
+  }
+}
+
+/** 11. A round fluffy tribble, no face to speak of, that purrs (a quick shiver) and wobbles. */
+class Tribble extends PetRig {
+  constructor() {
+    const b = new Builder();
+    const fur = '#a87e54';
+    const c: Vec3 = [0, 0.085, 0];
+    const r: Vec3 = [0.12, 0.08, 0.11];
+    // A soft oval covered all over in little puffs of fur, in a few shades, so its outline is fluffy.
+    b.addColored(
+      sculpted('tribble', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', c, r, { name: 'fur' }));
+        const R = rng(17);
+        for (let i = 0; i < 70; i++) {
+          const a = R() * Math.PI * 2;
+          const up = Math.asin(R() * 1.15 - 0.2);
+          const d = new THREE.Vector3(Math.cos(a) * Math.cos(up), Math.sin(up), Math.sin(a) * Math.cos(up));
+          const s = 0.018 + R() * 0.012;
+          sc.add(ellipsoid('body', [c[0] + d.x * r[0], c[1] + d.y * r[1], c[2] + d.z * r[2]], [s, s * 0.9, s], { k: 0.012, name: ['puff', 'light', 'dark'][i % 3] }));
+        }
+        sc.add(ellipsoid('body', [0, -0.5, 0], [0.6, 0.508, 0.6], { k: 0.01, carve: true }));
+        return { sc, marks: { base: fur, marks: [{ color: '#b78d61', f: regionOf(sc, 'light') }, { color: '#9a7149', f: regionOf(sc, 'dark') }, { color: '#8a6440', f: (q) => q.p.y - 0.025 }] } };
+      }, 0.018),
+    );
+    super(b, new Builder(), 0.1);
+    // No eyes to blink (an empty mesh is left out altogether).
+    this.eyes.removeFromParent();
+  }
+  protected animate(_dt: number, t: number, move: number) {
+    // The purr: a fine fast shiver; a slow wobble on top; and when on the move, a scooting squash.
+    const purr = Math.sin(t * 40) * 0.014 * (1 - move);
+    const scoot = Math.sin(t * 10);
+    const sq = 1 + purr + scoot * 0.08 * move;
+    this.bodyGroup.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
+    this.bodyGroup.position.y = Math.max(0, scoot) * 0.025 * move;
+    this.bodyGroup.rotation.z = Math.sin(t * 2.6) * 0.09;
+    this.bodyGroup.rotation.x = Math.sin(t * 1.9) * 0.05 + move * 0.08;
+  }
+}
+
+/** 12. A small white furry luck dragon with a dog's face, its long body rippling as it flies. */
+class LuckDragon extends Jointed {
+  private head: THREE.Group;
+  private segs: THREE.InstancedMesh;
+  private readonly n = 10;
+  constructor() {
+    const white = '#fbf7ef';
+    const cream = '#efe4d2';
+    const pink = '#f2c4c8';
+    const b = new Builder();
+    // Two little front paws, tucked up under its chin.
+    for (const x of [-0.03, 0.03]) b.add(gem(), white, { pos: [x, -0.005, 0.04], rot: [0.4, 0, 0], scale: [0.016, 0.026, 0.018] });
+    const e = new Builder();
+    irisEyes(e, 0.075, 0.107, 0.03, 0.017, '#9a3a2a', 0.5);
+    super(b, e, 0.075);
+    const hb = new Builder();
+    hb.addColored(
+      sculpted('luckdragon', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', [0, 0, 0], [0.06, 0.055, 0.058], { name: 'head' }));
+        sc.add(ellipsoid('body', [0, -0.018, 0.058], [0.036, 0.03, 0.045], { k: 0.03, name: 'muzzle' }));
+        for (const s of [-1, 1]) sc.add(ellipsoid('body', [s * 0.058, -0.022, -0.01], [0.014, 0.048, 0.028], { rot: [0.2, 0, s * 0.35], k: 0.01, name: 'ear' }));
+        sc.add(ellipsoid('body', [0, 0.05, -0.015], [0.03, 0.026, 0.04], { k: 0.025, name: 'mane' }));
+        sc.add(ellipsoid('body', [0, 0.035, -0.055], [0.026, 0.024, 0.035], { k: 0.025, name: 'mane' }));
+        return {
+          sc,
+          marks: {
+            base: white,
+            marks: [
+              { color: pink, f: (q) => Math.max(regionOf(sc, 'ear')(q), Math.abs(q.p.x) - 0.052) },
+              { color: cream, f: regionOf(sc, 'ear') },
+              { color: cream, f: regionOf(sc, 'mane') },
+              { color: BLUSH, f: blushes(-0.015, 0.06, 0.045, 0.012) },
+            ],
+          },
+        };
+      }, 0.018),
+    );
+    hb.add(gem(), '#5a3a3a', { pos: [0, -0.008, 0.102], scale: [0.012, 0.009, 0.008] });
+    hb.add(gem(), '#ef8a96', { pos: [0.008, -0.044, 0.085], rot: [0.5, 0, 0], scale: [0.011, 0.004, 0.014] });
+    arc(hb, [0, -0.034, 0.093], 0.014, '#6a4a4a', false, Math.PI * 0.8);
+    this.head = this.part(hb, [0, 0.06, 0.06]);
+    this.eyesOn(this.head);
+    // The body: furry beads, white over a pink belly with a tuft of mane on each.
+    const sb = new Builder();
+    sb.addColored(
+      sculpted('luckdragon-seg', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', [0, 0, 0], [0.048, 0.044, 0.042], { name: 'seg' }));
+        sc.add(ellipsoid('body', [0, 0.04, -0.005], [0.016, 0.022, 0.026], { k: 0.015, name: 'tuft' }));
+        return { sc, marks: { base: white, marks: [{ color: cream, f: regionOf(sc, 'tuft') }, { color: pink, f: (q) => q.p.y + 0.022 }] } };
+      }, 0.018),
+    );
+    this.segs = this.copies(sb, this.n);
+  }
+  protected animate(_dt: number, t: number, move: number) {
+    this.bodyGroup.position.y = 0.17 + Math.sin(t * 1.8) * 0.03 + move * 0.04;
+    this.bodyGroup.rotation.x = move * 0.12;
+    const speed = 3 + move * 3;
+    // Each bead follows a ripple running back along the body, smaller towards the tail.
+    let prev: Vec3 = [0, 0.05, 0.03];
+    for (let i = 0; i < this.n; i++) {
+      const k = i / (this.n - 1);
+      const z = -0.02 - i * 0.04;
+      const y = 0.03 + Math.sin(t * speed - i * 0.9) * (0.02 + k * 0.03);
+      const x = Math.sin(t * speed * 0.6 - i * 0.7) * k * 0.035;
+      const pitch = Math.atan2(prev[1] - y, prev[2] - z);
+      const s = 1 - k * 0.5;
+      placeCopy(this.segs, i, [x, y, z], [-pitch, 0, 0], [s, s, s]);
+      prev = [x, y, z];
+    }
+    this.segs.instanceMatrix.needsUpdate = true;
+    this.head.rotation.x = Math.sin(t * speed - 0.9) * 0.12;
+    this.head.rotation.z = Math.sin(t * 1.1) * 0.1;
+  }
+}
+
+/** 13. A fluffy white flying bison with six legs and a brown arrow, drifting along on the air. */
+class SkyBison extends Jointed {
+  private tail: THREE.Group;
+  constructor() {
+    const b = new Builder();
+    const white = '#f6f2e9';
+    const arrow = '#7b5233';
+    b.addColored(
+      sculpted('skybison', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', [0, 0.13, -0.02], [0.115, 0.09, 0.135], { name: 'body' }));
+        sc.add(ellipsoid('body', [0, 0.15, 0.125], [0.075, 0.065, 0.058], { k: 0.04, name: 'head' }));
+        sc.add(ellipsoid('body', [0, 0.122, 0.172], [0.05, 0.032, 0.028], { k: 0.03, name: 'muzzle' }));
+        for (const s of [-1, 1]) {
+          sc.add(rod('body', [s * 0.05, 0.19, 0.12], [s * 0.088, 0.228, 0.142], 0.014, 0.007, { k: 0.008, name: 'horn' }));
+          sc.add(ellipsoid('body', [s * 0.075, 0.172, 0.095], [0.026, 0.01, 0.017], { rot: [0, 0, -s * 0.4], k: 0.01, name: 'ear' }));
+          for (const z of [0.065, -0.02, -0.105]) sc.add(rod('body', [s * 0.07, 0.075, z], [s * 0.074, 0.03, z + 0.006], 0.026, 0.022, { k: 0.02, name: 'leg' }));
+        }
+        const head = regionOf(sc, 'head');
+        const body = regionOf(sc, 'body');
+        // Arrows pointing forward: a shaft and a head, on the crown and down the back.
+        const arrowAt = (z0: number, z1: number, wShaft: number, wHead: number, len: number): Field => (q) => {
+          const z = q.p.z;
+          const shaft = Math.max(Math.abs(q.p.x) - wShaft, z0 - z, z - (z1 - len));
+          const tip = Math.max(Math.abs(q.p.x) - (z1 - z) * (wHead / len), z1 - len - z, z - z1);
+          return Math.min(shaft, tip);
+        };
+        return {
+          sc,
+          marks: {
+            base: white,
+            marks: [
+              { color: '#c9a77a', f: regionOf(sc, 'horn') },
+              { color: arrow, f: all(head, (q) => 0.16 - q.p.y, arrowAt(0.07, 0.185, 0.016, 0.04, 0.05)) },
+              { color: arrow, f: all(body, (q) => 0.175 - q.p.y, arrowAt(-0.14, 0.08, 0.034, 0.07, 0.07)) },
+              { color: '#8a7f78', f: patch([0, 0.128, 0.2], [0.022, 0.012, 0.012]) },
+              { color: '#d7cbbb', f: (q) => Math.max(regionOf(sc, 'leg')(q), q.p.y - 0.042) },
+              { color: BLUSH, f: blushes(0.135, 0.165, 0.05, 0.012) },
+            ],
+          },
+        };
+      }, 0.024),
+    );
+    const e = new Builder();
+    addEyes(e, 0.165, 0.172, 0.038, 0.011);
+    super(b, e, 0.165);
+    const tb = new Builder();
+    tb.addColored(
+      sculpted('skybison-tail', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', [0, 0, -0.06], [0.085, 0.016, 0.065], { name: 'tail' }));
+        sc.add(ellipsoid('body', [0, 0, -0.005], [0.03, 0.02, 0.03], { k: 0.02, name: 'root' }));
+        return { sc, marks: { base: white, marks: [{ color: '#e9e1d2', f: (q) => -0.09 - q.p.z }] } };
+      }, 0.018),
+    );
+    this.tail = this.part(tb, [0, 0.14, -0.145]);
+  }
+  protected animate(_dt: number, t: number, move: number) {
+    // Always aloft, higher and leaning in when it travels, rolling lazily; the broad tail beats slowly.
+    this.bodyGroup.position.y = 0.07 + move * 0.13 + Math.sin(t * 1.2) * 0.025;
+    this.bodyGroup.rotation.x = move * 0.08 + Math.sin(t * 1.2 + 1) * 0.04;
+    this.bodyGroup.rotation.z = Math.sin(t * 0.8) * 0.07;
+    this.tail.rotation.x = Math.sin(t * (2 + move * 1.5)) * (0.15 + move * 0.25);
+  }
+}
+
+/** 14. A castaway's volleyball friend with a red handprint face: it rolls along, and rights itself to look at you. */
+class Volleyball extends PetRig {
+  private roll = 0;
+  private static R = 0.115;
+  constructor() {
+    const b = new Builder();
+    const R = Volleyball.R;
+    const red = '#b8372c';
+    const finger = (x: number, top: number, tilt: number): Field => (q) => {
+      const dy = q.p.y - 0.045;
+      const dx = q.p.x - x - dy * tilt;
+      return Math.max(Math.abs(dx) - 0.0085 * (1 - dy * 6), Math.abs(dy) - top, 0.06 - q.p.z);
+    };
+    b.addColored(
+      sculpted('volleyball', () => {
+        const sc = new Sculpt();
+        sc.add(ellipsoid('body', [0, 0, 0], [R, R, R], { name: 'ball' }));
+        return {
+          sc,
+          marks: {
+            base: '#f6f3ea',
+            marks: [
+              // The face drawn into the print: a nose and a smile.
+              { color: '#5e1712', f: (q) => Math.max(Math.abs(Math.hypot(q.p.x, q.p.y + 0.012) - 0.03) - 0.0035, q.p.y + 0.028, 0.06 - q.p.z) },
+              { color: '#5e1712', f: (q) => Math.max(Math.abs(q.p.x) - 0.003, Math.abs(q.p.y + 0.012) - 0.01, 0.06 - q.p.z) },
+              { color: red, f: either(patch([0, -0.018, R], [0.052, 0.05, 0.05]), finger(-0.034, 0.042, -0.25), finger(-0.012, 0.05, -0.08), finger(0.011, 0.052, 0.08), finger(0.033, 0.044, 0.25), patch([0.062, -0.035, 0.09], [0.028, 0.014, 0.05])) },
+            ],
+          },
+        };
+      }, 0.018),
+    );
+    // The panel seams, as fine raised lines: on each face of a cube around the ball, its edges and two strips
+    // across it (turning a quarter from face to face). The face is drawn over the front panel, so not its strips.
+    for (let i = 0; i < 3; i++) {
+      for (const sign of [-1, 1]) {
+        for (const u of [-1, -1 / 3, 1 / 3, 1]) {
+          if (i === 2 && sign > 0 && Math.abs(u) < 1) continue;
+          const pts: THREE.Vector3[] = [];
+          for (let n = 0; n <= 6; n++) {
+            const c = [0, 0, 0];
+            c[i] = sign;
+            c[(i + 1) % 3] = u;
+            c[(i + 2) % 3] = n / 3 - 1;
+            pts.push(new THREE.Vector3(...c).setLength(R));
+          }
+          const seam = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 10, 0.0017, 3, false);
+          b.add(seam, '#a3acb8');
+          seam.dispose();
+        }
+      }
+    }
+    const e = new Builder();
+    for (const s of [-1, 1]) e.add(gem(), '#5e1712', { pos: [s * 0.022, 0.012, Math.sqrt(R * R - 0.022 ** 2 - 0.012 ** 2)], scale: [0.0095, 0.012, 0.005] });
+    super(b, e, 0.012);
+  }
+  protected animate(dt: number, t: number, move: number) {
+    const R = Volleyball.R;
+    // Rolling while it goes (about the pace of a walk); still, it rocks back round to face its friend.
+    if (move > 0.05) this.roll += dt * move * 7;
+    else {
+      const home = Math.round(this.roll / (Math.PI * 2)) * Math.PI * 2;
+      this.roll += (home - this.roll) * Math.min(1, dt * 3);
+    }
+    this.bodyGroup.position.y = R + Math.abs(Math.sin(t * 2.2)) * 0.01 * (1 - move);
+    this.bodyGroup.rotation.set(this.roll, 0, Math.sin(t * 1.3) * 0.08 * (1 - move));
+  }
+}
+
+/** 15. A potted snapping plant: it sways on its stem, its pod jaws slowly opening and then snapping shut. */
+class FeedMe extends Jointed {
+  private stem: THREE.Group;
+  private head: THREE.Group;
+  private lid: THREE.Group;
+  constructor() {
+    const b = new Builder();
+    const pot = '#c4673d';
+    const leaf = '#4f9a3a';
+    b.add(new THREE.CylinderGeometry(0.068, 0.05, 0.09, 12), pot, { pos: [0, 0.045, 0] });
+    b.add(new THREE.CylinderGeometry(0.078, 0.076, 0.026, 12), '#b55a33', { pos: [0, 0.095, 0] });
+    b.add(new THREE.CylinderGeometry(0.068, 0.068, 0.01, 12), '#4a3324', { pos: [0, 0.104, 0] });
+    for (const a of [0.4, 2.3, 4.3]) b.add(gem(), leaf, { pos: [Math.sin(a) * 0.06, 0.112, Math.cos(a) * 0.06], rot: [0, a, 0], scale: [0.03, 0.008, 0.05] });
+    super(b, new Builder(), 0.2);
+    this.eyes.removeFromParent();
+    const sb = new Builder();
+    const stemCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0.008, 0.04, 0), new THREE.Vector3(-0.004, 0.075, 0.008), new THREE.Vector3(0, 0.095, 0.012)]);
+    const stemGeo = new THREE.TubeGeometry(stemCurve, 8, 0.012, 6, false);
+    sb.add(stemGeo, '#3f8a35');
+    stemGeo.dispose();
+    for (const s of [-1, 1]) sb.add(gem(), leaf, { pos: [s * 0.03, 0.045, 0], rot: [0, 0, s * 0.5], scale: [0.03, 0.007, 0.016] });
+    this.stem = this.part(sb, [0, 0.105, 0]);
+    // The pod: a lower jaw and a lid hinged at the back, green outside, red inside, teeth round the lips.
+    const shell = (name: string, up: number) =>
+      sculpted(name, () => {
+        const sc = new Sculpt();
+        const f = up > 0 ? 0.82 : 1;
+        sc.add(ellipsoid('body', [0, 0, 0.065], [0.078, 0.058 * f, 0.082], { name: 'pod' }));
+        sc.add(ellipsoid('body', [0, 0, 0.065], [0.057, 0.036 * f, 0.061], { carve: true }));
+        sc.add(box('body', [0, -up * 0.1, 0.065], [0.2, 0.1, 0.2], { round: 0.001, carve: true }));
+        return {
+          sc,
+          marks: {
+            base: '#6cae4c',
+            marks: [
+              { color: '#d23d58', f: (q) => Math.abs(q.p.y) - 0.005 },
+              { color: '#8e1f3c', f: patch([0, 0, 0.065], [0.067, 0.047 * f, 0.071]) },
+              { color: '#3f7a2e', f: spots(up > 0 ? 3 : 4, 10, [0, 0, 0.065], [0.078, 0.058 * f, 0.082], [0.01, 0.01, 0.01], (d) => d.y * up > 0.2) },
+            ],
+          },
+        };
+      }, 0.014);
+    const jb = new Builder();
+    jb.addColored(shell('feedme-jaw', -1));
+    const lb = new Builder();
+    lb.addColored(shell('feedme-lid', 1), { pos: [0, 0, 0.0] });
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 6 - 0.5) * 2.6;
+      const p: Vec3 = [Math.sin(a) * 0.066, 0, 0.065 + Math.cos(a) * 0.07];
+      jb.add(spike(4), '#fffaf0', { pos: [p[0], 0.009, p[2]], scale: [0.007, 0.018, 0.006] });
+      lb.add(spike(4), '#fffaf0', { pos: [Math.sin(a + 0.2) * 0.066, -0.009, 0.065 + Math.cos(a + 0.2) * 0.07], rot: [Math.PI, 0, 0], scale: [0.007, 0.018, 0.006] });
+    }
+    jb.add(gem(), '#e0607a', { pos: [0, -0.01, 0.07], scale: [0.03, 0.01, 0.045] });
+    this.head = this.part(jb, [0, 0.095, -0.045], this.stem);
+    this.lid = this.part(lb, [0, 0, 0], this.head);
+  }
+  protected animate(_dt: number, t: number, move: number) {
+    // It opens wide slowly (feed me...), then snaps shut; faster and hungrier on the move.
+    const p = (t * (0.6 + move * 0.8)) % 1;
+    const open = p < 0.75 ? Math.sin((p / 0.75) * Math.PI * 0.5) * 0.85 : Math.max(0, 1 - (p - 0.75) / 0.05) * 0.85;
+    const snap = p > 0.75 ? Math.exp(-(p - 0.8) * 30) * 0.15 : 0;
+    this.lid.rotation.x = -open;
+    this.head.rotation.x = 0.15 - open * 0.25 + snap;
+    this.stem.rotation.z = Math.sin(t * 1.3) * 0.14;
+    this.stem.rotation.x = Math.sin(t * 0.9) * 0.08 + move * 0.15;
+    this.bodyGroup.position.y = hop(t, move, 0.02, 9);
+    this.bodyGroup.rotation.z = Math.sin(t * 9) * 0.04 * move;
+  }
+}
+
 const MAKERS: Record<PetId, () => PetRig> = {
   chick: () => new Chick(),
   slime: () => new Slime(),
@@ -1659,6 +2664,21 @@ const MAKERS: Record<PetId, () => PetRig> = {
   astrodroid: () => new AstroDroid(),
   tidybot: () => new TidyBot(),
   dragon: () => new Dragon(),
+  owl: () => new Owl(),
+  poptart: () => new PopTart(),
+  doge: () => new Doge(),
+  grumpy: () => new Grumpy(),
+  duck: () => new Duck(),
+  pocketpal: () => new PocketPal(),
+  shroom: () => new Shroom(),
+  kweh: () => new Kweh(),
+  mogwai: () => new Mogwai(),
+  clip: () => new Clip(),
+  tribble: () => new Tribble(),
+  luckdragon: () => new LuckDragon(),
+  skybison: () => new SkyBison(),
+  volleyball: () => new Volleyball(),
+  feedme: () => new FeedMe(),
 };
 
 export function buildPet(pet: PetId): Pet {

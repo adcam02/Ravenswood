@@ -145,7 +145,10 @@ export type PetId =
   | 'chick' | 'slime' | 'ghost' | 'mouse' | 'bee' | 'snail'
   // Fond storybook takes on pop culture favourites.
   | 'zapmouse' | 'sage' | 'spirit' | 'soot' | 'rascal' | 'sprout' | 'henchling' | 'arcade'
-  | 'puffball' | 'cube' | 'creepling' | 'balldroid' | 'astrodroid' | 'tidybot' | 'dragon';
+  | 'puffball' | 'cube' | 'creepling' | 'balldroid' | 'astrodroid' | 'tidybot' | 'dragon'
+  // A second set.
+  | 'owl' | 'poptart' | 'doge' | 'grumpy' | 'duck' | 'pocketpal' | 'shroom' | 'kweh'
+  | 'mogwai' | 'clip' | 'tribble' | 'luckdragon' | 'skybison' | 'volleyball' | 'feedme';
 
 export const PETS: { id: PetId; name: string; icon: string }[] = [
   { id: 'chick', name: 'Chick', icon: '🐤' },
@@ -169,6 +172,21 @@ export const PETS: { id: PetId; name: string; icon: string }[] = [
   { id: 'astrodroid', name: 'Astro Droid', icon: '🔵' },
   { id: 'tidybot', name: 'Tidy Bot', icon: '🤖' },
   { id: 'dragon', name: 'Gummy Dragon', icon: '🐉' },
+  { id: 'owl', name: 'Post owl', icon: '🦉' },
+  { id: 'poptart', name: 'Pop-tart cat', icon: '🌈' },
+  { id: 'doge', name: 'Such doge', icon: '🐕' },
+  { id: 'grumpy', name: 'Grumpy cat', icon: '😾' },
+  { id: 'duck', name: 'Squeaky duck', icon: '🦆' },
+  { id: 'pocketpal', name: 'Pocket pal', icon: '🥚' },
+  { id: 'shroom', name: 'Stompy shroom', icon: '🍄' },
+  { id: 'kweh', name: 'Kweh chick', icon: '🐥' },
+  { id: 'mogwai', name: 'Mogwai', icon: '🐹' },
+  { id: 'clip', name: 'Paperclip pal', icon: '📎' },
+  { id: 'tribble', name: 'Tribble', icon: '🟤' },
+  { id: 'luckdragon', name: 'Luck dragon', icon: '🐉' },
+  { id: 'skybison', name: 'Sky bison', icon: '🦬' },
+  { id: 'volleyball', name: 'Castaway ball', icon: '🏐' },
+  { id: 'feedme', name: 'Feed-me plant', icon: '🪴' },
 ];
 
 const pickFrom = <T extends string>(list: { id: T }[], v: unknown): T | null => (list.some((x) => x.id === v) ? (v as T) : null);
