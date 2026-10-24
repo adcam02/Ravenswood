@@ -426,7 +426,8 @@ function saveThumb(id: AnimalId, color: string, url: string) {
 
 /** A pet's little portrait (its emoji until the picture is drawn), kept between visits like the animals'. */
 export function PetPicture({ id, icon }: { id: PetId; icon: string }) {
-  const key = `pet-${id}` as AnimalId;
+  // (pet2: the pictures framed on the body, so ones kept from before are drawn again.)
+  const key = `pet2-${id}` as AnimalId;
   const [src, setSrc] = useState<string | null>(() => loadThumb(key, ''));
   useEffect(() => {
     if (src || drawless()) return;

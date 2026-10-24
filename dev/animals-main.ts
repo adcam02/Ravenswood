@@ -1,7 +1,7 @@
 // A test bench for the animals: open /dev/animals.html?view=grid|close|poses|items|ghosts|hats|colors&animal=fox
 // Add &hat=crown to put a hat on every animal, &detail=low for the distant versions.
 import * as THREE from 'three';
-import { animalThumbnail, buildAnimal, buildPet, buildStoryteller, type Pet, type Rig } from '../src/world/animals';
+import { animalThumbnail, buildAnimal, petThumbnail, buildPet, buildStoryteller, type Pet, type Rig } from '../src/world/animals';
 import { buildHat } from '../src/world/hats';
 import { buildItem } from '../src/world/items';
 import { audit, resetAudit } from '../src/world/paper';
@@ -635,6 +635,19 @@ if (q.has('thumbs')) {
   for (const a of ANIMALS) {
     const img = document.createElement('img');
     img.src = animalThumbnail({ animal: a.id, color: a.colors[0], hat: hatParam });
+    box.appendChild(img);
+  }
+}
+
+// ?petthumbs: every pet's picture, as the shop and the Pet tab show it.
+if (q.has('petthumbs')) {
+  const box = document.getElementById('thumbs')!;
+  box.style.maxWidth = 'calc(100% - 16px)';
+  for (const p of PETS) {
+    const img = document.createElement('img');
+    img.src = petThumbnail(p.id, 96);
+    img.style.width = img.style.height = '96px';
+    img.title = p.id;
     box.appendChild(img);
   }
 }

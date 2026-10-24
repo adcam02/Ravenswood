@@ -2616,9 +2616,81 @@ function snap(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.C
   return url;
 }
 
-/** A pet's portrait, the whole of it, turned a little to one side. Cached for the visit. */
+/** Which way the pet pictures look from: a little to the right and above the front. */
+const PET_VIEW = new THREE.Vector3(0.15, 0.25, 1).normalize();
+
+/**
+ * How to frame a pet: the middle and half-size (across and up, as the camera sees it) of the part of it that
+ * makes up most of its surface, so a long thin tail, a wingtip or a spear pokes out of the picture rather
+ * than shrinking the pet to fit it in. Every face counts by its area; the outermost few percent either way
+ * (tail tips, whiskers) are let go. Hidden parts (a puff of smoke between puffs) don't count at all.
+ */
+function petFrame(root: THREE.Object3D): { centre: THREE.Vector3; half: number; depth: number } {
+  const right = new THREE.Vector3(0, 1, 0).cross(PET_VIEW).normalize();
+  const up = PET_VIEW.clone().cross(right);
+  const faces: { u: number; v: number; w: number; a: number }[] = [];
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  const c = new THREE.Vector3();
+  const m = new THREE.Matrix4();
+  const inst = new THREE.Matrix4();
+  const shown = (o: THREE.Object3D) => {
+    for (let x: THREE.Object3D | null = o; x; x = x.parent) if (!x.visible) return false;
+    return true;
+  };
+  root.updateMatrixWorld(true);
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh || !shown(mesh)) return;
+    const pos = mesh.geometry.getAttribute('position');
+    if (!pos) return;
+    const index = mesh.geometry.index;
+    const tris = (index ? index.count : pos.count) / 3;
+    const im = mesh as THREE.InstancedMesh;
+    const copies = im.isInstancedMesh ? im.count : 1;
+    for (let k = 0; k < copies; k++) {
+      m.copy(mesh.matrixWorld);
+      if (im.isInstancedMesh) {
+        im.getMatrixAt(k, inst);
+        m.multiply(inst);
+      }
+      for (let i = 0; i < tris; i++) {
+        const at = (j: number) => (index ? index.getX(i * 3 + j) : i * 3 + j);
+        a.fromBufferAttribute(pos, at(0)).applyMatrix4(m);
+        b.fromBufferAttribute(pos, at(1)).applyMatrix4(m);
+        c.fromBufferAttribute(pos, at(2)).applyMatrix4(m);
+        const area = c.clone().sub(a).cross(b.clone().sub(a)).length() / 2;
+        if (area <= 0) continue;
+        const mid = a.add(b).add(c).divideScalar(3);
+        faces.push({ u: mid.dot(right), v: mid.dot(up), w: mid.dot(PET_VIEW), a: area });
+      }
+    }
+  });
+  if (!faces.length) return { centre: new THREE.Vector3(), half: 0.1, depth: 0.1 };
+  const total = faces.reduce((n, f) => n + f.a, 0);
+  /** Where the given share of the surface (by area) lies below, along one direction. */
+  const share = (key: 'u' | 'v' | 'w', at: number) => {
+    faces.sort((p, q) => p[key] - q[key]);
+    let n = 0;
+    for (const f of faces) if ((n += f.a) >= total * at) return f[key];
+    return faces[faces.length - 1][key];
+  };
+  const TRIM = 0.04;
+  const [u0, u1] = [share('u', TRIM), share('u', 1 - TRIM)];
+  const [v0, v1] = [share('v', TRIM), share('v', 1 - TRIM)];
+  const [w0, w1] = [share('w', TRIM), share('w', 1 - TRIM)];
+  const centre = right.multiplyScalar((u0 + u1) / 2).add(up.multiplyScalar((v0 + v1) / 2)).addScaledVector(PET_VIEW, (w0 + w1) / 2);
+  // A face's middle sits a little inside the outline, and the trimmed few percent were part of it too; and
+  // nearly all of it (bar the very tips) stays mostly in the picture.
+  const outer = Math.max(share('u', 1 - 0.01) - share('u', 0.01), share('v', 1 - 0.01) - share('v', 0.01)) / 2;
+  const half = Math.max(0.03, (Math.max(u1 - u0, v1 - v0) / 2) * 1.12, outer * 0.8);
+  return { centre, half, depth: (w1 - w0) / 2 };
+}
+
+/** A pet's portrait, turned a little to one side and framed on its body (see petFrame). Cached for the visit. */
 export function petThumbnail(pet: PetId, size = 96): string {
-  const key = `pet:${pet}:${size}`;
+  // (pet2: framed on the body; the whole-pet pictures before it were keyed pet.)
+  const key = `pet2:${pet}:${size}`;
   const hit = thumbCache.get(key);
   if (hit) return hit;
   try {
@@ -2627,15 +2699,10 @@ export function petThumbnail(pet: PetId, size = 96): string {
     for (let i = 0; i < 20; i++) p.update(0.05, i * 0.05, false);
     p.root.rotation.y = 0.45;
     scene.add(p.root);
-    p.root.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(p.root);
-    const c = box.getCenter(new THREE.Vector3());
-    // Framed on its longest side (with room for corners as it turns), so little pets fill their tile too.
-    const sz = box.getSize(new THREE.Vector3());
-    const r = Math.max(0.05, Math.max(sz.x, sz.y, sz.z) * 0.75);
-    const dist = (r * 1.08) / Math.sin(THREE.MathUtils.degToRad(15));
-    camera.position.set(c.x + dist * 0.15, c.y + dist * 0.25, c.z + dist);
-    camera.lookAt(c);
+    const { centre, half, depth } = petFrame(p.root);
+    const dist = (half * 1.1) / Math.tan(THREE.MathUtils.degToRad(15)) + depth;
+    camera.position.copy(centre).addScaledVector(PET_VIEW, dist);
+    camera.lookAt(centre);
     const url = snap(renderer, scene, camera);
     scene.remove(p.root);
     p.dispose();
