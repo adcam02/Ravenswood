@@ -2374,7 +2374,7 @@ export class Engine {
       else this.camera.clearViewOffset();
     }
     // Our own animal steps out of the way of the lens once the camera is close to the seat.
-    const hide = Boolean(this.tableCam && this.camPos.distanceTo(wantPos) < 0.9);
+    const hide = Boolean(this.tableCam && this.camPos.distanceTo(wantPos) < 1.6);
     if (this.me && hide !== this.hidSelf) {
       this.hidSelf = hide;
       this.me.rig.root.visible = !hide;
