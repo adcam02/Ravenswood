@@ -369,13 +369,35 @@ function pebble(t: Tris, r: () => number, x: number, z: number, rad: number, h: 
   }
 }
 
+/** A path's ends moved out to the edge of the square's kerb, where one lies inside it. */
+function outsideSquare([x0, z0, x1, z1]: number[]): number[] {
+  const R = SQUARE_R + 0.2;
+  const dx = x1 - x0;
+  const dz = z1 - z0;
+  // Where along the path it crosses the kerb's circle (|p0 + t d| = R), if it does.
+  const a = dx * dx + dz * dz;
+  const b = 2 * (x0 * dx + z0 * dz);
+  const c = x0 * x0 + z0 * z0 - R * R;
+  const disc = b * b - 4 * a * c;
+  if (!a || disc <= 0) return [x0, z0, x1, z1];
+  const t1 = (-b + Math.sqrt(disc)) / (2 * a);
+  const t2 = (-b - Math.sqrt(disc)) / (2 * a);
+  let from = 0;
+  let to = 1;
+  if (Math.hypot(x0, z0) < R) from = Math.max(t1, t2);
+  if (Math.hypot(x1, z1) < R) to = Math.min(t1, t2);
+  if (to <= from) return [x0, z0, x1, z1];
+  return [x0 + dx * from, z0 + dz * from, x0 + dx * to, z0 + dz * to];
+}
+
 function pathMesh(): THREE.Mesh {
   const t = new Tris();
   const r = rng(21);
   const dirt = ['#d9bd8f', '#d2b484', '#dcc296', '#cfb07f'];
   PATHS.forEach(({ seg, w }, index) => {
     const lift = index * 0.00012;
-    const [x0, z0, x1, z1] = seg;
+    // A path starting in the square stops just under the kerb, so the dirt never shows between the paving stones.
+    const [x0, z0, x1, z1] = outsideSquare(seg);
     const len = Math.hypot(x1 - x0, z1 - z0);
     const steps = Math.max(1, Math.round(len / 2.2));
     const nx = -(z1 - z0) / len;

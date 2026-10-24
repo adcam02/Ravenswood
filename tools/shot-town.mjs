@@ -111,6 +111,9 @@ const ALL = {
   'cottage-close': 'x=25.6&z=13.6&t=0&dist=11&yaw=0.6',
   gallows: 'x=8.6&z=6.2&t=0&dist=12&gallows=1&yaw=0.9',
   'gallows-shut': 'x=8.6&z=6.2&t=0&dist=12&gallows=0&yaw=0.9',
+  // The platform's corners close up, and a path meeting the square's kerb.
+  'gallows-corner': 'x=8.6&z=6.2&t=0&dist=6&gallows=0&yaw=0.9&pitch=0.9',
+  'path-kerb': 'x=-7.5&z=8.5&t=0&dist=7&pitch=1.0',
   // The hanging, beat by beat (no animal here: just the rope, the loop, the trapdoor and the puff).
   'gallows-noose': 'x=8.6&z=6.2&t=0&dist=10&gallows=0&ring=1&rope=2.26&yaw=0.45&pitch=0.6',
   'gallows-hung': 'x=8.6&z=6.2&t=0&dist=10&gallows=1&ring=1&rope=3.66&swing=0.12&yaw=0.45&pitch=0.6',

@@ -612,7 +612,8 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     b.add(G.box(), plank, { pos: [0.95, PLAT_H - 0.06, 0], scale: [0.7, 0.12, 1.1] });
     // Dark underneath, so the drop looks deep.
     b.add(G.box(), '#120d10', { pos: [0, PLAT_H / 2 - 0.1, 0], scale: [2.5, PLAT_H - 0.2, 2.5] });
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.add(G.box(), wood, { pos: [sx * 1.2, PLAT_H / 2, sz * 1.2], scale: [0.16, PLAT_H, 0.16] });
+    // Legs at the corners, stopping just under the boards (level with their top, they flickered through it).
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.add(G.box(), wood, { pos: [sx * 1.2, (PLAT_H - 0.13) / 2, sz * 1.2], scale: [0.16, PLAT_H - 0.13, 0.16] });
     // Steps at the back.
     for (let i = 0; i < 3; i++) b.add(G.box(), plank, { pos: [0, 0.15 + i * 0.3, -1.5 - (2 - i) * 0.32], scale: [1.0, 0.1, 0.34] });
     // Posts and a beam, and a rope with a loop.
