@@ -38,13 +38,18 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    - **The Velvet Horn**, a night club, has Big Moo the minotaur on the door: talk to him (E) and he lets
      you in. Inside, the dance floor lights up to the beat and anyone at the jukebox picks one of six
      songs, which everyone inside hears in time (and faintly outside the door).
-   - **The Lucky Raven** casino: a pet shop, blackjack against the dealer, Texas hold'em between players
+   - **The Lucky Raven** casino: **the Shop** (pets, hats and dances), blackjack against the dealer, Texas hold'em between players
      and roulette, all for real money from your profile and run by the Storyteller's browser so nobody can
      cheat. Sitting at a table takes you to a seat's-eye view (drag with the right button to look round).
    - **The Pet Pit**, down a trapdoor in the tavern: challenge someone and your pets fight in the ring.
      Each round both pick in secret: **Attack** (1 damage, plus any charge), **Block** (stops an attack
      and hits back for 2, but not two rounds running) or **Charge** (+1 on your next attack, up to 3).
      Five hearts each; the winner gets $2 (up to five prizes a day), and the wins go up on the chalk board.
+   - **Wren Court**, the apartment block east of the bakery, has a flat for every player. Take the lift
+     to anyone's flat to visit (and sit on their sofa). In your own, **Decorate** opens a catalogue of 42
+     pieces ($5 to $150) plus wallpapers and floors: buy them, move and turn them, or put them away.
+   - **The leaderboard** on the tavern wall shows the top five for money, games won, achievements and
+     pet pit wins.
    - **The idea box** beside the noticeboard takes ideas and requests for the Storyteller, who gets
      them in an **Ideas** list on their top bar.
    - **The confession booth** stands in the church's front corner (and two more stand among the trees): two closets side by side with a
@@ -219,9 +224,16 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    your name, so they follow you to any device (and a copy stays in your browser). You earn money for
    finishing a game ($10), being on the winning team ($25), surviving ($5), achievements ($5, or $10
    for a secret one) and three-star jobs ($2, up to $20 a day), and everyone starts with $25; spend it at
-   the casino. **Pets are bought at the casino's pet shop** ($20 to $80; 47 of them, many fond takes on pop
-   culture favourites). The Storyteller's **Players' profiles** (in Settings) shows everyone's money and
-   achievements, can give or take either, and exports and imports the lot.
+   the casino's **Shop**: 77 pets ($20 to $80, many fond takes on pop culture favourites), ten hats ($30
+   to $120), the Crown of Midas ($500, with a crown on your name plate) and six dances ($15 to $40: the
+   chicken dance, sprinkler, running man, Y.M.C.A., the Carlton and the worm). Songs at the club are $1;
+   furniture for your flat is from $5. The Storyteller's **Players' profiles** (in Settings) shows
+   everyone's money and achievements, can give or take either, and exports and imports the lot.
+   **Backups:** every player's browser keeps a copy of the profiles. If the Storyteller's browser loses
+   them (or someone else hosts), it offers to restore them from the players' copies, going with the
+   version most of them agree on. **Devices:** the first device to play as a name claims it; anyone
+   joining as that name from another device waits for the Storyteller to let them in. The profiles
+   panel can forget a name's devices.
 9. **Nicknames.** Tap anyone in your Notepad's Who's who to give them a nickname that only you see, on
    their name plate and everywhere else. Nobody else's screen (nor the grimoire) changes.
 
@@ -232,7 +244,7 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
 | W A S D, arrows, or click the ground | Walk (Shift to run) |
 | E | Use things: jobs, benches, beds, the bar |
 | 1 to 6 | Wave, dance, cheer, laugh, cry, sit |
-| 7, then 1 to 7 | Dances: twerk, griddy, floss, robot, moonwalk, horse ride, macarena |
+| 7, then a number | Dances: twerk, griddy, floss, robot, moonwalk, horse ride, macarena (and any bought in the Shop) |
 | H (hold) | Shout |
 | Right mouse button, drag | Swing the camera round |
 | G / Q | Give what you're holding / put it away |
@@ -266,6 +278,9 @@ If anything in a player's game breaks, they get a note with **Reload** (they kee
 than a blank screen, and the Storyteller is told quietly, with the details under **Problems in
 players' games** in Settings. If the browser resets the graphics card, the town says so and comes
 back on low graphics.
+
+If a player refreshes or their connection drops, they come back as themselves: same seat, same
+role, the same spot, with their mic back on. Their animal waits where it was for 15 seconds meanwhile.
 
 ### Slow laptops
 
@@ -312,6 +327,8 @@ it). The file shows the format.
 | `src/world/` | The 3D town: `engine.ts` (movement, doors, jobs, camera), `animals.ts` (the animals), `town/` (the village and its interiors) |
 | `src/jobs/` | The five job minigames |
 | `src/voice/` | Proximity voice chat |
+| `src/game/` | Profiles and money (`profiles.ts`), backups, devices, the leaderboard |
+| `src/casino/`, `src/flats/` | The casino and the Shop; Wren Court's flats |
 | `src/state/host.ts` | The game rules and the Storyteller's actions |
 | `src/net/` | The connections |
 | `src/components/` | The Storyteller's grimoire tools and the on-screen controls |
