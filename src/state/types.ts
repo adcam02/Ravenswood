@@ -288,6 +288,8 @@ export interface GameState {
   ended: GameEnd | null;
   /** When this game began. */
   startedAt?: number;
+  /** The pet fights in the tavern's cellar: challenges, the fight in the ring, the board of wins. */
+  pit?: PitState;
   /** The game-over question the Storyteller has answered (or that ending the game settled), so it isn't asked again. */
   winDismissed?: string | null;
   awake: Record<string, AwakeState>;
@@ -344,6 +346,8 @@ export interface PublicState {
   ended?: GameEnd | null;
   /** Every death this game, once it's over (for the recap). */
   deaths?: DeathRecord[];
+  /** The pet pit, without anyone's secret pick. */
+  pit?: PitState;
 }
 
 export interface DayTimer {
@@ -377,6 +381,85 @@ export interface PrivateState {
   /** This seat's own requests to nominate today, and what came of them. */
   nomRequests?: NominationRequest[];
 }
+
+// ---------------------------------------------------------------- the pet pit
+
+/** What a pet does in a round of a fight: picked in secret by both sides, then shown together. */
+export type PitMove = 'attack' | 'block' | 'charge';
+
+/** One pet in the ring, and its owner. */
+export interface PitSide {
+  seat: string;
+  name: string;
+  pet: PetId;
+  hp: number;
+  /** Charges stored for the next attack. */
+  charge: number;
+  /** Picked this round (what, only the Storyteller's browser knows until the reveal). */
+  picked: boolean;
+  /** Storyteller only: this round's pick. */
+  move?: PitMove | null;
+  /** Last round's move (a block can't follow a block). */
+  last: PitMove | null;
+}
+
+/** A round as it was revealed. Index 0 and 1 follow the fight's sides. */
+export interface PitRound {
+  n: number;
+  moves: [PitMove, PitMove];
+  /** Picked at random, as time ran out. */
+  random: [boolean, boolean];
+  /** Damage each side took. */
+  dmg: [number, number];
+  /** Each side's block that caught the other's attack (and hit back). */
+  countered: [boolean, boolean];
+  /** How hard each side's attack was (1 plus the charges it spent). */
+  power: [number, number];
+  /** Hearts and charges before the round, and after it. */
+  was: [number, number];
+  had: [number, number];
+  hp: [number, number];
+  charge: [number, number];
+}
+
+export interface PitFight {
+  id: string;
+  /** The challenger first. */
+  sides: [PitSide, PitSide];
+  /** Walking into the ring, picking, the reveal playing out, and the result. */
+  stage: 'intro' | 'pick' | 'reveal' | 'over';
+  round: number;
+  /** When this stage ends (host clock). */
+  until: number;
+  last: PitRound | null;
+  /** How it ended: the winner (index), or null for a draw or a fight called off. */
+  result?: { winner: 0 | 1 | null; why: 'ko' | 'draw' | 'left' | 'off'; prize: number };
+  at: number;
+}
+
+export interface PitChallenge {
+  id: string;
+  /** Seat ids. */
+  from: string;
+  to: string;
+  at: number;
+}
+
+export interface PitState {
+  fight: PitFight | null;
+  challenges: PitChallenge[];
+  /** The chalk board: most wins first. */
+  board: { name: string; wins: number }[];
+  /** Storyteller only: prizes paid today, by player name. */
+  paid?: Record<string, { day: string; wins: number }>;
+}
+
+/** Something a player does in the pit. */
+export type PitAction =
+  | { k: 'challenge'; to: string }
+  | { k: 'answer'; id: string; yes: boolean }
+  | { k: 'withdraw'; id: string }
+  | { k: 'move'; move: PitMove };
 
 // ---------------------------------------------------------------- profiles, kept by the Storyteller
 
@@ -502,4 +585,6 @@ export type ClientMessage =
   /** `at`: when it was sent (for the round trip); `rtt`: the player's latest measure of it, in milliseconds. */
   | { t: 'ping'; at?: number; rtt?: number }
   /** Things earned since the last report, for the Storyteller to keep under this player's name. */
-  | { t: 'progress'; events: ProgressEvent[] };
+  | { t: 'progress'; events: ProgressEvent[] }
+  /** Challenging someone in the pet pit, answering, or picking a move. */
+  | { t: 'pit'; a: PitAction };

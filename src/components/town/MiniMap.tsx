@@ -13,6 +13,7 @@ const SCALE = (SIZE / 2 - 10) / TOWN_R;
 function placeOf(zone: string, x: number, z: number, seatIndex: (id: string) => number): [number, number] {
   switch (zoneKind(zone)) {
     case 'tavern':
+    case 'cellar':
       return [TAVERN.x, TAVERN.z];
     case 'bakery':
       return [BAKERY.x, BAKERY.z];

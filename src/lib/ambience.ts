@@ -1,7 +1,8 @@
 /**
  * Soft ambient sound, all made in the browser so there's nothing to download: a gentle tune and birds by day,
  * crickets and an owl by night, a breath of wind, water and frogs at the pond, a creaking rope at the gallows,
- * a fire in the tavern and the bakery, a hush in the church, and the clock ticking inside the tower. Everything sits well under the voices.
+ * a fire in the tavern and the bakery, a hush in the church, the clock ticking inside the tower, and glasses through
+ * the floor above the cellar. Everything sits well under the voices.
  */
 import { GALLOWS, POND } from '../world/town/layout';
 import { zoneKind, type Weather } from '../world/types';
@@ -144,7 +145,8 @@ class Ambience {
       this.lastApplied.muffle = muffleHz;
       this.muffle!.frequency.setTargetAtTime(muffleHz, t, 0.3);
     }
-    const outdoorLevel = outside ? 1 : kind === 'house' ? 0.12 : 0.3;
+    // (Down in the cellar, the town is a long way off.)
+    const outdoorLevel = outside ? 1 : kind === 'house' ? 0.12 : kind === 'cellar' ? 0.06 : 0.3;
     const rain = this.weather === 'rain' ? 1 : 0;
     const mist = this.weather === 'mist' ? 1 : 0;
     set('wind', LEVEL.wind * (0.6 + 0.4 * day) * (1 + rain * 0.3) * outdoorLevel);
@@ -170,7 +172,7 @@ class Ambience {
     const fire = kind === 'tavern' ? 1 : kind === 'bakery' ? 0.8 : 0;
     set('fire', LEVEL.fire * fire);
     set('crackle', LEVEL.crackle * fire);
-    set('clink', LEVEL.clink * (kind === 'tavern' ? 1 : 0));
+    set('clink', LEVEL.clink * (kind === 'tavern' ? 1 : kind === 'cellar' ? 0.5 : 0));
     set('hum', LEVEL.hum * (kind === 'church' ? 1 : 0));
     set('tick', LEVEL.tick * (kind === 'tower' ? 1 : 0));
   }
@@ -520,7 +522,7 @@ class Ambience {
       this.next.crackle = t + 0.15 + Math.random() * 0.6;
     }
     if (t >= this.next.clink) {
-      if (kind === 'tavern') this.clink(t);
+      if (kind === 'tavern' || kind === 'cellar') this.clink(t);
       this.next.clink = t + 7 + Math.random() * 12;
     }
     // The tower clock beats on the second, in step with its escape wheel.

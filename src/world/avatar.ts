@@ -128,6 +128,7 @@ export class AvatarView {
   private blob: THREE.Mesh;
   private blobMat: THREE.MeshBasicMaterial;
   private hatKey: string | undefined = undefined;
+  private petAway = false;
   private petKey = '';
   private pet: Pet | null = null;
   private petPos = new THREE.Vector3();
@@ -405,7 +406,7 @@ export class AvatarView {
         this.petRy = Math.atan2(this.x - this.petPos.x, this.z - this.petPos.z);
       }
       const root = this.pet.root;
-      root.visible = !this.away;
+      root.visible = !this.away && !this.petAway;
       root.position.set(this.petPos.x, this.ground, this.petPos.z);
       let d = this.petRy - root.rotation.y;
       d = wrapAngle(d);
@@ -436,6 +437,11 @@ export class AvatarView {
   setVoiceState(muted: boolean, shout: boolean) {
     this.el.classList.toggle('is-muted', muted);
     this.el.classList.toggle('is-shouting', shout && !muted);
+  }
+
+  /** The pet is off fighting in the pit (where the pit draws it), so the one at their heels is hidden. */
+  setPetAway(on: boolean) {
+    this.petAway = on;
   }
 
   /** Our own plate while nobody else can see it (in the confession booth): faded, so we know. */

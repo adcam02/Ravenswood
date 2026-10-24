@@ -19,11 +19,13 @@ import { useVoice, voice, type Listener } from '../voice/voice';
 import { AvatarView, type AvatarInfo } from './avatar';
 import { resolve, turnToward } from './collide';
 import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWorld } from './town';
-import { BED, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, GRAVEYARD, MEETING_CENTRE, RING_ROAD_R, SQUARE_R, STOOL_R, TOWER, groundAt } from './town/layout';
+import { BED, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, GRAVEYARD, MEETING_CENTRE, PIT_CORNERS, PIT_RING, RING_ROAD_R, SQUARE_R, STOOL_R, TOWER, groundAt } from './town/layout';
 import { nearPath } from './town/outdoor';
 import { Fireworks } from './fireworks';
 import { reportProblem } from '../lib/report';
-import { earn, hatBoost, notePerfect, noteTopJob, tally } from '../game/progress';
+import { earn, hatBoost, notePerfect, noteTopJob, tally, useProgress } from '../game/progress';
+import { PitShow } from './pitfight';
+import type { PitState } from '../state/types';
 
 /** Hats are a player's own: the Storyteller doesn't collect them. */
 const isPlayerView = (v: WorldView | null) => v?.mode === 'player';
@@ -41,7 +43,7 @@ interface TownFx {
 /** What's underfoot, for the sound of footsteps. */
 function surfaceAt(zone: ZoneId, x: number, z: number): 'stone' | 'wood' | 'grass' {
   const kind = zoneKind(zone);
-  if (kind === 'church' || kind === 'tower') return 'stone';
+  if (kind === 'church' || kind === 'tower' || kind === 'cellar') return 'stone';
   if (kind !== 'town') return 'wood';
   if (Math.abs(x - DOCK.x) < DOCK.w / 2 && z > DOCK.z0 && z < DOCK.z1) return 'wood';
   if (Math.hypot(x, z) < SQUARE_R) return 'stone';
@@ -141,6 +143,8 @@ export interface WorldView {
   /** Messenger pigeons in the air lately (this browser's clock), and the notes from those that came for us. */
   pigeons: { id: string; to: string; at: number }[];
   pigeonNotes: { id: string; name: string; where: string; at: number }[];
+  /** The pet pit in the tavern's cellar (this browser's clock). */
+  pit?: PitState | null;
 }
 
 /** What the world asks of the game around it. */
@@ -224,6 +228,7 @@ const PLACE_NAMES: Record<Exclude<ZoneKind, 'house'>, string> = {
   bakery: 'The Bakery',
   church: 'The Church',
   tower: 'The Clock Tower',
+  cellar: 'The Pet Pit',
 };
 
 /** Graphics quality: 'high' has shadows and crisp pixels; 'low' is for laptops that can't keep up. */
@@ -358,6 +363,9 @@ export class Engine {
   private pigeonsSeen = new Set<string>();
   /** The side of the confession booth we're sitting in, if we are. */
   private booth: Station | null = null;
+  /** The pet fight in the cellar's ring, and which fight we last went to our corner for. */
+  private pitShow: PitShow;
+  private pitCorner = '';
   /** Since when (on the clock) we've been in the booth with someone on the other side, for the achievement. */
   private boothWith: number | null = null;
 
@@ -381,6 +389,7 @@ export class Engine {
     host.appendChild(this.labels.domElement);
 
     this.town = createTown(this.scene, this.renderer);
+    this.pitShow = new PitShow(this.town.groups.cellar);
     this.town.groups.town.add(this.fireworks.points);
     this.town.setLowDetail(this.quality === 'low');
     this.town.show('town');
@@ -502,6 +511,7 @@ export class Engine {
     for (const a of this.others.values()) a.dispose();
     this.me?.dispose();
     this.fireworks.dispose();
+    this.pitShow.dispose();
     this.renderer.dispose();
     // Hand the graphics memory back now rather than whenever the page tidies up (a player's page builds the
     // town twice: once behind the join screens and again once they're in).
@@ -1543,6 +1553,7 @@ export class Engine {
     this.runShow(t);
     this.runVisit(t, v);
     this.runPigeons(t, v);
+    this.runPit(dt, t, v);
     // Unlock popups wait while something everyone should watch is on screen.
     const drama = Boolean(this.show || this.visit);
     if (drama !== useHud.getState().drama) useHud.setState({ drama });
@@ -2180,6 +2191,37 @@ export class Engine {
     }
   }
 
+  /**
+   * The pet pit: the fight in the ring (for everyone, though it's only seen and heard in the cellar), the fighters'
+   * own pets hidden from their heels meanwhile, a fighter taken to their corner as their fight starts, and the
+   * achievements for winning.
+   */
+  private runPit(dt: number, t: number, v: WorldView | null) {
+    const pit = v?.pit ?? null;
+    const here = zoneKind(local.zone) === 'cellar';
+    this.pitShow.update(dt, t, pit, here, (seat) => Boolean(v?.seats.find((s) => s.id === seat)?.dead), this.pitFreeze);
+    const away = new Set(this.pitShow.inRing);
+    for (const [key, av] of this.others) av.setPetAway(away.has(key));
+    this.me?.setPetAway(Boolean(v?.mySeatId && away.has(v.mySeatId)));
+    const f = pit?.fight;
+    if (!f || !v || v.mode !== 'player' || !v.mySeatId) return;
+    const i = f.sides.findIndex((s) => s.seat === v.mySeatId);
+    if (i < 0) return;
+    if (f.stage === 'intro' && this.pitCorner !== f.id && here) {
+      this.pitCorner = f.id;
+      const c = PIT_CORNERS[i];
+      this.stopEverything();
+      this.place('cellar', c.x, c.z, c.ry, true);
+    }
+    if (f.stage === 'over' && f.result?.winner === i) {
+      earn('pitwin');
+      if ((useProgress.getState().tally.pitwins ?? 0) >= 5) earn('pitchamp');
+    }
+  }
+
+  /** Tests can hold a pet fight's reveal at a moment (`pitFreeze`, in seconds into it), likewise. */
+  pitFreeze: number | null = null;
+
   /** Tests can hold the show at a moment (`showFreeze`, in seconds) to look at it frame by frame. */
   showFreeze: number | null = null;
   /** Seconds into the show itself (below 0 while the town votes and the wheel spins). */
@@ -2429,6 +2471,12 @@ export class Engine {
     if (this.me) {
       tx = local.x;
       tz = local.z;
+      // In the cellar while a fight is on, the camera leans over to keep the ring in the shot.
+      const fight = this.view?.pit?.fight;
+      if (fight && zoneKind(local.zone) === 'cellar') {
+        tx = local.x * 0.35 + PIT_RING.x * 0.65;
+        tz = local.z * 0.35 + PIT_RING.z * 0.65;
+      }
     } else {
       // Nobody to follow yet: drift slowly round the square.
       const a = t * 0.05;

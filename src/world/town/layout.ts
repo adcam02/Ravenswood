@@ -208,6 +208,7 @@ export const ROOMS: Record<Exclude<ZoneKind, 'town'>, { hw: number; hd: number }
   bakery: { hw: 6, hd: 5 },
   church: { hw: 6, hd: 9 },
   tower: { hw: 5, hd: 5 },
+  cellar: { hw: 7, hd: 6 },
   house: { hw: 5, hd: 4 },
 };
 
@@ -217,6 +218,8 @@ export const ROOM_DOOR: Record<Exclude<ZoneKind, 'town'>, { exit: { x: number; z
   bakery: { exit: { x: 0, z: 4.3, r: 1.0 }, arrive: { x: 0, z: 2.8, ry: Math.PI } },
   church: { exit: { x: 0, z: 8.3, r: 1.0 }, arrive: { x: 0, z: 6.8, ry: Math.PI } },
   tower: { exit: { x: 0, z: 4.3, r: 1.0 }, arrive: { x: 0, z: 2.8, ry: Math.PI } },
+  // The cellar's way out is the foot of its stairs, up to the tavern.
+  cellar: { exit: { x: -6.1, z: 5.25, r: 0.8 }, arrive: { x: -4.7, z: 4.4, ry: Math.PI / 2 } },
   house: { exit: { x: 0, z: 3.3, r: 0.9 }, arrive: { x: 0, z: 1.9, ry: Math.PI } },
 };
 
@@ -259,6 +262,32 @@ export const BELL_ROPE = { x: -3.2, z: -0.6 };
 export const WORKBENCH = { x: -4.45, z: 1.5, hw: 0.4, hd: 1.1, top: 0.9 };
 export const WORK_STOOL = { x: -3.55, z: 1.5, ry: -Math.PI / 2 };
 export const TOWER_BENCH = { x: 4.5, z0: 0, z1: 1.8 };
+
+/**
+ * The cellar under the tavern, where pets fight. The pit is a sanded ring with a low rail round it; the two owners
+ * stand at its front corners, and the benches face it from the sides and back. The stairs up run along the left wall.
+ * In the tavern, an open trapdoor by the right wall leads down.
+ */
+export const PIT_RING = { x: 0.8, z: -0.4, r: 2.0, rail: 0.42 };
+export const PIT_CORNERS: Spot[] = [-1, 1].map((sx) => {
+  const x = PIT_RING.x + sx * 2.1;
+  const z = PIT_RING.z + 1.75;
+  return { x, z, ry: face(x, z, PIT_RING.x, PIT_RING.z) };
+});
+export const PIT_BENCHES: Spot[] = [
+  [-3.3, -0.3],
+  [3.3, -0.3],
+  [-2.2, -2.7],
+  [2.2, -2.7],
+].map(([dx, dz]) => {
+  const x = PIT_RING.x + dx;
+  const z = PIT_RING.z + dz;
+  return { x, z, ry: face(x, z, PIT_RING.x, PIT_RING.z) };
+});
+export const PIT_BENCH_LEN = 1.8;
+export const CELLAR_STAIRS = { x: -6.1, w: 1.3, z0: 4.6, z1: 0.2, h: 3.3 };
+export const TALLY_BOARD = { x: PIT_RING.x, y: 2.0, w: 2.6, h: 1.5 };
+export const TRAPDOOR = { x: 6.3, z: 1.75, w: 1.0, d: 1.1 };
 
 export const BED = { x: 3.1, z: -2.65, w: 1.7, d: 2.6, top: 0.52 };
 export const HOME_TABLE = { x: -2.6, z: 0.7 };
@@ -306,6 +335,12 @@ export function makeDoors(): Door[] {
     const trigger = local(h.x, h.z, h.ry, 0, HOUSE_D / 2 + 0.55);
     doors.push({ id: `house-${slot}`, zone: 'town', x: trigger.x, z: trigger.z, r: 1.0, to: 'house', slot, spawn: ROOM_DOOR.house.arrive, label: COTTAGE_NAMES[slot] });
   });
+  // Down the trapdoor in the tavern to the cellar, and back up its stairs.
+  doors.push({ id: 'cellar-in', zone: 'tavern', x: TRAPDOOR.x, z: TRAPDOOR.z, r: 0.7, to: 'cellar', spawn: ROOM_DOOR.cellar.arrive, label: 'The cellar' });
+  {
+    const ex = ROOM_DOOR.cellar.exit;
+    doors.push({ id: 'cellar-out', zone: 'cellar', x: ex.x, z: ex.z, r: ex.r, to: 'tavern', spawn: { x: TRAPDOOR.x - 1.2, z: TRAPDOOR.z, ry: -Math.PI / 2 }, label: 'Up to the tavern' });
+  }
   const ex = ROOM_DOOR.house.exit;
   doors.push({ id: 'house-out', zone: 'house', x: ex.x, z: ex.z, r: ex.r, to: 'town', spawn: { x: 0, z: 0, ry: 0 }, label: 'Outside' });
   return doors;
@@ -354,6 +389,13 @@ export function makeStations(): Station[] {
     const z = MOVEMENT.z + MOVEMENT.hd + 0.75;
     st.push({ id: 'clock', zone: 'tower', x: MOVEMENT.x, z, r: 1.5, job: 'clock', stand: { x: MOVEMENT.x, z, ry: Math.PI }, label: 'Keep the clock in time' });
   }
+  // The cellar: benches round the pit, two to a bench.
+  PIT_BENCHES.forEach((b, i) =>
+    [-0.45, 0.45].forEach((along, k) => {
+      const p = local(b.x, b.z, b.ry, along, 0);
+      st.push({ id: `pit-bench-${i}-${k}`, zone: 'cellar', x: p.x, z: p.z, r: 0.7, job: 'sit', stand: { x: p.x, z: p.z, ry: b.ry }, y: 0.46, label: 'Sit' });
+    }),
+  );
   // Home.
   st.push({ id: 'bed', zone: 'house', x: BED.x, z: BED.z + 0.3, r: 1.9, job: 'sleep', stand: { x: BED.x, z: BED.z + 0.25, ry: 0 }, y: BED.top, label: 'Sleep' });
   HOME_CHAIRS.forEach((c, i) => st.push({ id: `home-chair-${i}`, zone: 'house', x: c.x, z: c.z, r: 0.9, job: 'sit', stand: c, y: 0.47, label: 'Sit' }));
@@ -453,6 +495,18 @@ export function roomColliders(kind: Exclude<ZoneKind, 'town'>): Collider[] {
     c.push(at(0, -5.5, 8, 0.5));
     c.push(at(6.9, -4.6, 0.9, 1.2));
     c.push(at(6.8, 3.6, 1.0, 0.9));
+    // The trapdoor's lid, propped open against the wall.
+    c.push(at(TRAPDOOR.x + TRAPDOOR.w / 2 + 0.12, TRAPDOOR.z, 0.12, TRAPDOOR.d / 2));
+  } else if (kind === 'cellar') {
+    // Nobody but the pets goes in the ring.
+    c.push({ kind: 'circle', x: PIT_RING.x, z: PIT_RING.z, r: PIT_RING.r + 0.15 });
+    for (const b of PIT_BENCHES) c.push(at(b.x, b.z, PIT_BENCH_LEN / 2, 0.3, b.ry));
+    c.push(at(CELLAR_STAIRS.x, (CELLAR_STAIRS.z0 + CELLAR_STAIRS.z1) / 2 - 0.2, CELLAR_STAIRS.w / 2 + 0.1, (CELLAR_STAIRS.z0 - CELLAR_STAIRS.z1) / 2 + 0.4));
+    // Barrels and crates in the corners and along the right wall.
+    c.push(at(-4.6, -5.2, 1.5, 0.8));
+    c.push(at(5.6, -5.0, 1.4, 1.0));
+    c.push(at(6.3, 2.6, 0.7, 1.3));
+    c.push({ kind: 'circle', x: 5.9, z: 4.9, r: 0.55 });
   } else if (kind === 'bakery') {
     c.push(at(OVEN.x, OVEN.z, 1.45, 1.1));
     c.push(at((SHELF.x0 + SHELF.x1) / 2, SHELF.z, (SHELF.x1 - SHELF.x0) / 2, 0.4));
@@ -502,6 +556,7 @@ export function whereIs(zone: string, x: number, z: number): string {
   if (zone === 'bakery') return 'in the bakery';
   if (zone === 'church') return 'in the church';
   if (zone === 'tower') return 'up in the clock tower';
+  if (zone === 'cellar') return 'down in the tavern’s cellar';
   if (zone.startsWith('cottage:')) return `in ${COTTAGE_NAMES[Number(zone.slice(8)) % COTTAGE_NAMES.length]}`;
   if (zone.startsWith('house:')) return 'at home';
   const near = (p: { x: number; z: number }, r: number) => Math.hypot(x - p.x, z - p.z) < r;

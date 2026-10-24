@@ -47,6 +47,7 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
       visits: [],
       pigeons: [],
       pigeonNotes: [],
+      pit: null,
     };
   }
   return {
@@ -85,6 +86,7 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
     visits: view.visits,
     pigeons: view.pigeons,
     pigeonNotes: view.pigeonNotes,
+    pit: view.pit,
   };
 }
 

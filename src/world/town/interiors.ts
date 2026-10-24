@@ -8,6 +8,7 @@ import {
   BAR_STOOLS,
   BED,
   BELL_ROPE,
+  CELLAR_STAIRS,
   HOME_CHAIRS,
   HOME_TABLE,
   MOVEMENT,
@@ -15,10 +16,16 @@ import {
   PEW_LEN,
   PEW_ROWS,
   PEW_X,
+  PIT_BENCHES,
+  PIT_BENCH_LEN,
+  PIT_CORNERS,
+  PIT_RING,
   ROOMS,
   SHELF,
   SIDE_DIAL,
+  TALLY_BOARD,
   TAVERN_TABLES,
+  TRAPDOOR,
   TOWER_BENCH,
   WORKBENCH,
   WORK_STOOL,
@@ -377,6 +384,39 @@ function tavern(p: Paint, glow: Builder, r: () => number) {
   hangingLamp(p, glow, -1.8, 2.4, -2.0);
   hangingLamp(p, glow, -4.6, 2.4, 2.6);
   hangingLamp(p, glow, 3.0, 2.4, 2.4);
+  trapdoor(p, glow);
+}
+
+/** The open trapdoor down to the cellar: a dark hole with the top of the stairs showing, its lid propped against the wall. */
+function trapdoor(p: Paint, glow: Builder) {
+  const T = TRAPDOOR;
+  const q = p.at(T.x, 0, T.z);
+  q.box('#140d09', T.w, 0.012, T.d, 0, 0.006, 0);
+  // The top steps going down, catching a little of the light from below.
+  for (let k = 0; k < 3; k++) q.box(shade('#5a3f2a', -k * 0.12), T.w - 0.12, 0.014, 0.16, 0, 0.008, -T.d / 2 + 0.16 + k * 0.3);
+  // A frame round the hole.
+  for (const sz of [-1, 1]) q.box(WOOD_DARK, T.w + 0.16, 0.04, 0.08, 0, 0.02, sz * (T.d / 2 + 0.04));
+  for (const sx of [-1, 1]) q.box(WOOD_DARK, 0.08, 0.04, T.d, sx * (T.w / 2 + 0.04), 0.02, 0);
+  // The lid stands on its hinges along the wall side, leaning back a touch, with an iron ring and straps.
+  const lid = q.at(T.w / 2 + 0.1, 0, 0);
+  lid.box(WOOD, 0.07, T.w, T.d, 0.02, T.w / 2, 0, 0, 0, -0.08);
+  for (const z of [-0.3, 0.3]) lid.box(IRON, 0.08, T.w * 0.9, 0.06, 0.0, T.w / 2, z, 0, 0, -0.08);
+  lid.torus(IRON, 0.07, 0.012, -0.06, T.w * 0.75, 0, 0, Math.PI / 2);
+  // A chalked sign on the wall: down to the pit.
+  const sign = p.at(7.97, 0, T.z, -Math.PI / 2);
+  sign.box(WOOD_DARK, 0.9, 0.5, 0.04, 0, 1.7, 0.02);
+  sign.box('#2c2a28', 0.8, 0.4, 0.03, 0, 1.7, 0.04);
+  for (const [w, x, y, rz] of [
+    [0.34, -0.12, 1.78, 0],
+    [0.3, -0.12, 1.66, 0],
+    [0.16, 0.24, 1.72, Math.PI / 2],
+    [0.09, 0.21, 1.66, 0.8],
+    [0.09, 0.27, 1.66, -0.8],
+  ] as const)
+    sign.box('#ecebe4', w, 0.025, 0.01, x, y, 0.06, 0, 0, rz);
+  // Warm light coming up out of the hole.
+  haloAt(p, T.x, 0.3, T.z, 1.4, '#ffb066');
+  glow.add(new THREE.PlaneGeometry(T.w - 0.2, T.d - 0.2), '#3a1f10', { pos: [0, 0.004, 0], rot: [-Math.PI / 2, 0, 0] }, q.m);
 }
 
 // ---------------------------------------------------------------- the bakery
@@ -1298,6 +1338,164 @@ function nightWindow(x: number, y: number, z: number, w: number, h: number): THR
   return g;
 }
 
+// ---------------------------------------------------------------- the cellar under the tavern: the pet pit
+
+const CELLAR_STONE = ['#8a8178', '#7f766d', '#938a7f', '#776e66'];
+
+/** A bare bulb on a flex, with a little tin shade. */
+function bulb(p: Paint, glow: Builder, x: number, y: number, z: number) {
+  p.cyl('#1e1a17', 0.008, 3.3 - y - 0.12, x, (3.3 + y + 0.12) / 2, z, 4);
+  p.cone('#6f7378', 0.2, 0.12, x, y + 0.1, z, 12);
+  p.cyl('#c8b48a', 0.03, 0.06, x, y + 0.05, z, 8);
+  glow.add(new THREE.SphereGeometry(0.07, 10, 8), '#fff2c0', { pos: [x, y - 0.03, z], scale: [1, 1.25, 1] }, p.m);
+  haloAt(p, x, y - 0.03, z, 1.5, '#ffd28a');
+}
+
+function cellar(p: Paint, glow: Builder, r: () => number) {
+  const { hw, hd } = ROOMS.cellar;
+  // Flagstones of all sizes, in rows, with dark mortar showing between.
+  for (let z = -hd; z < hd - 0.01; ) {
+    const row = Math.min(hd - z, 0.7 + r() * 0.5);
+    for (let x = -hw; x < hw - 0.01; ) {
+      const w = Math.min(hw - x, 0.6 + r() * 0.8);
+      p.box(shade(pick(r, CELLAR_STONE), (r() - 0.5) * 0.06), w - 0.05, 0.1, row - 0.05, x + w / 2, -0.05 + r() * 0.01, z + row / 2);
+      x += w;
+    }
+    z += row;
+  }
+  p.box('#2b2622', hw * 2, 0.1, hd * 2, 0, -0.07, 0);
+  p.box('#16110e', hw * 2 + 0.6, 0.6, hd * 2 + 0.3, 0, -0.42, 0.15);
+  // Walls of rough stone laid in courses: each block stands a little proud of the dark mortar behind.
+  const H = 3.3;
+  p.box('#3c342e', hw * 2 + 0.6, H, 0.3, 0, H / 2, -hd - 0.2);
+  for (const sx of [-1, 1]) p.box('#3c342e', 0.3, H, hd * 2 + 0.3, sx * (hw + 0.2), H / 2, 0.15);
+  const course = 0.36;
+  const lay = (len: number, put: (along: number, w: number, y: number, c: THREE.Color, out: number) => void) => {
+    for (let y = 0; y < H - 0.01; y += course) {
+      let a = y / course % 2 ? -0.3 : 0;
+      while (a < len - 0.01) {
+        const w = Math.min(len - Math.max(0, a), 0.45 + r() * 0.55);
+        const from = Math.max(0, a);
+        if (w > 0.08) put(from + w / 2, w - 0.04, y + course / 2, shade(pick(r, CELLAR_STONE), (r() - 0.5) * 0.1 - 0.04), r() * 0.03);
+        a = from + w;
+      }
+    }
+  };
+  lay(hw * 2, (a, w, y, c, out) => p.box(c, w, course - 0.04, 0.12, -hw + a, y, -hd + 0.01 + out));
+  for (const sx of [-1, 1]) lay(hd * 2, (a, w, y, c, out) => p.box(shade(c, -0.03), 0.12, course - 0.04, w, sx * (hw - 0.01 - out), y, -hd + a));
+  // Heavy beams along the tops of the walls, and posts in the back corners.
+  p.box(WOOD_DARK, hw * 2 + 0.6, 0.26, 0.4, 0, H + 0.02, -hd - 0.05);
+  for (const sx of [-1, 1]) p.box(WOOD_DARK, 0.4, 0.26, hd * 2 + 0.3, sx * (hw + 0.05), H + 0.02, 0.15);
+  for (const sx of [-1, 1]) p.box(shade(WOOD_DARK, -0.06), 0.26, H, 0.26, sx * (hw - 0.15), H / 2, -hd + 0.15);
+  // The front edge: a low stone kerb either side of nothing, so the room reads as a cut-away.
+  for (const sx of [-1, 1]) p.box('#4a423b', hw - 0.4, 0.3, 0.2, sx * ((hw + 0.4) / 2), 0.15, hd + 0.05);
+
+  // The pit: packed sand inside a low wooden rail, chalk marks where the pets start.
+  const R = PIT_RING;
+  p.cyl('#cdb488', R.r + 0.05, 0.05, R.x, 0.02, R.z, 40);
+  for (let k = 0; k < 18; k++) {
+    const a = r() * Math.PI * 2;
+    const d = r() * (R.r - 0.4);
+    p.cyl(shade('#cdb488', -0.06 - r() * 0.06), 0.12 + r() * 0.2, 0.004, R.x + Math.cos(a) * d, 0.047, R.z + Math.sin(a) * d, 10);
+  }
+  for (const sx of [-1, 1]) p.box('#ecebe4', 0.06, 0.008, 0.5, R.x + sx * 0.8, 0.05, R.z);
+  const posts = 16;
+  for (let k = 0; k < posts; k++) {
+    const a = (k / posts) * Math.PI * 2;
+    const x = R.x + Math.cos(a) * (R.r + 0.08);
+    const z = R.z + Math.sin(a) * (R.r + 0.08);
+    p.box(WOOD_DARK, 0.1, R.rail + 0.06, 0.1, x, (R.rail + 0.06) / 2, z, 0, -a, 0);
+    p.cyl(shade(WOOD_DARK, 0.1), 0.06, 0.04, x, R.rail + 0.08, z, 8);
+    // Two rails from this post to the next.
+    const b = ((k + 1) / posts) * Math.PI * 2;
+    const len = 2 * (R.r + 0.08) * Math.sin(Math.PI / posts);
+    const mx = R.x + Math.cos((a + b) / 2) * (R.r + 0.08) * Math.cos(Math.PI / posts);
+    const mz = R.z + Math.sin((a + b) / 2) * (R.r + 0.08) * Math.cos(Math.PI / posts);
+    p.box(WOOD, len, 0.07, 0.07, mx, R.rail, mz, 0, -(a + b) / 2 + Math.PI / 2, 0);
+    p.box(shade(WOOD, -0.08), len, 0.05, 0.05, mx, R.rail * 0.45, mz, 0, -(a + b) / 2 + Math.PI / 2, 0);
+  }
+  // Each owner's corner: a chalk cross on the floor and a bucket with a towel over it.
+  PIT_CORNERS.forEach((c, i) => {
+    for (const rz of [0.7, -0.7]) p.box('#e6e1d4', 0.5, 0.006, 0.06, c.x, 0.004, c.z, 0, rz, 0);
+    const bx = c.x + (i ? 0.75 : -0.75);
+    const bz = c.z - 0.35;
+    p.taper('#7d8389', 0.85, 0.17, 0.3, bx, 0, bz, 12);
+    p.torus('#5f656b', 0.17, 0.012, bx, 0.3, bz, Math.PI / 2);
+    p.box(i ? '#c94f4f' : '#4f7ec9', 0.36, 0.02, 0.14, bx, 0.31, bz);
+    p.box(i ? '#c94f4f' : '#4f7ec9', 0.02, 0.2, 0.14, bx + (i ? 0.18 : -0.18), 0.22, bz);
+  });
+  // Rough benches round the pit: planks on trestles.
+  for (const b of PIT_BENCHES) {
+    const q = p.at(b.x, 0, b.z, b.ry);
+    for (const k of [-1, 1]) q.rbox(shade(WOOD, k * 0.04 + (r() - 0.5) * 0.04), PIT_BENCH_LEN, 0.06, 0.2, 0, 0.44, k * 0.11, 0.015);
+    for (const sx of [-1, 1]) {
+      q.box(WOOD_DARK, 0.08, 0.42, 0.4, sx * (PIT_BENCH_LEN / 2 - 0.2), 0.21, 0, 0, 0, sx * 0.08);
+      q.box(WOOD_DARK, 0.06, 0.06, 0.5, sx * (PIT_BENCH_LEN / 2 - 0.2), 0.03, 0);
+    }
+  }
+
+  // The stairs up to the tavern, along the left wall, with a rail on the open side.
+  const S = CELLAR_STAIRS;
+  const steps = 11;
+  const run = (S.z0 - S.z1) / steps;
+  for (let k = 0; k < steps; k++) {
+    const top = ((k + 1) / steps) * S.h;
+    const z = S.z0 - (k + 0.5) * run;
+    p.box(shade(WOOD, (k % 2) * 0.04), S.w, 0.06, run + 0.04, S.x, top - 0.03, z);
+    p.box(shade(WOOD_DARK, -0.05), S.w - 0.04, top - 0.06, 0.04, S.x, (top - 0.06) / 2, z + run / 2 - 0.02);
+  }
+  // Stringers either side, and under the flight, boards closing it in.
+  const slope = Math.atan2(S.h, S.z0 - S.z1);
+  const len = Math.hypot(S.h, S.z0 - S.z1);
+  for (const sx of [-1, 1]) p.box(WOOD_DARK, 0.08, 0.26, len + 0.2, S.x + sx * (S.w / 2 + 0.04), S.h / 2 - 0.05, (S.z0 + S.z1) / 2, slope, 0, 0);
+  const railX = S.x + S.w / 2 + 0.06;
+  for (let k = 0; k <= 4; k++) {
+    const z = S.z0 - (k / 4) * (S.z0 - S.z1) - 0.15;
+    const y = Math.max(0, ((S.z0 - z) / (S.z0 - S.z1)) * S.h);
+    p.box(WOOD_DARK, 0.06, 0.9, 0.06, railX, y + 0.45, z);
+  }
+  p.box(WOOD, 0.07, 0.07, len + 0.1, railX, S.h / 2 + 0.9, (S.z0 + S.z1) / 2 - 0.1, slope, 0, 0);
+  // A lantern at the top, and light from the tavern through the hatch.
+  bulb(p, glow, S.x + 0.2, 2.6, S.z0 - 0.1);
+  p.box('#4a3020', S.w + 0.2, 0.08, 0.9, S.x, S.h + 0.06, S.z1 + 0.25);
+
+  // The tally board's frame on the back wall (the chalk on it is drawn as the fights go).
+  const B = TALLY_BOARD;
+  p.box(WOOD_DARK, B.w + 0.2, B.h + 0.2, 0.06, B.x, B.y, -hd + 0.1);
+  p.box('#2e3430', B.w, B.h, 0.04, B.x, B.y, -hd + 0.13);
+  p.box(WOOD_DARK, B.w, 0.05, 0.12, B.x, B.y - B.h / 2 - 0.08, -hd + 0.15);
+  for (const x of [-0.6, -0.4, 0.5]) p.box('#f2efe6', 0.1, 0.025, 0.025, B.x + x, B.y - B.h / 2 - 0.04, -hd + 0.16);
+
+  // Barrels and crates in the corners, sacks, and a crate stack along the right wall.
+  barrel(p.at(-5.8, 0, -5.2), r);
+  barrel(p.at(-4.9, 0, -5.3), r);
+  barrel(p.at(-5.35, 0.95, -5.25), r);
+  barrel(p.at(-3.6, 0, -5.2, 0.3), r, true);
+  crate(p.at(5.2, 0, -5.1), r, 0.9);
+  crate(p.at(6.15, 0, -4.7), r, 0.8);
+  crate(p.at(5.3, 0.9, -5.1), r, 0.6);
+  crate(p.at(6.3, 0, 1.7), r, 0.8);
+  crate(p.at(6.3, 0, 2.7), r, 0.9);
+  crate(p.at(6.35, 0.9, 2.3), r, 0.7);
+  crate(p.at(6.2, 0, 3.6), r, 0.6);
+  barrel(p.at(5.9, 0, 4.9), r);
+  for (const [x, z, ry] of [
+    [-6.3, -3.4, 0.4],
+    [-6.4, -2.6, -0.2],
+  ] as const) {
+    const q = p.at(x, 0, z, ry);
+    q.blob('#c9b07a', 0.3, 0, 0.28, 0, 0.3, 1.2);
+    q.cyl('#a8905f', 0.08, 0.1, 0, 0.62, 0, 8);
+  }
+  // Bulbs over the ring, the board and the corners.
+  for (let k = 0; k < 3; k++) {
+    const a = (k / 3) * Math.PI * 2 + Math.PI / 2;
+    bulb(p, glow, R.x + Math.cos(a) * 1.1, 2.55, R.z + Math.sin(a) * 1.1);
+  }
+  bulb(p, glow, B.x, 2.9, -hd + 0.9);
+  bulb(p, glow, 5.2, 2.6, 1.0);
+}
+
 // ---------------------------------------------------------------- assembly
 
 export function buildInteriors(): Interiors {
@@ -1373,6 +1571,18 @@ export function buildInteriors(): Interiors {
         { pos: [-4.0, SIDE_DIAL.y, SIDE_DIAL.z], color: '#fff2d8', intensity: 6, distance: 6 },
         { pos: [4.0, SIDE_DIAL.y, SIDE_DIAL.z], color: '#fff2d8', intensity: 6, distance: 6 },
         { pos: [WORKBENCH.x + 0.4, 1.4, WORKBENCH.z + 0.9], color: '#ffb35a', intensity: 7, distance: 6, flicker: true },
+      ],
+    },
+    cellar: {
+      group: make('cellar', cellar),
+      hemi: { sky: '#d8c2a2', ground: '#2a201a', intensity: 0.8 },
+      sun: { color: '#ffd9a8', intensity: 0.55, dir: [0.2, 1, 0.5] },
+      lights: [
+        // The bulbs over the ring do most of it; one by the stairs and one over the board.
+        { pos: [PIT_RING.x, 2.4, PIT_RING.z], color: '#ffd08a', intensity: 26, distance: 9 },
+        { pos: [PIT_RING.x, 2.6, -4.6], color: '#ffd08a', intensity: 8, distance: 6 },
+        { pos: [CELLAR_STAIRS.x + 0.3, 2.4, CELLAR_STAIRS.z0 - 0.4], color: '#ffc77a', intensity: 7, distance: 6 },
+        { pos: [5.2, 2.4, 1.0], color: '#ffc77a', intensity: 6, distance: 6 },
       ],
     },
     house: {

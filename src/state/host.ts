@@ -12,6 +12,7 @@ import {
 import { loadJSON, roomCode, saveJSON, shuffle, uid } from '../lib/util';
 import { drawMethod, isExecMethod, VOTE_MS } from '../game/execution';
 import { ui } from './ui';
+import { pitPublic } from '../game/pitRules';
 import {
   ANIMALS,
   BED_SPOTS,
@@ -247,6 +248,7 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
     ended: g.ended && { winner: g.ended.winner, reason: g.ended.reason, at: g.ended.at, day: g.ended.day, since: g.ended.since },
     // Night deaths stay secret until dawn, so the list only goes out once the game is over.
     deaths: g.ended ? g.deaths : undefined,
+    pit: g.pit ? pitPublic(g.pit) : undefined,
   };
 }
 
