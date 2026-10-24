@@ -332,7 +332,7 @@ await check('voice: the Storyteller can speak to everyone', async () => {
 });
 
 await check('booth: the confession booth is private, one to a side', async () => {
-  const sides = await players.abbey.evaluate(() => window.__engine.town.stations.filter((s) => s.job === 'confess'));
+  const sides = await players.abbey.evaluate(() => window.__engine.town.stations.filter((s) => s.job === 'confess' && s.zone === 'church'));
   expect(sides.length === 2, `${sides.length} sides to the booth`);
   const step = async (p, side) => {
     await place(p, 'church', side.x, side.z + 0.55, Math.PI);
