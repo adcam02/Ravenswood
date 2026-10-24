@@ -22,14 +22,15 @@ export class TableCam {
   ) {
     this.eye.copy(eye);
     this.ahead.copy(look).sub(eye);
-    canvas.addEventListener('pointerdown', this.onDown);
+    // (Caught first, so the town's own camera swing and click-to-walk leave the seat alone.)
+    canvas.addEventListener('pointerdown', this.onDown, true);
     window.addEventListener('pointermove', this.onMove);
     window.addEventListener('pointerup', this.onUp);
     window.addEventListener('pointercancel', this.onUp);
   }
 
   dispose() {
-    this.canvas.removeEventListener('pointerdown', this.onDown);
+    this.canvas.removeEventListener('pointerdown', this.onDown, true);
     window.removeEventListener('pointermove', this.onMove);
     window.removeEventListener('pointerup', this.onUp);
     window.removeEventListener('pointercancel', this.onUp);
@@ -47,6 +48,8 @@ export class TableCam {
   }
 
   private onDown = (e: PointerEvent) => {
+    // Every press on the picture is the seat's while sitting here.
+    e.stopImmediatePropagation();
     // The right button with a mouse; any drag with a finger or a pen.
     if (e.pointerType === 'mouse' ? e.button !== 2 : !e.isPrimary) return;
     this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY };
