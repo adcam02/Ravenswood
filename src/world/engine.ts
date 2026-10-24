@@ -2078,12 +2078,16 @@ export class Engine {
         return;
       }
       // Only walking into a door opens it, not standing next to one. The tower's doors want you heading for the
-      // tower itself, so walking round it (or past the front on the way to the stools) doesn't take you in.
+      // tower itself, so walking round it (or past the front on the way to the stools) doesn't take you in; the
+      // cottages' and the club's want you heading for the building too, so running along the ring road past their
+      // doors doesn't either.
       let toward = moving && (door.x - local.x) * dx + (door.z - local.z) * dz > -0.2;
-      if (toward && door.id.startsWith('tower-in')) {
-        const len = Math.hypot(dx, dz) * Math.hypot(local.x, local.z) || 1;
-        toward = (-local.x * dx - local.z * dz) / len > 0.6;
-      }
+      const heading = (cx: number, cz: number) => ((cx - local.x) * dx + (cz - local.z) * dz) / (Math.hypot(dx, dz) * Math.hypot(cx - local.x, cz - local.z) || 1);
+      if (toward && door.id.startsWith('tower-in')) toward = heading(0, 0) > 0.6;
+      else if (toward && door.id.startsWith('house-')) {
+        const h = this.town.houseSlots[door.slot ?? 0];
+        toward = heading(h.x, h.z) > 0.6;
+      } else if (toward && door.id === 'club-in') toward = heading(CLUB.x, CLUB.z) > 0.6;
       if (toward && performance.now() >= this.doorsShutUntil && !this.job && !this.entering) {
         this.doorsShutUntil = performance.now() + 1000;
         if (door.id.startsWith('tower-in')) this.towerDoor = door;
