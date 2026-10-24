@@ -1089,3 +1089,163 @@ export function pitSound(name: 'bell' | 'whoosh' | 'hit' | 'block' | 'charge' | 
     [523.3, 659.3, 784, 1046.5].forEach((f, i) => tone('triangle', f, f, i * 0.11, i === 3 ? 0.6 : 0.16, 0.12));
   }
 }
+
+// ---------------------------------------------------------------- the casino
+
+/** A card dealt onto the felt: a quick papery flick and a soft pat. `n` cards follow each other. */
+export function cardSound(n = 1, gap = 0.11) {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.value = 0.5;
+  out.connect(c.destination);
+  for (let k = 0; k < Math.min(n, 8); k++) {
+    const at = t + k * gap + Math.random() * 0.02;
+    [
+      [0, 0.045, 4200, 0.22, 'highpass'],
+      [0.03, 0.06, 700, 0.12, 'bandpass'],
+    ].forEach(([dt, len, freq, vol, type]) => {
+      const src = noise(c, len as number);
+      const f = c.createBiquadFilter();
+      f.type = type as BiquadFilterType;
+      f.frequency.value = (freq as number) * (0.9 + Math.random() * 0.2);
+      const g = c.createGain();
+      const s = at + (dt as number);
+      g.gain.setValueAtTime(0.0001, s);
+      g.gain.exponentialRampToValueAtTime(vol as number, s + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, s + (len as number));
+      src.connect(f).connect(g).connect(out);
+      src.start(s);
+    });
+  }
+}
+
+/** Chips clicking together: a few bright clinks, more for a bigger pile. */
+export function chipSound(many = false) {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.value = 0.35;
+  out.connect(c.destination);
+  const n = many ? 7 : 3;
+  for (let k = 0; k < n; k++) {
+    const at = t + k * (many ? 0.05 : 0.07) + Math.random() * 0.025;
+    for (const ratio of [1, 2.76, 5.4]) {
+      const osc = c.createOscillator();
+      const g = c.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = (2300 + Math.random() * 900) * ratio * 0.5;
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.18 / ratio, at + 0.002);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.09 / ratio + 0.03);
+      osc.connect(g).connect(out);
+      osc.start(at);
+      osc.stop(at + 0.2);
+    }
+    const src = noise(c, 0.03);
+    const f = c.createBiquadFilter();
+    f.type = 'highpass';
+    f.frequency.value = 5000;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.08, at);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.03);
+    src.connect(f).connect(g).connect(out);
+    src.start(at);
+  }
+}
+
+/** A win at the tables: a bright little run up, and a glitter of chips. */
+export function casinoWin(big = false) {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  const notes = big ? [523.3, 659.3, 784, 1046.5, 1318.5] : [659.3, 784, 1046.5];
+  notes.forEach((f, i) => {
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = f;
+    const at = t + i * 0.09;
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.09, at + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.45);
+    osc.connect(g).connect(c.destination);
+    osc.start(at);
+    osc.stop(at + 0.5);
+  });
+  setTimeout(() => chipSound(true), notes.length * 90);
+}
+
+/** A loss: two soft notes going down. */
+export function casinoLose() {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  [392, 311.1].forEach((f, i) => {
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = f;
+    const at = t + i * 0.18;
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.07, at + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
+    osc.connect(g).connect(c.destination);
+    osc.start(at);
+    osc.stop(at + 0.55);
+  });
+}
+
+/** The shop's till: a bell and the drawer sliding out. */
+export function tillSound() {
+  bell(1568, 1.2, 0.06);
+  bell(2093, 1.0, 0.05, 0.12);
+  chipSound(false);
+}
+
+/**
+ * The roulette ball over `seconds`: a whirr round the track that slows, then the clatter of it dropping among the
+ * frets, and a last click into its pocket.
+ */
+export function rouletteSpin(seconds = 7) {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.value = 0.4;
+  out.connect(c.destination);
+  // The roll: filtered noise, its pitch and loudness falling as the ball slows.
+  const roll = noise(c, seconds * 0.7);
+  const f = c.createBiquadFilter();
+  f.type = 'bandpass';
+  f.Q.value = 2.5;
+  f.frequency.setValueAtTime(2400, t);
+  f.frequency.exponentialRampToValueAtTime(700, t + seconds * 0.65);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.12, t + 0.15);
+  g.gain.exponentialRampToValueAtTime(0.02, t + seconds * 0.68);
+  roll.connect(f).connect(g).connect(out);
+  roll.start(t);
+  // The clatter: hard little ticks, further apart as it settles.
+  let at = seconds * 0.62;
+  let gap = 0.05;
+  while (at < seconds * 0.97) {
+    const tick = noise(c, 0.02);
+    const hf = c.createBiquadFilter();
+    hf.type = 'highpass';
+    hf.frequency.value = 3200 + Math.random() * 1500;
+    const tg = c.createGain();
+    const when = t + at;
+    tg.gain.setValueAtTime(0.0001, when);
+    tg.gain.exponentialRampToValueAtTime(0.18 + Math.random() * 0.1, when + 0.002);
+    tg.gain.exponentialRampToValueAtTime(0.0001, when + 0.02);
+    tick.connect(hf).connect(tg).connect(out);
+    tick.start(when);
+    at += gap * (0.7 + Math.random() * 0.6);
+    gap *= 1.18;
+  }
+  bell(2637, 0.4, 0.04, seconds);
+}

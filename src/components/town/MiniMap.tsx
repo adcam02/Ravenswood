@@ -3,6 +3,7 @@ import { local } from '../../game/local';
 import { presence } from '../../game/presence';
 import { useView } from '../../state/view';
 import { BAKERY, CHURCH, CLUB, GALLOWS, GRAVEYARD, MEETING_CENTRE, POND, SQUARE_R, STOOL_R, TAVERN, TOWN_R, WASHHOUSE, WELL, houseSlots } from '../../world/town/layout';
+import { CASINO } from '../../world/town/casinoLayout';
 import { cottageSlot, houseOwner, inBooth, zoneKind, type Look } from '../../world/types';
 
 // Twice the first version's size.
@@ -23,6 +24,8 @@ function placeOf(zone: string, x: number, z: number, seatIndex: (id: string) => 
       return [0, 0];
     case 'club':
       return [CLUB.x, CLUB.z];
+    case 'casino':
+      return [CASINO.x, CASINO.z];
     case 'house': {
       const slot = cottageSlot(zone);
       if (slot !== null) {
@@ -124,6 +127,7 @@ export function MiniMap() {
       ctx.fill();
       for (const h of houseSlots) box(h.x, h.z, 5.2, 4.6, '#d8c8a8', h.ry);
       box(CLUB.x, CLUB.z, CLUB.w, CLUB.d, '#7a3f8a', CLUB.ry);
+      box(CASINO.x, CASINO.z, CASINO.w, CASINO.d, '#8a2f4a', CASINO.ry);
       // Everyone.
       const dot = (cx: number, cz: number, m: Marker, r: number) => {
         ctx.beginPath();

@@ -242,6 +242,8 @@ export function HandSlot() {
 export function EmoteBar() {
   const emote = useHud((s) => s.emote);
   const job = useHud((s) => s.job);
+  // (At a card table the table's own panel sits there.)
+  const atTable = useHud((s) => Boolean(s.casino && s.casino.kind !== 'shop'));
   const open = useHud((s) => s.dances);
   const bar = useRef<HTMLDivElement>(null);
   // The picker closes on a tap anywhere else, or Escape.
@@ -260,7 +262,7 @@ export function EmoteBar() {
       window.removeEventListener('keydown', esc);
     };
   }, [open]);
-  if (job) return null;
+  if (job || atTable) return null;
   const picked = isDance(emote) && emote !== 'dance';
   return (
     <div ref={bar} className="emote-bar cosy-panel" role="toolbar" aria-label="Emotes">

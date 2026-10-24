@@ -17,6 +17,7 @@ import './styles/cards.css';
 import './styles/modals.css';
 import './styles/cosy.css';
 import './styles/town.css';
+import './styles/casino.css';
 import './styles/jobs.css';
 import './styles/exec.css';
 import './styles/pit.css';

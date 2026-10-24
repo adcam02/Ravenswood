@@ -1,4 +1,5 @@
 import type { Alignment, Script } from '../data';
+import type { CasinoAction, CasinoView } from '../casino/types';
 import type { BakeKind, ClothKind, DrinkKind, FlowerKind, Item, Look, PetId, Pose, Progress, TownState, Weather } from '../world/types';
 
 export type Phase = 'night' | 'day';
@@ -380,6 +381,8 @@ export interface PrivateState {
   profile?: ProfileView | null;
   /** This seat's own requests to nominate today, and what came of them. */
   nomRequests?: NominationRequest[];
+  /** The casino's tables and shop, while they're in it (with only their own cards face up). */
+  casino?: CasinoView | null;
 }
 
 // ---------------------------------------------------------------- the pet pit
@@ -593,4 +596,6 @@ export type ClientMessage =
   /** Things earned since the last report, for the Storyteller to keep under this player's name. */
   | { t: 'progress'; events: ProgressEvent[] }
   /** Challenging someone in the pet pit, answering, or picking a move. */
-  | { t: 'pit'; a: PitAction };
+  | { t: 'pit'; a: PitAction }
+  /** A bet, a card, a pet from the shop: everything at the casino. */
+  | { t: 'casino'; a: CasinoAction };

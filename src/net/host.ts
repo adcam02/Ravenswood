@@ -6,8 +6,9 @@ import { ui } from '../state/ui';
 import Peer, { type DataConnection } from 'peerjs';
 import { create } from 'zustand';
 import { st, toPrivate, toPublic, useHost } from '../state/host';
-import { profileFor, receiveProgress, startProfiles, useProfiles } from '../game/profiles';
+import { profileFor, profileOf, receiveProgress, startProfiles, useProfiles } from '../game/profiles';
 import { pit } from '../game/pit';
+import { casinoFor, receiveCasino, startCasino, useCasino } from '../casino/host';
 import type { ClientMessage, HostMessage } from '../state/types';
 import { local, receiveItem } from '../game/local';
 import { presence } from '../game/presence';
@@ -113,6 +114,8 @@ class HostLink {
     this.room = room;
     // Players' profiles are kept from here on (their money, hats and achievements, by name).
     startProfiles();
+    // The casino's tables, played for that money.
+    startCasino(() => useHostNet.getState().online);
     if (peerDisabled()) useHostNet.setState({ status: 'reconnecting', detail: 'Using the backup route only.' });
     else this.openPeer();
     this.openMesh();
@@ -341,7 +344,10 @@ class HostLink {
     const p = st.fromPlayer;
     switch (msg.t) {
       case 'join': {
-        const refused = p.join(pid, String(msg.name ?? ''), msg.look ?? {});
+        // Pets are bought at the casino: one they don't own stays at home.
+        const look = { ...(msg.look ?? {}) };
+        if (look.pet && !profileOf({ name: String(msg.name ?? '') })?.pets.includes(look.pet)) look.pet = null;
+        const refused = p.join(pid, String(msg.name ?? ''), look);
         if (refused) link.send({ t: 'taken', animal: refused.taken, by: refused.by });
         break;
       }
@@ -420,6 +426,9 @@ class HostLink {
         break;
       case 'pit':
         pit.fromPlayer(pid, msg.a);
+        break;
+      case 'casino':
+        receiveCasino(pid, msg.a);
         break;
     }
   }
@@ -597,7 +606,7 @@ class HostLink {
         meta.sentPublic = pubJson;
         link.send({ t: 'state', s: pub, now: Date.now(), v: __BUILD__ });
       }
-      const priv = { ...toPrivate(g, meta.playerId), profile: profileFor(meta.playerId) };
+      const priv = { ...toPrivate(g, meta.playerId), profile: profileFor(meta.playerId), casino: casinoFor(meta.playerId) };
       const privJson = JSON.stringify(priv);
       if (privJson !== meta.sentPrivate) {
         meta.sentPrivate = privJson;
@@ -614,5 +623,6 @@ export const hostLink = new HostLink();
 useHost.subscribe(() => hostLink.scheduleBroadcast());
 useHostNet.subscribe((s, prev) => s.online !== prev.online && hostLink.scheduleBroadcast());
 useProfiles.subscribe(() => hostLink.scheduleBroadcast());
+useCasino.subscribe(() => hostLink.scheduleBroadcast());
 
 if (debugHooks()) Object.assign(window, { __host: useHost, __hostNet: useHostNet, __netStats: () => hostLink.stats() });

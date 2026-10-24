@@ -6,9 +6,11 @@ import { player, useClient, useTaken } from '../../net/client';
 import { useVoice, voice } from '../../voice/voice';
 import { AnimalPreview } from '../../world/AnimalPreview';
 import { animalThumbnail } from '../../world/animals';
-import { ANIMALS_ABC, animalInfo, EXTRA_COLORS, fixLook, HATS, hatsOwned, hatSpeedLabel, PETS, type AnimalId, type Look } from '../../world/types';
+import { ANIMALS_ABC, animalInfo, EXTRA_COLORS, fixLook, HATS, hatsOwned, hatSpeedLabel, type AnimalId, type Look } from '../../world/types';
 import { useProgress } from '../../game/progress';
 import { shownName } from '../../state/nicks';
+import { money } from '../../game/profiles';
+import { petPrice, shopPets } from '../../casino/shop';
 
 type Step = 'name' | 'animal' | 'mic';
 
@@ -52,6 +54,8 @@ function save(key: string, value: unknown) {
 /** Remembers the name and look in this browser for next time, and asks the host for them. */
 export function wearLook(name: string, look: Look) {
   const clean = name.trim();
+  // (A pet not bought yet stays at home; the host would leave it off anyway.)
+  if (look.pet && !useProgress.getState().pets.includes(look.pet)) look = { ...look, pet: null };
   save(NAME_KEY, clean);
   save(LOOK_KEY, look);
   player.join(clean, fixLook(look));
@@ -271,12 +275,12 @@ export function LookEditor({
   );
 }
 
-/** Hats are earned in earlier games (locked ones say how, when picked); pets are free for everyone. */
+/** Hats are earned in earlier games (locked ones say how, when picked); pets are bought at the casino. */
 function DressUp({ tab, look, setLook }: { tab: 'hat' | 'pet'; look: Look; setLook: (l: Look) => void }) {
   const progress = useProgress();
   const [hint, setHint] = useState<string | null>(null);
   useEffect(() => setHint(null), [tab]);
-  const items: { id: string; name: string; icon: string; locked?: string }[] =
+  const items: { id: string; name: string; icon: string; locked?: string; price?: number }[] =
     tab === 'hat'
       ? HATS.map((h) => {
           const got = h.unlocked(progress);
@@ -285,7 +289,10 @@ function DressUp({ tab, look, setLook }: { tab: 'hat' | 'pet'; look: Look; setLo
         })
           // The ones you have first.
           .sort((a, b) => Number(Boolean(a.locked)) - Number(Boolean(b.locked)))
-      : PETS;
+      : // Pets you own first; the rest show their price at the casino's pet shop.
+        shopPets()
+          .map((p) => (progress.pets.includes(p.id) ? { id: p.id, name: p.name, icon: p.icon } : { id: p.id, name: p.name, icon: p.icon, price: petPrice(p.id), locked: `${money(petPrice(p.id))} at the casino’s pet shop (the Lucky Raven)` }))
+          .sort((a, b) => Number(Boolean(a.locked)) - Number(Boolean(b.locked)));
   const current = (look[tab] ?? null) as string | null;
   const choose = (id: string | null) => setLook({ ...look, [tab]: id });
   const owned = hatsOwned(progress);
@@ -295,7 +302,9 @@ function DressUp({ tab, look, setLook }: { tab: 'hat' | 'pet'; look: Look; setLo
         {hint ??
           (tab === 'hat'
             ? `Each hat you own: +0.1% speed. You have ${owned}, so you’re ${hatSpeedLabel(owned)} quicker about town.`
-            : 'Your pet trots along beside you wherever you go.')}
+            : progress.pets.length
+              ? 'Your pet trots along beside you wherever you go. More at the casino’s pet shop.'
+              : 'Pets are bought with money from playing, at the casino’s pet shop (the Lucky Raven).')}
       </p>
       <div className="join-items" role="radiogroup" aria-label={tab === 'hat' ? 'Hat' : 'Pet'}>
         <button className={`join-item ${!current ? 'on' : ''}`} onClick={() => choose(null)} role="radio" aria-checked={!current}>
@@ -315,6 +324,7 @@ function DressUp({ tab, look, setLook }: { tab: 'hat' | 'pet'; look: Look; setLo
             <span className="join-item-icon">{it.icon}</span>
             <span className="join-item-name">{it.name}</span>
             {it.locked && <i>🔒</i>}
+            {it.price !== undefined && <span className="join-item-price">{money(it.price)}</span>}
           </button>
         ))}
       </div>

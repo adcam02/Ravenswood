@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Builder, matte, rng } from '../build';
 import { BOOTHS, BOOTH_HD, BOOTH_HW, type ZoneKind } from '../types';
-import { Paint, pick, shade, smoothMesh } from './kit';
+import { G, Paint, pick, shade, smoothMesh } from './kit';
 import {
   BACK_DIAL,
   BAR,
@@ -36,7 +36,10 @@ import { makeGlows, type GlowSpot, type Glows } from './fx';
 import { beamGeometry, beamMaterial } from './looks';
 import { SeatingChart } from './seating';
 import { clubRoom, makeClubRoom, type ClubRoom } from './club';
-import { TextSign } from './sign';
+import { signBoard, TextSign } from './sign';
+import { BJ_DEALER, BJ_TABLE, FELT_Y, STEP, PK_DEALER, PK_TABLE, RL_CROUPIER, RL_TABLE, SHOP, SLOTS, bjSeat, pkSeat, rlSeat } from './casinoLayout';
+import { BJ_SEATS, PK_SEATS, RL_SEATS } from '../../casino/types';
+import { placeMatrix } from '../build';
 
 export type Room = Exclude<ZoneKind, 'town'>;
 
@@ -1505,6 +1508,216 @@ function cellar(p: Paint, glow: Builder, r: () => number) {
   bulb(p, glow, 5.2, 2.6, 1.0);
 }
 
+// ---------------------------------------------------------------- the casino
+
+const FELT = '#2f7a4f';
+const RAIL = '#5a2a2a';
+const GOLD = '#d8b04a';
+const VELVET = '#a3304a';
+/** A half disc, flat edge along x through the middle and round towards +z (the blackjack table). */
+const HALF_DISC = new THREE.CylinderGeometry(1, 1, 1, 40, 1, false, -Math.PI / 2, Math.PI);
+
+/** A chandelier of brass arms and glass drops, with candles all round. */
+function chandelier(p: Paint, glow: Builder, x: number, y: number, z: number) {
+  for (let k = 0; k < 5; k++) p.torus(GOLD, 0.035, 0.008, x, y + 0.5 + k * 0.1, z, 0, k % 2 ? Math.PI / 2 : 0);
+  p.sphere(GOLD, 0.12, 0.1, 0.12, x, y + 0.35, z);
+  p.torus(GOLD, 0.45, 0.02, x, y + 0.2, z, Math.PI / 2);
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2;
+    const cx = x + Math.cos(a) * 0.45;
+    const cz = z + Math.sin(a) * 0.45;
+    p.rod(GOLD, 0.012, x, y + 0.33, z, cx, y + 0.2, cz, 6);
+    p.cyl(GOLD, 0.04, 0.03, cx, y + 0.22, cz, 10);
+    p.post('#fff6e0', 0.02, 0.1, cx, y + 0.23, cz, 8);
+    glow.add(new THREE.ConeGeometry(0.025, 0.07, 6), '#ffd76b', { pos: [cx, y + 0.37, cz] }, p.m);
+    p.glass.sphere('#e8f4ff', 0.025, 0.045, 0.025, x + Math.cos(a + 0.5) * 0.33, y + 0.06, z + Math.sin(a + 0.5) * 0.33, 6, 4);
+  }
+  p.glass.sphere('#e8f4ff', 0.06, 0.1, 0.06, x, y + 0.05, z, 8, 6);
+  haloAt(p, x, y + 0.3, z, 1.8, '#ffd27a');
+}
+
+function velvetChair(p: Paint) {
+  // Faces +z. A gold frame, a red seat, and a round back.
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) p.cyl(GOLD, 0.025, 0.42, sx * 0.19, 0.21, sz * 0.19, 8);
+  p.rbox(VELVET, 0.48, 0.1, 0.48, 0, 0.47, 0, 0.04);
+  p.box(GOLD, 0.5, 0.03, 0.5, 0, 0.42, 0);
+  for (const sx of [-1, 1]) p.box(GOLD, 0.04, 0.5, 0.04, sx * 0.2, 0.7, -0.22);
+  p.sphere(VELVET, 0.24, 0.22, 0.06, 0, 0.82, -0.23);
+  p.torus(GOLD, 0.235, 0.015, 0, 0.82, -0.2, 0, 0);
+}
+
+function slotMachine(p: Paint, glow: Builder, r: () => number) {
+  // Faces +z: a cabinet with three reels behind glass, a lit crown on top, and a lever on its right.
+  const body = pick(r, ['#c0392b', '#2e6fa8', '#7a3fa0']);
+  p.rbox(body, 0.75, 1.35, 0.6, 0, 0.68, 0, 0.05);
+  p.box(GOLD, 0.78, 0.06, 0.63, 0, 1.0, 0);
+  p.box('#1d1a24', 0.6, 0.32, 0.04, 0, 1.18, 0.3);
+  for (let k = 0; k < 3; k++) {
+    p.box('#fff8e8', 0.16, 0.26, 0.03, (k - 1) * 0.19, 1.18, 0.32);
+    p.ico(pick(r, ['#e0605a', '#f2c14e', '#6fbf73', '#6f8fe0']), 0.045, (k - 1) * 0.19, 1.18, 0.34, 0);
+  }
+  p.dome(GOLD, 0.32, 0, 1.36, 0, 0.6, 16);
+  glow.add(new THREE.IcosahedronGeometry(0.11, 1), '#ffe08a', { pos: [0, 1.5, 0.05] }, p.m);
+  haloAt(p, 0, 1.5, 0.1, 0.9, '#ffcf6a');
+  p.box('#1d1a24', 0.5, 0.1, 0.12, 0, 0.82, 0.32);
+  p.cyl(GOLD, 0.03, 0.4, 0.44, 1.05, 0, 8);
+  p.sphere('#e0605a', 0.07, 0.07, 0.07, 0.44, 1.28, 0);
+}
+
+function pottedPalm(p: Paint, r: () => number) {
+  p.taper('#c9a24f', 1.2, 0.26, 0.5, 0, 0, 0, 14);
+  p.cyl('#4a3424', 0.27, 0.03, 0, 0.5, 0, 14);
+  p.post('#8a6a42', 0.05, 1.4, 0, 0.5, 0, 8);
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * Math.PI * 2 + r();
+    p.box('#3f8a4a', 0.12, 0.03, 0.75, Math.cos(a) * 0.32, 1.85, Math.sin(a) * 0.32, 0.5, Math.PI / 2 - a, 0);
+  }
+}
+
+function casino(p: Paint, glow: Builder, r: () => number): THREE.Object3D {
+  const { hw, hd } = ROOMS.casino;
+  shell(p, 'casino', { floor: ['#7a1f33', '#5e1828'], wall: '#2f5a48', wainscot: '#4a2a22', trim: GOLD, tiles: true }, r);
+  // A gold diamond in the middle of every carpet square.
+  for (let x = -hw + 0.5; x < hw; x += 1) for (let z = -hd + 0.5; z < hd; z += 1) p.box(shade(GOLD, -0.15), 0.18, 0.012, 0.18, x, 0.006, z, 0, Math.PI / 4, 0);
+  // Damask: rows of little gold diamonds up the walls.
+  for (let x = -hw + 0.6; x < hw - 0.3; x += 0.9) for (let y = 1.4; y < WALL_H - 0.9; y += 0.6) p.box(shade('#2f5a48', 0.12), 0.12, 0.12, 0.02, x + (y * 2.2) % 0.45, y, -hd + 0.02, 0, 0, Math.PI / 4);
+  for (const sx of [-1, 1]) for (let z = -hd + 0.6; z < hd - 0.6; z += 0.9) for (let y = 1.4; y < WALL_H - 0.9; y += 0.6) p.box(shade('#2f5a48', 0.08), 0.02, 0.12, 0.12, sx * (hw - 0.02), y, z + (y * 2.2) % 0.45, Math.PI / 4, 0, 0);
+
+  // The wheel of fortune on the back wall, between the shop and the blackjack table.
+  {
+    const w = p.at(0.6, 2.05, -hd + 0.12);
+    w.cyl('#3a2418', 0.95, 0.08, 0, 0, 0, 32, Math.PI / 2);
+    const cols = ['#c0392b', '#1d1a24', '#c0392b', '#1d1a24', '#2f7a4f'];
+    for (let k = 0; k < 20; k++) {
+      const a = (k / 20) * Math.PI * 2;
+      w.box(cols[k % cols.length], 0.24, 0.66, 0.03, Math.sin(a) * 0.5, Math.cos(a) * 0.5, 0.05, 0, 0, -a);
+      w.sphere('#fff1b0', 0.03, 0.03, 0.03, Math.sin(a) * 0.9, Math.cos(a) * 0.9, 0.06, 6, 4);
+    }
+    w.torus(GOLD, 0.88, 0.03, 0, 0, 0.06, 0, 0);
+    w.cyl(GOLD, 0.14, 0.08, 0, 0, 0.08, 16, Math.PI / 2);
+    w.cone(GOLD, 0.08, 0.22, 0, 0.92, 0.1, 4, 0);
+    haloAt(w, 0, 0, 0.3, 2.4, '#ffcf6a');
+  }
+
+  // The shop: a counter with a glass case of treats and toys, shelves of pet beds behind, and a till.
+  {
+    const s = p.at(SHOP.x, 0, SHOP.z);
+    s.block('#4a2a22', SHOP.w, SHOP.h - 0.08, SHOP.d, 0, 0, 0);
+    for (let x = -SHOP.w / 2 + 0.45; x < SHOP.w / 2; x += 0.75) s.box(shade('#4a2a22', 0.1), 0.55, 0.6, 0.03, x, 0.5, SHOP.d / 2 + 0.01);
+    s.rbox(GOLD, SHOP.w + 0.12, 0.08, SHOP.d + 0.12, 0, SHOP.h - 0.04, 0, 0.02);
+    s.glass.box('#dff0ff', 1.6, 0.35, 0.6, -1.1, SHOP.h + 0.18, 0);
+    for (let k = 0; k < 5; k++) s.ico(pick(r, ['#f2a7b8', '#8fc1e8', '#f2cf5b', '#7cc28b']), 0.06, -1.7 + k * 0.3, SHOP.h + 0.08, (k % 2) * 0.15 - 0.05, 1);
+    s.box('#7a5a3a', 0.5, 0.3, 0.4, 1.3, SHOP.h + 0.15, 0);
+    s.block(GOLD, 0.42, 0.12, 0.28, 1.3, SHOP.h + 0.3, -0.05);
+    s.sphere('#e8c35a', 0.05, 0.05, 0.05, 0.7, SHOP.h + 0.05, 0.2);
+    // The cashier's step behind the counter.
+    s.block('#3a2418', 1.4, 0.3, 0.7, 0, 0, -1.05);
+    // A little brass bell to ring for service.
+    s.dome(GOLD, 0.08, 0.4, SHOP.h, 0.1, 1, 12);
+    s.sphere(GOLD, 0.015, 0.015, 0.015, 0.4, SHOP.h + 0.09, 0.1, 6, 4);
+    // Shelves on the back wall, with cushions for pets and toys.
+    for (const y of [1.25, 1.85]) {
+      s.box('#4a2a22', SHOP.w, 0.06, 0.4, 0, y, -1.65);
+      for (let k = 0; k < 4; k++) {
+        const x = -SHOP.w / 2 + 0.6 + k * 1.15;
+        s.sphere(pick(r, ['#8fc1e8', '#f2a7b8', '#b494dd', '#f2cf5b']), 0.24, 0.07, 0.17, x, y + 0.08, -1.65, 12, 6);
+      }
+    }
+  }
+
+  // The blackjack table: a half moon of green felt with a padded rail, a chip tray by the dealer, and a shoe.
+  {
+    const t = p.at(BJ_TABLE.x, 0, BJ_TABLE.z);
+    t.geo(HALF_DISC, RAIL, placeMatrix({ pos: [0, FELT_Y - 0.06, 0], scale: [BJ_TABLE.r + 0.12, 0.12, BJ_TABLE.r + 0.12] }));
+    t.geo(HALF_DISC, FELT, placeMatrix({ pos: [0, FELT_Y - 0.01, 0], scale: [BJ_TABLE.r - 0.05, 0.03, BJ_TABLE.r - 0.05] }));
+    t.box(RAIL, (BJ_TABLE.r + 0.12) * 2, 0.16, 0.12, 0, FELT_Y - 0.04, -0.03);
+    t.box('#3a2418', 2.2, FELT_Y - 0.1, 0.5, 0, (FELT_Y - 0.1) / 2, 0.45);
+    t.cyl('#3a2418', 0.3, FELT_Y - 0.1, 0, (FELT_Y - 0.1) / 2, 0.9, 14);
+    t.box('#2a1a12', 1.0, 0.04, 0.22, 0, FELT_Y + 0.005, 0.16);
+    for (let k = 0; k < 6; k++) t.box(['#f4efe6', '#e0605a', '#5fae6a', '#2a2a30'][k % 4], 0.12, 0.03, 0.18, -0.4 + k * 0.16, FELT_Y + 0.03, 0.16);
+    t.rbox('#6a1f2f', 0.2, 0.14, 0.32, 0.75, FELT_Y + 0.07, 0.25, 0.03);
+    for (let i = 0; i < BJ_SEATS; i++) {
+      const c = bjSeat(i);
+      velvetChair(p.at(c.x, 0, c.z, c.ry));
+    }
+    chandelier(p, glow, BJ_TABLE.x, 2.5, BJ_TABLE.z + 0.9);
+    // The dealer's spot: a step behind the table.
+    p.block('#3a2418', 1.8, STEP, 0.7, BJ_DEALER.x, 0, BJ_DEALER.z - 0.1);
+  }
+
+  // The poker table: an oval of felt on one pedestal, a padded rail, and velvet chairs all round.
+  {
+    const { x, z, rx, rz } = PK_TABLE;
+    p.geo(G.cyl(40), RAIL, placeMatrix({ pos: [x, FELT_Y - 0.06, z], scale: [rx + 0.12, 0.12, rz + 0.12] }));
+    p.geo(G.cyl(40), '#8a2f3a', placeMatrix({ pos: [x, FELT_Y - 0.01, z], scale: [rx - 0.05, 0.03, rz - 0.05] }));
+    p.taper('#3a2418', 1.6, 0.35, FELT_Y - 0.12, x, 0, z, 14);
+    p.cyl('#3a2418', 0.8, 0.06, x, 0.03, z, 18);
+    for (let i = 0; i < PK_SEATS; i++) {
+      const c = pkSeat(i);
+      velvetChair(p.at(c.x, 0, c.z, c.ry));
+    }
+    chandelier(p, glow, x, 2.5, z);
+    p.block('#3a2418', 0.9, STEP, 0.7, PK_DEALER.x, 0, PK_DEALER.z - 0.05);
+  }
+
+  // The roulette table: a long green table on turned legs, with the wheel's bowl at the right-hand end (the wheel
+  // itself turns, so it's drawn with the cards and chips) and velvet chairs along the front and at the far end.
+  {
+    const { x, z, hw, hd } = RL_TABLE;
+    p.rbox(RAIL, hw * 2 + 0.2, 0.12, hd * 2 + 0.2, x, FELT_Y - 0.08, z, 0.05);
+    // (A touch lower than the card tables' felt: the betting board lies on it.)
+    p.box(FELT, hw * 2 - 0.08, 0.03, hd * 2 - 0.08, x, FELT_Y - 0.022, z);
+    p.block('#3a2418', hw * 2 - 0.3, 0.14, hd * 2 - 0.3, x, FELT_Y - 0.26, z);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      p.post('#3a2418', 0.07, FELT_Y - 0.12, x + sx * (hw - 0.2), 0, z + sz * (hd - 0.15), 10);
+      p.sphere(GOLD, 0.08, 0.05, 0.08, x + sx * (hw - 0.2), 0.05, z + sz * (hd - 0.15), 10, 6);
+    }
+    for (let i = 0; i < RL_SEATS; i++) {
+      const c = rlSeat(i);
+      velvetChair(p.at(c.x, 0, c.z, c.ry));
+    }
+    chandelier(p, glow, x, 2.5, z);
+    p.block('#3a2418', 1.0, STEP, 0.7, RL_CROUPIER.x, 0, RL_CROUPIER.z - 0.05);
+  }
+  for (const sl of SLOTS) slotMachine(p.at(sl.x, 0, sl.z, -Math.PI / 2), glow, r);
+  for (const [x, z] of [
+    [-8.3, 5.9],
+    [8.3, 5.9],
+    [8.3, -6.3],
+    [-0.9, -6.3],
+  ])
+    pottedPalm(p.at(x, 0, z), r);
+  // A red carpet from the door.
+  p.box('#b0283f', 1.4, 0.02, 3.2, 0, 0.012, hd - 1.9);
+  for (const sx of [-1, 1]) p.box(GOLD, 0.06, 0.022, 3.2, sx * 0.67, 0.013, hd - 1.9);
+  // Lamps on the walls.
+  for (const [x, z, ry] of [
+    [-hw + 0.15, -1.5, Math.PI / 2],
+    [-hw + 0.15, 3.5, Math.PI / 2],
+    [hw - 0.15, -2.5, -Math.PI / 2],
+  ]) {
+    const l = p.at(x, 2.1, z, ry);
+    l.box(GOLD, 0.12, 0.25, 0.06, 0, 0, 0);
+    l.rod(GOLD, 0.015, 0, 0, 0.02, 0, 0.12, 0.22, 6);
+    l.glass.cone('#fff1c8', 0.1, 0.16, 0, 0.12, 0.22, 10);
+    haloAt(l, 0, 0.2, 0.22, 1.0, '#ffcf6a');
+  }
+
+  // Signs: the casino's name over the wheel, and the shop's over its counter.
+  const signs = new THREE.Group();
+  const name = new TextSign({ w: 1024, h: 256, bg: '#1d1a24', fg: '#f6d77a', border: GOLD, round: true }, ['The Lucky Raven']);
+  const n = signBoard(name, 3.0, 0.75, { lit: true });
+  n.mesh.position.set(0.6, 3.0, -hd + 0.18);
+  const shop = new TextSign({ w: 768, h: 192, bg: '#f6ead2', fg: '#7a1f33', border: GOLD, round: true }, ['🐾 Pet Shop']);
+  const sh = signBoard(shop, 2.2, 0.55, { lit: true });
+  sh.mesh.position.set(SHOP.x, 2.7, -hd + 0.18);
+  const bjSign = new TextSign({ w: 768, h: 192, bg: '#1d1a24', fg: '#f6d77a', border: GOLD, round: true }, ['Blackjack · pays 3 to 2']);
+  const bs = signBoard(bjSign, 2.2, 0.55, { lit: true });
+  bs.mesh.position.set(BJ_TABLE.x, 2.75, -hd + 0.18);
+  signs.add(n.mesh, sh.mesh, bs.mesh);
+  return signs;
+}
+
 // ---------------------------------------------------------------- assembly
 
 export function buildInteriors(): Interiors {
@@ -1629,6 +1842,17 @@ export function buildInteriors(): Interiors {
           { pos: [-2.4, 0.5, -3.3], color: '#ff6a2a', intensity: 1.2, distance: 3, flicker: true },
         ],
       },
+    },
+    casino: {
+      group: make('casino', casino),
+      hemi: { sky: '#ffe2c8', ground: '#5a2a30', intensity: 1.05 },
+      sun: { color: '#ffe0b8', intensity: 1.15, dir: [0.3, 1, 0.6] },
+      lights: [
+        { pos: [PK_TABLE.x, 2.3, PK_TABLE.z], color: '#ffd48a', intensity: 16, distance: 9 },
+        { pos: [BJ_TABLE.x, 2.3, BJ_TABLE.z + 0.9], color: '#ffd48a', intensity: 15, distance: 9 },
+        { pos: [SHOP.x, 2.4, SHOP.z + 1.2], color: '#ffe2a8', intensity: 9, distance: 7 },
+        { pos: [RL_TABLE.x, 2.3, RL_TABLE.z], color: '#ffd48a', intensity: 13, distance: 8 },
+      ],
     },
   };
   for (const room of Object.keys(rooms) as Room[]) rooms[room].glows = halos[room];

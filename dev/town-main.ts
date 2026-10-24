@@ -12,6 +12,7 @@ import { PigeonFlight } from '../src/world/pigeon';
 import { AvatarView } from '../src/world/avatar';
 import { EXEC_CAM, ExecStage, execCamera } from '../src/world/exec/stage';
 import type { ExecMethod } from '../src/state/types';
+import { CHAIR_Y, FELT_Y, RL_LOOK, bjSeat, bjSpot, pkAround, pkSeat, rlSeat } from '../src/world/town/casinoLayout';
 
 const q = new URLSearchParams(location.search);
 const num = (k: string, d: number) => (q.has(k) ? Number(q.get(k)) : d);
@@ -152,6 +153,90 @@ if (q.has('pigeon')) {
   pigeon = new PigeonFlight(scene, () => {}, 2.2);
 }
 
+// ?casino: the Lucky Raven's tables mid-game, with players sitting at them (?seatcam=pk:4 or bj:2 looks from that seat).
+const sitters: ReturnType<typeof buildAnimal>[] = [];
+// (The wheel is held still at ?rlt seconds into its spin: the bench keeps telling it the time is that moment.)
+const benchT0 = Date.now();
+let casinoView: Parameters<typeof town.setCasino>[0] = null;
+if (q.has('casino')) {
+  const seat = (name: string, cards: string[], stack: number, bet: number, last: string | null, mine = false, folded = false) => ({ name, mine, stack, bet, inHand: true, folded, allIn: false, out: false, cards, last, won: 0, hand: null });
+  casinoView = {
+    bj: [
+      { name: 'Abbey', mine: false, state: 'playing', bet: 10, cards: ['Kh', '7c'], dealer: ['6d', '??'], result: null, paid: 0, canDouble: true, until: null },
+      null,
+      { name: 'Theo', mine: true, state: 'done', bet: 5, cards: ['As', 'Jd'], dealer: ['9c', '8h'], result: 'blackjack', paid: 13, canDouble: false, until: null },
+      null,
+      { name: 'Mika', mine: false, state: 'dealer', bet: 25, cards: ['9h', '9s'], dealer: ['Ts', '4c', '5d'], result: null, paid: 0, canDouble: false, until: null },
+    ],
+    pk: {
+      seats: [seat('Colter', ['??', '??'], 38, 6, 'Call $6'), null, seat('Steele', ['??', '??'], 52, 6, 'Raise to $6'), seat('Jarrod', [], 20, 0, 'Fold', false, true), null, seat('You', ['Ah', 'Kh'], 64, 0, null, true), seat('Mika', ['??', '??'], 17, 2, 'Big blind'), null],
+      hand: 7,
+      stage: 'flop',
+      board: ['Qh', 'Jh', '4c'],
+      pot: 24,
+      pots: [],
+      button: 2,
+      turn: 5,
+      until: null,
+      toMatch: 6,
+      minRaise: 10,
+      canRaise: true,
+      note: '',
+    },
+    rl: {
+      seats: [
+        { name: 'Ann', mine: false, bets: { red: 10, n17: 2, d2: 5 }, ready: true, staked: 0, won: 0 },
+        null,
+        { name: 'You', mine: true, bets: { n7: 1, odd: 5, c1: 3 }, ready: false, staked: 0, won: 0 },
+        null,
+        { name: 'Bea', mine: false, bets: { black: 25 }, ready: false, staked: 0, won: 0 },
+      ],
+      stage: q.has('rlresult') ? 'result' : 'spinning',
+      closes: null,
+      // (Thrown a moment ago, or settled on 17.)
+      spin: { n: 17, at: benchT0 - num('rlt', 3) * 1000, until: benchT0 - num('rlt', 3) * 1000 + 7500, no: 3 },
+      history: [32, 5, 0, 17, 26, 11],
+    },
+    note: null,
+  };
+  town.setCasino(casinoView);
+  const at = [
+    ['bj', 0, 'deer'],
+    ['bj', 2, 'panda'],
+    ['bj', 4, 'frog'],
+    ['pk', 0, 'bear'],
+    ['pk', 2, 'raccoon'],
+    ['pk', 3, 'hedgehog'],
+    ['pk', 5, 'fox'],
+    ['pk', 6, 'capybara'],
+    ['rl', 0, 'otter'],
+    ['rl', 2, 'bee'],
+    ['rl', 4, 'duck'],
+  ] as const;
+  for (const [table, i, animal] of at) {
+    const spot = table === 'bj' ? bjSeat(i) : table === 'pk' ? pkSeat(i) : rlSeat(i);
+    const a = buildAnimal({ animal, color: ({ deer: '#b07a4a', panda: '#f4efe6', frog: '#7cc28b', bear: '#8a5a36', raccoon: '#8a8c94', hedgehog: '#8a5a36', fox: '#e2793a', capybara: '#a8784a', otter: '#8a5a36', bee: '#f2cf5b', duck: '#f4efe6' } as Record<string, string>)[animal] });
+    a.root.position.set(spot.x, CHAIR_Y, spot.z);
+    a.root.rotation.y = spot.ry;
+    town.groups.casino.add(a.root);
+    sitters.push(a);
+  }
+  if (q.has('seatcam')) {
+    const [table, n] = q.get('seatcam')!.split(':');
+    const i = Number(n);
+    const spot = table === 'bj' ? bjSeat(i) : table === 'pk' ? pkSeat(i) : rlSeat(i);
+    const look = table === 'bj' ? bjSpot(i, 0.8) : table === 'pk' ? pkAround(i, -0.8) : RL_LOOK;
+    camera.fov = num('fov', 58);
+    camera.near = 0.1;
+    camera.updateProjectionMatrix();
+    camera.position.set(spot.x + Math.sin(spot.ry) * 0.18, CHAIR_Y + 0.8, spot.z + Math.cos(spot.ry) * 0.18);
+    camera.lookAt(look.x, FELT_Y, look.z);
+    // (As in the game, the picture sits a little higher, above the table's panel.)
+    camera.setViewOffset(1000, 1000, 0, 170, 1000, 1000);
+    // (Whoever sits there is us: out of the lens's way.)
+    sitters.forEach((a) => Math.hypot(a.root.position.x - spot.x, a.root.position.z - spot.z) < 0.1 && (a.root.visible = false));
+  }
+}
 // ?exec=guillotine&et=3.2: an execution held at et seconds in, on a fox (or &animal=) at the gallows, seen from the
 // meeting camera; &spared for the lucky escape, &ry= to turn the camera round the gallows, &edist= to move it back.
 // window.execAt({ exec, et, animal, spared }) shows another without building the town again.
@@ -250,6 +335,8 @@ function loop() {
       w.update(0.05, frames * 0.05, going ? 'walk' : 'idle', false, false);
     });
   }
+  if (casinoView) town.setCasino(casinoView, benchT0 - Date.now());
+  for (const a of sitters) a.update({ anim: 'sit', speed: 0, dt: 0.016, t: clock.elapsedTime });
   if (q.has('sway')) swayUniforms.uSway.value = num('sway', 4);
   if (openDoor) town.openDoor(openDoor.x, openDoor.z);
   if (q.has('ripple') && frames === 2) for (let i = 0; i < 4; i++) town.ripple(6.5 + (i - 1.5) * 1.6, 17.8 + (i % 2) * 1.2, 1);
