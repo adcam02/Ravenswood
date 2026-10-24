@@ -117,9 +117,11 @@
 /* ---------------------------------------------------------------- in your own flat */
 .flat-decorate {
   position: absolute;
-  left: 14px;
-  top: 66px;
+  left: 50%;
+  top: 64px;
+  translate: -50% 0;
   z-index: 15;
+  box-shadow: 0 4px 0 #d9733f, 0 6px 18px rgba(40, 30, 20, 0.25);
 }
 .flat-panel {
   position: absolute;

@@ -2961,8 +2961,8 @@ export class Engine {
     } else if (this.decorating()) {
       // Decorating: the whole flat from up in front, the panel along the bottom.
       const tall = this.camera.aspect < 0.8;
-      wantPos.set(0, tall ? 15.5 : 10.5, tall ? 9.5 : 8.6);
-      wantLook.set(0, 0, tall ? -0.6 : -0.4);
+      wantPos.set(0, tall ? 15.5 : 11.2, tall ? 9.5 : 9.4);
+      wantLook.set(0, 0, tall ? -0.6 : -0.2);
     } else if (this.tableCam) {
       this.tableCam.shot(wantPos, wantLook);
     } else if (this.view?.reading && this.me) {
@@ -2992,10 +2992,17 @@ export class Engine {
       this.camera.updateProjectionMatrix();
     }
     // The table's panel covers the bottom of the screen, so the picture is shifted up to keep the felt in sight.
-    const lift = this.tableCam ? (this.camera.aspect < 0.8 ? 0.26 : 0.17) : this.decorating() ? (this.camera.aspect < 0.8 ? 0.22 : 0.2) : 0;
+    const lift = this.tableCam ? (this.camera.aspect < 0.8 ? 0.26 : 0.17) : this.decorating() ? (this.camera.aspect < 0.8 ? 0.14 : 0.12) : 0;
     if (lift !== (this.camera.view?.enabled ? this.camera.view.offsetY / Math.max(1, this.camera.view.fullHeight) : 0)) {
-      if (lift) this.camera.setViewOffset(1000, 1000, 0, lift * 1000, 1000, 1000);
-      else this.camera.clearViewOffset();
+      // (In the canvas's own shape: a view offset sets the camera's aspect to its full width over its full height.)
+      const w = this.host.clientWidth || 1;
+      const h = this.host.clientHeight || 1;
+      if (lift) this.camera.setViewOffset(w, h, 0, lift * h, w, h);
+      else {
+        this.camera.clearViewOffset();
+        this.camera.aspect = w / h;
+        this.camera.updateProjectionMatrix();
+      }
     }
     // Our own animal steps out of the way of the lens once the camera is close to the seat.
     const hide = Boolean(this.tableCam && this.camPos.distanceTo(wantPos) < 1.6);
