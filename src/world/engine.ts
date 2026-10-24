@@ -2109,7 +2109,7 @@ export class Engine {
     // Dancing with two others dancing right beside us.
     if (dancing) {
       let amigos = 0;
-      for (const [key, p] of presence.others) if (key !== 'st' && p.zone === local.zone && p.anim === 'dance' && Math.hypot(p.x - local.x, p.z - local.z) < 3) amigos++;
+      for (const [key, p] of presence.others) if (key !== 'st' && p.zone === local.zone && isDance(p.anim) && Math.hypot(p.x - local.x, p.z - local.z) < 3) amigos++;
       if (amigos >= 2) earn('amigos');
     }
     // Lying on a bed (in the day, not tucked in for the night) while someone else is in the room.
@@ -2124,11 +2124,13 @@ export class Engine {
     const high = kind === 'town' && this.dist >= 25.5 && this.swing.pitch >= 0.45;
     f.highSince = high ? (f.highSince ?? t) : null;
     if (f.highSince !== null && t - f.highSince >= 4) earn('majortom');
-    // Standing right behind someone, close, for five seconds without them turning round.
+    // Standing right behind someone, close, for five seconds without them turning round (both on our feet: sat on
+    // neighbouring stools at a meeting doesn't count).
     let behind: { key: string; ry: number } | null = null;
-    for (const [key, p] of presence.others) {
+    const standing = !this.seated && !this.inBed && !this.job;
+    for (const [key, p] of standing ? presence.others : []) {
       const d = Math.hypot(local.x - p.x, local.z - p.z);
-      if (p.zone !== local.zone || d > 1.4 || d < 0.2) continue;
+      if (p.zone !== local.zone || d > 1.4 || d < 0.2 || p.anim === 'sit' || p.anim === 'sleep') continue;
       if ((Math.sin(p.ry) * (local.x - p.x) + Math.cos(p.ry) * (local.z - p.z)) / d < -0.7) behind = { key, ry: p.ry };
     }
     if (!behind || f.sneak?.key !== behind.key || Math.abs(wrapAngle(behind.ry - f.sneak.ry)) > 0.8) f.sneak = behind && { ...behind, since: t };
