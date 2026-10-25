@@ -531,7 +531,8 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       const big = c.r > 1.5;
       return { x: c.x, z: c.z, y, hw: c.r, hd: c.r, rot: 0, round: true, soft: big ? 1.0 : Math.max(0.35, c.r * 1.6), strength: big ? 0.3 : 0.26 };
     }
-    if (!inside && Math.hypot(c.x - GRAVEYARD.x, c.z - GRAVEYARD.z) < 0.5) return null;
+    // (The churchyard's railing and stones are see-through ironwork and slim stones: no shadow pads for them.)
+    if (!inside && Math.abs(c.x - GRAVEYARD.x) < GRAVEYARD.hw + 0.3 && Math.abs(c.z - GRAVEYARD.z) < GRAVEYARD.hd + 0.3) return null;
     const big = Math.min(c.hw, c.hd) > 1.5;
     return { x: c.x, z: c.z, y, hw: c.hw, hd: c.hd, rot: c.rot, round: false, soft: big ? 1.1 : 0.5, strength: big ? 0.32 : 0.26 };
   };

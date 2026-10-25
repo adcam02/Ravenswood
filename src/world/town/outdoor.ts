@@ -791,28 +791,35 @@ function church(p: Paint) {
   s.box(IRON, 0.3, 0.12, 0.03, 1.6, 0.21, S / 2 + 0.85);
 }
 
-function graveyard(p: Paint, r: () => number) {
-  // A quiet corner beside the church, with a low iron railing.
+/** Where the gate in the churchyard's railing opens (half its width), at the front, facing the square. */
+const GRAVE_GATE = 0.75;
+
+/** The churchyard: returns where its old stones and its tree stand (its own coordinates), to walk round. */
+function graveyard(p: Paint, r: () => number): { x: number; z: number; r: number }[] {
+  // A quiet corner beside the church, with a low iron railing and its gate standing open.
   const hw = 2.2;
   const hd = 5.6;
+  const solid: { x: number; z: number; r: number }[] = [];
   for (const sx of [-1, 1]) {
     for (let z = -hd; z < hd; z += 0.5) p.block(IRON, 0.05, 0.8, 0.05, sx * hw, 0, z);
     p.box(IRON, 0.06, 0.06, hd * 2, sx * hw, 0.72, 0);
   }
   for (const sz of [-1, 1]) {
-    for (let x = -hw; x < hw; x += 0.5) p.block(IRON, 0.05, 0.8, 0.05, x, 0, sz * hd);
-    p.box(IRON, hw * 2, 0.06, 0.06, 0, 0.72, sz * hd);
+    for (let x = -hw; x < hw; x += 0.5) if (sz < 0 || Math.abs(x) > GRAVE_GATE) p.block(IRON, 0.05, 0.8, 0.05, x, 0, sz * hd);
+    if (sz < 0) p.box(IRON, hw * 2, 0.06, 0.06, 0, 0.72, sz * hd);
+    else for (const sx of [-1, 1]) p.box(IRON, hw - GRAVE_GATE, 0.06, 0.06, (sx * (hw + GRAVE_GATE)) / 2, 0.72, hd);
   }
-  // Spiked finials on the posts, and a little gate at the front.
+  // Spiked finials on the posts, and the gate swung right open against the railing.
   for (const sx of [-1, 1]) for (let z = -hd; z <= hd; z += 1.0) p.cone(IRON, 0.05, 0.14, sx * hw, 0.8, z, 4, Math.PI / 4);
   for (const sx of [-1, 1]) {
-    p.block(IRON, 0.07, 1.0, 0.07, sx * 0.55, 0, hd);
-    p.ico(IRON, 0.07, sx * 0.55, 1.05, hd, 1);
+    p.block(IRON, 0.07, 1.0, 0.07, sx * GRAVE_GATE, 0, hd);
+    p.ico(IRON, 0.07, sx * GRAVE_GATE, 1.05, hd, 1);
   }
-  for (let x = -0.4; x <= 0.4; x += 0.2) p.block(IRON, 0.03, 0.75, 0.03, x, 0, hd + 0.02);
-  p.box(IRON, 1.0, 0.04, 0.04, 0, 0.72, hd + 0.02);
-  p.box(IRON, 1.0, 0.04, 0.04, 0, 0.2, hd + 0.02);
-  p.torus(IRON, 0.12, 0.02, 0, 0.5, hd + 0.02, 0, 0);
+  const gate = -GRAVE_GATE - 0.5;
+  for (let x = -0.4; x <= 0.4; x += 0.2) p.block(IRON, 0.03, 0.75, 0.03, gate + x, 0, hd + 0.1);
+  p.box(IRON, 1.0, 0.04, 0.04, gate, 0.72, hd + 0.1);
+  p.box(IRON, 1.0, 0.04, 0.04, gate, 0.2, hd + 0.1);
+  p.torus(IRON, 0.12, 0.02, gate, 0.5, hd + 0.1, 0, 0);
   for (let i = 0; i < 8; i++) {
     const x = (i % 2 ? 0.9 : -0.9) + (r() - 0.5) * 0.3;
     const z = -hd + 1.0 + Math.floor(i / 2) * 2.6;
@@ -838,6 +845,7 @@ function graveyard(p: Paint, r: () => number) {
       p.box(shade(c, -0.12), 0.35, 0.02, 0.012, x, 0.5, z + 0.085);
       p.box(shade(c, -0.12), 0.35, 0.02, 0.012, x, 0.4, z + 0.085);
     }
+    solid.push({ x, z, r: 0.3 });
     // A grassy mound in front, with a flower or two and a little moss.
     p.sphere('#7aa85a', 0.38, 0.1, 0.68, x, 0.0, z + 0.75, 10, 4);
     if (r() < 0.6) flowerStem(p, r, x + 0.2, z + 0.5, pick(r, ['#f2a7b8', '#ffffff', '#b494dd']), 0.18);
@@ -851,6 +859,8 @@ function graveyard(p: Paint, r: () => number) {
     const a = (k / 8) * Math.PI * 2;
     t.rod('#4f8f45', 0.08, Math.cos(a) * 1.0, 2.4, Math.sin(a) * 1.0, Math.cos(a) * 1.2, 1.2 + r() * 0.4, Math.sin(a) * 1.2, 5);
   }
+  solid.push({ x: -hw + 0.9, z: -hd + 0.9, r: 0.4 });
+  return solid;
 }
 
 function tavern(p: Paint, r: () => number, smoke: (v: THREE.Vector3) => void) {
@@ -1897,8 +1907,16 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   }
   // Public buildings.
   church(solo(CHURCH.x, CHURCH.z, CHURCH.ry));
-  graveyard(painter(GRAVEYARD.x, GRAVEYARD.z), r);
-  colliders.push({ kind: 'box', x: GRAVEYARD.x, z: GRAVEYARD.z, hw: GRAVEYARD.hw + 0.1, hd: GRAVEYARD.hd + 0.1, rot: 0 });
+  {
+    // The railing all round, but for the open gate at the front, so you can walk in among the graves.
+    const { x: gx, z: gz, hw, hd } = GRAVEYARD;
+    const rail = (x: number, z: number, w: number, d: number) => colliders.push({ kind: 'box', x: gx + x, z: gz + z, hw: w, hd: d, rot: 0 });
+    rail(-hw, 0, 0.1, hd + 0.1);
+    rail(hw, 0, 0.1, hd + 0.1);
+    rail(0, -hd, hw + 0.1, 0.1);
+    for (const sx of [-1, 1]) rail((sx * (hw + GRAVE_GATE + 0.1)) / 2, hd + 0.05, (hw + 0.1 - GRAVE_GATE) / 2, 0.15);
+    for (const st of graveyard(painter(gx, gz), r)) colliders.push({ kind: 'circle', x: gx + st.x, z: gz + st.z, r: st.r });
+  }
   tavern(solo(TAVERN.x, TAVERN.z, TAVERN.ry), r, (v) => smoke(v.applyMatrix4(frame(TAVERN.x, TAVERN.z, TAVERN.ry))));
   bakery(solo(BAKERY.x, BAKERY.z, BAKERY.ry), r, (v) => smoke(v.applyMatrix4(frame(BAKERY.x, BAKERY.z, BAKERY.ry))));
   for (const [lx, lz] of [
