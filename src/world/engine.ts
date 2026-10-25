@@ -63,6 +63,7 @@ interface TownFx {
   setWeather?: (w: Weather) => void;
   setDayProgress?: (p: number) => void;
   consumeShadowDirty?: () => boolean;
+  consumeShadowUrgent?: () => boolean;
   ripple?: (x: number, z: number, size?: number) => void;
 }
 
@@ -99,6 +100,10 @@ const execShows = lazyModule(() => import('./exec/stage'));
 const nightVisits = lazyModule(() => import('./visit'));
 /** Even with nothing changing, the shadow map is redrawn this often, just in case. */
 const SHADOW_SAFETY_S = 10;
+/** Out in town, at least this long between redraws of the shadow map for things changing (see frame). */
+const SHADOW_GAP_S = 0.5;
+/** And this long for a slow drift (the sun creeping round) to be drawn while the camera is still. */
+const SHADOW_DRIFT_GAP_S = 3;
 import {
   BOOTHS,
   BOOTH_HD,
@@ -361,6 +366,8 @@ export class Engine {
   private lastShadowAt = -999;
   /** When a slow change first asked for the shadows to be redrawn (they wait for the camera to stop). */
   private shadowDriftAt: number | null = null;
+  /** Something changed that casts a shadow, and the map hasn't been redrawn for it yet. */
+  private shadowWanted = false;
   /** Where the camera was last frame, to tell when it's still. */
   private lastCamAt = new THREE.Vector3();
   private stepAt = 0;
@@ -2011,16 +2018,25 @@ export class Engine {
 
     // Shadows are baked: the map is only redrawn when the town says something changed (and now and then). Drawing
     // the whole town's takes long enough to show as a hitch while walking, so slow changes (the sun creeping round,
-    // the now-and-then) wait until the camera stops moving, or SHADOW_SAFETY_S at most.
+    // the now-and-then) wait until the camera stops moving (and SHADOW_DRIFT_GAP_S since the last), or
+    // SHADOW_SAFETY_S at most.
     if (fx.consumeShadowDirty && this.renderer.shadowMap.enabled) {
       this.renderer.shadowMap.autoUpdate = false;
       if ((fx.consumeShadowDrift() || t - this.lastShadowAt > SHADOW_SAFETY_S) && this.shadowDriftAt === null) this.shadowDriftAt = t;
+      if (fx.consumeShadowDirty()) this.shadowWanted = true;
+      const arrived = fx.consumeShadowUrgent();
+      const since = t - this.lastShadowAt;
       // (Still: drifting less than 10 cm a second, as it settles after we stop.)
       const still = this.camera.position.distanceTo(this.lastCamAt) < 0.1 * Math.max(dt, 0.001);
-      const drift = this.shadowDriftAt !== null && (still || t - this.shadowDriftAt > SHADOW_SAFETY_S);
-      if (fx.consumeShadowDirty() || drift) {
+      const drift = this.shadowDriftAt !== null && ((still && since > SHADOW_DRIFT_GAP_S) || t - this.shadowDriftAt > SHADOW_SAFETY_S);
+      // Out in town a change waits until SHADOW_GAP_S after the last redraw: dusk and dawn move the sun on every
+      // frame, and so does a hanging's rope, and redrawing the town's shadows on every one of those frames stuttered.
+      // Arriving somewhere can't wait, and a room's own shadows are cheap to draw.
+      const due = this.shadowWanted && (arrived || since >= SHADOW_GAP_S || zoneKind(local.zone) !== 'town');
+      if (due || drift) {
         this.lastShadowAt = t;
         this.shadowDriftAt = null;
+        this.shadowWanted = false;
         this.renderer.shadowMap.needsUpdate = true;
         fx.shadowsDrawn();
       }

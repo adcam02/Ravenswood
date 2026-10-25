@@ -140,6 +140,8 @@ export interface TownWorld {
    * wait for a moment when the camera is still. The engine calls shadowsDrawn() whenever it does redraw them.
    */
   consumeShadowDrift(): boolean;
+  /** True, once, when the shadows are wanted at once whatever was drawn a moment ago: we've just arrived somewhere. */
+  consumeShadowUrgent(): boolean;
   shadowsDrawn(): void;
   /** The casino's tables: the cards and chips on them, as this player may see them (and the host's clock, ahead of ours by this many ms, for the roulette wheel). */
   setCasino(view: CasinoView | null, hostOffset?: number): void;
@@ -438,6 +440,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   scene.add(hemi, sun, sun.target);
   let shadowDirty = true;
   let shadowDrift = false;
+  let shadowUrgent = true;
   const shadowDir = new THREE.Vector3();
   /** Where the sun was when the shadows were last drawn. */
   const drawnDir = new THREE.Vector3();
@@ -1170,6 +1173,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       homeNight = night;
       for (const [k, g] of Object.entries(groups)) g.visible = k === kind;
       shadowDirty = true;
+      shadowUrgent = true;
       applyLight();
     },
 
@@ -1558,6 +1562,11 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       const d = shadowDrift;
       shadowDrift = false;
       return d;
+    },
+    consumeShadowUrgent() {
+      const u = shadowUrgent;
+      shadowUrgent = false;
+      return u;
     },
     shadowsDrawn() {
       drawnDir.copy(sun.position).sub(sun.target.position).normalize();
