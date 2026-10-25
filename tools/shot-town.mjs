@@ -204,6 +204,7 @@ const ALL = {
   'hatfx-day': `x=0&z=6&t=0&dist=15&pitch=0.62&frames=24&stop=8&walkers=${HATFX}`,
   'hatfx-night': `x=0&z=6&t=1&dist=15&pitch=0.62&frames=24&stop=8&walkers=${HATFX}`,
   'hatfx-close': 'x=0&z=6&t=0&dist=6&pitch=0.55&frames=24&stop=8&walkers=frog::centurion,fox::trophy,deer::crown',
+  'hatfx-exec': 'exec=guillotine&et=3.4&hat=trophy&frames=10',
   'hatfx-nofx': `x=0&z=6&t=0&dist=15&pitch=0.62&frames=24&stop=8&nofx&walkers=${HATFX}`,
   'hatfx-bare': `x=0&z=6&t=0&dist=15&pitch=0.62&frames=24&stop=8&walkers=${HATFX.replace(/:[a-z]+(?=,|$)/g, ':')}`,
   'build-1': 'wide&t=0&z=4&dist=70&run=1',
