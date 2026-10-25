@@ -122,6 +122,7 @@ export function PlayerRail() {
   const open = (p: Exclude<Panel, null>) => () => ui.togglePanel(p);
   const notesOpen = panel === 'notes' || panel === 'journal';
   const items: { key: string; icon: IconName; label: string; on?: boolean; disabled?: boolean; action: () => void }[] = [
+    // Only on phones: on a wider screen the card in the corner is the same thing.
     {
       key: 'me',
       icon: 'user',
@@ -159,7 +160,7 @@ export function PlayerRail() {
       : []),
     { key: 'pigeon', icon: 'bird', label: 'Pigeon', disabled: view.phase === 'night', action: () => ui.open({ kind: 'pigeon' }) },
     { key: 'awards', icon: 'trophy', label: 'Awards', action: () => ui.open({ kind: 'awards' }) },
-    { key: 'settings', icon: 'cog', label: 'Settings', action: () => ui.open({ kind: 'settings' }) },
+    // (Settings are in the cog at the top right, with the sound and voice.)
   ];
   return (
     <nav className="player-rail surface" aria-label="Menu">

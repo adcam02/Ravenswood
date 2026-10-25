@@ -296,7 +296,43 @@
 }
 .voice-more {
   position: relative;
-  padding: 0.6em 0.75em;
+  padding: 0.6em 0.95em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  font-weight: 700;
+  /* Settings live here, so it stands out a little from Mic and Shout. */
+  background: #ffe6b0;
+  box-shadow: 0 0 0 2px #e8b45c, 0 4px 0 rgba(90, 68, 52, 0.22);
+}
+.voice-more > svg:first-child {
+  width: 1.15em;
+  height: 1.15em;
+  transition: rotate 0.4s ease;
+}
+.voice-more:hover > svg:first-child {
+  rotate: 60deg;
+}
+.voice-settings {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  text-align: left;
+}
+/* On a phone it is just the cog, and the menu's own Me button stands in for the card in the corner. */
+@media (max-width: 700px) {
+  .voice-more-label {
+    display: none;
+  }
+  .voice-more {
+    padding: 0.6em 0.75em;
+  }
+}
+@media (min-width: 701px) {
+  .rail-me {
+    display: none;
+  }
 }
 .voice-shout {
   user-select: none;

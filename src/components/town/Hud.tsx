@@ -173,10 +173,11 @@ export function VoiceDock() {
       <button
         className={`cosy-btn voice-more ${soundOff ? 'sound-off' : ''}`}
         onClick={() => setOpen(!open)}
-        aria-label="Sound and voice settings"
-        title={soundOff ? 'Sound and voice settings (game sounds are off)' : 'Sound and voice settings'}
+        aria-label="Settings"
+        title={soundOff ? 'Settings: sound, voice and more (game sounds are off)' : 'Settings: sound, voice and more'}
       >
         <Icon name="cog" />
+        <span className="voice-more-label">Settings</span>
         {soundOff && <Icon name="mute" className="voice-more-off" />}
       </button>
       {open && (
@@ -204,6 +205,15 @@ export function VoiceDock() {
             {view.mode === 'player' && <>Hold <span className="cosy-key">H</span> to shout across the open town. </>}
             Headphones stop echo. If you’re also in a Discord call, everyone hears everyone regardless, so leave the voice channel while you play.
           </p>
+          <button
+            className="cosy-btn small voice-settings"
+            onClick={() => {
+              setOpen(false);
+              ui.open({ kind: 'settings' });
+            }}
+          >
+            <Icon name="cog" /> More settings: ambience, notifications, notes, leaving
+          </button>
         </div>
       )}
     </div>
