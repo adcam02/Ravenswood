@@ -38,8 +38,9 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    - **The Velvet Horn**, a night club, has Big Moo the minotaur on the door: talk to him (E) and he lets
      you in. Inside, the dance floor lights up to the beat and anyone at the jukebox picks one of six
      songs, which everyone inside hears in time (and faintly outside the door).
-   - **The Lucky Raven** casino: **the Shop** (pets, hats and dances), blackjack against the dealer, Texas hold'em between players
-     and roulette, all for real money from your profile and run by the Storyteller's browser so nobody can
+   - **The Lucky Raven** casino, facing the square between the churchyard and the tavern: **the Shop** (pets,
+     hats and dances), blackjack against the dealer, Texas hold'em between players, roulette and three
+     **slot machines** ($1, $2 or $5 a pull; three 7s pay 100 times the bet), all for real money from your profile and run by the Storyteller's browser so nobody can
      cheat. Sitting at a table takes you to a seat's-eye view (drag with the right button to look round).
    - **The Pet Pit**, down a trapdoor in the tavern: challenge someone and your pets fight in the ring.
      Each round both pick in secret: **Attack** (1 damage, plus any charge), **Block** (stops an attack
@@ -186,7 +187,8 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    - **Waking someone at night** drifts you to their bedside; the player sees a dream bubble beside
      their bed and you're told when they've read it.
    - **Around town**: signs float over the things to do, the well gives water, the noticeboard has the
-     day's news, the churchyard gains a stone for each of the dead, and the little speaker by a name
+     day's news and **every nomination and vote** (today's and the days before; the vote bar has a
+     button to it too), the churchyard gains a stone for each of the dead, and the little speaker by a name
      shows who can hear you. The big map in the corner shows where everyone is.
    - **Hold B** (or the megaphone button) to speak to the whole town at once.
    - **The scene bar** (bottom left) puts everyone to bed, brings the dawn or calls a town meeting in
@@ -226,7 +228,7 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    finishing a game ($10), being on the winning team ($25), surviving ($5), achievements ($5, or $10
    for a secret one) and three-star jobs ($2, up to $20 a day), and everyone starts with $25; spend it at
    the casino's **Shop**: 77 pets ($20 to $80, many fond takes on pop culture favourites), ten hats ($30
-   to $120), the Crown of Midas ($500, with a crown on your name plate) and six dances ($15 to $40: the
+   to $120), the Crown of Midas ($500, with a crown on your name plate and a golden glow) and six dances ($15 to $40: the
    chicken dance, sprinkler, running man, Y.M.C.A., the Carlton and the worm). Songs at the club are $1;
    furniture for your flat is from $5. The Storyteller's **Players' profiles** (in Settings) shows
    everyone's money and achievements, can give or take either, and exports and imports the lot.
@@ -235,6 +237,9 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    version most of them agree on. **Devices:** the first device to play as a name claims it; anyone
    joining as that name from another device waits for the Storyteller to let them in. The profiles
    panel can forget a name's devices.
+   **Prestige hats** come with an effect everyone sees: the Crown of Midas's golden glow, the topper's
+   swirl of sparkles, the crown's ring of stars, the witch hat's moons, the jack-o'-lantern's embers and
+   bats, and more (ten in all; the shop says which).
 9. **Nicknames.** Tap anyone in your Notepad's Who's who to give them a nickname that only you see, on
    their name plate and everywhere else. Nobody else's screen (nor the grimoire) changes.
 
