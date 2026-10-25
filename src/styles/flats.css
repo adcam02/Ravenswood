@@ -118,11 +118,29 @@
 .flat-decorate {
   position: absolute;
   left: 50%;
-  top: 64px;
+  /* Low down and big, above the emotes and the "E" prompt, so nobody misses it. */
+  bottom: 160px;
   /* Centred with transform: a cosy button's hover lift uses translate, which would undo it. */
   transform: translateX(-50%);
   z-index: 15;
-  box-shadow: 0 4px 0 #d9733f, 0 6px 18px rgba(40, 30, 20, 0.25);
+  padding: 16px 36px;
+  font-size: 1.35rem;
+  font-weight: 800;
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px #fff3dc, 0 5px 0 #d9733f, 0 10px 28px rgba(40, 30, 20, 0.35);
+  animation: flat-decorate-hello 2.4s ease-in-out 2;
+}
+@keyframes flat-decorate-hello {
+  50% {
+    box-shadow: 0 0 0 7px rgba(255, 243, 220, 0.9), 0 5px 0 #d9733f, 0 10px 28px rgba(40, 30, 20, 0.35);
+  }
+}
+@media (max-width: 700px) {
+  .flat-decorate {
+    bottom: 216px;
+    padding: 13px 28px;
+    font-size: 1.15rem;
+  }
 }
 .flat-panel {
   position: absolute;

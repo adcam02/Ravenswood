@@ -22,7 +22,7 @@ import { useVoice, voice, type Listener } from '../voice/voice';
 import { AvatarView, type AvatarInfo } from './avatar';
 import { resolve, turnToward } from './collide';
 import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWorld } from './town';
-import { BED, BOUNCER, CLUB, CLUB_NAME, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, FLATS, FLATS_NAME, GRAVEYARD, MEETING_CENTRE, PIT_CORNERS, PIT_RING, ROOM_DOOR, SQUARE_R, STOOL_R, TOWER, doorPoint, groundAt, onDanceFloor, roadDistance } from './town/layout';
+import { BED, BOUNCER, CLUB, CLUB_NAME, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, FLATS, FLATS_NAME, GRAVEYARD, MEETING_CENTRE, PIT_CORNERS, PIT_RING, ROOM_DOOR, SQUARE_R, STOOL_R, TOWER, TRAPDOOR, doorPoint, groundAt, onDanceFloor, roadDistance } from './town/layout';
 import { local as localSpot } from './town/kit';
 import { nearPath } from './town/outdoor';
 import { blocksLine } from './town/occlusion';
@@ -409,7 +409,7 @@ export class Engine {
   private tableCam: TableCam | null = null;
   private tableKind: TableKind = 'poker';
   private hidSelf = false;
-  private signs: { station: Station; el: HTMLDivElement; obj: CSS2DObject }[] = [];
+  private signs: { station: Pick<Station, 'zone' | 'x' | 'z'> & { job?: Station['job'] }; el: HTMLDivElement; obj: CSS2DObject }[] = [];
   private wellTimer: ReturnType<typeof setTimeout> | null = null;
   private hearing = 0;
   private occluderHead = new THREE.Vector3();
@@ -504,6 +504,17 @@ export class Engine {
       obj.center.set(0.5, 1);
       this.town.groups[station.zone].add(obj);
       this.signs.push({ station, el, obj });
+    }
+    // The trapdoor down to the Pet Pit gets a sign of its own, like the things to do.
+    {
+      const el = document.createElement('div');
+      el.className = 'station-sign';
+      el.textContent = '🐾 Pet Pit (down the hatch)';
+      const obj = new CSS2DObject(el);
+      obj.position.set(TRAPDOOR.x, 2.1, TRAPDOOR.z);
+      obj.center.set(0.5, 1);
+      this.town.groups.tavern.add(obj);
+      this.signs.push({ station: { zone: 'tavern', x: TRAPDOOR.x, z: TRAPDOOR.z }, el, obj });
     }
 
     this.ro = new ResizeObserver(() => this.resize());
