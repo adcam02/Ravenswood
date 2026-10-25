@@ -760,8 +760,8 @@ await check('game: nominations and votes raise paws round the clock', async () =
     await p.click('.meeting-seat').catch(() => {});
   }
   await sleep(800);
-  await players.abbey.click('.vote-bar .btn');
-  await players.jarrod.click('.vote-bar .btn');
+  await players.abbey.click('.vote-bar .btn.big');
+  await players.jarrod.click('.vote-bar .btn.big');
   await sleep(1200);
   const votes = await st.evaluate(() => window.__host.getState().g.nomination.votes.length);
   expect(votes === 2, `${votes} votes`);
