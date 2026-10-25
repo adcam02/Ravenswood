@@ -295,6 +295,7 @@
   box-shadow: 0 0 0 4px rgba(76, 194, 106, 0.6), 0 4px 0 rgba(90, 68, 52, 0.22);
 }
 .voice-more {
+  position: relative;
   padding: 0.6em 0.75em;
 }
 .voice-shout {
@@ -346,6 +347,34 @@
 }
 .voice-row.col {
   display: grid;
+}
+/* Game sounds on or off (voices aren't affected), at the top of the cog's menu. */
+.voice-sound {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--cosy-line);
+}
+.voice-sound span {
+  display: grid;
+  gap: 1px;
+}
+.voice-sound em {
+  font-style: normal;
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--cosy-ink-soft);
+}
+/* The cog wears a little crossed-out speaker while the game's sounds are off. */
+.voice-more-off {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 18px;
+  height: 18px;
+  padding: 2px;
+  border-radius: 50%;
+  background: var(--cosy-red);
+  color: #fff;
+  stroke-width: 2.2;
 }
 .voice-row input[type='checkbox'] {
   width: 20px;
@@ -639,6 +668,20 @@
   transform: translateX(-50%);
 }
 
+/* The day's votes from your stool at the meeting: where the vote bar sits during a vote (it has the same button). */
+.meeting-votes {
+  position: absolute;
+  left: 50%;
+  top: 72px;
+  z-index: 16;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.meeting-votes svg {
+  width: 18px;
+  height: 18px;
+}
+
 /* Nominating from your stool, and a nomination waiting on the Storyteller (above "Take your seat" if that's up). */
 .nominate-dock {
   position: absolute;
@@ -757,6 +800,16 @@
   top: 72px;
   right: 50%;
   transform: translateX(50%);
+}
+/* On a phone, edge to edge under the top bar, so Raise hand isn't pushed off the screen. */
+@media (max-width: 700px) {
+  .mode-player .vote-bar {
+    top: 64px;
+    bottom: auto;
+    left: 8px;
+    right: 8px;
+    transform: none;
+  }
 }
 .mode-player .toasts {
   top: 70px;
@@ -1582,6 +1635,122 @@
 }
 .notice-board .cosy-btn {
   justify-self: center;
+}
+/* Two columns on a wide screen: the votes, and the rest of the news. */
+.notice-board {
+  width: min(880px, 100%);
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  align-items: start;
+}
+.notice-board header,
+.notice-board .notice-close {
+  grid-column: 1 / -1;
+}
+.notice-votes,
+.notice-news {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+@media (max-width: 760px) {
+  .notice-board {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 18px 16px;
+  }
+}
+.notice-vote-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.notice-vote {
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(243, 226, 192, 0.65);
+  border-left: 3px solid var(--cosy-line);
+}
+.notice-vote.enough {
+  border-left-color: var(--cosy-red);
+}
+.notice-vote-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+}
+.notice-nominee {
+  color: #b0413b;
+}
+.notice-tally {
+  font-size: 19px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.notice-tally small {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cosy-ink-soft);
+}
+.notice-vote.enough .notice-tally {
+  color: var(--cosy-red);
+}
+.notice-voters {
+  font-size: 13.5px;
+  color: var(--cosy-ink-soft);
+}
+.notice-board .notice-block {
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(224, 96, 90, 0.16);
+  color: #8c2f2a;
+}
+.notice-block svg {
+  width: 16px;
+  height: 16px;
+  vertical-align: -2px;
+}
+.notice-board .notice-live {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.notice-live-tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--cosy-accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.notice-had {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 10px;
+  margin: 10px 0 0;
+  font-size: 14px;
+}
+.notice-had dt {
+  font-weight: 600;
+  color: var(--cosy-ink-soft);
+}
+.notice-had dd {
+  margin: 0;
+}
+.notice-day + .notice-day {
+  margin-top: 8px;
+}
+.notice-day h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--cosy-ink-soft);
 }
 
 /* ---------------------------------------------------------------- the Storyteller's mini grimoire */

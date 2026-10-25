@@ -10,6 +10,31 @@ import { NameAndReal } from './Nickname';
 import { PanelView } from './PanelView';
 import { Token } from './Token';
 
+const TAB_KEY = 'ravenswood:notepad-tab';
+
+/** The player's Notepad: their own notes, and a tab for everything the Storyteller has shown them. */
+export function NotesPanel({ start }: { start?: 'notes' | 'journal' }) {
+  const [tab, setTab] = useState<'notes' | 'journal'>(() => start ?? (loadJSON<string>(TAB_KEY, 'notes') === 'journal' ? 'journal' : 'notes'));
+  const shown = useClient((s) => s.priv?.log?.length ?? 0);
+  const pick = (t: 'notes' | 'journal') => {
+    setTab(t);
+    saveJSON(TAB_KEY, t);
+  };
+  return (
+    <div className="notes-panel">
+      <div className="seg small" role="tablist">
+        <button role="tab" aria-selected={tab === 'notes'} className={tab === 'notes' ? 'on' : ''} onClick={() => pick('notes')}>
+          My notes
+        </button>
+        <button role="tab" aria-selected={tab === 'journal'} className={tab === 'journal' ? 'on' : ''} onClick={() => pick('journal')}>
+          From the Storyteller{shown ? ` (${shown})` : ''}
+        </button>
+      </div>
+      {tab === 'notes' ? <Notepad /> : <Journal />}
+    </div>
+  );
+}
+
 /** A player's private scribbles. They stay in this browser and never go to anyone else. */
 export function Notepad() {
   const view = useView();

@@ -131,6 +131,7 @@ export function VoiceDock() {
   const v = useVoice();
   const view = useView();
   const hearing = useHud((s) => s.hearing);
+  const soundOff = useUI((s) => s.muted);
   const [open, setOpen] = useState(false);
   const [talking, setTalking] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
@@ -169,11 +170,24 @@ export function VoiceDock() {
       <span className={`voice-ears cosy-btn ${hearing ? 'some' : ''}`} title="People close enough to hear you right now (the ones with a speaker by their name)">
         🔊 {hearing}
       </span>
-      <button className="cosy-btn voice-more" onClick={() => setOpen(!open)} aria-label="Voice settings" title="Voice settings">
+      <button
+        className={`cosy-btn voice-more ${soundOff ? 'sound-off' : ''}`}
+        onClick={() => setOpen(!open)}
+        aria-label="Sound and voice settings"
+        title={soundOff ? 'Sound and voice settings (game sounds are off)' : 'Sound and voice settings'}
+      >
         <Icon name="cog" />
+        {soundOff && <Icon name="mute" className="voice-more-off" />}
       </button>
       {open && (
         <div className="voice-pop cosy-panel">
+          <label className="voice-row voice-sound">
+            <span>
+              Game sounds and music
+              <em>{soundOff ? 'Off. You still hear everyone talking.' : 'Effects, music and the sounds of the town'}</em>
+            </span>
+            <input type="checkbox" checked={!soundOff} onChange={(e) => useUI.setState({ muted: !e.target.checked })} />
+          </label>
           {!v.available && <p className="voice-note">Voice needs the main connection. It will come back on its own.</p>}
           {v.mic === 'denied' && <p className="voice-note">Your browser blocked the mic. Click the padlock by the address bar, allow the microphone, then refresh.</p>}
           <label className="voice-row">
@@ -592,73 +606,154 @@ export function HomeMusic() {
   return null;
 }
 
-/** The noticeboard by the square: the day's news, the votes so far, and the town's little records. */
+/** The noticeboard by the square: the day's votes (everything the players' old Votes panel had), the news, and the town's little records. */
 export function NoticeBoard() {
   const view = useView();
   const open = useHud((s) => s.notice);
   if (!open) return null;
   const close = () => useHud.setState({ notice: false });
   const dead = view.seats.filter((s) => s.dead);
-  const today = view.history.filter((h) => h.day === view.day);
-  const earlier = view.history.filter((h) => h.day !== view.day);
   const fish = [...view.town.fish].sort((a, b) => b.cm - a.cm);
   const best = fish[0];
   const when = view.day === 0 && view.phase === 'day' ? 'Before the game' : `${view.phase === 'night' ? 'Night' : 'Day'} ${view.day}`;
-  const line = (h: (typeof view.history)[number]) => (
-    <li key={h.id}>
-      <b>{h.nominatorName}</b> nominated <b>{h.nomineeName}</b>: {h.votes} {h.votes === 1 ? 'vote' : 'votes'}, needed {h.majority}
-      {h.votes >= h.majority ? ' · enough' : ''}
-    </li>
-  );
   return (
     <div className="notice-layer" onClick={close}>
-      <div className="notice-board cosy-panel" onClick={(e) => e.stopPropagation()}>
+      <div className="notice-board cosy-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="The noticeboard">
         <header>
           <span className="notice-pin" />
           <h2>Ravenswood Noticeboard</h2>
           <span className="notice-when">{when}</span>
         </header>
-        <section>
-          <h3>{dead.length ? 'In memoriam' : 'Everyone is alive and well'}</h3>
-          {dead.length > 0 && <p>{dead.map((s) => s.label).join(', ')}. The churchyard has a stone for each.</p>}
-        </section>
-        <section>
-          <h3>Nominations today</h3>
-          {today.length ? <ul>{today.map(line)}</ul> : <p>None yet.</p>}
-        </section>
-        {earlier.length > 0 && (
+        <NoticeVotes />
+        <div className="notice-news">
           <section>
-            <h3>Earlier days</h3>
-            <ul>{earlier.slice(-6).map(line)}</ul>
+            <h3>{dead.length ? 'In memoriam' : 'Everyone is alive and well'}</h3>
+            {dead.length > 0 && <p>{dead.map((s) => s.label).join(', ')}. The churchyard has a stone for each.</p>}
           </section>
-        )}
-        {Object.keys(view.town.records).length > 0 && (
+          {Object.keys(view.town.records).length > 0 && (
+            <section>
+              <h3>Town records</h3>
+              <ul>
+                {Object.entries(view.town.records)
+                  .sort((a, b) => b[1].at - a[1].at)
+                  .map(([game, r]) => (
+                    <li key={game}>
+                      <b>{JOB_TITLES[game as GameJob] ?? game}</b>: {shownName(r.by)}, {SCORE_LABEL[game as GameJob]?.(r.score) ?? r.score}
+                    </li>
+                  ))}
+              </ul>
+            </section>
+          )}
           <section>
-            <h3>Town records</h3>
+            <h3>Around town</h3>
             <ul>
-              {Object.entries(view.town.records)
-                .sort((a, b) => b[1].at - a[1].at)
-                .map(([game, r]) => (
-                  <li key={game}>
-                    <b>{JOB_TITLES[game as GameJob] ?? game}</b>: {shownName(r.by)}, {SCORE_LABEL[game as GameJob]?.(r.score) ?? r.score}
-                  </li>
-                ))}
+              <li>{view.town.drinks.length ? `${view.town.drinks.length} ${view.town.drinks.length === 1 ? 'drink' : 'drinks'} waiting on the bar at the Raven’s Rest.` : 'The bar at the Raven’s Rest is empty. Someone pour a round?'}</li>
+              <li>{view.town.loaves.length ? `${view.town.loaves.length} fresh ${view.town.loaves.length === 1 ? 'bake' : 'bakes'} on the bakery shelf.` : 'Nothing on the bakery shelf yet.'}</li>
+              <li>{best ? `Biggest catch: ${shownName(best.by)}’s ${best.cm}cm ${best.kind}.` : 'Nobody has caught anything at the pond yet.'}</li>
+              <li>{view.town.flowers.length ? `${view.town.flowers.length} ${view.town.flowers.length === 1 ? 'flower' : 'flowers'} planted around the square.` : 'The flower beds are bare.'}</li>
             </ul>
           </section>
-        )}
-        <section>
-          <h3>Around town</h3>
-          <ul>
-            <li>{view.town.drinks.length ? `${view.town.drinks.length} ${view.town.drinks.length === 1 ? 'drink' : 'drinks'} waiting on the bar at the Raven’s Rest.` : 'The bar at the Raven’s Rest is empty. Someone pour a round?'}</li>
-            <li>{view.town.loaves.length ? `${view.town.loaves.length} fresh ${view.town.loaves.length === 1 ? 'bake' : 'bakes'} on the bakery shelf.` : 'Nothing on the bakery shelf yet.'}</li>
-            <li>{best ? `Biggest catch: ${shownName(best.by)}’s ${best.cm}cm ${best.kind}.` : 'Nobody has caught anything at the pond yet.'}</li>
-            <li>{view.town.flowers.length ? `${view.town.flowers.length} ${view.town.flowers.length === 1 ? 'flower' : 'flowers'} planted around the square.` : 'The flower beds are bare.'}</li>
-          </ul>
-        </section>
-        <button className="cosy-btn primary" onClick={close}>
+        </div>
+        <button className="cosy-btn primary notice-close" onClick={close}>
           Close <span className="cosy-key">Esc</span>
         </button>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The votes on the noticeboard: today's nominations as they happened (who nominated whom, the tally against the
+ * majority and whose hands went up), who's on the block, who has nominated or been nominated today, then earlier days.
+ */
+function NoticeVotes() {
+  const view = useView();
+  const seat = (id: string | null) => (id ? view.seats.find((s) => s.id === id) : undefined);
+  const name = (id: string | null, stored: string) => seat(id)?.label ?? shownName(stored);
+  const live = view.nomination && view.nomination.status !== 'done' ? view.nomination : null;
+  // By night, the day just gone.
+  const main = view.phase === 'night' ? view.day - 1 : view.day;
+  const today = view.history.filter((h) => h.day === main);
+  const days = [...new Set(view.history.map((h) => h.day))].filter((d) => d !== main).sort((a, b) => b - a);
+  const block = view.phase === 'day' && view.marked ? seat(view.marked.seatId) : undefined;
+  const during = view.day > 0 && view.phase === 'day';
+  // Each player nominates once a day and can be nominated once: who's had theirs.
+  const nominators = [...today.map((h) => h.nominatorId), live?.nominatorId].filter((id): id is string => Boolean(id));
+  const nominees = [...today.map((h) => h.nomineeId), live?.nomineeId].filter((id): id is string => Boolean(id));
+  const names = (ids: string[]) => [...new Set(ids)].map((id) => seat(id)?.label ?? 'Someone').join(', ');
+  const record = (h: (typeof view.history)[number]) => {
+    const enough = h.votes >= h.majority;
+    return (
+      <li key={h.id} className={`notice-vote ${enough ? 'enough' : ''}`}>
+        <div className="notice-vote-line">
+          <span>
+            {h.nominatorId ? (
+              <>
+                <b>{name(h.nominatorId, h.nominatorName)}</b> nominated <b className="notice-nominee">{name(h.nomineeId, h.nomineeName)}</b>
+              </>
+            ) : (
+              <>
+                <b className="notice-nominee">{name(h.nomineeId, h.nomineeName)}</b> was put up by the Storyteller
+              </>
+            )}
+          </span>
+          <span className="notice-tally" title={`${h.votes} ${h.votes === 1 ? 'vote' : 'votes'}, ${h.majority} needed`}>
+            {h.votes}
+            <small>/{h.majority}</small>
+          </span>
+        </div>
+        <div className="notice-voters">{h.voters.length ? `Hands up: ${h.voters.map((id) => seat(id)?.label ?? 'Someone').join(', ')}` : 'Nobody voted'}</div>
+      </li>
+    );
+  };
+  return (
+    <div className="notice-votes">
+      <section>
+        <h3>{main > 0 ? `Votes on day ${main}` : 'Votes'}</h3>
+        {block && (
+          <p className="notice-block">
+            <Icon name="axe" /> <b>{block.label}</b> is on the block with {view.marked!.votes} {view.marked!.votes === 1 ? 'vote' : 'votes'}
+          </p>
+        )}
+        {live && (
+          <p className="notice-live">
+            <span className="notice-live-tag">Voting now</span>
+            {live.nominatorId ? (
+              <>
+                <b>{seat(live.nominatorId)?.label ?? 'Someone'}</b> nominated <b>{seat(live.nomineeId)?.label ?? 'someone'}</b>
+              </>
+            ) : (
+              <>
+                <b>{seat(live.nomineeId)?.label ?? 'Someone'}</b> is up for execution
+              </>
+            )}
+          </p>
+        )}
+        {today.length ? (
+          <ol className="notice-vote-list">{today.map(record)}</ol>
+        ) : (
+          !live && <p>{main <= 0 ? 'The votes go up here once the game is under way.' : view.phase === 'day' ? 'No nominations yet today.' : `Nobody was nominated on day ${main}.`}</p>
+        )}
+        {during && (nominators.length > 0 || nominees.length > 0) && (
+          <dl className="notice-had">
+            <dt>Have nominated</dt>
+            <dd>{nominators.length ? names(nominators) : 'Nobody yet'}</dd>
+            <dt>Been nominated</dt>
+            <dd>{nominees.length ? names(nominees) : 'Nobody yet'}</dd>
+          </dl>
+        )}
+      </section>
+      {days.length > 0 && (
+        <section>
+          <h3>Earlier days</h3>
+          {days.map((d) => (
+            <div key={d} className="notice-day">
+              <h4>Day {d}</h4>
+              <ol className="notice-vote-list">{view.history.filter((h) => h.day === d).map(record)}</ol>
+            </div>
+          ))}
+        </section>
+      )}
     </div>
   );
 }

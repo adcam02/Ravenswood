@@ -409,6 +409,20 @@ button.my-card:hover {
   font-size: inherit;
   color: inherit;
 }
+/* The day's votes so far (the noticeboard), without leaving your stool. */
+.vote-bar .vote-board {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.vote-bar .vote-board svg {
+  width: 20px;
+  height: 20px;
+}
 @keyframes rise {
   from {
     opacity: 0;
@@ -752,6 +766,9 @@ button.my-card:hover {
   .vote-q {
     font-size: 16px;
   }
+  .vote-bar .vote-board span {
+    display: none;
+  }
 }
 .vote-bar.my-turn {
   border-color: var(--brass-hi);
@@ -1058,6 +1075,20 @@ button.my-card:hover {
   color: var(--brass-hi);
   box-shadow: inset 0 0 0 1px rgba(240, 212, 143, 0.3);
 }
+/* A laptop's shorter screen: a little tighter, so every button (Nominate and Slayer included) fits without scrolling. */
+@media (max-height: 800px) and (min-width: 701px) {
+  .player-rail {
+    gap: 3px;
+    padding: 6px;
+  }
+  .rail-item {
+    padding: 8px 4px 7px;
+  }
+  .rail-item svg {
+    width: 25px;
+    height: 25px;
+  }
+}
 
 .mode-player .town {
   right: 104px;
@@ -1142,6 +1173,24 @@ button.my-card:hover {
 }
 .side-body:has(.notepad) {
   display: grid;
+}
+/* The player's Notepad: My notes and From the Storyteller, as two tabs. */
+.side-body:has(.notes-panel) {
+  display: grid;
+}
+.notes-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: start;
+  gap: 10px;
+  min-height: 100%;
+}
+.notes-panel > .seg {
+  justify-self: start;
+}
+/* (Only the notepad stretches to fill the panel; the Storyteller's list sits at the top.) */
+.notes-panel > :not(.seg, .notepad) {
+  align-self: start;
 }
 .notepad:has(.whos-who) {
   grid-template-rows: auto auto minmax(240px, 1fr);
@@ -1297,17 +1346,21 @@ button.my-card:hover {
     padding: 4px 2px calc(4px + env(safe-area-inset-bottom));
     border-radius: 16px 16px 0 0;
   }
+  /* Each button as wide as its label (none shorter than a fingertip), so no label runs into the next. */
   .rail-item {
-    flex: 1 0 58px;
+    flex: 1 0 auto;
+    min-width: 46px;
     width: auto;
-    padding: 7px 0 6px;
+    padding: 7px 4px 6px;
   }
   .rail-item svg {
     width: 23px;
     height: 23px;
   }
   .rail-item span {
-    font-size: 11px;
+    font-size: 10.5px;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
   }
   .mode-player .town,
   .app.mode-player.has-panel .town {

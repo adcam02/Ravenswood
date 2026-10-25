@@ -1,4 +1,5 @@
 import { getRole, TEAM_SINGULAR } from '../data';
+import { useHud } from '../game/hud';
 import { player } from '../net/client';
 import { ui, useUI, type Panel } from '../state/ui';
 import { useView } from '../state/view';
@@ -77,6 +78,10 @@ export function VoteBar() {
         </span>
         {note && <span>{note}</span>}
       </div>
+      <button className="btn quiet vote-board" onClick={showVotes} title="The day’s votes so far, from the noticeboard">
+        <Icon name="vote" />
+        <span>Today’s votes</span>
+      </button>
       <button
         className={`btn big ${up ? 'primary' : ''}`}
         disabled={locked || (!canVote && !up)}
@@ -88,16 +93,34 @@ export function VoteBar() {
   );
 }
 
+/** The noticeboard's votes, brought to you: from the vote bar, or your stool at the meeting. */
+const showVotes = () => useHud.setState({ notice: true });
+
+/** Sat at the meeting between votes: the day's votes so far, without walking over to the noticeboard. */
+export function MeetingVotes() {
+  const view = useView();
+  const seated = useHud((s) => s.meetingSeated);
+  const job = useHud((s) => s.job);
+  const voting = view.nomination && view.nomination.status !== 'done';
+  if (!seated || job || voting || view.ended) return null;
+  const today = view.history.filter((h) => h.day === view.day).length;
+  return (
+    <button className="meeting-votes cosy-btn small" onClick={showVotes} title="The day’s votes so far, from the noticeboard">
+      <Icon name="vote" /> Today’s votes{today ? ` (${today})` : ''}
+    </button>
+  );
+}
+
 /** The player's menu: big, labelled buttons down the right side (along the bottom on phones). */
 export function PlayerRail() {
   const view = useView();
   const panel = useUI((s) => s.panel);
-  const muted = useUI((s) => s.muted);
   const modal = useUI((s) => s.modal?.kind);
   const me = view.seats.find((s) => s.isMe);
   const slayer = slayerButton(view);
   const nominate = nominateButton(view);
   const open = (p: Exclude<Panel, null>) => () => ui.togglePanel(p);
+  const notesOpen = panel === 'notes' || panel === 'journal';
   const items: { key: string; icon: IconName; label: string; on?: boolean; disabled?: boolean; action: () => void }[] = [
     {
       key: 'me',
@@ -109,9 +132,14 @@ export function PlayerRail() {
     // Your name, animal, hat and pet (only the hat and pet while a game is on).
     { key: 'customise', icon: 'paw', label: 'Customise', on: modal === 'customise', action: () => ui.open({ kind: 'customise' }) },
     { key: 'reference', icon: 'book', label: 'Characters', on: panel === 'reference', action: open('reference') },
-    { key: 'notes', icon: 'notepad', label: 'Notepad', on: panel === 'notes', action: open('notes') },
-    { key: 'journal', icon: 'scroll', label: 'Storyteller info', on: panel === 'journal', action: open('journal') },
-    { key: 'history', icon: 'vote', label: 'Votes', on: panel === 'history', action: open('history') },
+    // Your notes and what the Storyteller has shown you, as two tabs. (The votes are on the noticeboard in the square.)
+    {
+      key: 'notes',
+      icon: 'notepad',
+      label: 'Notepad',
+      on: notesOpen,
+      action: () => useUI.setState({ panel: notesOpen ? null : 'notes' }),
+    },
     // By day, for the living: once a day, for the Storyteller to start.
     ...(nominate.show
       ? [
@@ -124,13 +152,13 @@ export function PlayerRail() {
           },
         ]
       : []),
-    { key: 'pigeon', icon: 'bird', label: 'Pigeon', disabled: view.phase === 'night', action: () => ui.open({ kind: 'pigeon' }) },
-    { key: 'awards', icon: 'trophy', label: 'Awards', action: () => ui.open({ kind: 'awards' }) },
-    // Anyone can claim to be the Slayer, once a game, when the script has one.
+    // Anyone can claim to be the Slayer, once a game, when the script has one. (Like Nominate, it comes before the
+    // everyday buttons, so neither scrolls out of sight along a phone's bar.)
     ...(slayer.show
       ? [{ key: 'slayer', icon: 'dagger' as const, label: slayer.used ? 'Slayer used' : 'Slayer', disabled: slayer.used, action: () => ui.open({ kind: 'slayer' }) }]
       : []),
-    { key: 'sound', icon: muted ? 'mute' : 'volume', label: muted ? 'Sound off' : 'Sound on', action: () => useUI.setState({ muted: !muted }) },
+    { key: 'pigeon', icon: 'bird', label: 'Pigeon', disabled: view.phase === 'night', action: () => ui.open({ kind: 'pigeon' }) },
+    { key: 'awards', icon: 'trophy', label: 'Awards', action: () => ui.open({ kind: 'awards' }) },
     { key: 'settings', icon: 'cog', label: 'Settings', action: () => ui.open({ kind: 'settings' }) },
   ];
   return (

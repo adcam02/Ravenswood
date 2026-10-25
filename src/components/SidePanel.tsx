@@ -7,7 +7,7 @@ import { seatName, st, useHost } from '../state/host';
 import { ui, useUI, type Panel } from '../state/ui';
 import { useView } from '../state/view';
 import { Icon } from './Icon';
-import { Journal, Notepad } from './Notepad';
+import { NotesPanel } from './Notepad';
 import { PanelView, ReplyLine } from './PanelView';
 import { RichText } from './RichText';
 import { Token } from './Token';
@@ -16,14 +16,15 @@ import { shownName } from '../state/nicks';
 export function SidePanel() {
   const panel = useUI((s) => s.panel);
   const view = useView();
-  if (!panel) return null;
+  // (Players have their votes on the noticeboard now, so an old 'history' panel stays shut.)
+  if (!panel || (view.mode === 'player' && panel === 'history')) return null;
   const tabs: { id: Exclude<Panel, null>; label: string }[] = [
     ...(view.mode === 'st' ? [{ id: 'night' as const, label: 'Night order' }] : []),
     { id: 'reference', label: 'Characters' },
     { id: 'history', label: view.mode === 'st' ? 'Log' : 'Votes' },
   ];
   const active = view.mode === 'player' || tabs.some((t) => t.id === panel) ? panel : 'reference';
-  const titles: Record<string, string> = { reference: 'Characters', notes: 'Notepad', journal: 'What the Storyteller showed you', history: 'Votes' };
+  const titles: Record<string, string> = { reference: 'Characters', notes: 'Notepad', journal: 'Notepad' };
   return (
     <aside className={`side-panel surface is-${active}`} aria-label="Side panel">
       <header className="side-head">
@@ -46,8 +47,7 @@ export function SidePanel() {
         {active === 'night' && <NightOrder />}
         {active === 'reference' && <Reference />}
         {active === 'history' && <History />}
-        {active === 'notes' && <Notepad />}
-        {active === 'journal' && <Journal />}
+        {(active === 'notes' || active === 'journal') && <NotesPanel start={active === 'journal' ? 'journal' : undefined} />}
       </div>
     </aside>
   );

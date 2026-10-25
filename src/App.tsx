@@ -71,7 +71,7 @@ import { SlayerPrompt } from './components/Slayer';
 import { NominateDock, NominationPrompt } from './components/Nominate';
 import { NightGuide } from './components/NightGuide';
 import { GameOverLayer, WinPrompt } from './components/GameOver';
-import { MyCharacter, PlayerRail, VoteBar } from './components/PlayerBits';
+import { MeetingVotes, MyCharacter, PlayerRail, VoteBar } from './components/PlayerBits';
 import { WakeOverlay } from './components/WakeOverlay';
 import { DayClock, ProgressWatcher, SceneBar } from './components/town/Scenes';
 import { ExecVote } from './components/town/ExecVote';
@@ -156,7 +156,9 @@ function Shell({ children }: { children: React.ReactNode }) {
   const panel = useUI((s) => s.panel);
   const grimoire = useUI((s) => s.grimoireOpen);
   const mode = useContext(ModeContext);
-  return <div className={`app mode-${mode} ${panel ? 'has-panel' : ''} ${grimoire ? 'grimoire-open' : ''}`}>{children}</div>;
+  // (A player's old Votes panel stays shut: the votes are on the noticeboard now.)
+  const open = panel && !(mode === 'player' && panel === 'history');
+  return <div className={`app mode-${mode} ${open ? 'has-panel' : ''} ${grimoire ? 'grimoire-open' : ''}`}>{children}</div>;
 }
 
 function Storyteller() {
@@ -313,6 +315,7 @@ function Player({ room }: { room: string }) {
               <SidePanel />
               <BellCall />
               <VoteBar />
+              <MeetingVotes />
               <MeetingSeat />
               <NominateDock />
               <ActionPrompt />
