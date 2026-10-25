@@ -17,6 +17,7 @@ while (Date.now() < end) {
   await new Promise((r) => setTimeout(r, 300));
 }
 
+const HATFX = 'fox::trophy,bear::topper,penguin::tiara,frog::centurion,deer::crown,octopus::witch,capybara::mortarboard,kaiju::knight,snail::pumpkin,jellyfish::astronaut';
 const ALL = {
   'overview-day': 'wide&t=0&z=4&dist=70',
   // Animals walking with their pets in tow, and standing still with the pets caught up.
@@ -198,6 +199,13 @@ const ALL = {
   'booth-woods-a': 'x=15.25&z=26.41&t=0&dist=9&pitch=0.5&yaw=-2.62',
   'booth-woods-b': 'x=-29.46&z=7.89&t=0&dist=9&pitch=0.5&yaw=1.83',
   'booth-woods-curtains': 'x=15.25&z=26.41&t=0&dist=7&pitch=0.55&yaw=-2.3&curtains&frames=90',
+  // The prestige hats' effects (see world/hatFx.ts) on ten players crossing the square, by day and by night, and the
+  // same ten with the effects hidden and bare-headed, to compare what they cost to draw.
+  'hatfx-day': `x=0&z=6&t=0&dist=15&pitch=0.62&frames=24&stop=8&walkers=${HATFX}`,
+  'hatfx-night': `x=0&z=6&t=1&dist=15&pitch=0.62&frames=24&stop=8&walkers=${HATFX}`,
+  'hatfx-close': 'x=0&z=6&t=0&dist=6&pitch=0.55&frames=24&stop=8&walkers=frog::centurion,fox::trophy,deer::crown',
+  'hatfx-nofx': `x=0&z=6&t=0&dist=15&pitch=0.62&frames=24&stop=8&nofx&walkers=${HATFX}`,
+  'hatfx-bare': `x=0&z=6&t=0&dist=15&pitch=0.62&frames=24&stop=8&walkers=${HATFX.replace(/:[a-z]+(?=,|$)/g, ':')}`,
   'build-1': 'wide&t=0&z=4&dist=70&run=1',
   'build-2': 'wide&t=0&z=4&dist=70&run=2',
   'build-3': 'wide&t=0&z=4&dist=70&run=3',

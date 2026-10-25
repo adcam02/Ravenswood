@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { createTown } from '../src/world/town';
 import { swayUniforms } from '../src/world/town/fx';
-import { ANIMALS, BOOTHS, animalInfo, emptyTown, type AnimalId, type PetId, type Weather, type ZoneKind } from '../src/world/types';
+import { ANIMALS, BOOTHS, animalInfo, emptyTown, type AnimalId, type HatId, type PetId, type Weather, type ZoneKind } from '../src/world/types';
 import { buildAnimal } from '../src/world/animals';
 import { BED, groundAt } from '../src/world/town/layout';
 import { NightVisit, bendVictim } from '../src/world/visit';
@@ -316,12 +316,15 @@ function execAt(o: { exec: string; et: number; animal?: string; spared?: boolean
 if (q.has('exec')) execAt({ exec: q.get('exec')!, et: num('et', 2), animal: q.get('animal') ?? undefined, spared: q.has('spared'), hat: q.get('hat') ?? undefined, ry: num('ry', 0), edist: q.has('edist') ? num('edist', 8.5) : undefined });
 // ?walkers=fox:zapmouse,bear:dragon: animals walking towards the camera past the focus, each with its pet in
 // tow (?stop=12 has them stand still for the last 12 frames, the pets catching up; ?ghost makes the second a ghost).
+// A third part puts a hat on: fox::trophy (no pet), bear:dragon:crown.
 const walkers: AvatarView[] = [];
 if (q.has('walkers')) {
   q.get('walkers')!.split(',').forEach((w, i) => {
-    const [animal, pet] = w.split(':') as [AnimalId, PetId];
+    const [animal, pet, hat] = w.split(':') as [AnimalId, PetId, HatId | undefined];
     const color = ANIMALS.find((a) => a.id === animal)?.colors[0] ?? '#e2793a';
-    walkers.push(new AvatarView(scene, { name: animal, look: { animal, color, pet }, ghost: q.has('ghost') && i === 1, storyteller: false, isMe: false, role: null, badge: null }));
+    walkers.push(new AvatarView(scene, { name: animal, look: { animal, color, pet: pet || null, hat: hat || null }, ghost: q.has('ghost') && i === 1, storyteller: false, isMe: false, role: null, badge: null }));
+    // (&nofx hides the prestige hats' effects, to see what they cost.)
+    if (q.has('nofx')) walkers[i].setHatFxShown(false);
   });
 }
 
@@ -401,7 +404,7 @@ function loop() {
     scene.traverse((o) => {
       if ((o as THREE.Mesh).isMesh && o.visible) kinds[o.name || 'other'] = (kinds[o.name || 'other'] ?? 0) + 1;
     });
-    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, total: Math.round(total), buildMs, badNormals, shadowRenders, kinds };
+    (window as unknown as { info: unknown }).info = { calls: renderer.info.render.calls, triangles: renderer.info.render.triangles, points: renderer.info.render.points, total: Math.round(total), buildMs, badNormals, shadowRenders, kinds };
   }
 }
 loop();

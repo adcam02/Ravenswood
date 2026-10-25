@@ -99,6 +99,7 @@ type RigExtras = {
   setHat?: (hat: HatId | null) => void;
   setDetail?: (level: 'high' | 'low') => void;
   prepareLow?: () => void;
+  showHatFx?: (on: boolean) => void;
 };
 interface Pet {
   root: THREE.Object3D;
@@ -142,6 +143,8 @@ export class AvatarView {
   private petRy = 0;
   private detail: 'high' | 'low' = 'high';
   private hand: THREE.Group | null = null;
+  /** Whether a prestige hat's effect is shown (see setHatFxShown). */
+  private fxShown = true;
 
   x = 0;
   z = 0;
@@ -208,6 +211,7 @@ export class AvatarView {
     this.itemKey = '';
     this.hatKey = undefined;
     this.detail = 'high';
+    (rig as unknown as RigExtras).showHatFx?.(this.fxShown);
     rig.root.userData.avatar = this;
     AvatarView.noShadows(rig.root);
     return rig;
@@ -341,6 +345,13 @@ export class AvatarView {
     if (level === this.detail) return;
     this.detail = level;
     (this.rig as unknown as RigExtras).setDetail?.(level);
+  }
+
+  /** A prestige hat's glow and motes: hidden where they'd give someone away (a confession booth) or spoil a show. */
+  setHatFxShown(on: boolean) {
+    if (on === this.fxShown) return;
+    this.fxShown = on;
+    (this.rig as unknown as RigExtras).showHatFx?.(on);
   }
 
   /** Name tags far away are hidden, to keep the screen (and the page) uncluttered. */

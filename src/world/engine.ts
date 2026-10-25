@@ -29,6 +29,7 @@ import { blocksLine } from './town/occlusion';
 import { Fireworks } from './fireworks';
 import { reportProblem } from '../lib/report';
 import { earn, hatBoost, notePerfect, noteTopJob, tally, useProgress } from '../game/progress';
+import { setHatFxLow } from './hatFx';
 import { crowned } from '../game/leaders';
 import { PitShow } from './pitfight';
 import type { PitState } from '../state/types';
@@ -629,6 +630,7 @@ export class Engine {
 
   private applyQuality() {
     const low = this.quality === 'low';
+    setHatFxLow(low);
     this.renderer.setPixelRatio(low ? 1 : Math.min(window.devicePixelRatio, 1.6));
     this.renderer.shadowMap.enabled = !low;
     // The town exists after the first call (from the constructor), so this only applies on a later switch.
@@ -2172,6 +2174,8 @@ export class Engine {
     me.setTarget(local.x, local.z, local.ry, myY);
     me.setItem(local.item);
     me.setVisible(true);
+    // (A prestige hat's glow would only get in the way of the show.)
+    me.setHatFxShown(!this.show?.mine);
     me.update(dt, t, anim, local.speaking, false);
     me.rig.root.rotation.z = (dangle?.swing ?? 0) + (this.visit?.mine && this.victimPose ? this.victimPose.shake : 0);
     if (this.visit?.mine && this.victimPose) me.rig.root.position.y += this.victimPose.dy;
@@ -2919,6 +2923,8 @@ export class Engine {
       else if (far < LOD_NEAR) av.setDetail('high');
       // Nobody but the Storyteller sees who is sitting in a confession booth.
       const hidden = inBooth(p.zone, p.x, p.z) && v.mode !== 'st';
+      // A prestige hat's glow would give away who's in the booth, and gets in the way of an execution.
+      av.setHatFxShown(!hidden && this.show?.seatId !== key);
       av.setTagShown(!dangle?.hidden && !hidden && (v.mode === 'st' || key === 'st' || far < TAG_FAR || p.speaking || Boolean(p.shout)));
       av.setVoiceState(Boolean(p.muted), Boolean(p.shout));
       av.update(dt, t, anim, p.speaking, true);

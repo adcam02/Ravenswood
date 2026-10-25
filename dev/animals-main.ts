@@ -22,9 +22,11 @@ document.body.prepend(renderer.domElement);
 const scene = new THREE.Scene();
 /** ?bg=#b8774a sets a plain studio backdrop (and floor) instead of sky and grass, for comparing with the reference. */
 const bg = q.get('bg');
-scene.background = new THREE.Color(bg ?? (view === 'night' ? '#1b2040' : '#9fd0f0'));
-scene.add(new THREE.HemisphereLight('#fff8ee', bg ? new THREE.Color(bg).multiplyScalar(0.7) : '#6a8a50', view === 'night' ? 0.5 : 1.6));
-const sun = new THREE.DirectionalLight('#fff2dc', view === 'night' ? 0.3 : 2.2);
+/** (&night lights any view for night.) */
+const night = view === 'night' || q.has('night');
+scene.background = new THREE.Color(bg ?? (night ? '#1b2040' : '#9fd0f0'));
+scene.add(new THREE.HemisphereLight('#fff8ee', bg ? new THREE.Color(bg).multiplyScalar(0.7) : '#6a8a50', night ? 0.5 : 1.6));
+const sun = new THREE.DirectionalLight('#fff2dc', night ? 0.3 : 2.2);
 sun.position.set(6, 12, 8);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -620,6 +622,24 @@ if (view === 'grid' || view === 'night') {
   });
   camera.position.set(0, 1.1, 3.4);
   camera.lookAt(0, 0.2, 0);
+} else if (view === 'hatfx') {
+  // The prestige hats' effects (see hatFx.ts), each worn by its own animal, in two rows about as the town camera sees
+  // them. ?hats=trophy,crown picks some; ?animal=fox puts them all on one animal; &ghost makes every other one a
+  // ghost; &anim=walk sets them all walking; &near looks closer.
+  const hats = (q.get('hats')?.split(',') ?? ['trophy', 'topper', 'tiara', 'centurion', 'crown', 'witch', 'mortarboard', 'knight', 'pumpkin', 'astronaut']) as HatId[];
+  const kinds = (q.get('animal')?.split(',') ?? ['fox', 'bear', 'penguin', 'frog', 'deer', 'octopus', 'capybara', 'kaiju', 'snail', 'jellyfish']) as AnimalId[];
+  const anim = (q.get('anim') ?? 'idle') as Anim;
+  const cols = Math.min(5, hats.length);
+  hats.forEach((hat, i) => {
+    const id = kinds[i % kinds.length];
+    const info = ANIMALS.find((x) => x.id === id) ?? ANIMALS[0];
+    const r = place(make({ animal: info.id, color: info.colors[0], hat }), ((i % cols) - (cols - 1) / 2) * 2.3, Math.floor(i / cols) * 2.6 - 1.3, anim, anim === 'walk' ? 1.6 : 0, 0.35);
+    if (q.has('ghost') && i % 2) r.setGhost(true);
+  });
+  const rows = Math.ceil(hats.length / cols);
+  const near = q.has('near') ? 0.6 : 1;
+  camera.position.set(0, (rows > 1 ? 9 : 5.5) * near, (rows > 1 ? 11.5 : 7.5) * near);
+  camera.lookAt(0, 0.5, rows > 1 ? 0 : -1.3);
 } else if (view === 'ghosts') {
   ['fox', 'kaiju', 'octopus', 'penguin', 'shark'].forEach((id, i) => {
     const r = place(make({ animal: id as AnimalId, color: ANIMALS.find((x) => x.id === id)!.colors[0] }), i * 1.4 - 2.8, 0, i === 2 ? 'wave' : 'idle');

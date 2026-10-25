@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { SMOOTH_LOOK, eyeMaterial, glow, shifting, soft, wet, type Shift, type Vec3 } from './build';
 import { all, any, armForms, details, finishSculpt, region, sculptOf, sock, useSurface } from './forms';
 import { buildHat, fitHat, type BuiltHat, type HatBit, type HatFit, type HatHead, type HatNudge } from './hats';
+import { buildHatFx, type HatFx } from './hatFx';
 import { buildItem, disposeObject } from './items';
 import { Fold, lowDetail, seedOf, seeded, solid, tube } from './paper';
 import { ellipsoid, rod, type Probe } from './sculpt';
@@ -529,6 +530,9 @@ class AnimalRig implements Rig {
   private lowKey?: string;
   private hatFit?: HatPlace;
   private hat: { id: HatId; built: BuiltHat; holder: THREE.Group; fold: string[] } | null = null;
+  /** The prestige hats' glow or motes (see hatFx.ts), and whether they're wanted just now. */
+  private hatFx: HatFx | null = null;
+  private hatFxOn = true;
   private baseHeadHeight = 1;
   // Landmarks in body space, for aiming paws.
   private shoulder: THREE.Vector3;
@@ -793,6 +797,8 @@ class AnimalRig implements Rig {
       for (const m of this.hat.built.materials) m.dispose();
       this.hat = null;
     }
+    this.hatFx?.dispose();
+    this.hatFx = null;
     this.headHeight = this.baseHeadHeight;
     if (!hat) return;
     const built = buildHat(hat);
@@ -815,9 +821,30 @@ class AnimalRig implements Rig {
     this.neck.add(holder);
     this.hat = { id: hat, built, holder, fold: fit.fold };
     this.applyHatGhost();
+    // A prestige hat's effect: what floats goes with the body (up with a ghost), the glow at its feet stays down.
+    const hover = this.floats && !this.flaps ? this.hover : 0;
+    this.hatFx = buildHatFx(hat, this.baseHeadHeight - hover, this.girth());
+    if (this.hatFx) {
+      this.hatFx.group.visible = this.hatFx.ground.visible = false;
+      this.float.add(this.hatFx.group);
+      this.root.add(this.hatFx.ground);
+    }
     // The name label and anything floating over the head have to clear the hat.
     const top = this.sk.rest.get('neck')!.y + fit.pos[1] + built.top * fit.scale[1] + (this.floats ? this.hover : 0);
     this.headHeight = Math.max(this.baseHeadHeight, top);
+  }
+
+  /** How far out round the middle a hat's effect keeps (metres): half the body's width, a little loose. */
+  private girth(): number {
+    const g = this.highGeo;
+    if (!g.boundingBox) g.computeBoundingBox();
+    const b = g.boundingBox!;
+    return THREE.MathUtils.clamp(Math.max(-b.min.x, b.max.x) + 0.1, 0.36, 0.8);
+  }
+
+  /** Shows or hides a prestige hat's effect (hidden in a confession booth, through an execution, in a portrait). */
+  showHatFx(on: boolean) {
+    this.hatFxOn = on;
   }
 
   /**
@@ -2421,6 +2448,11 @@ class AnimalRig implements Rig {
     this.hat?.built.update?.(s.t + this.seed);
     // Hats come off for bed.
     if (this.hat) this.hat.holder.visible = s.anim !== 'sleep';
+    if (this.hatFx) {
+      const on = this.hatFxOn && s.anim !== 'sleep';
+      this.hatFx.group.visible = this.hatFx.ground.visible = on;
+      if (on) this.hatFx.update(s.t + this.seed, s.anim, this.ghost);
+    }
   }
 
   /**
@@ -2965,6 +2997,8 @@ export function animalThumbnail(look: Look, size = 128): string {
   try {
     const { renderer: thumbRenderer } = thumbStage(size);
     const rig = buildAnimal(look);
+    // (A portrait is head and shoulders, still: a hat's motes would only be stray specks in it.)
+    (rig as AnimalRig).showHatFx(false);
     rig.update({ anim: 'idle', speed: 0, dt: 0.016, t: 0 });
     for (let i = 0; i < 30; i++) rig.update({ anim: 'idle', speed: 0, dt: 0.05, t: 0 });
     rig.root.rotation.y = 0.35;

@@ -78,7 +78,8 @@ export function bakeAnimal(root: THREE.Object3D): BakedPart[] {
   const parts: BakedPart[] = [];
   root.traverseVisible((o) => {
     const mesh = o as THREE.Mesh;
-    if (!mesh.isMesh || (o as THREE.InstancedMesh).isInstancedMesh) return;
+    // (Nor a prestige hat's glow, placed by its shader: see hatFx.ts.)
+    if (!mesh.isMesh || (o as THREE.InstancedMesh).isInstancedMesh || o.userData.noBake) return;
     if ((o as THREE.SkinnedMesh).isSkinnedMesh) {
       parts.push({ geometry: poseSkinned(o as THREE.SkinnedMesh), material: mesh.material, coat: true });
       return;

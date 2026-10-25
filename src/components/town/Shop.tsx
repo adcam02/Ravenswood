@@ -8,6 +8,7 @@ import { money } from '../../game/profiles';
 import { useMoney, useMyItems, useMyPets, useProgress } from '../../game/progress';
 import { tillSound } from '../../lib/audio';
 import { useView } from '../../state/view';
+import { HAT_FX } from '../../world/hatFx';
 import { fixLook, HATS, TROPHY_HAT, type HatId } from '../../world/types';
 import { HatPicture, PetPicture, TryOn, wearLook } from './JoinFlow';
 
@@ -152,6 +153,7 @@ function Hats() {
           <div className="try-on-words">
             <b>{tryOn.name}</b>
             <span>{owned(picked) ? 'Yours' : money(tryOn.price ?? 0)}</span>
+            {HAT_FX[picked] && <span className="try-on-fx">✨ Comes with {HAT_FX[picked]}</span>}
             {action(picked, tryOn.price ?? 0, tryOn.name)}
           </div>
         </div>
@@ -167,7 +169,11 @@ function Hats() {
               <HatPicture id={h.id} icon={h.icon} />
             </span>
             <span className="shop-pet-name">{h.name}</span>
-            {h.id === TROPHY_HAT && <span className="shop-trophy-note">For showing off: it sparkles, and puts a little crown by your name.</span>}
+            {h.id === TROPHY_HAT ? (
+              <span className="shop-trophy-note">For showing off: it comes with a golden glow and gold sparkles all round you, and puts a little crown by your name.</span>
+            ) : (
+              HAT_FX[h.id] && <span className="shop-fx-note">✨ Comes with {HAT_FX[h.id]}</span>
+            )}
             <span onClick={(e) => e.stopPropagation()} className="shop-hat-buy">
               {action(h.id, h.price!, h.name)}
             </span>

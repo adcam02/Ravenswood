@@ -6,6 +6,7 @@ import { player, useClient, useDoor, useTaken } from '../../net/client';
 import { useVoice, voice } from '../../voice/voice';
 import { AnimalPreview } from '../../world/AnimalPreview';
 import { animalThumbnail, hatThumbnail, petThumbnail } from '../../world/animals';
+import { HAT_FX } from '../../world/hatFx';
 import { ANIMALS_ABC, animalInfo, EXTRA_COLORS, fixLook, HATS, hatsOwned, hatSpeedLabel, type AnimalId, type HatId, type Look, type PetId } from '../../world/types';
 import { useProgress } from '../../game/progress';
 import { shownName } from '../../state/nicks';
@@ -312,14 +313,16 @@ function DressUp({ tab, look, setLook }: { tab: 'hat' | 'pet'; look: Look; setLo
   const progress = useProgress();
   const [hint, setHint] = useState<string | null>(null);
   useEffect(() => setHint(null), [tab]);
-  const items: { id: string; name: string; icon: string; locked?: string; price?: number }[] =
+  const items: { id: string; name: string; icon: string; locked?: string; price?: number; fx?: string }[] =
     tab === 'hat'
       ? HATS.map((h) => {
           const got = h.unlocked(progress);
+          // The prestige hats come with an effect (a glow, a ring of stars), told of here.
+          const fx = HAT_FX[h.id] && `Comes with ${HAT_FX[h.id]}.`;
           // Secret hats keep their secret until they're found; the shop's show their price.
-          if (got) return { id: h.id, name: h.name, icon: h.icon };
-          if (h.price) return { id: h.id, name: h.name, icon: h.icon, price: h.price, locked: `${money(h.price)} at the Lucky Raven’s shop` };
-          return h.secret ? { id: h.id, name: 'A secret hat', icon: '❓', locked: 'Keep exploring Ravenswood…' } : { id: h.id, name: h.name, icon: h.icon, locked: h.how };
+          if (got) return { id: h.id, name: h.name, icon: h.icon, fx };
+          if (h.price) return { id: h.id, name: h.name, icon: h.icon, price: h.price, fx, locked: `${money(h.price)} at the Lucky Raven’s shop` };
+          return h.secret ? { id: h.id, name: 'A secret hat', icon: '❓', locked: 'Keep exploring Ravenswood…' } : { id: h.id, name: h.name, icon: h.icon, fx, locked: h.how };
         })
           // The ones you have first.
           .sort((a, b) => Number(Boolean(a.locked)) - Number(Boolean(b.locked)))
@@ -349,7 +352,7 @@ function DressUp({ tab, look, setLook }: { tab: 'hat' | 'pet'; look: Look; setLo
           <button
             key={it.id}
             className={`join-item ${current === it.id ? 'on' : ''} ${it.locked ? 'locked' : ''}`}
-            onClick={() => (it.locked ? setHint(`🔒 ${it.name}: ${it.locked}`) : (setHint(null), choose(it.id)))}
+            onClick={() => (it.locked ? setHint(`🔒 ${it.name}: ${it.locked}${it.fx ? ` ✨ ${it.fx}` : ''}`) : (setHint(it.fx ? `✨ ${it.name}: ${it.fx}` : null), choose(it.id)))}
             role="radio"
             aria-checked={current === it.id}
             aria-disabled={Boolean(it.locked)}
@@ -357,7 +360,7 @@ function DressUp({ tab, look, setLook }: { tab: 'hat' | 'pet'; look: Look; setLo
           >
             <span className="join-item-icon">{tab === 'pet' ? <PetPicture id={it.id as PetId} icon={it.icon} /> : it.icon}</span>
             <span className="join-item-name">{it.name}</span>
-            {it.locked && <i>🔒</i>}
+            {it.locked ? <i>🔒</i> : it.fx && <i title={it.fx}>✨</i>}
             {it.price !== undefined && <span className="join-item-price">{money(it.price)}</span>}
           </button>
         ))}
@@ -469,12 +472,16 @@ export function HatPicture({ id, icon }: { id: HatId; icon: string }) {
   return src ? <img className="pet-picture" src={src} alt="" /> : <>{icon}</>;
 }
 
-/** Your own animal wearing a hat, for trying one on in the shop (its emoji until it's drawn). */
+/**
+ * Your own animal wearing a hat, for trying one on in the shop (its emoji until it's drawn). A hat that comes with an
+ * effect is shown turning round, live, so the effect can be seen.
+ */
 export function TryOn({ look, icon }: { look: Look; icon: string }) {
   const [src, setSrc] = useState<string | null>(null);
   const { animal, color, hat } = look;
+  const turning = Boolean(hat && HAT_FX[hat]) && !drawless();
   useEffect(() => {
-    if (drawless()) return;
+    if (drawless() || turning) return;
     let live = true;
     // (The last picture stays up until the new one's drawn.)
     const cancel = queueThumbnail(() => {
@@ -484,7 +491,8 @@ export function TryOn({ look, icon }: { look: Look; icon: string }) {
       live = false;
       cancel();
     };
-  }, [animal, color, hat]);
+  }, [animal, color, hat, turning]);
+  if (turning) return <AnimalPreview look={{ animal, color, hat }} size={120} className="try-on-picture try-on-live" />;
   return src ? <img className="try-on-picture" src={src} alt="" /> : <span className="try-on-picture">{icon}</span>;
 }
 

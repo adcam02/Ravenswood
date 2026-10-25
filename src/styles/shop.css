@@ -64,6 +64,22 @@
 .try-on-words span {
   color: var(--cosy-ink-soft);
 }
+/* A hat with an effect is tried on live, turning, so the effect shows (see TryOn). */
+.try-on-picture.try-on-live {
+  width: 120px !important;
+  height: 120px !important;
+}
+.try-on-words .try-on-fx {
+  font-size: 13px;
+  color: #8a5a10;
+}
+.shop-fx-note {
+  max-width: 22ch;
+  font-size: 11.5px;
+  line-height: 1.25;
+  text-align: center;
+  color: #8a5a10;
+}
 .try-on.trophy {
   background: linear-gradient(135deg, #fff1b8, #f6d266 60%, #fff3c4);
 }
@@ -205,9 +221,10 @@
     padding: 7px 11px;
     font-size: 14px;
   }
-  .try-on-picture {
-    width: 92px;
-    height: 92px;
+  .try-on-picture,
+  .try-on-picture.try-on-live {
+    width: 92px !important;
+    height: 92px !important;
   }
   .leaders-grid {
     grid-template-columns: 1fr;
