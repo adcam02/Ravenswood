@@ -817,6 +817,8 @@ export type JobId =
   | 'blackjack'
   | 'poker'
   | 'roulette'
+  /** Sit at one of the casino's slot machines. */
+  | 'slots'
   /** The apartment block's lift: choose whose flat to go up to. */
   | 'flats';
 

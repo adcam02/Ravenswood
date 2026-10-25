@@ -12,7 +12,7 @@ import { PigeonFlight } from '../src/world/pigeon';
 import { AvatarView } from '../src/world/avatar';
 import { EXEC_CAM, ExecStage, execCamera } from '../src/world/exec/stage';
 import type { ExecMethod } from '../src/state/types';
-import { CHAIR_Y, FELT_Y, RL_LOOK, bjSeat, bjSpot, pkAround, pkSeat, rlSeat } from '../src/world/town/casinoLayout';
+import { CHAIR_Y, FELT_Y, RL_LOOK, SLOTS, bjSeat, bjSpot, pkAround, pkSeat, rlSeat, slStool } from '../src/world/town/casinoLayout';
 import { PIECES, freeSpot, type FlatItem } from '../src/flats/catalogue';
 
 const q = new URLSearchParams(location.search);
@@ -229,6 +229,13 @@ if (q.has('casino')) {
       spin: { n: 17, at: benchT0 - num('rlt', 3) * 1000, until: benchT0 - num('rlt', 3) * 1000 + 7500, no: 3 },
       history: [32, 5, 0, 17, 26, 11],
     },
+    // The slot machines: ours ?slt seconds after the lever was pulled (?sl=6,6,6 for what it stops on), the next
+    // one's player just won, and the last one standing idle after a losing pull.
+    sl: [
+      { name: 'You', mine: true, spin: { reels: (q.get('sl') ?? '6,6,6').split(',').map(Number), bet: 5, won: 500, at: benchT0 - num('slt', 1) * 1000, no: 4 }, readyAt: 0 },
+      { name: 'Ann', mine: false, spin: { reels: [0, 0, 3], bet: 2, won: 8, at: benchT0 - 2700, no: 2 }, readyAt: 0 },
+      { name: null, mine: false, spin: { reels: [1, 2, 4], bet: 1, won: 0, at: benchT0 - 60000, no: 9 }, readyAt: 0 },
+    ],
     note: null,
   };
   town.setCasino(casinoView);
@@ -244,10 +251,13 @@ if (q.has('casino')) {
     ['rl', 0, 'otter'],
     ['rl', 2, 'bee'],
     ['rl', 4, 'duck'],
+    ['sl', 0, 'wolf'],
+    ['sl', 1, 'bear'],
   ] as const;
+  const seatOf = (table: string, i: number) => (table === 'bj' ? bjSeat(i) : table === 'pk' ? pkSeat(i) : table === 'sl' ? slStool(i) : rlSeat(i));
   for (const [table, i, animal] of at) {
-    const spot = table === 'bj' ? bjSeat(i) : table === 'pk' ? pkSeat(i) : rlSeat(i);
-    const a = buildAnimal({ animal, color: ({ deer: '#b07a4a', panda: '#f4efe6', frog: '#7cc28b', bear: '#8a5a36', raccoon: '#8a8c94', hedgehog: '#8a5a36', fox: '#e2793a', capybara: '#a8784a', otter: '#8a5a36', bee: '#f2cf5b', duck: '#f4efe6' } as Record<string, string>)[animal] });
+    const spot = seatOf(table, i);
+    const a = buildAnimal({ animal, color: ({ wolf: '#8a8c94', deer: '#b07a4a', panda: '#f4efe6', frog: '#7cc28b', bear: '#8a5a36', raccoon: '#8a8c94', hedgehog: '#8a5a36', fox: '#e2793a', capybara: '#a8784a', otter: '#8a5a36', bee: '#f2cf5b', duck: '#f4efe6' } as Record<string, string>)[animal] });
     a.root.position.set(spot.x, CHAIR_Y, spot.z);
     a.root.rotation.y = spot.ry;
     town.groups.casino.add(a.root);
@@ -256,13 +266,15 @@ if (q.has('casino')) {
   if (q.has('seatcam')) {
     const [table, n] = q.get('seatcam')!.split(':');
     const i = Number(n);
-    const spot = table === 'bj' ? bjSeat(i) : table === 'pk' ? pkSeat(i) : rlSeat(i);
-    const look = table === 'bj' ? bjSpot(i, 0.8) : table === 'pk' ? pkAround(i, -0.8) : RL_LOOK;
+    const spot = seatOf(table, i);
+    const look = table === 'bj' ? bjSpot(i, 0.8) : table === 'pk' ? pkAround(i, -0.8) : table === 'sl' ? { x: SLOTS[i].x - 0.3, z: SLOTS[i].z } : RL_LOOK;
+    // (At a slot machine the eyes sit a little behind the stool, looking at the reels, as in the game.)
+    const ahead = table === 'sl' ? -0.95 : 0.18;
     camera.fov = num('fov', 58);
     camera.near = 0.1;
     camera.updateProjectionMatrix();
-    camera.position.set(spot.x + Math.sin(spot.ry) * 0.18, CHAIR_Y + 0.8, spot.z + Math.cos(spot.ry) * 0.18);
-    camera.lookAt(look.x, FELT_Y, look.z);
+    camera.position.set(spot.x + Math.sin(spot.ry) * ahead, CHAIR_Y + 0.8, spot.z + Math.cos(spot.ry) * ahead);
+    camera.lookAt(look.x, table === 'sl' ? 1.15 : FELT_Y, look.z);
     // (As in the game, the picture sits a little higher, above the table's panel.)
     camera.setViewOffset(1000, 1000, 0, 170, 1000, 1000);
     // (Whoever sits there is us: out of the lens's way.)

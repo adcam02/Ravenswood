@@ -113,10 +113,27 @@ export interface RlView {
   history: number[];
 }
 
+/** The slot machines along the right-hand wall. */
+export const SL_MACHINES = 3;
+
+export interface SlMachineView {
+  /** Who's sitting at it (null: nobody). */
+  name: string | null;
+  mine: boolean;
+  /**
+   * The last pull, for everyone in the room to watch: the symbols the reels stop on (see casino/slots.ts), the bet,
+   * what came back (stake included), and when the lever was pulled (host clock; each reel stops a set time after).
+   */
+  spin: { reels: number[]; bet: number; won: number; at: number; no: number } | null;
+  /** When the next pull is allowed (host clock). */
+  readyAt: number;
+}
+
 export interface CasinoView {
   bj: (BjSeatView | null)[];
   pk: PkView;
   rl: RlView;
+  sl: SlMachineView[];
   /** Something just for this player ("You need $35 for the slime"), and when. */
   note: { text: string; at: number } | null;
 }
@@ -136,4 +153,7 @@ export type CasinoAction =
   | { k: 'pk'; do: 'raise'; to: number; hand: number }
   | { k: 'rl'; do: 'sit'; seat: number }
   | { k: 'rl'; do: 'leave' | 'clear' | 'ready' }
-  | { k: 'rl'; do: 'bet'; bet: string; amount: number };
+  | { k: 'rl'; do: 'bet'; bet: string; amount: number }
+  | { k: 'sl'; do: 'sit'; seat: number }
+  | { k: 'sl'; do: 'leave' }
+  | { k: 'sl'; do: 'spin'; bet: number };

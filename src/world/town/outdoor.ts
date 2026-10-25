@@ -1798,6 +1798,11 @@ function blockers(): Blocker[] {
   for (const b of BOOTHS) if (b.zone === 'town') add(b.x, b.z, 3.2);
   add(IDEA_BOX.x, IDEA_BOX.z, 1.6);
   add(CASINO.x, CASINO.z, 7.5);
+  // No trees on the way up to its door from the square, where they'd hide you from the camera.
+  for (const out of [7.5, 11.5]) {
+    const p = local(CASINO.x, CASINO.z, CASINO.ry, 0, CASINO.d / 2 + out);
+    add(p.x, p.z, 3.2);
+  }
   add(FLATS.x, FLATS.z, 7.5);
   for (const bd of beds) add(bd.x, bd.z, 4);
   add(WELL.x, WELL.z, 3);
@@ -1966,7 +1971,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   }
   ideaBox(painter(IDEA_BOX.x, IDEA_BOX.z, IDEA_BOX.ry));
 
-  // The casino, where Rose Cottage was.
+  // The casino, north-west between the church and the tavern.
   casinoFront(solo(CASINO.x, CASINO.z, CASINO.ry), rng(777));
   for (const sx of [-1.9, 1.9]) {
     const c = local(CASINO.x, CASINO.z, CASINO.ry, sx, CASINO.d / 2 + 1.6);

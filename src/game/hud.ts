@@ -43,7 +43,7 @@ interface Hud {
    * At the casino: the shop open (on which shelf; `away` when it was opened from somewhere else, by a dance not
    * bought yet), or sitting at a card table (which seat).
    */
-  casino: { kind: 'shop'; tab?: ShopTab; away?: boolean } | { kind: 'blackjack' | 'poker' | 'roulette'; seat: number } | null;
+  casino: { kind: 'shop'; tab?: ShopTab; away?: boolean } | { kind: 'blackjack' | 'poker' | 'roulette' | 'slots'; seat: number } | null;
   /** Sitting on your stool at the town meeting. */
   meetingSeated: boolean;
   /** Night in bed: the counting-sheep game is on offer, being played, or done for tonight. */

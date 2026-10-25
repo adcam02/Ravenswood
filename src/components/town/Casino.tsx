@@ -3,16 +3,17 @@ import { bestHand, bjTotal, isCard, type Card } from '../../casino/cards';
 import { casino, hostNow, useCasinoView } from '../../casino/client';
 import { BJ_MAX, BJ_MIN, HIDDEN, PK, RL, type BjSeatView, type CasinoView, type PkSeatView, type PkView } from '../../casino/types';
 import { BET_KEYS, betName, boardCell, colourOf, covers, odds } from '../../casino/roulette';
+import { PAYTABLE, SEVEN, SL, SYMBOLS, linePays } from '../../casino/slots';
 import { useHud } from '../../game/hud';
 import { money } from '../../game/profiles';
 import { useMoney, useMyPets } from '../../game/progress';
-import { cardSound, casinoLose, casinoWin, chipSound, rouletteSpin, tillSound } from '../../lib/audio';
+import { cardSound, casinoLose, casinoWin, chipSound, rouletteSpin, slotLever, slotReels, slotWin, tillSound } from '../../lib/audio';
 import { useView } from '../../state/view';
 import { Shop } from './Shop';
 
 /**
- * The Lucky Raven's panels: the shop at the counter (in Shop.tsx), and the card tables, which sit along the bottom of the
- * screen while the camera looks across the felt from your seat. Everything is dealt and paid by the Storyteller's
+ * The Lucky Raven's panels: the shop at the counter (in Shop.tsx), and the card tables and the slot machines, which sit
+ * along the bottom of the screen while the camera looks across the felt (or at the reels) from your seat. Everything is dealt and paid by the Storyteller's
  * browser; these only show it and send what you choose.
  */
 export function CasinoPanels() {
@@ -25,6 +26,7 @@ export function CasinoPanels() {
   if (at.kind === 'shop') return <Shop view={cv} tab={at.tab} away={at.away} />;
   if (!cv) return null;
   if (at.kind === 'roulette') return cv.rl ? <Roulette view={cv} seat={at.seat} /> : null;
+  if (at.kind === 'slots') return cv.sl ? <Slots view={cv} machine={at.seat} /> : null;
   return at.kind === 'blackjack' ? <Blackjack view={cv} seat={at.seat} /> : <Poker view={cv} seat={at.seat} />;
 }
 
@@ -241,7 +243,21 @@ function Blackjack({ view, seat }: { view: CasinoView; seat: number }) {
 }
 
 /** The frame both tables share: a title, the rules, and the way out. */
-function TableShell({ title, rules, onLeave, leaveLabel = 'Leave table', children }: { title: string; rules?: string; onLeave: () => void; leaveLabel?: string; children: ReactNode }) {
+function TableShell({
+  title,
+  rules,
+  onLeave,
+  leaveLabel = 'Leave table',
+  hint = 'Hold the right mouse button (or drag with a finger) to look around the table.',
+  children,
+}: {
+  title: string;
+  rules?: string;
+  onLeave: () => void;
+  leaveLabel?: string;
+  hint?: string;
+  children: ReactNode;
+}) {
   const coins = useMoney();
   const v = useView();
   return (
@@ -259,7 +275,7 @@ function TableShell({ title, rules, onLeave, leaveLabel = 'Leave table', childre
         </button>
       </header>
       {children}
-      <p className="table-hint">Hold the right mouse button (or drag with a finger) to look around the table.</p>
+      {hint && <p className="table-hint">{hint}</p>}
     </div>
   );
 }
@@ -551,6 +567,157 @@ function Roulette({ view, seat }: { view: CasinoView; seat: number }) {
   );
 }
 
+// ---------------------------------------------------------------- the slot machines
+
+/** One symbol on a reel: an emoji, or the lucky seven drawn big and red. */
+const SlotSymbol = ({ i }: { i: number }) => (i === SEVEN ? <b className="sl-seven">7</b> : <span>{SYMBOLS[i]?.glyph}</span>);
+
+/** A reel in the panel: spinning (a blur of symbols) until its moment to stop, then the symbol it stopped on. */
+function SlotReel({ symbol, spinning, win }: { symbol: number | null; spinning: boolean; win: boolean }) {
+  return (
+    <span className={`sl-reel ${spinning ? 'spinning' : 'stopped'} ${win ? 'win' : ''}`}>
+      {spinning ? (
+        <span className="sl-blur" aria-hidden="true">
+          {[...SYMBOLS, ...SYMBOLS].map((_, k) => (
+            <SlotSymbol key={k} i={k % SYMBOLS.length} />
+          ))}
+        </span>
+      ) : (
+        <span className="sl-face" key={`${symbol}`}>
+          {symbol === null ? <span>❔</span> : <SlotSymbol i={symbol} />}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function Slots({ view, machine }: { view: CasinoView; machine: number }) {
+  const coins = useMoney();
+  const v = useView();
+  const m = view.sl[machine];
+  const mine = m?.mine ? m : null;
+  const [bet, setBet] = useState(1);
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (v.mode === 'player' && m && !m.name) casino({ k: 'sl', do: 'sit', seat: machine });
+  }, [machine, Boolean(m?.name)]);
+  const spin = m?.spin ?? null;
+  const now = hostNow();
+  const done = spin ? spin.at + SL.stops[2] : 0;
+  // Ticking along while the reels turn (and until the next pull is allowed), so each reel stops on time.
+  const busyUntil = Math.max(done, m?.readyAt ?? 0);
+  useEffect(() => {
+    if (busyUntil <= hostNow()) return;
+    const t = setInterval(() => {
+      tick((n) => n + 1);
+      if (hostNow() > busyUntil + 100) clearInterval(t);
+    }, 60);
+    return () => clearInterval(t);
+  }, [busyUntil]);
+  // Our own pulls: the reels whirring and clunking to a stop, then a jingle for a win.
+  const heard = useRef(spin?.no ?? 0);
+  useEffect(() => {
+    if (!mine || !spin || spin.no === heard.current) return;
+    heard.current = spin.no;
+    const left = spin.at - hostNow();
+    if (left < -1000) return;
+    slotReels(SL.stops.map((ms) => Math.max(0, left + ms) / 1000));
+    const pays = linePays(spin.reels);
+    if (pays.times > 1) {
+      const t = setTimeout(() => slotWin(spin.won >= spin.bet * 100 ? 'jackpot' : pays.times >= 10 ? 'big' : 'small'), Math.max(0, left + SL.stops[2] + 120));
+      return () => clearTimeout(t);
+    }
+    if (pays.times === 1) {
+      const t = setTimeout(() => chipSound(), Math.max(0, left + SL.stops[2] + 120));
+      return () => clearTimeout(t);
+    }
+  }, [spin?.no, Boolean(mine)]);
+  const leave = () => {
+    if (v.mode === 'player') casino({ k: 'sl', do: 'leave' });
+    close();
+  };
+  if (m?.name && !m.mine && v.mode === 'player') {
+    return (
+      <TableShell title="Slot machine" onLeave={close} hint="">
+        <p className="casino-wait">{m.name} is playing this one. Try another machine!</p>
+      </TableShell>
+    );
+  }
+  const settled = !spin || now >= done;
+  const pays = spin && settled ? linePays(spin.reels) : null;
+  const ready = Boolean(mine) && now >= (m?.readyAt ?? 0);
+  const broke = coins < SL.bets[0];
+  const stake = SL.bets.includes(bet) && bet <= coins ? bet : ([...SL.bets].reverse().find((b) => b <= coins) ?? SL.bets[0]);
+  const jackpot = Boolean(spin && settled && spin.won >= spin.bet * 100);
+  const pull = () => {
+    if (!ready || broke) return;
+    slotLever();
+    casino({ k: 'sl', do: 'spin', bet: stake });
+  };
+  const others = view.sl.filter((x, i) => i !== machine && x.name);
+  return (
+    <TableShell title="🎰 Slot machine" rules="Three reels, one line · $1, $2 or $5 a pull" onLeave={leave} leaveLabel="Get up" hint="">
+      <Note view={view} />
+      <div className="sl-play">
+        <div className={`sl-machine ${jackpot ? 'jackpot' : pays && pays.times > 1 ? 'won' : ''}`}>
+          <div className="sl-window" aria-label="The reels" role="img">
+            {[0, 1, 2].map((r) => (
+              <SlotReel key={r} symbol={spin ? spin.reels[r] : null} spinning={Boolean(spin && now < spin.at + SL.stops[r])} win={Boolean(pays && pays.times > 1)} />
+            ))}
+          </div>
+          <p className={`sl-result ${pays && pays.times > 1 ? 'good' : ''}`} role="status">
+            {!spin || !mine
+              ? 'Choose a bet and pull the lever!'
+              : !settled
+                ? 'Round they go…'
+                : pays && pays.times > 0
+                  ? `${pays.what}! ${pays.times > 1 ? `You win ${money(spin.won)}` : ''}`
+                  : 'No luck this time.'}
+          </p>
+        </div>
+        {mine ? (
+          <div className="table-actions">
+            <span className="bet-chips" role="radiogroup" aria-label="Your bet">
+              {SL.bets.map((b) => (
+                <button key={b} className={`chip c${b} ${stake === b ? 'picked' : ''}`} disabled={b > coins} onClick={() => (setBet(b), chipSound())} role="radio" aria-checked={stake === b} aria-label={`Bet ${money(b)} a pull`}>
+                  {b}
+                </button>
+              ))}
+            </span>
+            <button className="cosy-btn primary big sl-pull" disabled={!ready || broke} onClick={pull}>
+              {broke ? 'Not enough money' : `Pull · ${money(stake)}`}
+            </button>
+          </div>
+        ) : (
+          <p className="casino-wait">{v.mode === 'st' ? 'Watching the machine.' : 'Taking your seat…'}</p>
+        )}
+      </div>
+      <ul className="sl-paytable" aria-label="What pays">
+        {PAYTABLE.map((row, k) => (
+          <li key={k} className={row.reels[0] === SEVEN && row.reels.length === 3 ? 'top' : ''}>
+            <span className="sl-pay-reels">
+              {row.reels.map((i, j) => (
+                <SlotSymbol key={j} i={i} />
+              ))}
+              {row.label && <small>{row.label}</small>}
+            </span>
+            <b>{row.times === 1 ? 'bet back' : `×${row.times}`}</b>
+          </li>
+        ))}
+      </ul>
+      {others.length > 0 && (
+        <ul className="table-others">
+          {others.map((o) => (
+            <li key={o.name}>
+              <b>{o.name}</b> {o.spin && hostNow() >= o.spin.at + SL.stops[2] && hostNow() < o.spin.at + SL.stops[2] + 8000 && o.spin.won > o.spin.bet ? `won ${money(o.spin.won)}!` : 'is playing the slots'}
+            </li>
+          ))}
+        </ul>
+      )}
+    </TableShell>
+  );
+}
+
 // ---------------------------------------------------------------- sounds
 
 /** Cards and chips as they change on the tables in view, and a little fanfare for your own wins. */
@@ -566,7 +733,8 @@ function useCasinoSounds(view: CasinoView | null) {
   useEffect(() => {
     const was = last.current;
     last.current = view;
-    if (!view || !was || !at || at.kind === 'shop') return;
+    // (The slot machine's panel makes its own.)
+    if (!view || !was || !at || at.kind === 'shop' || at.kind === 'slots') return;
     if (at.kind === 'roulette') {
       const rl = view.rl;
       const me = rl?.seats.find((s) => s?.mine);

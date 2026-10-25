@@ -100,6 +100,7 @@
   font-family: var(--cosy-font);
   font-weight: 700;
   font-size: 15px;
+  padding: 0;
   cursor: pointer;
   transition: translate 0.08s ease;
 }
@@ -757,5 +758,163 @@
     width: 20px;
     height: 20px;
     font-size: 10px;
+  }
+}
+
+/* The slot machines. */
+.chip.c2 {
+  --c: #e0a52a;
+  --ink: #3a2a20;
+}
+.sl-play {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 22px;
+}
+.sl-machine {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+.sl-play .table-actions {
+  flex-direction: column;
+}
+.sl-window {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: linear-gradient(#2a1f2a, #1d1a24);
+  box-shadow: inset 0 0 0 3px #d8b04a, 0 3px 0 rgba(0, 0, 0, 0.3);
+}
+.sl-reel {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: linear-gradient(#e8dcc4, #fffaf0 25%, #fffaf0 75%, #e8dcc4);
+  display: grid;
+  place-items: center;
+  font-size: 44px;
+  line-height: 1;
+}
+.sl-reel.win {
+  box-shadow: 0 0 0 3px #ffe17a, 0 0 14px #ffd76b;
+}
+.sl-face {
+  animation: sl-drop 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.5);
+}
+@keyframes sl-drop {
+  from {
+    transform: translateY(-40%);
+  }
+}
+.sl-blur {
+  position: absolute;
+  inset: 0 0 auto;
+  display: grid;
+  justify-items: center;
+  grid-auto-rows: 76px;
+  align-items: center;
+  filter: blur(1.5px);
+  animation: sl-roll 0.35s linear infinite;
+}
+@keyframes sl-roll {
+  from {
+    transform: translateY(-50%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+.sl-seven {
+  font-family: Fredoka, 'Trebuchet MS', sans-serif;
+  font-weight: 800;
+  font-size: 1.1em;
+  color: #c8303a;
+  -webkit-text-stroke: 1.5px #d8b04a;
+}
+.sl-result {
+  margin: 0;
+  min-height: 1.4em;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+}
+.sl-result.good {
+  color: #ffe17a;
+  animation: bj-pop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.4);
+}
+.sl-machine.jackpot .sl-window {
+  animation: sl-jackpot 0.25s steps(2) 12;
+}
+.sl-machine.jackpot .sl-result {
+  font-size: 24px;
+  text-shadow: 0 0 10px #ffd76b;
+}
+@keyframes sl-jackpot {
+  50% {
+    box-shadow: inset 0 0 0 3px #fff, 0 0 22px #ffd76b, 0 0 40px #ff7a6a;
+  }
+}
+.sl-pull {
+  min-width: 150px;
+}
+.sl-paytable {
+  margin: 0;
+  padding: 6px 10px;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 2px 14px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+}
+.sl-paytable li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+.sl-paytable li.top {
+  color: #ffe17a;
+}
+.sl-pay-reels {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  font-size: 15px;
+}
+.sl-pay-reels small {
+  margin-left: 4px;
+  font-size: 11px;
+  opacity: 0.75;
+}
+.sl-paytable b {
+  color: #f6d77a;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 760px) {
+  .sl-play .table-actions {
+    flex-direction: row;
+  }
+  .sl-reel {
+    width: 58px;
+    height: 58px;
+    font-size: 34px;
+  }
+  .sl-blur {
+    grid-auto-rows: 58px;
+  }
+  .sl-result {
+    font-size: 15px;
+  }
+  .sl-paytable {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    font-size: 12px;
   }
 }

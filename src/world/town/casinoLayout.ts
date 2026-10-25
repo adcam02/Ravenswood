@@ -1,18 +1,22 @@
-import { BJ_SEATS, PK_SEATS } from '../../casino/types';
+import { BJ_SEATS, PK_SEATS, SL_MACHINES } from '../../casino/types';
 import type { Spot } from '../types';
 
 /**
- * Where the Lucky Raven stands, and where everything inside it is. It took the place of Rose Cottage, out past the
- * ring road to the north-west, facing the square. Inside, like every room, it's centred on 0,0 with the way out on
- * the camera side (+z).
+ * Where the Lucky Raven stands, and where everything inside it is. It stands out past the ring road to the
+ * north-west, facing the square, where Hollow Oak was (the cottage went to its old spot behind the tavern, where
+ * walking up to its door faded the tavern out every time). Here nothing stands between its door and the camera.
+ * Inside, like every room, it's centred on 0,0 with the way out on the camera side (+z).
  */
 
 const face = (fromX: number, fromZ: number, toX: number, toZ: number) => Math.atan2(toX - fromX, toZ - fromZ);
 
-/** The building: a little further out than the cottages were, so its wider front stays clear of the road. */
+/**
+ * The building: a little further out than the cottage was and a touch further round from the church, so its wider
+ * front stays clear of the road where it bends round the churchyard.
+ */
 export const CASINO = (() => {
-  const a = (296 * Math.PI) / 180;
-  const r = 30.6;
+  const a = (322 * Math.PI) / 180;
+  const r = 31;
   const x = r * Math.sin(a);
   const z = -r * Math.cos(a);
   return { x, z, ry: face(x, z, 0, 0), w: 8.4, d: 6.2 };
@@ -60,8 +64,9 @@ export const pkAround = (i: number, out: number) => {
 export const pkSeat = (i: number): Spot => pkAround(i, 0.62);
 export const PK_DEALER: Spot = pkAround(-1, 0.5);
 
-/** Slot machines along the right-hand wall, for show. */
-export const SLOTS = [-0.4, 0.9, 4.6].map((z) => ({ x: CASINO_ROOM.hw - 0.55, z }));
+/** Slot machines in a row along the right-hand wall, facing into the room, each with a stool in front. */
+export const SLOTS = [-0.4, 0.9, 2.2].slice(0, SL_MACHINES).map((z) => ({ x: CASINO_ROOM.hw - 0.55, z }));
+export const slStool = (i: number): Spot => ({ x: SLOTS[i].x - 0.85, z: SLOTS[i].z, ry: Math.PI / 2 });
 
 /**
  * The roulette table, front right: a long table with the wheel at its right-hand end and the betting board on the

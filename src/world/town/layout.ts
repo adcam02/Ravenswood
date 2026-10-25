@@ -1,6 +1,6 @@
 import { BEDS, BED_SPOTS, BOOTHS, BOOTH_HD, BOOTH_HW, LINES, LINE_SLOTS, boothSeats, boothSpot, type Collider, type Door, type Spot, type Station, type ZoneKind } from '../types';
 import { local } from './kit';
-import { BJ_TABLE, BJ_DEALER, CASHIER, CASINO, CASINO_DOOR, CASINO_ROOM, CHAIR_Y, PK_DEALER, PK_TABLE, RL_CROUPIER, RL_TABLE, SHOP, SLOTS, bjSeat, pkSeat, rlSeat } from './casinoLayout';
+import { BJ_TABLE, BJ_DEALER, CASHIER, CASINO, CASINO_DOOR, CASINO_ROOM, CHAIR_Y, PK_DEALER, PK_TABLE, RL_CROUPIER, RL_TABLE, SHOP, SLOTS, bjSeat, pkSeat, rlSeat, slStool } from './casinoLayout';
 import { BJ_SEATS, PK_SEATS, RL_SEATS } from '../../casino/types';
 
 /**
@@ -27,9 +27,9 @@ export const HOUSE_R = 29;
 export const RING_ROAD_R = 25.5;
 /** A few cottages for scenery, in the gaps between the public buildings. Bedrooms are elsewhere. */
 export const HOUSES = 2;
-// (The club stands where Bramble Cottage was, at 40 degrees, the casino where Rose Cottage was, at 296, and Wren Court
-// where Ferncroft was, at 68.)
-export const COTTAGE_ANGLES = [118, 326];
+// (The club stands where Bramble Cottage was, at 40 degrees, and Wren Court where Ferncroft was, at 68. The casino
+// and Hollow Oak swapped places: the casino was at 296, behind the tavern as the camera sees it, and is now at 322.)
+export const COTTAGE_ANGLES = [118, 296];
 export const COTTAGE_NAMES = ['The Old Mill', 'Hollow Oak'];
 /** The gallows, just to the side of the meeting circle, facing it. */
 export const GALLOWS = { x: 8.6, z: 6.2, ry: -Math.PI / 2 };
@@ -161,7 +161,7 @@ export const GATE_Z = TOWN_R + 0.6;
 /**
  * The ring road, as a closed loop of points clockwise from north. It runs round at RING_ROAD_R, except at the top of
  * town, where the church stands across it: there it bends out round the back of the church, squeezing between the
- * churchyard and Hollow Oak on the way.
+ * churchyard and the Lucky Raven on the way.
  */
 export const ROAD_LOOP: { x: number; z: number }[] = (() => {
   const ring = (deg: number) => {
@@ -178,7 +178,7 @@ export const ROAD_LOOP: { x: number; z: number }[] = (() => {
   pts.push(ring(333), { x: -11.5, z: -26.0 }, { x: -11.7, z: -29.6 }, { x: -9.6, z: -31.6 }, { x: -5.5, z: -32.6 }, { x: 0, z: -32.8 });
   return pts;
 })();
-/** The narrow bit of the road, between the churchyard wall and Hollow Oak (indexes into ROAD_LOOP's segments). */
+/** The narrow bit of the road, between the churchyard wall and the Lucky Raven (indexes into ROAD_LOOP's segments). */
 export const ROAD_NARROW = (i: number) => {
   const a = ROAD_LOOP[i];
   return a.x < -11 && a.z < -22 && a.z > -30;
@@ -583,9 +583,13 @@ export function makeStations(): Station[] {
     const c = rlSeat(i);
     st.push({ id: `rl-${i}`, zone: 'casino', x: c.x, z: c.z, r: 0.85, job: 'roulette', stand: c, y: CHAIR_Y, label: 'Sit down for roulette' });
   }
+  SLOTS.forEach((_, i) => {
+    const c = slStool(i);
+    st.push({ id: `sl-${i}`, zone: 'casino', x: c.x, z: c.z, r: 0.85, job: 'slots', stand: c, y: CHAIR_Y, label: 'Play the slot machine' });
+  });
   // Activities are easy to step into: a generous area round each (the nearest wins where two overlap).
   // Seats and beds keep a small one, so walking past doesn't keep offering to sit.
-  for (const s of st) if (s.job !== 'sit' && s.job !== 'sleep' && s.job !== 'blackjack' && s.job !== 'poker' && s.job !== 'roulette') s.r = Math.min(3.2, Math.max(2.4, s.r * 1.6));
+  for (const s of st) if (s.job !== 'sit' && s.job !== 'sleep' && s.job !== 'blackjack' && s.job !== 'poker' && s.job !== 'roulette' && s.job !== 'slots') s.r = Math.min(3.2, Math.max(2.4, s.r * 1.6));
   return st;
 }
 

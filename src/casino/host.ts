@@ -16,6 +16,10 @@
  * is thrown, and what comes back is paid when it lands. Everyone sees the same spin: the view carries the number and
  * the host-clock times the ball is thrown and settles, and each screen rolls it to that.
  *
+ * The slot machines: three along the wall, each played by one player at a time, a pull at a time. The reels are
+ * decided the moment the lever's pulled and the stake taken then; what comes back is paid when the last reel stops.
+ * Everyone in the room sees the reels turn (the view carries what they stop on and when the lever was pulled).
+ *
  * Chips on the table and bets in play are noted in this browser as they change, so if the Storyteller's page closes
  * mid-hand, everyone gets theirs back the next time it opens.
  */
@@ -28,7 +32,8 @@ import { PETS, type PetId } from '../world/types';
 import { bestHand, bjTotal, dealerStands, isBlackjack, newShoe, randomBelow, sharePot, splitPots, type Card, type Contribution } from './cards';
 import { petName, petPrice, wareOf } from './shop';
 import { isBet, payout } from './roulette';
-import { BJ_MAX, BJ_MIN, BJ_SEATS, HIDDEN, PK, PK_SEATS, RL, RL_SEATS, type BjResult, type RlView, type BjSeatView, type CasinoAction, type CasinoView, type PkSeatView, type PkStage, type PkView } from './types';
+import { SL, SLOT_STOPS, isSlotBet, linePays, symbolAt } from './slots';
+import { BJ_MAX, BJ_MIN, BJ_SEATS, HIDDEN, PK, PK_SEATS, RL, RL_SEATS, SL_MACHINES, type BjResult, type RlView, type SlMachineView, type BjSeatView, type CasinoAction, type CasinoView, type PkSeatView, type PkStage, type PkView } from './types';
 
 /** The casino's zone (the room behind the Lucky Raven's door). */
 export const CASINO_ZONE = 'casino';
@@ -198,16 +203,25 @@ function buyItem(player: string, key: string) {
 const bjIndex = (player: string) => bj.findIndex((s) => s?.player === player);
 const pkIndex = (player: string) => table.seats.findIndex((s) => s?.player === player);
 const rlIndex = (player: string) => wheel.seats.findIndex((s) => s?.player === player);
-/** Already sitting at another table: which one, to say so. */
-const elsewhere = (player: string, here: 'bj' | 'pk' | 'rl') =>
-  here !== 'bj' && bjIndex(player) >= 0 ? 'blackjack' : here !== 'pk' && pkIndex(player) >= 0 ? 'poker' : here !== 'rl' && rlIndex(player) >= 0 ? 'roulette' : null;
+const slIndex = (player: string) => machines.findIndex((m) => m.seat?.player === player);
+/** Already sitting at another table (or a slot machine): which, to say so. */
+const elsewhere = (player: string, here: 'bj' | 'pk' | 'rl' | 'sl') =>
+  here !== 'bj' && bjIndex(player) >= 0
+    ? 'blackjack table'
+    : here !== 'pk' && pkIndex(player) >= 0
+      ? 'poker table'
+      : here !== 'rl' && rlIndex(player) >= 0
+        ? 'roulette table'
+        : here !== 'sl' && slIndex(player) >= 0
+          ? 'slot machine'
+          : null;
 
 function bjSit(player: string, i: number) {
   const seat = gameSeat(player);
   if (!seat || !(i >= 0 && i < BJ_SEATS)) return;
   if (!inCasino(seat.id)) return;
   const other = elsewhere(player, 'bj');
-  if (other) return tell(player, `Leave the ${other} table first.`);
+  if (other) return tell(player, `Leave the ${other} first.`);
   const mine = bjIndex(player);
   if (mine === i) return;
   if (bj[i]) return tell(player, `${bj[i]!.name} is sitting there.`);
@@ -399,7 +413,7 @@ function pkSit(player: string, i: number, raw: unknown) {
   const seat = gameSeat(player);
   if (!seat || !(i >= 0 && i < PK_SEATS) || !inCasino(seat.id)) return;
   const other = elsewhere(player, 'pk');
-  if (other) return tell(player, `Leave the ${other} table first.`);
+  if (other) return tell(player, `Leave the ${other} first.`);
   if (pkIndex(player) >= 0) return;
   if (table.seats[i]) return tell(player, `${table.seats[i]!.name} is sitting there.`);
   const buyIn = Math.max(PK.minBuy, Math.min(PK.maxBuy, wholeDollars(raw)));
@@ -778,7 +792,7 @@ function rlSit(player: string, i: number) {
   const seat = gameSeat(player);
   if (!seat || !(i >= 0 && i < RL_SEATS) || !inCasino(seat.id)) return;
   const other = elsewhere(player, 'rl');
-  if (other) return tell(player, `Leave the ${other} table first.`);
+  if (other) return tell(player, `Leave the ${other} first.`);
   const mine = rlIndex(player);
   if (mine === i) return;
   if (wheel.seats[i]) return tell(player, `${wheel.seats[i]!.name} is sitting there.`);
@@ -891,13 +905,71 @@ function rlView(player: string | null): RlView {
   };
 }
 
+// ---------------------------------------------------------------- the slot machines
+
+/** Each machine: who's playing it, and its last pull (kept when they go, so its reels stay where they stopped). */
+const machines: { seat: Who | null; spin: SlMachineView['spin']; readyAt: number }[] = Array.from({ length: SL_MACHINES }, () => ({ seat: null, spin: null, readyAt: 0 }));
+/** Pulls whose reels are still turning: paid when the last one stops, even if the player has walked off. */
+let pulls: { name: string; bet: number; won: number; until: number }[] = [];
+/** Tests only (with ?debug): what the next pull's reels stop on. */
+let riggedReels: number[] | null = null;
+
+function slSit(player: string, i: number) {
+  const seat = gameSeat(player);
+  if (!seat || !(i >= 0 && i < SL_MACHINES) || !inCasino(seat.id)) return;
+  const other = elsewhere(player, 'sl');
+  if (other) return tell(player, `Leave the ${other} first.`);
+  const mine = slIndex(player);
+  if (mine === i) return;
+  if (machines[i].seat) return tell(player, `${machines[i].seat!.name} is playing that one.`);
+  if (mine >= 0) machines[mine].seat = null;
+  machines[i].seat = { player, seatId: seat.id, name: seat.name.trim(), away: null };
+  bump();
+}
+
+function slLeave(player: string) {
+  const i = slIndex(player);
+  if (i < 0) return;
+  machines[i].seat = null;
+  bump();
+}
+
+/** A pull of the lever: the stake taken, the reels decided. Pulls while the reels are still turning (or just after) do nothing. */
+function slPull(player: string, bet: unknown) {
+  const m = machines[slIndex(player)];
+  if (!m?.seat || !isSlotBet(bet)) return;
+  const now = Date.now();
+  if (now < m.readyAt) return;
+  if (!debit(who(m.seat), bet, 'on the slots')) return tell(player, `A pull is ${money(bet)}, and you have ${money(coinsOf(m.seat.name))}.`);
+  const reels = riggedReels ?? [0, 1, 2].map(() => symbolAt(randomBelow(SLOT_STOPS)));
+  riggedReels = null;
+  const won = bet * linePays(reels).times;
+  const at = now + SL.pullMs;
+  m.spin = { reels, bet, won, at, no: (m.spin?.no ?? 0) + 1 };
+  m.readyAt = at + SL.stops[2] + SL.coolMs;
+  pulls.push({ name: m.seat.name, bet, won, until: at + SL.stops[2] });
+  bump();
+}
+
+function slTick(now: number) {
+  const due = pulls.filter((p) => now >= p.until);
+  if (!due.length) return;
+  pulls = pulls.filter((p) => now < p.until);
+  for (const p of due) if (p.won > 0) credit({ name: p.name }, p.won, p.won >= p.bet * 100 ? 'for the JACKPOT!' : 'won on the slots');
+  bump();
+}
+
+function slView(player: string | null): SlMachineView[] {
+  return machines.map((m) => ({ name: m.seat?.name ?? null, mine: Boolean(player && m.seat?.player === player), spin: m.spin, readyAt: m.readyAt }));
+}
+
 // ---------------------------------------------------------------- players coming and going
 
 /** Players who've left the casino, dropped off or given up their seat in the game lose their table seats. */
 function checkAway(now: number, online: Record<string, true>) {
   const g = useHost.getState().g;
   const here = (s: Who) => g.seats.some((x) => x.id === s.seatId && x.playerId === s.player) && online[s.player] && inCasino(s.seatId);
-  for (const s of [...bj, ...table.seats, ...wheel.seats]) {
+  for (const s of [...bj, ...table.seats, ...wheel.seats, ...machines.map((m) => m.seat)]) {
     if (!s) continue;
     if (here(s)) s.away = null;
     else if (s.away === null) s.away = now;
@@ -905,6 +977,7 @@ function checkAway(now: number, online: Record<string, true>) {
       s.away = null;
       if (bj.includes(s as BjSeat)) bjLeave(s.player);
       else if (wheel.seats.includes(s as RlSeat)) rlLeave(s.player);
+      else if (machines.some((m) => m.seat === s)) slLeave(s.player);
       else pkLeave(s.player);
     }
   }
@@ -946,6 +1019,7 @@ function save() {
   for (const s of table.seats) if (s) chips.push({ name: s.name, amount: s.stack + (playing() && s.inHand ? s.total : 0), why: 'back from the poker table' });
   for (const s of bj) if (s && (s.state === 'playing' || s.state === 'dealer')) chips.push({ name: s.name, amount: s.bet, why: 'back from blackjack' });
   for (const r of wheel.riding) chips.push({ name: r.name, amount: r.staked, why: 'back from roulette' });
+  for (const p of pulls) chips.push({ name: p.name, amount: p.bet, why: 'back from the slots' });
   saveJSON(SAVE_KEY, { chips: chips.filter((c) => c.amount > 0) } satisfies Saved);
 }
 
@@ -978,6 +1052,10 @@ export function receiveCasino(player: string, raw: unknown) {
     else if (a.do === 'bet') rlBet(player, a.bet, a.amount);
     else if (a.do === 'clear') rlClear(player);
     else if (a.do === 'ready') rlReady(player);
+  } else if (a.k === 'sl') {
+    if (a.do === 'sit') slSit(player, wholeDollars(a.seat));
+    else if (a.do === 'leave') slLeave(player);
+    else if (a.do === 'spin') slPull(player, a.bet);
   }
   flush();
 }
@@ -985,12 +1063,13 @@ export function receiveCasino(player: string, raw: unknown) {
 /** What a player sees of the casino: the tables while they're in it (or sitting at one), and nothing otherwise. */
 export function casinoFor(player: string | null): CasinoView | null {
   const seat = player ? useHost.getState().g.seats.find((s) => s.playerId === player) : null;
-  if (player && !(seat && (inCasino(seat.id) || bjIndex(player) >= 0 || pkIndex(player) >= 0 || rlIndex(player) >= 0))) return null;
+  if (player && !(seat && (inCasino(seat.id) || bjIndex(player) >= 0 || pkIndex(player) >= 0 || rlIndex(player) >= 0 || slIndex(player) >= 0))) return null;
   const note = player ? notes.get(player) : undefined;
   return {
     bj: bj.map((s) => (s ? bjView(s, s.player === player) : null)),
     pk: pkView(player),
     rl: rlView(player),
+    sl: slView(player),
     note: note && Date.now() - note.at < NOTE_MS ? note : null,
   };
 }
@@ -1017,6 +1096,7 @@ export function startCasino(online: () => Record<string, true>) {
       bjTick(now);
       pkTick(now);
       rlTick(now);
+      slTick(now);
       for (const [p, n] of notes) if (now - n.at > NOTE_MS) notes.delete(p);
     } catch (e) {
       console.error(e);
@@ -1025,4 +1105,4 @@ export function startCasino(online: () => Record<string, true>) {
   }, 250);
 }
 
-if (debugHooks()) Object.assign(window, { __casino: { bj, table, wheel, casinoFor, receiveCasino, store: useCasino, rig: (cards: Card[]) => void (rigged = cards), rigWheel: (n: number) => void (riggedN = n) } });
+if (debugHooks()) Object.assign(window, { __casino: { bj, table, wheel, casinoFor, receiveCasino, store: useCasino, rig: (cards: Card[]) => void (rigged = cards), rigWheel: (n: number) => void (riggedN = n), machines, rigSlots: (reels: number[]) => void (riggedReels = reels) } });

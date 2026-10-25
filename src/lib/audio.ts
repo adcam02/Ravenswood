@@ -1249,3 +1249,137 @@ export function rouletteSpin(seconds = 7) {
   }
   bell(2637, 0.4, 0.04, seconds);
 }
+
+/** A slot machine's lever: a ratchet clicking down, a clunk at the bottom, and the spring taking it back up. */
+export function slotLever() {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.value = 0.4;
+  out.connect(c.destination);
+  for (let k = 0; k < 5; k++) {
+    const at = t + k * 0.05;
+    const src = noise(c, 0.02);
+    const f = c.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 2600 - k * 180;
+    f.Q.value = 4;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.35, at + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.02);
+    src.connect(f).connect(g).connect(out);
+    src.start(at);
+  }
+  // The clunk, and the spring's twang.
+  const thud = c.createOscillator();
+  const tg = c.createGain();
+  thud.type = 'triangle';
+  thud.frequency.setValueAtTime(180, t + 0.27);
+  thud.frequency.exponentialRampToValueAtTime(70, t + 0.4);
+  tg.gain.setValueAtTime(0.0001, t + 0.27);
+  tg.gain.exponentialRampToValueAtTime(0.3, t + 0.28);
+  tg.gain.exponentialRampToValueAtTime(0.0001, t + 0.42);
+  thud.connect(tg).connect(out);
+  thud.start(t + 0.27);
+  thud.stop(t + 0.45);
+  const twang = c.createOscillator();
+  const wg = c.createGain();
+  twang.type = 'sawtooth';
+  twang.frequency.setValueAtTime(220, t + 0.36);
+  twang.frequency.exponentialRampToValueAtTime(330, t + 0.6);
+  wg.gain.setValueAtTime(0.0001, t + 0.36);
+  wg.gain.exponentialRampToValueAtTime(0.03, t + 0.38);
+  wg.gain.exponentialRampToValueAtTime(0.0001, t + 0.65);
+  twang.connect(wg).connect(out);
+  twang.start(t + 0.36);
+  twang.stop(t + 0.7);
+}
+
+/**
+ * The reels going round: a quick whirr of clicks until each one stops (`stops`: seconds from now for each reel),
+ * with a solid clunk as each drops into place.
+ */
+export function slotReels(stops: number[]) {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.value = 0.32;
+  out.connect(c.destination);
+  const last = Math.max(...stops);
+  for (let at = 0; at < last; at += 0.045) {
+    // Fewer reels turning, fewer clicks (and quieter).
+    const turning = stops.filter((s) => s > at).length;
+    if (!turning) break;
+    const src = noise(c, 0.012);
+    const f = c.createBiquadFilter();
+    f.type = 'highpass';
+    f.frequency.value = 3000 + Math.random() * 800;
+    const g = c.createGain();
+    const when = t + at + Math.random() * 0.01;
+    g.gain.setValueAtTime(0.0001, when);
+    g.gain.exponentialRampToValueAtTime(0.05 + turning * 0.03, when + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, when + 0.012);
+    src.connect(f).connect(g).connect(out);
+    src.start(when);
+  }
+  stops.forEach((s, i) => {
+    const at = t + s;
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(260 - i * 30, at);
+    osc.frequency.exponentialRampToValueAtTime(90, at + 0.08);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.12, at + 0.004);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.1);
+    osc.connect(g).connect(out);
+    osc.start(at);
+    osc.stop(at + 0.12);
+  });
+}
+
+/** A win on the slots: a bright arpeggio and coins tumbling into the tray; for the jackpot, bells and a long shower. */
+export function slotWin(size: 'small' | 'big' | 'jackpot') {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.value = 0.45;
+  out.connect(c.destination);
+  const run = size === 'small' ? [784, 988, 1175] : [523.3, 659.3, 784, 1046.5, 1318.5, 1568];
+  const rounds = size === 'jackpot' ? 3 : 1;
+  for (let r = 0; r < rounds; r++)
+    run.forEach((f, i) => {
+      const osc = c.createOscillator();
+      const g = c.createGain();
+      osc.type = 'square';
+      osc.frequency.value = f * (r === 2 ? 2 : 1);
+      const at = t + r * 0.6 + i * 0.07;
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.05, at + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.22);
+      osc.connect(g).connect(out);
+      osc.start(at);
+      osc.stop(at + 0.25);
+    });
+  // Coins dropping into the tray: little metallic tings, quicker and longer for a bigger win.
+  const coins = size === 'small' ? 6 : size === 'big' ? 16 : 48;
+  const from = run.length * 0.07 * rounds + (rounds - 1) * 0.2;
+  for (let k = 0; k < coins; k++) {
+    const at = t + from + k * (size === 'jackpot' ? 0.06 : 0.08) + Math.random() * 0.03;
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = 'sine';
+    osc.frequency.value = 3200 + Math.random() * 1600;
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.06, at + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.12);
+    osc.connect(g).connect(out);
+    osc.start(at);
+    osc.stop(at + 0.15);
+  }
+  if (size === 'jackpot') [1046.5, 1318.5, 1568, 2093].forEach((f, i) => bell(f, 2.5, 0.05, 0.4 + i * 0.25));
+}

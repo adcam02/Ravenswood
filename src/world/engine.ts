@@ -40,16 +40,23 @@ import { drawless, loadJSON, saveJSON } from '../lib/util';
 import { steadyInterval } from '../lib/ticker';
 import { casino, casinoNow, hostNow } from '../casino/client';
 import { TableCam } from './tablecam';
-import { CHAIR_Y, FELT_Y, RL_LOOK, bjSpot, pkAround } from './town/casinoLayout';
+import { CHAIR_Y, FELT_Y, RL_LOOK, SLOTS, bjSpot, pkAround } from './town/casinoLayout';
 import type { CasinoView } from '../casino/types';
 import { decor, flatNav, flatNow, useDecor } from '../flats/client';
 import { emptyLayout, whyNot } from '../flats/catalogue';
 import { shownName } from '../state/nicks';
 import { nameKey } from '../game/profiles';
 
-type TableKind = 'blackjack' | 'poker' | 'roulette';
-/** Who's in a seat at one of the casino's tables. */
-const sittingAt = (cv: CasinoView, kind: TableKind, seat: number) => (kind === 'blackjack' ? cv.bj[seat] : kind === 'poker' ? cv.pk.seats[seat] : cv.rl?.seats[seat]) ?? null;
+type TableKind = 'blackjack' | 'poker' | 'roulette' | 'slots';
+/** Who's in a seat at one of the casino's tables (or at a slot machine). */
+const sittingAt = (cv: CasinoView, kind: TableKind, seat: number): { name: string; mine: boolean } | null => {
+  if (kind === 'slots') {
+    const m = cv.sl?.[seat];
+    return m?.name ? { name: m.name, mine: m.mine } : null;
+  }
+  return (kind === 'blackjack' ? cv.bj[seat] : kind === 'poker' ? cv.pk.seats[seat] : cv.rl?.seats[seat]) ?? null;
+};
+const TABLE_ACTION = { blackjack: 'bj', poker: 'pk', roulette: 'rl', slots: 'sl' } as const;
 
 /** Town features that arrive with the effects pass: called only if the town has them. */
 interface TownFx {
@@ -272,6 +279,7 @@ const SIGN_TEXT: Partial<Record<Station['job'], string>> = {
   blackjack: '🃏 Blackjack',
   poker: '♠️ Texas hold’em',
   roulette: '🎡 Roulette',
+  slots: '🎰 Slots',
 };
 
 /**
@@ -1542,7 +1550,7 @@ export class Engine {
       useDecor.setState({ dir: true });
       return;
     }
-    if (s.job === 'blackjack' || s.job === 'poker' || s.job === 'roulette') return this.sitAtTable(s);
+    if (s.job === 'blackjack' || s.job === 'poker' || s.job === 'roulette' || s.job === 'slots') return this.sitAtTable(s);
     const game_ = JOB_GAMES[s.job];
     if (game_) {
       this.standUp();
@@ -1658,13 +1666,15 @@ export class Engine {
     this.tableKind = kind;
     // (The town camera's own swing starts again from straight behind when we get up.)
     this.swing.yaw = this.swing.pitch = 0;
-    // The eyes: above the seat, a little in towards the table, at about the height of a sitting animal's head.
-    const ahead = 0.18;
+    // The eyes: above the seat, a little in towards the table, at about the height of a sitting animal's head. (At a
+    // slot machine, back behind the stool instead, so the top of the machine shows above the panel.)
+    const ahead = kind === 'slots' ? -0.95 : 0.18;
     const eyeY = this.seated.y + THREE.MathUtils.clamp(this.me.rig.headHeight * 0.75, 0.65, 1.05);
     const eye = new THREE.Vector3(local.x + Math.sin(local.ry) * ahead, eyeY, local.z + Math.cos(local.ry) * ahead);
     // Looking down past our own cards towards the middle of the table.
-    const at = kind === 'blackjack' ? bjSpot(seat, 0.8) : kind === 'poker' ? pkAround(seat, -0.8) : RL_LOOK;
-    this.tableCam = new TableCam(this.renderer.domElement, eye, new THREE.Vector3(at.x, FELT_Y, at.z));
+    // (At a slot machine, at its reels.)
+    const at = kind === 'blackjack' ? bjSpot(seat, 0.8) : kind === 'poker' ? pkAround(seat, -0.8) : kind === 'slots' ? { x: SLOTS[seat].x - 0.3, z: SLOTS[seat].z } : RL_LOOK;
+    this.tableCam = new TableCam(this.renderer.domElement, eye, new THREE.Vector3(at.x, kind === 'slots' ? 1.15 : FELT_Y, at.z));
   }
 
   /**
@@ -1726,7 +1736,7 @@ export class Engine {
       this.tableCam = null;
       if (this.seated) this.standUp();
       // However we got up, the seat is given up (the host finishes or folds a hand in play, and cashes out the chips).
-      if (v?.mode === 'player') casino({ k: this.tableKind === 'blackjack' ? 'bj' : this.tableKind === 'poker' ? 'pk' : 'rl', do: 'leave' });
+      if (v?.mode === 'player') casino({ k: TABLE_ACTION[this.tableKind], do: 'leave' });
       if (atTable) useHud.setState({ casino: null });
     } else if (atTable && !this.tableCam) useHud.setState({ casino: null });
     if (at?.kind === 'shop' && !at.away && zoneKind(local.zone) !== 'casino') useHud.setState({ casino: null });
@@ -2447,7 +2457,7 @@ export class Engine {
         label = 'Big Moo is thinking it over…';
         locked = true;
       } else if (best.job === 'ideas' && v.mode === 'st') label = 'Read the ideas';
-      else if (best.job === 'blackjack' || best.job === 'poker' || best.job === 'roulette') {
+      else if (best.job === 'blackjack' || best.job === 'poker' || best.job === 'roulette' || best.job === 'slots') {
         const cv = v.mode === 'preview' ? null : casinoNow(v.mode);
         const there = cv ? sittingAt(cv, best.job, Number(best.id.split('-')[1])) : null;
         if (there && !there.mine) {
@@ -3090,8 +3100,9 @@ export class Engine {
       }
     }
     // Our own animal steps out of the way of the lens once the camera is close to the seat.
+    // (Again if our animal is built afresh while we sit, a new hat say.)
     const hide = Boolean(this.tableCam && this.camPos.distanceTo(wantPos) < 1.6);
-    if (this.me && hide !== this.hidSelf) {
+    if (this.me && (hide !== this.hidSelf || (hide && this.me.rig.root.visible))) {
       this.hidSelf = hide;
       this.me.rig.root.visible = !hide;
     }

@@ -1596,6 +1596,8 @@ const GOLD = '#d8b04a';
 const VELVET = '#a3304a';
 /** A half disc, flat edge along x through the middle and round towards +z (the blackjack table). */
 const HALF_DISC = new THREE.CylinderGeometry(1, 1, 1, 40, 1, false, -Math.PI / 2, Math.PI);
+/** One of the twenty slices of the wheel of fortune, standing upright (a twentieth of a disc, round the y axis). */
+const WEDGE = new THREE.CylinderGeometry(1, 1, 1, 3, 1, false, 0, Math.PI / 10);
 
 /** A chandelier of brass arms and glass drops, with candles all round. */
 function chandelier(p: Paint, glow: Builder, x: number, y: number, z: number) {
@@ -1627,21 +1629,22 @@ function velvetChair(p: Paint) {
 }
 
 function slotMachine(p: Paint, glow: Builder, r: () => number) {
-  // Faces +z: a cabinet with three reels behind glass, a lit crown on top, and a lever on its right.
+  // Faces +z: a cabinet with a dark window for the reels and a lit crown on top, and a round stool in front. The
+  // reels, their frame and the lever on the right turn and move, so they're drawn with the tables (slotReels.ts).
   const body = pick(r, ['#c0392b', '#2e6fa8', '#7a3fa0']);
   p.rbox(body, 0.75, 1.35, 0.6, 0, 0.68, 0, 0.05);
   p.box(GOLD, 0.78, 0.06, 0.63, 0, 1.0, 0);
   p.box('#1d1a24', 0.6, 0.32, 0.04, 0, 1.18, 0.3);
-  for (let k = 0; k < 3; k++) {
-    p.box('#fff8e8', 0.16, 0.26, 0.03, (k - 1) * 0.19, 1.18, 0.32);
-    p.ico(pick(r, ['#e0605a', '#f2c14e', '#6fbf73', '#6f8fe0']), 0.045, (k - 1) * 0.19, 1.18, 0.34, 0);
-  }
   p.dome(GOLD, 0.32, 0, 1.36, 0, 0.6, 16);
   glow.add(new THREE.IcosahedronGeometry(0.11, 1), '#ffe08a', { pos: [0, 1.5, 0.05] }, p.m);
   haloAt(p, 0, 1.5, 0.1, 0.9, '#ffcf6a');
+  // The coin tray, and the lever's boss on the side.
   p.box('#1d1a24', 0.5, 0.1, 0.12, 0, 0.82, 0.32);
-  p.cyl(GOLD, 0.03, 0.4, 0.44, 1.05, 0, 8);
-  p.sphere('#e0605a', 0.07, 0.07, 0.07, 0.44, 1.28, 0);
+  p.cyl(GOLD, 0.05, 0.06, 0.405, 0.95, 0, 12, 0, 0, Math.PI / 2);
+  p.cyl(GOLD, 0.2, 0.03, 0, 0.015, 0.85, 18);
+  p.post(GOLD, 0.035, 0.43, 0, 0.03, 0.85, 8);
+  p.cyl(VELVET, 0.21, 0.08, 0, 0.47, 0.85, 18);
+  p.torus(GOLD, 0.205, 0.015, 0, 0.47, 0.85, Math.PI / 2, 0);
 }
 
 function pottedPalm(p: Paint, r: () => number) {
@@ -1663,20 +1666,23 @@ function casino(p: Paint, glow: Builder, r: () => number): THREE.Object3D {
   for (let x = -hw + 0.6; x < hw - 0.3; x += 0.9) for (let y = 1.4; y < WALL_H - 0.9; y += 0.6) p.box(shade('#2f5a48', 0.12), 0.12, 0.12, 0.02, x + (y * 2.2) % 0.45, y, -hd + 0.02, 0, 0, Math.PI / 4);
   for (const sx of [-1, 1]) for (let z = -hd + 0.6; z < hd - 0.6; z += 0.9) for (let y = 1.4; y < WALL_H - 0.9; y += 0.6) p.box(shade('#2f5a48', 0.08), 0.02, 0.12, 0.12, sx * (hw - 0.02), y, z + (y * 2.2) % 0.45, Math.PI / 4, 0, 0);
 
-  // The wheel of fortune on the back wall, between the shop and the blackjack table.
+  // The wheel of fortune on the back wall, between the shop and the blackjack table, under the casino's name. Every
+  // layer stands clear of the one behind it (the wall's top rail, the backboard, the wedges, the rim and hub), and
+  // the wedges are true slices that meet edge to edge: overlapping or flush faces flickered as the camera moved.
   {
-    const w = p.at(0.6, 2.05, -hd + 0.12);
-    w.cyl('#3a2418', 0.95, 0.08, 0, 0, 0, 32, Math.PI / 2);
+    const w = p.at(0.6, 1.84, -hd);
+    w.cyl('#3a2418', 0.8, 0.06, 0, 0, 0.1, 32, Math.PI / 2);
     const cols = ['#c0392b', '#1d1a24', '#c0392b', '#1d1a24', '#2f7a4f'];
     for (let k = 0; k < 20; k++) {
-      const a = (k / 20) * Math.PI * 2;
-      w.box(cols[k % cols.length], 0.24, 0.66, 0.03, Math.sin(a) * 0.5, Math.cos(a) * 0.5, 0.05, 0, 0, -a);
-      w.sphere('#fff1b0', 0.03, 0.03, 0.03, Math.sin(a) * 0.9, Math.cos(a) * 0.9, 0.06, 6, 4);
+      w.geo(WEDGE, cols[k % cols.length], placeMatrix({ pos: [0, 0, 0.145], rot: [Math.PI / 2, (k / 20) * Math.PI * 2, 0], scale: [0.66, 0.02, 0.66] }));
+      const a = ((k + 0.5) / 20) * Math.PI * 2;
+      w.sphere('#fff1b0', 0.022, 0.022, 0.022, Math.sin(a) * 0.755, -Math.cos(a) * 0.755, 0.15, 6, 4);
     }
-    w.torus(GOLD, 0.88, 0.03, 0, 0, 0.06, 0, 0);
-    w.cyl(GOLD, 0.14, 0.08, 0, 0, 0.08, 16, Math.PI / 2);
-    w.cone(GOLD, 0.08, 0.22, 0, 0.92, 0.1, 4, 0);
-    haloAt(w, 0, 0, 0.3, 2.4, '#ffcf6a');
+    w.torus(GOLD, 0.69, 0.028, 0, 0, 0.15, 0, 0);
+    w.cyl(GOLD, 0.12, 0.06, 0, 0, 0.18, 16, Math.PI / 2);
+    // The pointer at the top, pointing down into the wheel.
+    w.geo(G.cone(4), GOLD, placeMatrix({ pos: [0, 0.75, 0.22], rot: [Math.PI, 0, 0], scale: [0.06, 0.18, 0.06] }));
+    haloAt(w, 0, 0, 0.4, 2.2, '#ffcf6a');
   }
 
   // The shop: a counter with a glass case of treats and toys, shelves of pet beds behind, and a till.
@@ -1786,8 +1792,8 @@ function casino(p: Paint, glow: Builder, r: () => number): THREE.Object3D {
   // Signs: the casino's name over the wheel, and the shop's over its counter.
   const signs = new THREE.Group();
   const name = new TextSign({ w: 1024, h: 256, bg: '#1d1a24', fg: '#f6d77a', border: GOLD, round: true }, ['The Lucky Raven']);
-  const n = signBoard(name, 3.0, 0.75, { lit: true });
-  n.mesh.position.set(0.6, 3.0, -hd + 0.18);
+  const n = signBoard(name, 2.6, 0.62, { lit: true });
+  n.mesh.position.set(0.6, 2.98, -hd + 0.18);
   const shop = new TextSign({ w: 768, h: 192, bg: '#f6ead2', fg: '#7a1f33', border: GOLD, round: true }, ['🛍️ The Shop']);
   const sh = signBoard(shop, 2.2, 0.55, { lit: true });
   sh.mesh.position.set(SHOP.x, 2.7, -hd + 0.18);

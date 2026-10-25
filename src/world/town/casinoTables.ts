@@ -5,11 +5,13 @@ import { buildAnimal, type Rig } from '../animals';
 import type { Anim } from '../types';
 import { BJ_DEALER, CASHIER, FELT_Y, STEP, PK_DEALER, PK_TABLE, RL_BOARD, RL_CROUPIER, RL_WHEEL, bjSpot, pkAround, rlCell } from './casinoLayout';
 import { BET_KEYS, WHEEL, betName, boardCell, colourOf } from '../../casino/roulette';
+import { makeSlotMachines } from './slotReels';
 
 /**
  * What's on the casino's tables, drawn in the room: the cards (face up where this player may see them, backs
  * otherwise), the chips, the pot and the dealer button, a glow at the seat whose turn it is; and the three staff,
- * a raccoon dealing blackjack, a fox dealing poker and an otter at the pet shop's till.
+ * a raccoon dealing blackjack, a fox dealing poker and an otter at the pet shop's till; and the slot machines' reels
+ * and levers (slotReels.ts).
  */
 
 export const CARD_W = 0.19;
@@ -390,6 +392,7 @@ export function makeCasinoTables(): CasinoTables {
     group.add(board);
   }
   const wheel = makeWheel(group);
+  const slots = makeSlotMachines(group);
   let offset = 0;
   // Whose turn it is: a soft gold glow on the felt in front of them.
   const turnGlow = new THREE.Mesh(new THREE.CircleGeometry(0.32, 28), new THREE.MeshBasicMaterial({ color: '#ffd76b', transparent: true, opacity: 0.35, depthWrite: false }));
@@ -448,6 +451,7 @@ export function makeCasinoTables(): CasinoTables {
     set(view, hostOffset = 0) {
       offset = hostOffset;
       if (view === last && view) return;
+      slots.set(view?.sl ?? null);
       const k = view ? JSON.stringify([view.bj, view.pk.seats, view.pk.board, view.pk.pot, view.pk.turn, view.pk.button, view.rl?.seats, view.rl?.stage]) : '';
       if (k === key) return;
       key = k;
@@ -523,6 +527,7 @@ export function makeCasinoTables(): CasinoTables {
       staff.shop.update(dt, t);
       staff.rl.update(dt, t);
       wheel.update(Date.now() + offset, last?.rl?.spin ?? null, last?.rl?.stage ?? null);
+      slots.update(Date.now() + offset);
     },
   };
 }

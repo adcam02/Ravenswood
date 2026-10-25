@@ -53,8 +53,8 @@ const ALL = {
   'bakery-sign': 'x=15.5&z=4.6&t=0&dist=6&pitch=0.25&yaw=-0.5',
   'church-inside': 'zone=church&t=0',
   // The Lucky Raven: its front by day and lit up at night, inside, and the tables from a seat.
-  'casino-front': 'x=-23.6&z=-11.4&t=0&dist=17&pitch=0.32&yaw=1.12',
-  'casino-night': 'x=-23.6&z=-11.4&t=1&dist=17&pitch=0.32&yaw=1.12',
+  'casino-front': 'x=-15.95&z=-20.41&t=0&dist=17&pitch=0.32&yaw=0.66',
+  'casino-night': 'x=-15.95&z=-20.41&t=1&dist=17&pitch=0.32&yaw=0.66',
   'casino-inside': 'zone=casino&t=0&casino',
   'casino-poker': 'zone=casino&x=-3.7&z=1.5&t=0&dist=7&pitch=0.75&casino',
   'casino-bj': 'zone=casino&x=4.4&z=-3&t=0&dist=6&pitch=0.8&casino',
@@ -64,6 +64,10 @@ const ALL = {
   'casino-roulette-wheel': 'zone=casino&x=5.08&z=2.5&t=0&dist=2.2&pitch=1.1&casino&rlt=4.6',
   'casino-roulette-result': 'zone=casino&x=4.1&z=2.5&t=0&dist=6&pitch=0.85&casino&rlresult&rlt=9',
   'casino-seat-rl': 'zone=casino&t=0&casino&seatcam=rl:1&rlt=5.2',
+  // The slot machines along the right wall (the middle one just paid out), and our own reels, mid-spin and at a jackpot.
+  'casino-slots': 'zone=casino&t=0&casino&x=8&z=1.2&dist=3.2&pitch=0.3&yaw=-1.2&slt=3.2',
+  'casino-seat-sl': 'zone=casino&t=0&casino&seatcam=sl:0&slt=0.9',
+  'casino-seat-sl-jackpot': 'zone=casino&t=0&casino&seatcam=sl:0&slt=3.4',
   // A messenger pigeon flying in to a fox by the pond, perched on its shoulder, and bursting into confetti.
   'pigeon-fly': 'x=2&z=20&t=0&dist=6&pitch=0.45&pigeon=1.3&frames=30',
   'pigeon-perch': 'x=2&z=20&t=0&dist=3.2&pitch=0.3&pigeon=3.6&frames=40',
