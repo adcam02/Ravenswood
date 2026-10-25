@@ -101,6 +101,11 @@
   font-weight: 700;
   font-size: 15px;
   padding: 0;
+  /* The number sits dead centre, whatever a panel's buttons do with their text. */
+  display: inline-grid;
+  place-items: center;
+  text-align: center;
+  line-height: 1;
   cursor: pointer;
   transition: translate 0.08s ease;
 }
