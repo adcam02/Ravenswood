@@ -7,16 +7,21 @@ import { ui } from '../state/ui';
 import { useView } from '../state/view';
 import { Icon } from './Icon';
 import { NameAndReal } from './Nickname';
-import { PanelView } from './PanelView';
+import { PanelView, SeatingCircle } from './PanelView';
 import { Token } from './Token';
 
 const TAB_KEY = 'ravenswood:notepad-tab';
 
-/** The player's Notepad: their own notes, and a tab for everything the Storyteller has shown them. */
-export function NotesPanel({ start }: { start?: 'notes' | 'journal' }) {
-  const [tab, setTab] = useState<'notes' | 'journal'>(() => start ?? (loadJSON<string>(TAB_KEY, 'notes') === 'journal' ? 'journal' : 'notes'));
+type NotesTab = 'notes' | 'journal' | 'circle';
+
+/** The player's Notepad: their own notes, a tab for everything the Storyteller has shown them, and who sits where. */
+export function NotesPanel({ start }: { start?: NotesTab }) {
+  const [tab, setTab] = useState<NotesTab>(() => {
+    const kept = loadJSON<string>(TAB_KEY, 'notes');
+    return start ?? (kept === 'journal' || kept === 'circle' ? kept : 'notes');
+  });
   const shown = useClient((s) => s.priv?.log?.length ?? 0);
-  const pick = (t: 'notes' | 'journal') => {
+  const pick = (t: NotesTab) => {
     setTab(t);
     saveJSON(TAB_KEY, t);
   };
@@ -29,8 +34,23 @@ export function NotesPanel({ start }: { start?: 'notes' | 'journal' }) {
         <button role="tab" aria-selected={tab === 'journal'} className={tab === 'journal' ? 'on' : ''} onClick={() => pick('journal')}>
           From the Storyteller{shown ? ` (${shown})` : ''}
         </button>
+        <button role="tab" aria-selected={tab === 'circle'} className={tab === 'circle' ? 'on' : ''} onClick={() => pick('circle')}>
+          Circle
+        </button>
       </div>
-      {tab === 'notes' ? <Notepad /> : <Journal />}
+      {tab === 'notes' ? <Notepad /> : tab === 'journal' ? <Journal /> : <Circle />}
+    </div>
+  );
+}
+
+/** Who sits where round the circle, the same chart as on the bedroom wall: there whenever the Notepad is. */
+function Circle() {
+  const view = useView();
+  const me = view.seats.find((s) => s.isMe);
+  return (
+    <div className="notes-circle">
+      <SeatingCircle seatFor={me?.id ?? null} dir="clockwise" />
+      <p className="notepad-hint">The first seat is at the top, going clockwise. The stools round the dais in the square go in the same order.</p>
     </div>
   );
 }

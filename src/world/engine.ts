@@ -766,6 +766,8 @@ export class Engine {
       votes: nom ? nom.votes.map(seatIndex).filter((i) => i >= 0) : [],
       label,
     });
+    // Who sits where round the dais, by the names this viewer calls them.
+    this.town.setStoolNames(v.seats.map((s, i) => ({ name: s.name || `Seat ${i + 1}`, dead: s.dead, me: s.id === v.mySeatId })));
 
     // Fish caught since we last looked get a bubble over whoever caught them.
     if (this.lastFish < 0) this.lastFish = v.town.fish.length;

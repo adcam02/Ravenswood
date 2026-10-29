@@ -95,6 +95,8 @@ export interface TownWorld {
   setTown(state: TownState, now: number): void;
   /** `mine`: the local player's own stool, ringed in gold while the bell calls them to it. */
   setMeeting(m: { n: number; nominee: number | null; nominator?: number | null; hand: number | null; active: boolean; votes: number[]; label?: string; mine?: number | null }): void;
+  /** The name on each stool round the dais, in grimoire order (`me`: the viewer's own). The stools are always out. */
+  setStoolNames(seats: { name: string; dead: boolean; me: boolean }[]): void;
   /** Gravestones for the dead, by seat name. */
   setGraves(names: string[]): void;
   /** The post office's letterboxes: everyone's name in grimoire order, and whose have letters waiting. */
@@ -799,6 +801,23 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   mineRing.position.y = 0.1;
   mineRing.visible = false;
   meeting.add(mineRing);
+  // The stools stay out round the dais all the time, in grimoire order, each with a small label of who sits there,
+  // so anyone can see the circle; a meeting adds the hands, the vote marks and the sign.
+  const stoolRing = new THREE.Group();
+  stoolRing.name = 'stools';
+  const stoolTags: { el: HTMLDivElement; obj: CSS2DObject; key: string; fade: string }[] = [];
+  let stoolCount = 0;
+  // Each name just outside its stool, on the cobbles behind whoever sits there.
+  const placeStoolTags = () =>
+    stoolTags.forEach((tag, i) => {
+      tag.obj.visible = i < stoolCount && tag.key !== '';
+      if (!tag.obj.visible) return;
+      const spot = meetingSpot(i, stoolCount);
+      const dx = spot.x - MEETING_CENTRE.x;
+      const dz = spot.z - MEETING_CENTRE.z;
+      const k = (STOOL_R + 0.62) / Math.max(0.01, Math.hypot(dx, dz));
+      tag.obj.position.set(MEETING_CENTRE.x + dx * k, 0.05, MEETING_CENTRE.z + dz * k);
+    });
   let handTarget = 0;
   const signEl = document.createElement('div');
   signEl.className = 'meeting-sign cosy-panel';
@@ -959,6 +978,8 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   // Everything for a meeting stands on the dais.
   meeting.position.y = DAIS.top;
   outdoor.group.add(meeting);
+  stoolRing.position.y = DAIS.top;
+  outdoor.group.add(stoolRing);
 
   // The state the world keeps between calls.
   const groups: Record<ZoneKind, THREE.Group> = {
@@ -1219,17 +1240,17 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
 
     setMeeting(m) {
       meeting.visible = m.active;
-      const mk = m.active ? `${m.n}:${m.nominee}` : '';
+      const mk = `${m.n}:${m.active ? m.nominee : '-'}`;
       if (mk !== meetKey) {
         meetKey = mk;
         shadowDirty = true;
       }
-      if (!m.active) return;
+      stoolCount = m.n;
       while (stools.length < m.n) {
         const s = new THREE.Mesh(stoolGeo, stoolMat);
         s.castShadow = true;
         s.receiveShadow = true;
-        meeting.add(s);
+        stoolRing.add(s);
         stools.push(s);
         const mark = new THREE.Mesh(markGeo, markMat);
         mark.rotation.x = Math.PI / 2;
@@ -1247,8 +1268,10 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         s.position.set(spot.x, 0, spot.z);
         s.rotation.y = spot.ry;
         voteMarks[i].position.set(spot.x, 0.12, spot.z);
-        s.material = i === m.nominee ? nomineeMat : stoolMat;
+        s.material = m.active && i === m.nominee ? nomineeMat : stoolMat;
       });
+      placeStoolTags();
+      if (!m.active) return;
       const mine = m.mine ?? null;
       mineRing.visible = mine !== null && mine >= 0 && mine < m.n;
       if (mineRing.visible) {
@@ -1291,6 +1314,30 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       }
       signEl.textContent = m.label ?? '';
       sign.visible = Boolean(m.label);
+    },
+
+    setStoolNames(seats) {
+      while (stoolTags.length < seats.length) {
+        const el = document.createElement('div');
+        el.className = 'stool-tag';
+        const obj = new CSS2DObject(el);
+        obj.center.set(0.5, 0.5);
+        obj.visible = false;
+        stoolRing.add(obj);
+        stoolTags.push({ el, obj, key: '', fade: '' });
+      }
+      stoolTags.forEach((tag, i) => {
+        const s = seats[i];
+        const key = s ? `${s.name}|${s.dead}|${s.me}` : '';
+        if (key === tag.key) return;
+        tag.key = key;
+        if (!s) return;
+        tag.el.textContent = s.dead ? `👻 ${s.name}` : s.name;
+        tag.el.title = s.dead ? `${s.name} (dead)` : s.name;
+        tag.el.classList.toggle('is-dead', s.dead);
+        tag.el.classList.toggle('is-me', s.me);
+      });
+      placeStoolTags();
     },
 
     setPost(names, mail) {
@@ -1364,6 +1411,14 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       }
       if (zone === 'town') {
         bouncer.update(dt, t, beat);
+        // The stools' names fade out from far across town, so they don't clutter the view of everything else.
+        const d = Math.hypot(followAt.x - MEETING_CENTRE.x, followAt.z - MEETING_CENTRE.z);
+        const fade = Math.max(0, Math.min(1, (34 - d) / 12)).toFixed(2);
+        for (const tag of stoolTags) {
+          if (tag.fade === fade) continue;
+          tag.fade = fade;
+          tag.el.style.opacity = fade;
+        }
         if (ropeAt !== ropeWant) {
           ropeAt = ropeWant > ropeAt ? Math.min(ropeWant, ropeAt + dt / 0.8) : Math.max(ropeWant, ropeAt - dt / 0.8);
           velvetRope.set(ropeAt);

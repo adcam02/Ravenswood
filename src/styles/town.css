@@ -272,6 +272,30 @@
 .mode-st .place-chip {
   top: 74px;
 }
+/* The circle's order, from the chip: a small round button. */
+.place-circle {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin: -2px -6px -2px -2px;
+  border-radius: 50%;
+  background: #f3e6cc;
+  box-shadow: inset 0 0 0 1.5px rgba(90, 68, 52, 0.25);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.place-circle:hover {
+  background: #ffe7a8;
+}
+/* A phone's chip has no room to spare: there it's the Circle tab in the Notepad. */
+@media (max-width: 760px) {
+  .mode-player .place-circle {
+    display: none;
+  }
+}
 
 .voice-dock {
   position: absolute;
@@ -1596,6 +1620,40 @@
   font-weight: 600;
   white-space: nowrap;
   transform: translateY(-10px);
+}
+
+/* Who sits on each stool round the dais: small, so the circle reads without covering the town. */
+.stool-tag {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 250, 238, 0.82);
+  border: 1.5px solid rgba(90, 68, 52, 0.22);
+  font-family: var(--cosy-font);
+  font-weight: 600;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--cosy-ink);
+  white-space: nowrap;
+  max-width: 96px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.stool-tag.is-me {
+  background: #ffe7b3;
+  border-color: #e0a640;
+}
+.stool-tag.is-dead {
+  background: rgba(214, 222, 236, 0.82);
+  color: #5d6577;
+}
+@media (max-width: 760px) {
+  .stool-tag {
+    font-size: 10px;
+    padding: 0 5px;
+    max-width: 72px;
+  }
 }
 
 /* ---------------------------------------------------------------- the noticeboard */
