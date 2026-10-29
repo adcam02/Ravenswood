@@ -121,7 +121,8 @@ function WhosWho() {
 /** Everything the Storyteller has shown this player, newest first. */
 export function Journal() {
   const priv = useClient((s) => s.priv);
-  const log = [...(priv?.log ?? [])].reverse();
+  // The same card shown twice in a row (sent again by mistake) is kept once.
+  const log = [...(priv?.log ?? [])].filter((w, i, all) => i === 0 || w.when !== all[i - 1].when || JSON.stringify(w.panels) !== JSON.stringify(all[i - 1].panels)).reverse();
   const replies = priv?.replies ?? [];
   if (!log.length) return <p className="char-empty">Nothing yet. Whenever the Storyteller wakes you, what they show you is kept here.</p>;
   return (

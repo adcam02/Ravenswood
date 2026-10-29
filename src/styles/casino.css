@@ -87,7 +87,7 @@
 }
 
 /* Chips: round, with a dashed edge, coloured by value. */
-.chip {
+.bet-chip {
   --c: #f4efe6;
   --ink: #3a2a20;
   width: 46px;
@@ -109,28 +109,28 @@
   cursor: pointer;
   transition: translate 0.08s ease;
 }
-.chip:hover:not(:disabled) {
+.bet-chip:hover:not(:disabled) {
   translate: 0 -2px;
 }
-.chip:active:not(:disabled) {
+.bet-chip:active:not(:disabled) {
   translate: 0 2px;
 }
-.chip:disabled {
+.bet-chip:disabled {
   opacity: 0.35;
   cursor: default;
 }
-.chip.c1 {
+.bet-chip.c1 {
   --c: #f4efe6;
 }
-.chip.c5 {
+.bet-chip.c5 {
   --c: #c8303a;
   --ink: #fff;
 }
-.chip.c10 {
+.bet-chip.c10 {
   --c: #2e6fa8;
   --ink: #fff;
 }
-.chip.c25 {
+.bet-chip.c25 {
   --c: #2f7a4f;
   --ink: #fff;
 }
@@ -688,7 +688,7 @@
   background: #fffaf0;
   opacity: 0.7;
 }
-.chip.picked {
+.bet-chip.picked {
   outline: 3px solid #f6d77a;
   outline-offset: 2px;
 }
@@ -731,7 +731,7 @@
     min-width: 0;
     font-size: 0.95rem;
   }
-  .chip {
+  .bet-chip {
     width: 40px;
     height: 40px;
   }
@@ -767,7 +767,7 @@
 }
 
 /* The slot machines. */
-.chip.c2 {
+.bet-chip.c2 {
   --c: #e0a52a;
   --ink: #3a2a20;
 }

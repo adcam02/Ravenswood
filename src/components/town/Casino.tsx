@@ -87,7 +87,8 @@ function Hand({ cards, size, slots = 0 }: { cards: Card[]; size?: 'sm' | 'md' | 
 }
 
 const CHIP_VALUES = [1, 5, 10, 25];
-const chipClass = (v: number) => `chip c${v}`;
+// (Not plain `chip`: that's the little name and character chips in the notes and the wake log.)
+const chipClass = (v: number) => `bet-chip c${v}`;
 
 function Chip({ value, onClick, disabled }: { value: number; onClick?: () => void; disabled?: boolean }) {
   return (
@@ -679,7 +680,7 @@ function Slots({ view, machine }: { view: CasinoView; machine: number }) {
           <div className="table-actions">
             <span className="bet-chips" role="radiogroup" aria-label="Your bet">
               {SL.bets.map((b) => (
-                <button key={b} className={`chip c${b} ${stake === b ? 'picked' : ''}`} disabled={b > coins} onClick={() => (setBet(b), chipSound())} role="radio" aria-checked={stake === b} aria-label={`Bet ${money(b)} a pull`}>
+                <button key={b} className={`bet-chip c${b} ${stake === b ? 'picked' : ''}`} disabled={b > coins} onClick={() => (setBet(b), chipSound())} role="radio" aria-checked={stake === b} aria-label={`Bet ${money(b)} a pull`}>
                   {b}
                 </button>
               ))}
