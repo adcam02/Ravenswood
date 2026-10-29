@@ -49,7 +49,8 @@ export function WakeComposer() {
     });
 
   const sent = g.wakes.find((w) => w.id === draft.sentId);
-  const content = draft.panels.filter((p) => p.card || p.roleIds.length || p.seatIds.length || p.signs.length || p.text.trim());
+  // (A card with only the grimoire on it, as the Spy is shown, counts too.)
+  const content = draft.panels.filter((p) => p.card || p.roleIds.length || p.seatIds.length || p.signs.length || p.text.trim() || p.grimoire);
   // Cards only some of them see, kept to people still being woken.
   const extra = Object.fromEntries(Object.entries(draft.extra ?? {}).filter(([seat, p]) => draft.to.includes(seat) && p.length));
   const dirty =
