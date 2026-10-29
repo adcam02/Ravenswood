@@ -2,6 +2,7 @@ import { disguise, heldRole } from '../../state/host';
 import { useUI } from '../../state/ui';
 import { useView } from '../../state/view';
 import { Icon } from '../Icon';
+import { TeamCounts } from '../TeamCounts';
 import { Token } from '../Token';
 
 const R = 78;
@@ -21,6 +22,7 @@ export function MiniGrimoire() {
         <Icon name="book" /> {hide ? 'Hidden' : view.phase === 'night' ? `Night ${view.day}` : view.day === 0 ? 'Grimoire' : `Day ${view.day}`}
         {awake > 0 && <i className="mini-awake">{awake} awake</i>}
       </span>
+      <TeamCounts className="mini-counts" />
       <span className="mini-ring" style={{ width: R * 2 + 44, height: R * 2 + 44 }}>
         {handIndex >= 0 && (
           <span className="mini-hand" style={{ transform: `translate(-50%, -100%) rotate(${(handIndex / Math.max(1, n)) * 360}deg)` }} />

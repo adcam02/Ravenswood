@@ -7,6 +7,7 @@ import { Icon, type IconName } from './Icon';
 import { RichText } from './RichText';
 import { nominateButton } from './Nominate';
 import { slayerButton } from './Slayer';
+import { TeamCounts } from './TeamCounts';
 import { Token } from './Token';
 
 export function MyCharacter() {
@@ -26,6 +27,8 @@ export function MyCharacter() {
           ))}
         </div>
       )}
+      {/* How many of each kind of character a game this size has. */}
+      <TeamCounts className="surface" />
       {!me ? (
         <div className="my-card surface hint">
           <Icon name="pin" />

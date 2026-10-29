@@ -314,6 +314,53 @@
   gap: 10px;
   max-width: min(400px, calc(100vw - 28px));
 }
+/* How many of each kind of character a game this size has: a slim row above the character card. */
+.team-counts {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  justify-self: start;
+  padding: 5px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  line-height: 1.2;
+  color: var(--text-dim);
+}
+.team-counts b {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+.tc {
+  white-space: nowrap;
+}
+.tc-players {
+  font-weight: 600;
+  color: var(--brass-hi, #f0d48f);
+}
+.tc-townsfolk b,
+.tc-outsider b {
+  color: var(--good-hi);
+}
+.tc-minion b,
+.tc-demon b {
+  color: var(--evil-hi);
+}
+.tc.none {
+  opacity: 0.55;
+}
+/* A phone on its side has no height to spare by the map: the counts are on the Characters sheet. */
+@media (max-height: 520px) {
+  .my-character .team-counts {
+    display: none;
+  }
+}
+/* On the reference sheet (light or dark panel alike): just the row, no pill. */
+.team-counts.ref-counts {
+  padding: 0 2px;
+  margin: 2px 0 4px;
+}
 .my-fabled {
   display: flex;
   gap: 6px;

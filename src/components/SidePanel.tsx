@@ -10,6 +10,7 @@ import { Icon } from './Icon';
 import { NotesPanel } from './Notepad';
 import { PanelView, ReplyLine } from './PanelView';
 import { RichText } from './RichText';
+import { TeamCounts } from './TeamCounts';
 import { Token } from './Token';
 import { shownName } from '../state/nicks';
 
@@ -228,6 +229,7 @@ function Reference() {
           </button>
         )}
       </div>
+      <TeamCounts className="ref-counts" />
       <div className="seg small">
         <button className={tab === 'roles' ? 'on' : ''} onClick={() => setTab('roles')}>
           Abilities

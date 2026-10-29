@@ -1864,6 +1864,22 @@
   cursor: pointer;
   text-align: center;
 }
+/* The Storyteller's counts for this many players, two by two under the title. */
+.mini-counts.team-counts {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 0 10px;
+  justify-self: center;
+  padding: 2px 0 0;
+  font-size: 11.5px;
+  color: #cfc4ad;
+}
+.mini-counts .tc-players {
+  display: none;
+}
+.mini-counts b {
+  font-size: 13px;
+}
 .mini-grimoire:hover {
   border-color: rgba(207, 167, 91, 0.7);
 }
