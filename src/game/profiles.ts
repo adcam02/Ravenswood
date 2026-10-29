@@ -274,7 +274,16 @@ function addFeat(p: Profile, feat: string, announce: boolean): boolean {
  * Gifts for particular players, given once (when their profile is next loaded or made here): earned before the game
  * could tell, or couldn't be earned at the time (the church cut the ring road off for the fun run).
  */
-const ONE_OFFS: { id: string; name: string; feats: FeatId[] }[] = [{ id: 'xengeath:fanmail+lap', name: 'xengeath', feats: ['fanmail', 'lap'] }];
+const ONE_OFFS: { id: string; name: string; feats: FeatId[]; coins?: number; why?: string }[] = [
+  { id: 'xengeath:fanmail+lap', name: 'xengeath', feats: ['fanmail', 'lap'] },
+  // Earned in games before profiles kept count.
+  {
+    id: 'xengeath:earned-before',
+    name: 'xengeath',
+    feats: ['goodwin', 'evilwin', 'offhook', 'detective', 'suspect', 'lastone', 'gutfeel', 'scratch'],
+  },
+  { id: 'jaydon:200', name: 'jaydon', feats: [], coins: 200, why: 'from the Storyteller' },
+];
 
 function oneOffs(key: string) {
   for (const gift of ONE_OFFS) {
@@ -283,6 +292,7 @@ function oneOffs(key: string) {
     useProfiles.setState({ done: [...s.done, gift.id] });
     change(key, (p) => {
       for (const f of gift.feats) addFeat(p, f, true);
+      if (gift.coins) addPay(p, gift.coins, gift.why ?? 'a gift');
     });
   }
 }
