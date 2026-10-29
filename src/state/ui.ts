@@ -82,6 +82,8 @@ interface UI {
   grimoireOpen: boolean;
   /** Storyteller: the night guide is open (rather than tucked away to a small tab). */
   nightGuide: boolean;
+  /** Storyteller: run the night automatically (players choose on their own screens) rather than by hand. */
+  autoNight: boolean;
   muted: boolean;
   /** Soft background sound around the town. */
   ambience: boolean;
@@ -90,7 +92,7 @@ interface UI {
   banner: { text: string; sub: string; key: number } | null;
 }
 
-const prefs = loadJSON<{ muted?: boolean; ambience?: boolean; panel?: Panel; nightGuide?: boolean }>('ravenswood:prefs', {});
+const prefs = loadJSON<{ muted?: boolean; ambience?: boolean; panel?: Panel; nightGuide?: boolean; autoNight?: boolean }>('ravenswood:prefs', {});
 
 export const useUI = create<UI>(() => ({
   modal: null,
@@ -100,6 +102,7 @@ export const useUI = create<UI>(() => ({
   hideGrimoire: false,
   grimoireOpen: false,
   nightGuide: prefs.nightGuide ?? true,
+  autoNight: prefs.autoNight ?? true,
   muted: prefs.muted ?? false,
   ambience: prefs.ambience ?? true,
   draft: { to: [], panels: [emptyPanel()], active: 0, ask: null, extra: {}, sentId: null },
@@ -108,8 +111,8 @@ export const useUI = create<UI>(() => ({
 }));
 
 useUI.subscribe((s, p) => {
-  if (s.muted !== p.muted || s.panel !== p.panel || s.ambience !== p.ambience || s.nightGuide !== p.nightGuide)
-    saveJSON('ravenswood:prefs', { muted: s.muted, ambience: s.ambience, panel: s.panel, nightGuide: s.nightGuide });
+  if (s.muted !== p.muted || s.panel !== p.panel || s.ambience !== p.ambience || s.nightGuide !== p.nightGuide || s.autoNight !== p.autoNight)
+    saveJSON('ravenswood:prefs', { muted: s.muted, ambience: s.ambience, panel: s.panel, nightGuide: s.nightGuide, autoNight: s.autoNight });
 });
 
 export const ui = {

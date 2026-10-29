@@ -251,6 +251,8 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
     // Night deaths stay secret until dawn, so the list only goes out once the game is over.
     deaths: g.ended ? g.deaths : undefined,
     pit: g.pit ? pitPublic(g.pit) : undefined,
+    // The automated night's start: only when, never who is being asked what.
+    nightFall: g.phase === 'night' && g.autoNight?.on && g.autoNight.night === g.day ? g.autoNight.dusk : undefined,
   };
 }
 
@@ -1562,7 +1564,16 @@ export const st = {
       if (typeof wakeId !== 'string') return;
       update((g) => {
         const s = g.seats.find((x) => x.playerId === playerId);
-        if (!s || !g.wakes.some((w) => w.id === wakeId && w.to.includes(s.id))) return;
+        const w = s && g.wakes.find((w) => w.id === wakeId && w.to.includes(s.id));
+        if (!s || !w) return;
+        // Only choices the question allows (not themselves for the Monk, say), as the player's screen offers.
+        const ask = w.ask;
+        if (ask?.kind === 'players' && r.seatIds) {
+          if (ask.notSelf && r.seatIds.includes(s.id)) return;
+          // (Dead as the player sees it: tonight's deaths are still a secret.)
+          const dead = (id: string) => Boolean(g.seats.find((x) => x.id === id)?.dead) && !g.nightDeaths.includes(id);
+          if (ask.only && r.seatIds.some((id) => dead(id) !== (ask.only === 'dead'))) return;
+        }
         g.replies = g.replies.filter((x) => !(x.wakeId === wakeId && x.seatId === s.id));
         g.replies.push({ wakeId, seatId: s.id, ...r, at: Date.now() });
         const a = g.awake[s.id];

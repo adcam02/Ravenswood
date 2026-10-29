@@ -1,6 +1,7 @@
 import { getRole, nightReminder } from '../data';
 import { bringDawn, guide, guideSteps, nightKind, stepName, stepNote, stepsLeft, type NightStep } from '../lib/nightGuide';
 import { joinNames } from '../lib/util';
+import { autoOn, setAuto } from '../night/auto';
 import { seatName, useHost } from '../state/host';
 import { ui, useUI } from '../state/ui';
 import { useView } from '../state/view';
@@ -19,7 +20,8 @@ export function NightGuide() {
   const open = useUI((s) => s.nightGuide);
   const hidden = useUI((s) => s.hideGrimoire);
   const draft = useUI((s) => s.draft);
-  if (view.mode !== 'st' || g.phase !== 'night' || !g.revealed || g.ended || hidden) return null;
+  // (While the night is automated, its own panel shows instead: see AutoNight.tsx.)
+  if (view.mode !== 'st' || g.phase !== 'night' || !g.revealed || g.ended || hidden || autoOn(g)) return null;
   const steps = guideSteps(g);
   const step = stepsLeft(g)[0];
   if (!step) return null;
@@ -43,9 +45,14 @@ export function NightGuide() {
         <span className="eyebrow">
           <Icon name="moon" /> Night {g.day} · {at} of {steps.length}
         </span>
-        <button className="night-guide-hide" onClick={() => useUI.setState({ nightGuide: false })} title="Tuck the guide away" aria-label="Tuck the guide away">
-          <Icon name="chevronDown" />
-        </button>
+        <span className="auto-head-tools">
+          <button className="btn small quiet" onClick={() => setAuto(true)} title="Players with a night action choose on their own screens; you confirm each step">
+            Automate
+          </button>
+          <button className="night-guide-hide" onClick={() => useUI.setState({ nightGuide: false })} title="Tuck the guide away" aria-label="Tuck the guide away">
+            <Icon name="chevronDown" />
+          </button>
+        </span>
       </div>
       <div className="night-guide-step">
         <div className="night-icon">

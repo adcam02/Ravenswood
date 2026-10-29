@@ -1,4 +1,5 @@
-import type { Alignment, Script } from '../data';
+import type { Alignment, Script, Team } from '../data';
+import type { AutoNight } from '../night/rules';
 import type { CasinoAction, CasinoView } from '../casino/types';
 import type { FlatAction, FlatView } from '../flats/catalogue';
 import type { BakeKind, ClothKind, DrinkKind, FlowerKind, Item, Look, PetId, Pose, Progress, TownState, Weather } from '../world/types';
@@ -109,7 +110,15 @@ export interface WakePanel {
  * `optional`: they may choose nobody (the Barber's Demon, the Professor).
  */
 export type Ask =
-  | (({ kind: 'players'; count: number } | { kind: 'character'; count: number } | { kind: 'yesno' }) & { prompt?: string; optional?: boolean })
+  | (({ kind: 'players'; count: number } | { kind: 'character'; count: number } | { kind: 'yesno' }) & {
+      prompt?: string;
+      optional?: boolean;
+      /** Players: not themselves (the Monk, the Butler), or only the living or the dead. */
+      notSelf?: boolean;
+      only?: 'alive' | 'dead';
+      /** Characters: only these teams (the Hatter's Minions choose a Minion). */
+      teams?: Team[];
+    })
   | null;
 
 export interface WakeMessage {
@@ -298,6 +307,8 @@ export interface GameState {
   wakes: WakeMessage[];
   replies: WakeReply[];
   nightDone: string[];
+  /** The automated night (players choose on their own screens), as far as it has gone tonight. Never sent to players. */
+  autoNight?: AutoNight | null;
 }
 
 // ---------------------------------------------------------------- what players receive
@@ -352,6 +363,8 @@ export interface PublicState {
   pit?: PitState;
   /** The tavern's leaderboard (from everyone's profile, which only the Storyteller has). */
   leaders?: Leaders;
+  /** When tonight's automated night began (host clock): everyone's screen has the same moment of sleep then. */
+  nightFall?: number;
 }
 
 /** One line on the tavern's leaderboard: a name as they write it, and how many (dollars, wins, achievements). */

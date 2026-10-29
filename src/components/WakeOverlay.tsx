@@ -106,17 +106,27 @@ function AskBox({ wake, reply }: { wake: WakeMessage; reply?: WakeReply }) {
         <>
           {ask.kind === 'players' ? (
             <div className="ask-seats">
-              {view.seats.map((s) => (
-                <button key={s.id} className={`ask-seat ${picked.includes(s.id) ? 'on' : ''} ${s.dead ? 'dead' : ''}`} onClick={() => pick(s.id)}>
-                  <span className="ask-num">{s.index + 1}</span>
-                  {s.label}
-                  {s.isMe && <em>you</em>}
-                </button>
-              ))}
+              {view.seats.map((s) => {
+                // Only players the ability allows (not yourself, the living or the dead), as the question says.
+                const barred = (ask.notSelf && s.isMe) || (ask.only === 'alive' && s.dead) || (ask.only === 'dead' && !s.dead);
+                return (
+                  <button
+                    key={s.id}
+                    className={`ask-seat ${picked.includes(s.id) ? 'on' : ''} ${s.dead ? 'dead' : ''}`}
+                    disabled={barred}
+                    title={barred ? (s.isMe ? 'Not yourself' : ask.only === 'alive' ? 'Living players only' : 'Dead players only') : undefined}
+                    onClick={() => pick(s.id)}
+                  >
+                    <span className="ask-num">{s.index + 1}</span>
+                    {s.label}
+                    {s.isMe && <em>you</em>}
+                  </button>
+                );
+              })}
             </div>
           ) : (
             <div className="ask-chars">
-              <CharacterGrid ids={view.script.roles} size={58} selected={picked} onPick={pick} teams={['townsfolk', 'outsider', 'minion', 'demon']} />
+              <CharacterGrid ids={view.script.roles} size={58} selected={picked} onPick={pick} teams={ask.teams ?? ['townsfolk', 'outsider', 'minion', 'demon']} />
             </div>
           )}
           <div className="ask-send">

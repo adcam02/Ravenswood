@@ -70,6 +70,8 @@ import { PickBanner } from './components/PickBanner';
 import { SlayerPrompt } from './components/Slayer';
 import { NominateDock, NominationPrompt } from './components/Nominate';
 import { NightGuide } from './components/NightGuide';
+import { AutoNightPanel } from './components/AutoNight';
+import { NightVeil } from './components/NightVeil';
 import { GameOverLayer, WinPrompt } from './components/GameOver';
 import { MeetingVotes, MyCharacter, PlayerRail, VoteBar } from './components/PlayerBits';
 import { WakeOverlay } from './components/WakeOverlay';
@@ -234,6 +236,7 @@ function Storyteller() {
           <SidePanel />
           <PickBanner />
           <NightGuide />
+          <AutoNightPanel />
           <SlayerPrompt />
           <NominationPrompt />
           <DoorPrompt />
@@ -340,6 +343,7 @@ function Player({ room }: { room: string }) {
               <HelpCard />
               <Modals />
               <WakeOverlay />
+              <NightVeil />
               <GiftNotice />
               <HomeMusic />
               <GameOverLayer />

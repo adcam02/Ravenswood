@@ -171,6 +171,11 @@ export const guide = {
     const awake = step.who.filter((id) => g.awake[id]);
     if (awake.length) st.sleep(awake);
     st.setNightDone(key, true);
+    // With the night automated, its own panel carries on from here rather than the next wake screen.
+    if (hostGame().autoNight?.on && hostGame().autoNight?.night === hostGame().day) {
+      if (useUI.getState().modal?.kind === 'wake') ui.close();
+      return;
+    }
     const nxt = stepsLeft(hostGame(), key)[0];
     if (nxt?.who.length) guide.wake(nxt);
     else if (useUI.getState().modal?.kind === 'wake') ui.close();

@@ -3,6 +3,7 @@ import { ALL_ROLES, getRole } from '../data';
 import { canWakeTogether, demonInfo, minionInfo, wholeEvilTeam } from '../lib/presets';
 import { guide, guideSteps, stepName, stepsLeft } from '../lib/nightGuide';
 import { joinNames } from '../lib/util';
+import { shownByHand } from '../night/auto';
 import { seatName, st, useHost, grimoireSnapshot } from '../state/host';
 import type { Ask, InfoCard as CardId, WakePanel } from '../state/types';
 import { emptyPanel, ui, useUI } from '../state/ui';
@@ -63,6 +64,8 @@ export function WakeComposer() {
     if (!draft.to.length || !content.length) return;
     const id = st.wake(draft.to, content, draft.ask, extra);
     ui.setDraft((d) => ({ ...d, sentId: id }));
+    // A step of the automated night, changed before it was shown or done by hand: its tokens and deaths go in too.
+    if (draft.step) shownByHand(draft.step, id, Boolean(draft.ask));
   };
 
   const evil = useMemo(() => {
