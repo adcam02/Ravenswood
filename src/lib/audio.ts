@@ -1383,3 +1383,64 @@ export function slotWin(size: 'small' | 'big' | 'jackpot') {
   }
   if (size === 'jackpot') [1046.5, 1318.5, 1568, 2093].forEach((f, i) => bell(f, 2.5, 0.05, 0.4 + i * 0.25));
 }
+
+/** Something drunk down in one go: three soft glugs, each a little lower, and a happy breath out. */
+export function gulpSound() {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.value = 0.32;
+  out.connect(c.destination);
+  for (let k = 0; k < 3; k++) {
+    const at = t + 0.12 + k * 0.32;
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = 'sine';
+    // A drop in pitch is what makes it a gulp rather than a beep.
+    osc.frequency.setValueAtTime(420 - k * 40, at);
+    osc.frequency.exponentialRampToValueAtTime(150 - k * 15, at + 0.12);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.5, at + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.14);
+    osc.connect(g).connect(out);
+    osc.start(at);
+    osc.stop(at + 0.16);
+  }
+  const at = t + 1.15;
+  const src = noise(c, 0.4);
+  const f = c.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = 900;
+  f.Q.value = 0.8;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(0.18, at + 0.06);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + 0.38);
+  src.connect(f).connect(g).connect(out);
+  src.start(at);
+}
+
+/** Something eaten in one go: a few crunchy bites. */
+export function munchSound() {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.value = 0.4;
+  out.connect(c.destination);
+  for (let k = 0; k < 4; k++) {
+    const at = t + 0.1 + k * 0.24 + Math.random() * 0.04;
+    const src = noise(c, 0.12);
+    const f = c.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = 1400 + Math.random() * 900;
+    f.Q.value = 1.2;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.35, at + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.1);
+    src.connect(f).connect(g).connect(out);
+    src.start(at);
+  }
+}

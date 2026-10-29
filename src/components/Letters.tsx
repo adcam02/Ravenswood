@@ -187,6 +187,10 @@ export function BedLetters() {
   const view = useView();
   const place = useHud((s) => s.place);
   const sheep = useHud((s) => s.sheep);
+  const job = useHud((s) => s.job);
+  const bedMenu = useHud((s) => s.bedMenu);
+  const visit = useHud((s) => s.visit);
+  const awake = useClient((s) => Boolean(s.priv?.wake));
   const tonight = view.letters.filter((l) => l.night === view.day).length;
   const [read, setRead] = useState(readIds);
   useEffect(() => {
@@ -197,7 +201,7 @@ export function BedLetters() {
     const t = setInterval(() => setRead(readIds()), 1500);
     return () => clearInterval(t);
   }, []);
-  if (view.mode !== 'player' || view.phase !== 'night' || place !== 'Your bedroom' || sheep === 'playing') return null;
+  if (view.mode !== 'player' || view.phase !== 'night' || place !== 'Your bedroom' || sheep === 'playing' || job || bedMenu) return null;
   const fresh = view.letters.filter((l) => !read.has(l.id)).length;
   return (
     <div className="bed-buttons">
@@ -209,6 +213,11 @@ export function BedLetters() {
       <button className="cosy-btn" onClick={() => ui.open({ kind: 'seating' })}>
         🪑 Who sits where
       </button>
+      {sheep && !visit && !awake && (
+        <button className="cosy-btn" onClick={() => useHud.setState({ bedMenu: true })}>
+          🎲 Pass the time
+        </button>
+      )}
     </div>
   );
 }

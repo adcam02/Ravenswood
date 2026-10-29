@@ -96,6 +96,7 @@ import {
   NoticeBoard,
   PlaceChip,
   SheepLayer,
+  BedGamesLayer,
   VisitCard,
   VoiceDock,
   WorldFailed,
@@ -325,6 +326,7 @@ function Player({ room }: { room: string }) {
               </div>
               <JobLayer />
               <SheepLayer />
+              <BedGamesLayer />
               <BedLetters />
               <VisitCard />
               <PigeonNote />

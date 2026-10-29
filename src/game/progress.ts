@@ -122,9 +122,9 @@ export function notePerfect(job: string) {
   record({ k: `perfect:${job}:${uid()}`, e: 'perfect', job });
 }
 
-/** Any three-star job (or all five logs, or a wish come true), which earns a little money. */
-export function noteTopJob(job: string) {
-  record({ k: `top:${job}:${uid()}`, e: 'top', job });
+/** Any two- or three-star minigame (three for all five logs, or a wish come true), which earns a little money. */
+export function noteTopJob(job: string, stars = 3) {
+  record({ k: `top:${job}:${uid()}`, e: 'top', job, stars });
 }
 
 /** An achievement, the first time (its hat, if it has one, unlocks with it). */

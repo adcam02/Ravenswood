@@ -6,6 +6,9 @@ export type { FishTier };
 
 export type GameJob = 'bartender' | 'laundry' | 'fishing' | 'baking' | 'gardening' | 'darts' | 'bread' | 'wine' | 'firewood' | 'skimming' | 'coin' | 'clock';
 
+/** Every game, in the order the bed's "Pass the time" menu lists them. */
+export const GAME_JOBS: GameJob[] = ['bartender', 'laundry', 'fishing', 'baking', 'gardening', 'darts', 'bread', 'wine', 'firewood', 'skimming', 'coin', 'clock'];
+
 export interface JobResults {
   bartender: { kind: DrinkKind; stars: number };
   laundry: { kind: ClothKind; color: string; stars: number };
@@ -76,6 +79,22 @@ export const JOB_TITLES: Record<GameJob, string> = {
   skimming: 'Stone skimming',
   coin: 'Wishing well',
   clock: 'Keeping time',
+};
+
+/** Where the money came from, for the pop by the money: "+$5 for three stars at fishing". */
+export const JOB_AT: Record<GameJob, string> = {
+  bartender: 'at the bar',
+  laundry: 'at the laundry',
+  fishing: 'at fishing',
+  baking: 'at baking',
+  gardening: 'at gardening',
+  darts: 'at darts',
+  bread: 'breaking bread',
+  wine: 'pouring wine',
+  firewood: 'chopping wood',
+  skimming: 'skimming stones',
+  coin: 'at the wishing well',
+  clock: 'at the tower clock',
 };
 
 /** What to beat: your own best and the town's, in the game's score. */

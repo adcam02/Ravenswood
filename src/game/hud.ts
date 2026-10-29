@@ -52,6 +52,10 @@ interface Hud {
   drama: boolean;
   /** Killed in the night: the hooded figure's visit is playing, then the screen goes dark for a moment. */
   visit: 'playing' | 'dark' | null;
+  /** In bed at night: the "Pass the time" menu of minigames is open. */
+  bedMenu: boolean;
+  /** Something eaten or drunk lately: a little quicker on your feet until `until` (Date.now()), `mul` times as fast. */
+  boost: { until: number; mul: number; kind: 'drink' | 'food' } | null;
   /** A messenger pigeon has just landed on our shoulder: who sent it and where they are. */
   pigeon: { name: string; where: string; key: number } | null;
 }
@@ -75,6 +79,8 @@ export const useHud = create<Hud>(() => ({
   sheep: null,
   drama: false,
   visit: null,
+  bedMenu: false,
+  boost: null,
   pigeon: null,
 }));
 
@@ -90,6 +96,8 @@ export const game = {
   /** Walk (well, hop) to your own stool at the town meeting. */
   takeMeetingSeat: () => {},
   jobDone: (_result: unknown) => {},
+  /** In bed at night: play one of the minigames to pass the time. */
+  bedGame: (_job: GameJob) => {},
   jobCancel: () => {},
   /** The counting-sheep game is over; right earns tomorrow's gold star. */
   sheepDone: (_correct: boolean) => {},

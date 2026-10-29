@@ -25,6 +25,7 @@ import { seatAlignment, useHost } from '../state/host';
 import type { BackupCopy, GameState, PayLine, ProfileView, ProgressEvent, ProgressSnapshot } from '../state/types';
 import { FEATS, PETS, type FeatId, type PetId } from '../world/types';
 import { cleanFlat, emptyFlat, type FlatStore } from '../flats/catalogue';
+import { GAME_JOBS, JOB_AT, type GameJob } from '../jobs/meta';
 
 /** What players earn, in dollars: all the amounts in one place. */
 export const PAY = {
@@ -37,9 +38,10 @@ export const PAY = {
   /** Each new achievement, and a secret one. */
   feat: 5,
   secretFeat: 10,
-  /** Each three-star job (all five logs, a wish come true…), up to `jobDaily` in a day. */
-  job: 2,
-  jobDaily: 20,
+  /** Each three-star minigame (all five logs, a wish come true…), and each two-star one, up to `jobDaily` in a day. */
+  job: 5,
+  jobTwo: 2,
+  jobDaily: 40,
 };
 
 /** Money as it's shown everywhere: "$42" (and "−$5"). */
@@ -124,10 +126,15 @@ function cleanEvent(raw: unknown): ProgressEvent | null {
   switch (r.e) {
     case 'feat':
       return FEATS.some((f) => f.id === r.id) ? { k, e: 'feat', id: r.id as string } : null;
-    case 'perfect':
-    case 'top': {
+    case 'perfect': {
       const job = word(r.job);
       return job ? { k, e: r.e, job } : null;
+    }
+    case 'top': {
+      // Only the minigames pay, for two or three stars (a report from before two stars paid has no stars: three).
+      const job = GAME_JOBS.find((j) => j === r.job);
+      const stars = r.stars === undefined ? 3 : typeof r.stars === 'number' ? r.stars : 0;
+      return job && (stars === 2 || stars === 3) && k.startsWith(`top:${job}:`) ? { k, e: 'top', job, stars } : null;
     }
     case 'count':
       return ['stars', 'records', 'ghosts', 'nights'].includes(r.kind as string) ? { k, e: 'count', kind: r.kind as 'stars' } : null;
@@ -163,7 +170,7 @@ export interface Profile extends ProgressSnapshot {
   pay: PayLine[];
   /** Achievements given here (by the Storyteller, or a one-off gift), for the player's screen to make a moment of. */
   news: { id: string; feat: string; at: number }[];
-  /** Three-star jobs paid for on one day (the host's calendar). */
+  /** Two- and three-star minigames paid for on one day (the host's calendar), in dollars. */
   jobPay?: { day: string; paid: number };
   /** What each game paid them for, so calling a game again only pays (or takes back) the difference. */
   games?: Record<string, string[]>;
@@ -445,11 +452,14 @@ function applyHere(p: Profile, ev: ProgressEvent) {
     return;
   }
   if (ev.e === 'top') {
+    // Up to the day's cap (the last of it paid in part, so the cap is reached exactly).
     const day = today();
     const paid = p.jobPay?.day === day ? p.jobPay.paid : 0;
-    if (paid + PAY.job > PAY.jobDaily) return;
-    p.jobPay = { day, paid: paid + PAY.job };
-    addPay(p, PAY.job, 'for three stars');
+    const amount = Math.min(ev.stars === 2 ? PAY.jobTwo : PAY.job, PAY.jobDaily - paid);
+    if (amount <= 0) return;
+    p.jobPay = { day, paid: paid + amount };
+    const at = JOB_AT[ev.job as GameJob] ?? '';
+    addPay(p, amount, ev.job === 'coin' ? 'for a wish come true' : `for ${ev.stars === 2 ? 'two' : 'three'} stars ${at}`);
     return;
   }
   const fresh = ev.e === 'merge' ? ev.p.feats.filter((f) => !p.feats.includes(f)) : [];
@@ -483,6 +493,7 @@ export function profileFor(playerId: string): ProfileView | null {
     pets: p.pets,
     items: p.items,
     pay: p.pay.filter((l) => now - l.at < NEWS_MS),
+    jobPaid: p.jobPay?.day === today() ? p.jobPay.paid : 0,
     news: p.news.filter((n) => now - n.at < NEWS_MS),
     book: s.book,
     acks: s.acks[playerId] ?? [],

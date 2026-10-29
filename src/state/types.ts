@@ -511,6 +511,8 @@ export interface ProfileView extends ProgressSnapshot {
   items?: string[];
   /** Money in and out lately, newest last. */
   pay: PayLine[];
+  /** What minigames have paid them today, toward the day's cap (PAY.jobDaily). */
+  jobPaid?: number;
   /** Achievements given on the Storyteller's side (not earned in the player's own browser), to make a moment of. */
   news: { id: string; feat: string; at: number }[];
   /** Which Storyteller's book of profiles this is. */
@@ -529,8 +531,8 @@ export type ProgressEvent =
   | { k: string; e: 'perfect'; job: string }
   | { k: string; e: 'count'; kind: 'stars' | 'records' | 'ghosts' | 'nights' }
   | { k: string; e: 'tally'; kind: string; by: number }
-  /** Any three-star job, which pays a little (up to a cap a day). */
-  | { k: string; e: 'top'; job: string }
+  /** Any two- or three-star minigame, which pays a little (up to a cap a day). */
+  | { k: string; e: 'top'; job: string; stars?: number }
   /** What this browser had earned before the Storyteller kept it by name: merged in once (nobody loses anything). */
   | { k: string; e: 'merge'; p: ProgressSnapshot };
 

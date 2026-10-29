@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { money } from '../../game/profiles';
 import { useMoney, usePay } from '../../game/progress';
+import { useHud } from '../../game/hud';
 import { useClient } from '../../net/client';
 import type { PayLine } from '../../state/types';
 
@@ -46,6 +47,42 @@ export function MoneyPill() {
           ))}
         </span>
       )}
+    </span>
+  );
+}
+
+/**
+ * Something eaten or drunk lately: a little running shoe by the money, with a ring that runs down as the burst of
+ * speed wears off.
+ */
+export function BoostChip() {
+  const boost = useHud((s) => s.boost);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!boost) return;
+    setNow(Date.now());
+    const t = setInterval(() => {
+      setNow(Date.now());
+      if (Date.now() >= boost.until) useHud.setState((h) => (h.boost === boost ? { boost: null } : h));
+    }, 250);
+    return () => clearInterval(t);
+  }, [boost]);
+  if (!boost || now >= boost.until) return null;
+  const left = Math.ceil((boost.until - now) / 1000);
+  const total = boost.kind === 'drink' ? 20 : 30;
+  const pct = Math.round((boost.mul - 1) * 100);
+  return (
+    <span
+      key={boost.until}
+      className={`boost-chip ${boost.kind}`}
+      style={{ ['--left' as string]: `${Math.min(1, left / total) * 360}deg` }}
+      title={`${boost.kind === 'drink' ? 'That drink' : 'That snack'} has you ${pct}% quicker on your feet for ${left} more seconds`}
+      role="timer"
+    >
+      <span className="boost-ring" aria-hidden="true">
+        <span>👟</span>
+      </span>
+      <b>{left}s</b>
     </span>
   );
 }

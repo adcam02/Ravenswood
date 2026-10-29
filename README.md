@@ -91,7 +91,10 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    Three stars take real skill: drinks and watering run on a moment after you let go, the timing games
    speed up as you go, and the second-best results only get two. Every game has a score. Beat the town's best and it goes on the noticeboard as a record, with a
    toast for everyone; your own personal bests are kept on your machine. Hold something and you can
-   sip it, give it to someone (G) or put it away (Q).
+   eat or drink it in one go (E, or the button by your paw), give it to someone (G) or put it away (Q).
+   Something eaten or drunk puts a spring in your step for a little while: a drink makes you 25% quicker
+   for 20 seconds, food 20% quicker for 30 seconds, with a little shoe and a countdown by your money.
+   Another one starts it again rather than adding to it.
 5. **The Storyteller carries the grimoire.** Press **Open grimoire** (or Tab) and the camera swoops in
    over your shoulder as the book opens in your hands; its pages hold the circle of seats, the bag, the
    night order and everything else from the Grimoire. Fill the bag, deal characters and press **Show
@@ -108,6 +111,8 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
      window, and nobody can get up until morning. Press E for a go at **counting sheep**: how many white
      sheep jumped the fence, from either side? Every jump counts as one; the odd goat or wolf slips
      through too, and they don't count. Get it right and you wear a **gold star** over your head all the next day. One go a night.
+     Or **Pass the time** with any of the town's minigames, played from bed: they pay as they do by day.
+     A wake from the Storyteller, the hooded figure or dawn closes the game at once, and you stay in bed.
      On the bedroom wall hangs a chart of **who sits where** round the circle, laid out as the
      Storyteller's grimoire has it (first seat at the top, going clockwise; names only), and a **Who sits
      where** button in bed opens it up close, so "clockwise" means the same to everyone before the first
@@ -226,7 +231,8 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
 8. **Profiles and money.** Your hats, achievements, stars and money are kept by the Storyteller under
    your name, so they follow you to any device (and a copy stays in your browser). You earn money for
    finishing a game ($10), being on the winning team ($25), surviving ($5), achievements ($5, or $10
-   for a secret one) and three-star jobs ($2, up to $20 a day), and everyone starts with $25; spend it at
+   for a secret one) and the minigames ($5 for three stars, $2 for two, up to $40 a day, by day or from bed at
+   night), and everyone starts with $25; spend it at
    the casino's **Shop**: 77 pets ($20 to $80, many fond takes on pop culture favourites), ten hats ($30
    to $120), the Crown of Midas ($500, with a crown on your name plate and a golden glow) and six dances ($15 to $40: the
    chicken dance, sprinkler, running man, Y.M.C.A., the Carlton and the worm). Songs at the club are $1;

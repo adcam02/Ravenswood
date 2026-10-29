@@ -1078,3 +1078,41 @@
     transform: translateY(0) rotate(0deg);
   }
 }
+
+/* In bed at night: the minigames to pass the time with. */
+.bed-games-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.bed-game {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 4px 7px;
+  font-size: 0.86rem;
+  line-height: 1.15;
+  text-align: center;
+  white-space: normal;
+}
+.bed-game-art {
+  display: grid;
+  place-items: center;
+  height: 40px;
+}
+/* (Buttons shrink their icons to the text; these are pictures.) */
+.bed-game .bed-game-art svg {
+  width: 36px;
+  height: 36px;
+}
+@media (max-width: 520px) {
+  .bed-games-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+  .bed-game {
+    font-size: 0.8rem;
+  }
+}

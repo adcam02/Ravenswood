@@ -51,7 +51,7 @@ const GAMES: { [J in GameJob]: ComponentType<GameProps<JobResults[J]>> } = {
   clock: Clock,
 };
 
-function JobIcon({ job }: { job: GameJob }): ReactNode {
+export function JobIcon({ job }: { job: GameJob }): ReactNode {
   switch (job) {
     case 'bartender':
       return <DrinkIcon kind="ale" size={34} />;

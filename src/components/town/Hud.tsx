@@ -16,11 +16,12 @@ import { money } from '../../game/profiles';
 import { lazyPart } from '../../lib/lazy';
 import { CrashNote, Guard } from '../Guard';
 import { Icon } from '../Icon';
-import { MoneyPill } from './Money';
+import { BoostChip, MoneyPill } from './Money';
 import { shownName } from '../../state/nicks';
 // The minigames and the sheep load the first time they're needed, so the first visit downloads less.
 const JobGame = lazyPart(() => import('../../jobs').then((m) => m.JobGame));
 const SheepGame = lazyPart(() => import('./SheepGame').then((m) => m.SheepGame));
+const BedGames = lazyPart(() => import('./BedGames').then((m) => m.BedGames));
 
 const ITEM_NAMES: Record<Item['k'], [string, string]> = {
   ale: ['🍺', 'an ale'],
@@ -69,6 +70,7 @@ export function PlaceChip() {
         </span>
       )}
       {view.mode === 'player' && <MoneyPill />}
+      {view.mode === 'player' && <BoostChip />}
     </div>
   );
 }
@@ -224,7 +226,8 @@ export function VoiceDock() {
 export function ActionPrompt() {
   const prompt = useHud((s) => s.prompt);
   const job = useHud((s) => s.job);
-  if (!prompt || job) return null;
+  const bedMenu = useHud((s) => s.bedMenu);
+  if (!prompt || job || bedMenu) return null;
   return (
     <button className={`action-prompt cosy-panel ${prompt.locked ? 'locked' : ''}`} onClick={() => !prompt.locked && game.interact()} disabled={prompt.locked}>
       {prompt.key && <span className="cosy-key">{prompt.key}</span>}
@@ -240,7 +243,7 @@ export function HandSlot() {
   const canSip = useHud((s) => s.canSip);
   const job = useHud((s) => s.job);
   if (!item || item.k === 'grimoire' || job) return null;
-  const drink = ['ale', 'cider', 'milk', 'cocoa'].includes(item.k);
+  const drink = ['ale', 'cider', 'milk', 'cocoa', 'water', 'wine'].includes(item.k);
   return (
     <div className="hand-slot cosy-panel">
       <span className="hand-item" title={itemName(item)}>
@@ -248,8 +251,8 @@ export function HandSlot() {
       </span>
       <div className="hand-actions">
         {canSip && (
-          <button className="cosy-btn small" onClick={game.sip}>
-            {drink ? 'Sip' : 'Bite'}
+          <button className="cosy-btn small" onClick={game.sip} title="E: a little quicker on your feet for a while after">
+            {drink ? 'Drink' : 'Eat'}
           </button>
         )}
         {giveTo && (
@@ -439,6 +442,26 @@ export function SheepLayer() {
     >
       <Suspense fallback={null}>
         <SheepGame />
+      </Suspense>
+    </Guard>
+  );
+}
+
+/** In bed at night: the "Pass the time" menu of minigames (a game picked from it plays in the JobLayer). */
+export function BedGamesLayer() {
+  const open = useHud((s) => s.bedMenu);
+  const job = useHud((s) => s.job);
+  if (!open || job) return null;
+  return (
+    <Guard
+      fallback={(e) => (
+        <div className="job-dock cosy">
+          <CrashNote error={e} close={() => useHud.setState({ bedMenu: false })} />
+        </div>
+      )}
+    >
+      <Suspense fallback={null}>
+        <BedGames />
       </Suspense>
     </Guard>
   );

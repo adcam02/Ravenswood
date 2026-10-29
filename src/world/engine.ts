@@ -8,7 +8,7 @@ import { SCORE_OF, type GameJob, type JobResults } from '../jobs/meta';
 import { rememberBest } from '../game/bests';
 import type { DayTimer, ExecMethod, Execution, Nomination, TownAction, TownHall, Visit } from '../state/types';
 import { ambience } from '../lib/ambience';
-import { doorChime, drumroll, execSound, gavel, pigeonSound, ropeSnap, visitSound } from '../lib/audio';
+import { doorChime, drumroll, execSound, gavel, gulpSound, munchSound, pigeonSound, ropeSnap, visitSound } from '../lib/audio';
 import { clubMusic, songById } from '../lib/disco';
 import { execMethod, showStartAt } from '../game/execution';
 import type { ExecStage, ExecPose } from './exec/stage';
@@ -43,6 +43,7 @@ import { TableCam } from './tablecam';
 import { CHAIR_Y, FELT_Y, RL_LOOK, SLOTS, bjSpot, pkAround } from './town/casinoLayout';
 import type { CasinoView } from '../casino/types';
 import { decor, flatNav, flatNow, useDecor } from '../flats/client';
+import { useClient } from '../net/client';
 import { emptyLayout, whyNot } from '../flats/catalogue';
 import { shownName } from '../state/nicks';
 import { nameKey } from '../game/profiles';
@@ -255,6 +256,10 @@ const EMOTE_TIME: Partial<Record<Anim, number>> = { wave: 2.4, cheer: 2.6, laugh
 const emoteTime = (anim: Anim, pinned = false) => (isDance(anim) ? (pinned ? 8 : Infinity) : (EMOTE_TIME[anim] ?? 2.5));
 const SIPPABLE = new Set(['ale', 'cider', 'milk', 'cocoa', 'loaf', 'pie', 'bun', 'water', 'wine']);
 const DRINKS = new Set(['ale', 'cider', 'milk', 'cocoa', 'water', 'wine']);
+/** Seconds to eat or drink something down. */
+const EAT_TIME = 1.3;
+/** A little burst of speed after: a drink is the bigger kick, food lasts longer. */
+const EAT_BOOST = { drink: { mul: 1.25, secs: 20 }, food: { mul: 1.2, secs: 30 } };
 
 /** What the signs over the stations say. */
 const SIGN_TEXT: Partial<Record<Station['job'], string>> = {
@@ -375,6 +380,7 @@ export class Engine {
   private rippleAt = 0;
   private unsubUI: (() => void) | null = null;
   private unsubShout: (() => void) | null = null;
+  private unsubWake: (() => void) | null = null;
 
   /** `face`: the way to turn while it plays (twerking turns its back to the camera). */
   private emote: { anim: Anim; until: number; face?: number } | null = null;
@@ -383,7 +389,10 @@ export class Engine {
   /** The meeting stool we're sat on, as "seat/of", so we can move along if the seats are reordered. */
   private stool: string | null = null;
   private job: { job: GameJob; station: Station; prevItem: Item | null } | null = null;
-  private sips = 0;
+  /** Eating or drinking what's in the paw, since when (see sip). */
+  private eating: { item: Item; start: number } | null = null;
+  /** The minigame being played in bed at night, if any (see startBedGame). */
+  private bedGame: GameJob | null = null;
   /** Doors stay shut for a moment after arriving somewhere, so you don't bounce straight back through. */
   private doorsShutUntil = 0;
   /** Waiting at a door on the way in (see enterBy). */
@@ -555,8 +564,13 @@ export class Engine {
     game.putAway = () => this.putAway();
     game.goTo = (key) => this.goTo(key);
     game.takeMeetingSeat = () => this.takeMeetingSeat();
-    game.jobDone = (r) => this.finishJob(r);
-    game.jobCancel = () => this.finishJob(undefined);
+    game.jobDone = (r) => (this.bedGame ? this.finishBedGame(r) : this.finishJob(r));
+    game.jobCancel = () => (this.bedGame ? this.finishBedGame(undefined) : this.finishJob(undefined));
+    game.bedGame = (job) => this.startBedGame(job);
+    // Woken by the Storyteller: whatever was being played in bed stops at once.
+    this.unsubWake = useClient.subscribe((s, prev) => {
+      if (s.priv?.wake && !prev.priv?.wake) this.closeBedGame();
+    });
     game.calledToStool = () => {
       const v = this.view;
       if (!v || v.mode !== 'player' || !(v.townHall || v.nomination) || this.inBed || (this.seated && this.seated.y === STOOL_Y)) return;
@@ -566,6 +580,7 @@ export class Engine {
     game.summoned = (zone, x, z) => {
       // Called over by the Storyteller: stand a step in front of them, facing them.
       this.stopEverything();
+      this.closeBedGame();
       this.inBed = false;
       useHud.setState({ sheep: null });
       const a = Math.random() * Math.PI * 2;
@@ -628,13 +643,14 @@ export class Engine {
     useHud.setState({ gfxLost: null });
     this.unsubUI?.();
     this.unsubShout?.();
+    this.unsubWake?.();
     ambience.dispose();
     if (this.wellTimer) clearTimeout(this.wellTimer);
     for (const tm of this.bouncerTimers) clearTimeout(tm);
     clubMusic.setLevel(0, false);
     for (const s of this.signs) s.el.remove();
     for (const k of ['interact', 'sip', 'give', 'putAway', 'takeMeetingSeat', 'calledToStool', 'jobCancel'] as const) game[k] = () => {};
-    game.emote = game.goTo = game.jobDone = game.sheepDone = () => {};
+    game.emote = game.goTo = game.jobDone = game.sheepDone = game.bedGame = () => {};
     this.ro.disconnect();
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('pagehide', this.rememberPlace);
@@ -934,11 +950,13 @@ export class Engine {
       this.stopEverything();
       this.goHome(true);
     } else if (v.phase === 'day' && (this.inBed || zoneKind(local.zone) === 'flat')) {
+      this.closeBedGame();
       this.inBed = false;
       useHud.setState({ sheep: null });
       this.stopEverything();
       this.goToSquareSpawn(true);
     } else if (v.phase === 'day') {
+      this.closeBedGame();
       this.inBed = false;
       useHud.setState({ sheep: null });
     }
@@ -1084,7 +1102,7 @@ export class Engine {
       this.decorKey(e, k);
       return;
     }
-    if (this.view?.paused || this.job) return;
+    if (this.view?.paused || this.job || this.bedGame) return;
     if (this.inBed) {
       if (k === 'e' || k === ' ' || k === 'enter') {
         e.preventDefault();
@@ -1324,21 +1342,45 @@ export class Engine {
     if (isDance(this.emote?.anim)) this.emote = null;
   }
 
+  /** Eaten or drunk in one go (E, or the button in the paw): a moment's gulp, then a little burst of speed. */
   private sip() {
     const item = local.item;
-    if (!item || !SIPPABLE.has(item.k) || this.job) return;
-    this.emote = { anim: 'drink', until: this.clock.elapsedTime + 1.6 };
-    this.sips += 1;
-    if (this.sips >= 4) {
-      this.sips = 0;
-      setTimeout(() => {
-        if (local.item === item) {
-          setItem(null);
-          this.me?.bubble(['ale', 'cider', 'milk', 'cocoa'].includes(item.k) ? 'Ahh!' : 'Yum!', 1800);
-          if (this.view?.mode === 'player') tally('snacks');
-        }
-      }, 1500);
+    if (!item || !SIPPABLE.has(item.k) || this.job || this.eating) return;
+    const t = this.clock.elapsedTime;
+    this.emote = { anim: 'drink', until: t + EAT_TIME + 0.15 };
+    this.eating = { item, start: t };
+    if (DRINKS.has(item.k)) gulpSound();
+    else munchSound();
+  }
+
+  /** The item in the paw shrinks away as it goes down; once it's gone, the boost starts (or starts again). */
+  private eatStep(t: number) {
+    const e = this.eating;
+    if (!e) return;
+    const held = this.me?.rig.root.getObjectByName(`item:${e.item.k}`);
+    // Given away, put away, swapped for something else or off to a job first: not eaten after all.
+    if (local.item !== e.item || this.job) {
+      this.eating = null;
+      held?.scale.setScalar(1);
+      return;
     }
+    const k = (t - e.start) / EAT_TIME;
+    if (held) held.scale.setScalar(Math.max(0.05, 1 - Math.max(0, k - 0.25) / 0.75));
+    if (k < 1) return;
+    this.eating = null;
+    setItem(null);
+    const drink = DRINKS.has(e.item.k);
+    this.me?.bubble(drink ? 'Ahh!' : 'Yum!', 1800);
+    if (this.view?.mode === 'player') tally('snacks');
+    // One boost at a time: another snack starts it afresh rather than adding to it.
+    const b = drink ? EAT_BOOST.drink : EAT_BOOST.food;
+    useHud.setState({ boost: { until: Date.now() + b.secs * 1000, mul: b.mul, kind: drink ? 'drink' : 'food' } });
+  }
+
+  /** How much quicker something eaten or drunk lately makes us (only on this screen: speed isn't shared). */
+  private snackBoost(): number {
+    const b = useHud.getState().boost;
+    return b && Date.now() < b.until ? b.mul : 1;
   }
 
   /** The station's spot, or a slot beside it if someone is already standing there, so people work side by side. */
@@ -1524,7 +1566,6 @@ export class Engine {
     if (!item || item.k === 'grimoire' || !near || this.job) return;
     this.hooks.give(near.key, item);
     setItem(null);
-    this.sips = 0;
     this.emote = { anim: 'wave', until: this.clock.elapsedTime + 1.2 };
     // Different people, by name, across games.
     const to = this.view?.seats.find((s) => s.id === near.key)?.name;
@@ -1545,13 +1586,12 @@ export class Engine {
   private putAway() {
     if (!local.item || local.item.k === 'grimoire' || this.job) return;
     setItem(null);
-    this.sips = 0;
   }
 
   private interact() {
-    if (!this.me || this.view?.paused || this.job || this.frozen || this.pinned()) return;
+    if (!this.me || this.view?.paused || this.job || this.bedGame || this.frozen || this.pinned()) return;
     if (this.inBed) {
-      if (useHud.getState().sheep === 'offer') useHud.setState({ sheep: 'playing' });
+      if (useHud.getState().sheep === 'offer' && !useHud.getState().bedMenu) useHud.setState({ sheep: 'playing' });
       return;
     }
     const s = this.nearStation;
@@ -1588,11 +1628,9 @@ export class Engine {
     if (s.job === 'takeDrink') {
       const d = v?.town.drinks[0];
       if (d) this.hooks.townAction({ k: 'takeDrink', id: d.id });
-      this.sips = 0;
     } else if (s.job === 'takeBread') {
       const l = v?.town.loaves[0];
       if (l) this.hooks.townAction({ k: 'takeBake', id: l.id });
-      this.sips = 0;
     } else if (s.job === 'well') {
       // Wind the bucket up: a moment's work, then fresh water in your paw.
       this.moveTarget = null;
@@ -1604,7 +1642,6 @@ export class Engine {
       if (this.wellTimer) clearTimeout(this.wellTimer);
       this.wellTimer = setTimeout(() => {
         setItem({ k: 'water' });
-        this.sips = 0;
         this.me?.bubble('Fresh well water!', 2200);
         if (this.view?.mode === 'player') tally('buckets');
       }, 1600);
@@ -1851,22 +1888,53 @@ export class Engine {
           break;
         }
       }
-      // Doing a job perfectly earns its hat (all five logs split, three stars, a wish come true).
-      const perfect = j.job === 'firewood' ? (r as JobResults['firewood']).logs >= 5 : ((r as { stars?: number }).stars ?? 0) >= 3;
-      if (perfect && isPlayerView(this.view)) notePerfect(j.job);
-      // (Each one earns a little money too, and having a go at every job is an achievement.)
-      if (perfect && isPlayerView(this.view)) noteTopJob(j.job);
-      if (isPlayerView(this.view)) tally('jobs', 1, `job:${j.job}`);
-      // Anything that beats the town's best is kept on the noticeboard for everyone.
-      const score = SCORE_OF?.[j.job]?.(r as never) ?? 0;
-      if (score > 0) {
-        this.hooks.townAction({ k: 'record', game: j.job, score });
-        rememberBest(j.job, score);
-      }
+      this.creditJob(j.job, r);
     }
     setItem(item);
-    this.sips = 0;
     this.emote = result ? { anim: 'cheer', until: this.clock.elapsedTime + 1.6 } : null;
+  }
+
+  /** What any finished minigame earns, by day or from bed: its hat, a little money, the all-rounder count, records. */
+  private creditJob(job: GameJob, r: JobResults[GameJob]) {
+    // Doing a job perfectly earns its hat (all five logs split, three stars, a wish come true).
+    const stars = (r as { stars?: number }).stars ?? 0;
+    if (stars >= 3 && isPlayerView(this.view)) notePerfect(job);
+    // (Two or three stars earn a little money too, and having a go at every job is an achievement.)
+    if (stars >= 2 && isPlayerView(this.view)) noteTopJob(job, stars >= 3 ? 3 : 2);
+    if (isPlayerView(this.view)) tally('jobs', 1, `job:${job}`);
+    // Anything that beats the town's best is kept on the noticeboard for everyone.
+    const score = SCORE_OF?.[job]?.(r as never) ?? 0;
+    if (score > 0) {
+      this.hooks.townAction({ k: 'record', game: job, score });
+      rememberBest(job, score);
+    }
+  }
+
+  /**
+   * Passing the time in bed at night: one of the minigames, played lying down (nobody else sees anything but a
+   * sleeper). It pays as by day but leaves nothing in the town (no drinks on the bar, no flowers in the beds).
+   */
+  private startBedGame(job: GameJob) {
+    const v = this.view;
+    if (!this.inBed || this.job || this.bedGame || this.visit?.mine || !v || v.mode !== 'player' || v.phase !== 'night') return;
+    if (useClient.getState().priv?.wake || useHud.getState().sheep === 'playing' || useHud.getState().visit) return;
+    this.bedGame = job;
+    useHud.setState({ job: { job, station: `bed:${job}` }, bedMenu: false });
+  }
+
+  /** A game in bed over (or stopped): back to the menu for another, unless `interrupted`. */
+  private finishBedGame(result: unknown, interrupted = false) {
+    const job = this.bedGame;
+    if (!job) return;
+    this.bedGame = null;
+    useHud.setState({ job: null, bedMenu: !interrupted });
+    if (result !== undefined && result !== null) this.creditJob(job, result as JobResults[GameJob]);
+  }
+
+  /** A wake, the hooded figure, dawn: the game in bed (and its menu) closes straight away, with nothing paid. */
+  private closeBedGame() {
+    this.finishBedGame(undefined, true);
+    if (useHud.getState().bedMenu) useHud.setState({ bedMenu: false });
   }
 
   private goTo(key: string) {
@@ -2123,7 +2191,8 @@ export class Engine {
       if (this.emote && this.emote.anim !== 'drink') this.emote = null;
       const running = this.keys.has('shift');
       // (Every hat a player has makes them a touch quicker.)
-      const speed = st ? (running ? FLOAT * 1.7 : FLOAT) : (running ? RUN : WALK) * hatBoost();
+      // (And something eaten or drunk lately, for a little while.)
+      const speed = st ? (running ? FLOAT * 1.7 : FLOAT) : (running ? RUN : WALK) * hatBoost() * this.snackBoost();
       const nx = local.x + dx * speed * dt;
       const nz = local.z + dz * speed * dt;
       // Animals bump gently off each other; the Storyteller's ghost drifts through anyone.
@@ -2154,6 +2223,7 @@ export class Engine {
       (book?.userData.setOpen as ((t: number) => void) | undefined)?.(this.bookOpen);
     }
 
+    this.eatStep(t);
     // What we're doing, in order of importance.
     const nom = v.nomination;
     const voting = Boolean(nom && v.mySeatId && nom.votes.includes(v.mySeatId) && nom.status !== 'done');
@@ -2502,7 +2572,7 @@ export class Engine {
       }
       prompt = { label, key: locked ? '' : 'E', locked };
     } else if (local.item && SIPPABLE.has(local.item.k)) {
-      prompt = { label: ['ale', 'cider', 'milk', 'cocoa'].includes(local.item.k) ? 'Have a sip' : 'Have a bite', key: 'E' };
+      prompt = { label: DRINKS.has(local.item.k) ? 'Drink it' : 'Eat it', key: 'E' };
     }
     const near = local.item && local.item.k !== 'grimoire' && !this.job ? this.nearestOther(2.6) : null;
     // (Someone in a booth stays nameless.)
@@ -2668,7 +2738,10 @@ export class Engine {
         const victim = mine ? this.me : this.others.get(vis.seatId);
         if (victim) scene.aim(new THREE.Box3().setFromObject(victim.rig.root).translate(this.town.groups.flat.position.clone().negate()));
         this.visit = { id: vis.id, seatId: vis.seatId, zone, mine, scene, start: t, kit: visits };
-        if (mine) useHud.setState({ sheep: 'done', visit: 'playing' });
+        if (mine) {
+          this.closeBedGame();
+          useHud.setState({ sheep: 'done', visit: 'playing' });
+        }
         break;
       }
     }
