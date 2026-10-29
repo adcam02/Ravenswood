@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { local } from '../../game/local';
 import { presence } from '../../game/presence';
 import { useView } from '../../state/view';
-import { BAKERY, CHURCH, CLUB, FLATS, GALLOWS, GRAVEYARD, MEETING_CENTRE, POND, SQUARE_R, STOOL_R, TAVERN, TOWN_R, WASHHOUSE, WELL, houseSlots } from '../../world/town/layout';
+import { BAKERY, CHURCH, CLUB, COTTAGE_NAMES, FLATS, FLATS_NAME, GALLOWS, GRAVEYARD, MEETING_CENTRE, POND, SQUARE_R, STOOL_R, TAVERN, TOWN_R, WASHHOUSE, WELL, houseSlots } from '../../world/town/layout';
 import { CASINO } from '../../world/town/casinoLayout';
 import { cottageSlot, houseOwner, inBooth, zoneKind, type Look } from '../../world/types';
 
@@ -43,6 +43,32 @@ function placeOf(zone: string, x: number, z: number, seatIndex: (id: string) => 
       return [x, z];
   }
 }
+
+/** A box's half-size north to south on the map, turned as it stands. */
+const halfZ = (b: { w: number; d: number; ry?: number }) => Math.abs((b.w / 2) * Math.sin(b.ry ?? 0)) + Math.abs((b.d / 2) * Math.cos(b.ry ?? 0));
+
+/**
+ * The names on the map, just off each building, north or south, on the side towards the middle of town (so they
+ * stay on the map and clear of the dots gathered on the building). `size`: the smallest map (on screen, px) it's shown on, so a
+ * small map only names the big places.
+ */
+const PLACES: { name: string; x: number; z: number; size: number }[] = (() => {
+  const off = (b: { x: number; z: number; w: number; d: number; ry?: number }, gap = 2.2, south = b.z < -1) => ({ x: b.x, z: b.z + (south ? 1 : -1) * (halfZ(b) + gap) });
+  return [
+    // (The tavern's goes underneath, clear of the cottage beyond it.)
+    { name: 'Tavern', ...off(TAVERN, 2.2, true), size: 0 },
+    { name: 'Bakery', ...off(BAKERY, 3.2), size: 0 },
+    { name: 'Church', ...off(CHURCH, 1.6), size: 0 },
+    { name: 'Club', ...off(CLUB), size: 0 },
+    { name: 'Casino', ...off(CASINO), size: 0 },
+    { name: FLATS_NAME, ...off(FLATS), size: 0 },
+    { name: 'Clock tower', x: 0, z: -3.6, size: 0 },
+    ...houseSlots.map((h, i) => ({ name: COTTAGE_NAMES[i % COTTAGE_NAMES.length], ...off({ ...h, w: 5.2, d: 4.6 }), size: 200 })),
+    { name: 'Gallows', x: GALLOWS.x + 1.2, z: GALLOWS.z - 3.2, size: 270 },
+    { name: 'Graveyard', x: GRAVEYARD.x - 5.6, z: GRAVEYARD.z, size: 270 },
+    { name: 'Pond', x: POND.x, z: POND.z + POND.rz + 2, size: 270 },
+  ];
+})();
 
 /** One person's dot. `hidden`: sitting in a confession booth, so a plain grey "?" rather than who it is. */
 interface Marker {
@@ -132,6 +158,27 @@ export function MiniMap() {
       box(CLUB.x, CLUB.z, CLUB.w, CLUB.d, '#7a3f8a', CLUB.ry);
       box(CASINO.x, CASINO.z, CASINO.w, CASINO.d, '#8a2f4a', CASINO.ry);
       box(FLATS.x, FLATS.z, FLATS.w, FLATS.d, '#b5553a', FLATS.ry);
+      // The buildings' names: the same size on screen however small the map is drawn, under the dots.
+      const shown = el.clientWidth || SIZE;
+      const k = SIZE / shown;
+      const fs = (shown < 220 ? 9 : 10) * k;
+      ctx.font = `600 ${fs.toFixed(1)}px Fredoka, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (const p of PLACES) {
+        if (shown < p.size) continue;
+        const w = ctx.measureText(p.name).width + 6 * k;
+        const h = fs + 3 * k;
+        const cx = px(p.x);
+        const cz = pz(p.z);
+        ctx.fillStyle = 'rgba(255, 250, 238, 0.78)';
+        ctx.beginPath();
+        ctx.roundRect(cx - w / 2, cz - h / 2, w, h, h / 2);
+        ctx.fill();
+        ctx.fillStyle = '#3a2a20';
+        ctx.fillText(p.name, cx, cz + 0.5 * k);
+      }
+      ctx.textBaseline = 'alphabetic';
       // Everyone.
       const dot = (cx: number, cz: number, m: Marker, r: number) => {
         ctx.beginPath();
