@@ -23,6 +23,8 @@ export function PigeonModal() {
   const choices = view.seats.filter((s) => !s.isMe && s.claimed);
   const target = view.seats.find((s) => s.id === to);
   const night = view.phase === 'night';
+  // Not while the town is busy with a nomination, from the accusation until the vote is over.
+  const voting = Boolean(view.nomination && view.nomination.status !== 'done');
   const where = whereIs(local.zone, local.x, local.z);
 
   // The Storyteller's answer: it's flown, or it hasn't (by night, or it's still resting from the last one).
@@ -50,6 +52,10 @@ export function PigeonModal() {
         <p className="pigeon-blurb">Take a seat in town first.</p>
       ) : night ? (
         <p className="pigeon-blurb">The pigeons are roosting for the night. They fly by day.</p>
+      ) : voting ? (
+        <p className="pigeon-blurb">
+          The pigeons stay put while a nomination is on, so nobody is called away from the meeting. Send one once the vote is over.
+        </p>
       ) : outdated ? (
         <p className="pigeon-blurb">The Storyteller’s page is out of date, so the pigeons can’t fly yet. Ask them to reload it.</p>
       ) : (

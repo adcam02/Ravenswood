@@ -1,4 +1,4 @@
-import { disguise, heldRole } from '../../state/host';
+import { disguise, heldRole, nominationsToday } from '../../state/host';
 import { useUI } from '../../state/ui';
 import { useView } from '../../state/view';
 import { Icon } from '../Icon';
@@ -16,6 +16,7 @@ export function MiniGrimoire() {
   const handOn = nom && (nom.status === 'running' || nom.status === 'paused' || nom.status === 'done') ? (nom.step === 0 ? nom.nomineeId : nom.order[nom.step - 1]) : null;
   const handIndex = handOn ? view.seats.findIndex((s) => s.id === handOn) : -1;
   const awake = view.seats.filter((s) => s.awake).length;
+  const today = nominationsToday(view);
   return (
     <button className="mini-grimoire cosy-panel" onClick={() => useUI.setState({ grimoireOpen: true })} title="Open the grimoire (Tab)">
       <span className="mini-title">
@@ -59,6 +60,12 @@ export function MiniGrimoire() {
               {s.awake && <b className="mini-eye">👁</b>}
               {voted && <b className="mini-paw">✋</b>}
               {s.star && <b className="mini-star" title="Counted the sheep">⭐</b>}
+              {(today.by.has(s.id) || today.of.has(s.id)) && (
+                <b className="mini-noms">
+                  {today.by.has(s.id) && <i className="by" title="Has nominated today" />}
+                  {today.of.has(s.id) && <i className="of" title="Has been nominated today" />}
+                </b>
+              )}
             </span>
           );
         })}

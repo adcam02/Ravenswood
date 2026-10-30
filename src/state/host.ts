@@ -45,6 +45,7 @@ import type {
   PublicState,
   Seat,
   TownAction,
+  TownHall,
   Visit,
   VoteRecord,
   WakeMessage,
@@ -117,6 +118,8 @@ function loadGame(): GameState | null {
   if (g.nomination && (g.nomination.status === 'running' || g.nomination.status === 'countdown')) {
     g.nomination.status = g.nomination.step > 0 ? 'paused' : 'idle';
   }
+  // (The speeches' timer didn't survive the reload: the Storyteller starts the vote by hand.)
+  if (g.nomination?.speech) g.nomination.speech = null;
   g.townHall ??= null;
   g.nomRequests ??= [];
   g.nightDeaths ??= [];
@@ -285,16 +288,18 @@ interface NominationRules {
   history: VoteRecord[];
   nomination: Nomination | null;
   nomRequests?: NominationRequest[];
+  townHall: TownHall | null;
 }
 
-/** Why a seat can't nominate today: the day, their seat, or that they've had their one. */
-export type NominateBlock = 'closed' | 'noSeat' | 'dead' | 'nominated' | 'waiting' | 'noTarget' | 'targetNominated';
+/** Why a seat can't nominate today: the day, their seat, that they've had their one, or that there's no meeting on. */
+export type NominateBlock = 'closed' | 'noSeat' | 'dead' | 'nominated' | 'waiting' | 'noTarget' | 'targetNominated' | 'noMeeting';
 
 /**
  * Why `by` can't nominate `target` now (or anyone, with no target), or null if they can. Each player nominates once
  * a day, alive, and each player can be nominated once a day (dead ones too). A nomination counts from when it's
  * started: a vote finished today, the one on now, or a request the Storyteller started. `ignore` leaves out one
- * request (the one being started).
+ * request (the one being started). Players only nominate at a town meeting: 'noMeeting' comes last, so the
+ * Storyteller (who can start one any time) can tell it from the once-a-day rules.
  */
 export function nominateBlock(g: NominationRules, by: string, target?: string, ignore?: string): NominateBlock | null {
   if (!nominationsOpen(g)) return 'closed';
@@ -305,10 +310,30 @@ export function nominateBlock(g: NominationRules, by: string, target?: string, i
   const votes = g.history.filter((h) => h.day === g.day);
   if (votes.some((h) => h.nominatorId === by) || g.nomination?.nominatorId === by || asked.some((r) => r.by === by && r.status === 'started')) return 'nominated';
   if (asked.some((r) => r.by === by && r.status === 'pending')) return 'waiting';
-  if (target === undefined) return null;
-  if (!g.seats.some((s) => s.id === target)) return 'noTarget';
-  if (votes.some((h) => h.nomineeId === target) || g.nomination?.nomineeId === target || asked.some((r) => r.target === target && r.status === 'started')) return 'targetNominated';
+  if (target !== undefined) {
+    if (!g.seats.some((s) => s.id === target)) return 'noTarget';
+    if (votes.some((h) => h.nomineeId === target) || g.nomination?.nomineeId === target || asked.some((r) => r.target === target && r.status === 'started')) return 'targetNominated';
+  }
+  if (!g.townHall) return 'noMeeting';
   return null;
+}
+
+/**
+ * Who has nominated today and who has been nominated today (each once a day): the day's finished votes, the one on
+ * now, and requests the Storyteller started. Empty by night.
+ */
+export function nominationsToday(g: NominationRules): { by: Set<string>; of: Set<string> } {
+  const by = new Set<string>();
+  const of = new Set<string>();
+  if (g.phase !== 'day' || g.day <= 0) return { by, of };
+  const add = (nominator: string | null, nominee: string) => {
+    if (nominator) by.add(nominator);
+    of.add(nominee);
+  };
+  for (const h of g.history) if (h.day === g.day) add(h.nominatorId, h.nomineeId);
+  if (g.nomination) add(g.nomination.nominatorId, g.nomination.nomineeId);
+  for (const r of g.nomRequests ?? []) if (r.day === g.day && r.status === 'started') add(r.by, r.target);
+  return { by, of };
 }
 
 /** The reason, as the player trying to nominate is told it. */
@@ -328,7 +353,20 @@ export function nominateWhy(block: NominateBlock, targetName = 'They'): string {
       return 'They aren’t in the game.';
     case 'targetNominated':
       return `${targetName} has already been nominated today.`;
+    case 'noMeeting':
+      return 'Nominations are made at the town meeting. When the Storyteller rings the bell, take your stool in the square.';
   }
+}
+
+/** Seconds each for the accusation and the defence before a vote, unless the Storyteller has changed it (0 is off). */
+export const SPEECH_SECS = 30;
+export const speechSecs = (g: { speechSecs?: number }) => g.speechSecs ?? SPEECH_SECS;
+
+/** Why a pigeon can't fly just now: by night, or while the town is busy with a nomination and its vote. */
+export function pigeonBlock(g: { phase: Phase; ended?: GameEnd | null; nomination: Nomination | null }): string | null {
+  if (g.phase !== 'day' || g.ended) return 'Pigeons only fly by day';
+  if (g.nomination && g.nomination.status !== 'done') return 'No pigeons while a nomination is on. Wait until the vote is over.';
+  return null;
 }
 
 export interface WinCheck {
@@ -643,6 +681,28 @@ function runClock() {
       runClock();
     }, nom.secondsPerPlayer * 1000);
   }
+}
+
+/** The floor before a vote: moves on to the next speaker (or the vote) when whoever has it runs out of time. */
+let speechClock: ReturnType<typeof setTimeout> | null = null;
+
+function stopSpeech() {
+  if (speechClock) clearTimeout(speechClock);
+  speechClock = null;
+}
+
+function runSpeech() {
+  stopSpeech();
+  const sp = hostGame().nomination?.speech;
+  if (!sp) return;
+  speechClock = setTimeout(() => {
+    speechClock = null;
+    const now = hostGame().nomination?.speech;
+    if (!now) return;
+    // Given more time meanwhile: wait for that.
+    if (now.until > Date.now() + 100) runSpeech();
+    else st.nextSpeech();
+  }, Math.max(0, sp.until - Date.now()) + 60);
 }
 
 // ---------------------------------------------------------------- executions
@@ -1119,6 +1179,7 @@ export const st = {
   // nominations
   nominate(nominatorId: string | null, nomineeId: string) {
     stopClock();
+    stopSpeech();
     update((g) => {
       const prev = g.nomination;
       g.nomination = {
@@ -1133,6 +1194,13 @@ export const st = {
         countdown: 0,
         secondsPerPlayer: prev?.secondsPerPlayer ?? 2,
       };
+      // First the nominator makes their case, then the nominee defends themselves, then the vote.
+      const secs = speechSecs(g);
+      if (secs > 0) {
+        g.nomination.speech = nominatorId
+          ? { kind: 'accuse', seatId: nominatorId, until: Date.now() + secs * 1000 }
+          : { kind: 'defend', seatId: nomineeId, until: Date.now() + secs * 1000 };
+      }
       // Players who asked to nominate find out what came of it: this is theirs, or someone got there first.
       for (const r of g.nomRequests ?? []) {
         if (r.status !== 'pending' || r.day !== g.day) continue;
@@ -1141,15 +1209,45 @@ export const st = {
         else if (r.by === nominatorId) Object.assign(r, { status: 'declined', note: 'The Storyteller started a different nomination for you.' });
       }
     });
+    runSpeech();
+  },
+  /** The floor moves on: from the accusation to the defence, or from the defence to the vote (its countdown). */
+  nextSpeech() {
+    const sp = hostGame().nomination?.speech;
+    if (!sp) return;
+    if (sp.kind === 'defend') return st.countdown();
+    update((g) => {
+      const n = g.nomination;
+      if (n?.speech) n.speech = { kind: 'defend', seatId: n.nomineeId, until: Date.now() + speechSecs(g) * 1000 };
+    });
+    runSpeech();
+  },
+  /** Straight to the vote, skipping what's left of the accusation and the defence. */
+  skipSpeeches() {
+    if (hostGame().nomination?.speech) st.countdown();
+  },
+  /** More time (or less) for whoever has the floor. */
+  speechTime(secs: number) {
+    update((g) => {
+      const sp = g.nomination?.speech;
+      if (sp) sp.until = Math.max(Date.now() + 3000, sp.until + secs * 1000);
+    });
+    runSpeech();
+  },
+  /** How long the accusation and the defence each last before a vote (0 turns them off). */
+  setSpeechSecs(secs: number) {
+    update((g) => void (g.speechSecs = Math.max(0, Math.min(120, Math.round(secs)))));
   },
   /**
    * Starts the nomination a player asked for, as if the Storyteller had set it up in the grimoire. A vote that's
    * finished is closed first (into the day's history); one that hasn't finished has to be closed by hand.
    */
-  startNominationRequest(id: string) {
+  startNominationRequest(id: string, force = false) {
     const g = hostGame();
     const r = (g.nomRequests ?? []).find((x) => x.id === id && x.status === 'pending');
-    if (!r || nominateBlock(g, r.by, r.target, r.id) || (g.nomination && g.nomination.status !== 'done')) return;
+    // The Storyteller can start one outside a meeting, or (`force`) past the once-a-day rules.
+    const block = nominateBlock(g, r?.by ?? '', r?.target, r?.id);
+    if (!r || (block && block !== 'noMeeting' && !force) || (g.nomination && g.nomination.status !== 'done')) return;
     if (g.nomination) st.closeNomination();
     st.nominate(r.by, r.target);
   },
@@ -1182,18 +1280,24 @@ export const st = {
     });
   },
   countdown() {
+    stopSpeech();
     update((g) => {
       const n = g.nomination;
       if (!n || n.status === 'done') return;
+      n.speech = null;
       n.status = 'countdown';
       n.countdown = 3;
     });
     runClock();
   },
   startVote() {
+    stopSpeech();
     update((g) => {
       const n = g.nomination;
-      if (n && n.status !== 'done') n.status = 'running';
+      if (n && n.status !== 'done') {
+        n.status = 'running';
+        n.speech = null;
+      }
     });
     runClock();
   },
@@ -1223,6 +1327,7 @@ export const st = {
   },
   closeNomination() {
     stopClock();
+    stopSpeech();
     update((g) => {
       const n = g.nomination;
       if (!n) return;
@@ -1290,7 +1395,13 @@ export const st = {
   },
   /** Ends the meeting: the stools go and everyone is free to wander. */
   endTownHall() {
-    update((g) => void (g.townHall = null));
+    update((g) => {
+      g.townHall = null;
+      // Requests to nominate still waiting lapse with the meeting.
+      for (const r of g.nomRequests ?? []) {
+        if (r.status === 'pending') Object.assign(r, { status: 'declined', note: 'The meeting ended before it was started.' });
+      }
+    });
   },
   /** A player has reached the square while the bell is ringing; once everyone has, the bell stops. */
   arrived(seatId: string) {
@@ -1516,7 +1627,8 @@ export const st = {
       const s = g.seats.find((x) => x.playerId === playerId);
       const target = seatOf(g, to);
       if (!s || !target || target.id === s.id || !target.playerId) return 'They aren’t here to find';
-      if (g.phase !== 'day' || g.ended) return 'Pigeons only fly by day';
+      const blocked = pigeonBlock(g);
+      if (blocked) return blocked;
       const last = [...(g.pigeons ?? [])].reverse().find((p) => p.from === s.id);
       if (last && Date.now() - last.at < PIGEON_REST_MS) return 'Your pigeon needs a little rest first';
       const pigeon: Pigeon = { id: uid(), from: s.id, to: target.id, name: s.name || 'Someone', where: clip(where, 48) || 'around town', at: Date.now() };

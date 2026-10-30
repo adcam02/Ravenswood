@@ -114,6 +114,7 @@ import { ModeContext, usePlayerView, useStorytellerView, ViewContext } from './s
 import { Icon } from './components/Icon';
 import { BedLetters } from './components/Letters';
 import { PigeonNote } from './components/Pigeon';
+import { SpeechBanner } from './components/Speech';
 import { World } from './world/World';
 import { MiniGrimoire } from './components/town/MiniGrimoire';
 import { MiniMap } from './components/town/MiniMap';
@@ -239,6 +240,7 @@ function Storyteller() {
           <AutoNightPanel />
           <SlayerPrompt />
           <NominationPrompt />
+          <SpeechBanner />
           <DoorPrompt />
           <RestorePrompt />
           <ExecVote />
@@ -319,6 +321,7 @@ function Player({ room }: { room: string }) {
               <SidePanel />
               <BellCall />
               <VoteBar />
+              <SpeechBanner />
               <MeetingVotes />
               <MeetingSeat />
               <NominateDock />

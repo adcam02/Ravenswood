@@ -32,6 +32,7 @@ import { ReminderToken, Token } from './Token';
 import { WakeComposer } from './WakeComposer';
 import { CustomiseModal } from './town/Customise';
 import { NicknameModal } from './Nickname';
+import { SpeechSetting } from './Speech';
 import { shownName } from '../state/nicks';
 
 export function Modals() {
@@ -449,6 +450,7 @@ function StorytellerSettings() {
           </div>
           <Stepper value={g.day} onChange={st.setDay} min={0} max={30} />
         </div>
+        <SpeechSetting />
         <hr className="rule" />
         <div className="setting">
           <div>

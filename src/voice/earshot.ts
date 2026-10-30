@@ -15,13 +15,27 @@ export interface EarshotContext {
   meetingRadius: number;
   /** The Storyteller is speaking to the whole town. */
   announce: boolean;
+  /** Before a vote, the seat with the floor (the accusation, then the defence): everyone at the meeting hears them. */
+  speaker?: string | null;
 }
+
+/** How loud everyone else at the meeting is while someone has the floor: a murmur, so the speaker is heard. */
+export const HUSH = 0.12;
 
 const atMeeting = (p: PoseState, r: number) => p.zone === 'town' && Math.hypot(p.x, p.z) < r;
 
-/** How loudly `me` hears `other`, from 0 to 1. Walls are absolute: different places never hear each other. */
-export function earshot(me: PoseState, other: PoseState, otherIsStoryteller: boolean, ctx: EarshotContext): number {
+/**
+ * How loudly `me` hears `other`, from 0 to 1. Walls are absolute: different places never hear each other. `otherKey`
+ * (their seat id, 'st' for the Storyteller) matters while someone has the floor at a meeting.
+ */
+export function earshot(me: PoseState, other: PoseState, otherIsStoryteller: boolean, ctx: EarshotContext, otherKey?: string | null): number {
   if (otherIsStoryteller && ctx.announce) return 1;
+  // The accusation or the defence: the speaker is heard clearly by everyone at the meeting (like the Storyteller
+  // speaking to the town), and everyone else there drops to a murmur for each other. The Storyteller isn't hushed.
+  if (ctx.speaker && ctx.meeting && atMeeting(me, ctx.meetingRadius)) {
+    if (otherKey === ctx.speaker) return 1;
+    if (!otherIsStoryteller && atMeeting(other, ctx.meetingRadius)) return HUSH;
+  }
   if (me.zone !== other.zone) return 0;
   // A confession booth: the two inside hear each other clearly, and nobody else, either way.
   const booth = boothAt(me.zone, me.x, me.z);

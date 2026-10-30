@@ -756,6 +756,10 @@ await check('game: nominations and votes raise paws round the clock', async () =
   const nominator = await seatOf('Abbey');
   await st.evaluate(([a, b]) => window.__st.st.nominate(a, b), [nominator, nominee]);
   await players.abbey.waitForSelector('.vote-bar', { timeout: 20000 });
+  // First the nominator has the floor (the accusation), with a banner for everyone; the Storyteller's Start skips it.
+  const speech = await st.evaluate(() => window.__host.getState().g.nomination.speech);
+  expect(speech?.kind === 'accuse' && speech.seatId === nominator, `the accusation comes first (${JSON.stringify(speech)})`);
+  await players.abbey.waitForSelector('.speech-banner', { timeout: 20000 });
   for (const p of [players.abbey, players.jarrod]) {
     await p.click('.meeting-seat').catch(() => {});
   }

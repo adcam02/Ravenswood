@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { tell } from '../lib/presets';
 import { clamp } from '../lib/util';
 import { useNotes } from '../state/notes';
-import { disguise, DISGUISED, heldRole, hostGame, st, underway } from '../state/host';
+import { disguise, DISGUISED, heldRole, hostGame, nominationsToday, st, underway } from '../state/host';
 import { ui, useUI } from '../state/ui';
 import { useView, type SeatView } from '../state/view';
 import { player } from '../net/client';
@@ -164,6 +164,10 @@ function SeatSpot({ seat, geo, i }: { seat: SeatView; geo: Geometry; i: number }
   const isNominator = nom?.nominatorId === seat.id;
   const marked = view.marked?.seatId === seat.id;
   const canVote = !seat.dead || seat.ghostVote || (nom?.spentGhosts.includes(seat.id) ?? false);
+  // Each player nominates once a day and can be nominated once a day: who's had theirs.
+  const today = nominationsToday(view);
+  const hasNominated = today.by.has(seat.id);
+  const wasNominated = today.of.has(seat.id);
 
   const onClick = () => {
     if (pick) {
@@ -311,6 +315,20 @@ function SeatSpot({ seat, geo, i }: { seat: SeatView; geo: Geometry; i: number }
           />
         )}
         <span className="seat-name">{seat.label}</span>
+        {(hasNominated || wasNominated) && (
+          <span className="seat-noms">
+            {hasNominated && (
+              <span className="seat-nom by" title="Has nominated today">
+                <Icon name="point" />
+              </span>
+            )}
+            {wasNominated && (
+              <span className="seat-nom of" title="Has been nominated today">
+                <Icon name="point" />
+              </span>
+            )}
+          </span>
+        )}
         {seat.dead && seat.ghostVote && (
           <span className="ghost-vote" title="Has a ghost vote">
             <Icon name="vote" />

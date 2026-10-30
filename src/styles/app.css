@@ -498,6 +498,13 @@ button.my-card:hover {
   font-size: 14px;
   white-space: nowrap;
 }
+/* Nominating for someone who's had theirs today: allowed, but said. */
+.pick-banner .pick-note {
+  font-size: 13px;
+  font-style: normal;
+  color: #ff9aa4;
+  white-space: nowrap;
+}
 @keyframes drop {
   from {
     opacity: 0;
@@ -1121,6 +1128,13 @@ button.my-card:hover {
 .rail-item.rail-nominate:not(:disabled) {
   color: var(--brass-hi);
   box-shadow: inset 0 0 0 1px rgba(240, 212, 143, 0.3);
+}
+/* Not open just now (no meeting, or a vote on for the pigeons): faded, but it still says why when pressed. */
+.rail-item.dim,
+.rail-item.rail-nominate.dim:not(:disabled) {
+  opacity: 0.5;
+  color: var(--text-dim);
+  box-shadow: none;
 }
 /* A laptop's shorter screen: a little tighter, so every button (Nominate and Slayer included) fits without scrolling. */
 @media (max-height: 800px) and (min-width: 701px) {

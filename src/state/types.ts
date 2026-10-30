@@ -50,6 +50,15 @@ export interface Nomination {
   status: NominationStatus;
   countdown: number;
   secondsPerPlayer: number;
+  /** Before the vote: the nominator's accusation, then the nominee's defence, each with the floor for a while. */
+  speech?: NominationSpeech | null;
+}
+
+/** Who has the floor before a vote, and until when (host clock; a player's view has it in their own clock). */
+export interface NominationSpeech {
+  kind: 'accuse' | 'defend';
+  seatId: string;
+  until: number;
 }
 
 /** A player asking to nominate someone. The Storyteller runs nominations, so they start it (or don't). */
@@ -275,6 +284,8 @@ export interface GameState {
   history: VoteRecord[];
   /** Players asking to nominate today, oldest first. */
   nomRequests?: NominationRequest[];
+  /** Seconds each for the accusation and the defence before a vote (0 goes straight to the vote; unset is 30). */
+  speechSecs?: number;
   townHall: TownHall | null;
   execution: Execution | null;
   /** The weather the Storyteller has called for. */

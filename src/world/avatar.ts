@@ -20,6 +20,8 @@ export interface AvatarInfo {
   voting?: boolean;
   /** They own the trophy hat: a little crown by their name. */
   crown?: boolean;
+  /** At a meeting: they've made today's nomination (`by`), or been nominated today (`of`), each once a day. */
+  noms?: { by: boolean; of: boolean };
 }
 
 /** A big cartoon hand, palm out, fingers up, built once and shared. */
@@ -121,6 +123,7 @@ export class AvatarView {
   private nameEl: HTMLSpanElement;
   private roleEl: HTMLSpanElement;
   private badgeEl: HTMLSpanElement;
+  private nomsEl: HTMLSpanElement;
   private earEl: HTMLSpanElement;
   private bubbleEl: HTMLDivElement;
   private shoutEl: HTMLSpanElement;
@@ -183,10 +186,12 @@ export class AvatarView {
     this.nameEl.className = 'tag-name';
     this.badgeEl = document.createElement('span');
     this.badgeEl.className = 'tag-badge';
+    this.nomsEl = document.createElement('span');
+    this.nomsEl.className = 'tag-noms';
     this.shoutEl = document.createElement('span');
     this.shoutEl.className = 'tag-shout';
     this.shoutEl.textContent = '📣 Shouting!';
-    plate.append(voice, this.nameEl, this.earEl, this.badgeEl);
+    plate.append(voice, this.nameEl, this.nomsEl, this.earEl, this.badgeEl);
     this.el.append(this.bubbleEl, this.roleEl, this.shoutEl, plate);
     this.label = new CSS2DObject(this.el);
     this.label.center.set(0.5, 1);
@@ -308,6 +313,17 @@ export class AvatarView {
     } else this.roleEl.className = 'tag-role';
     this.badgeEl.textContent = info.badge ?? '';
     this.badgeEl.classList.toggle('on', Boolean(info.badge));
+    // Today's nominations at a glance: a blue pointing finger for having nominated, a red target for being nominated.
+    const by = Boolean(info.noms?.by);
+    const of = Boolean(info.noms?.of);
+    const key = `${by}${of}`;
+    if (this.nomsEl.dataset.k !== key) {
+      this.nomsEl.dataset.k = key;
+      this.nomsEl.innerHTML = '';
+      if (by) this.nomsEl.append(Object.assign(document.createElement('i'), { className: 'tag-nom by', textContent: '👉', title: 'Has nominated today' }));
+      if (of) this.nomsEl.append(Object.assign(document.createElement('i'), { className: 'tag-nom of', textContent: '🎯', title: 'Has been nominated today' }));
+      this.nomsEl.classList.toggle('on', by || of);
+    }
   }
 
   setTarget(x: number, z: number, ry: number, y = 0) {

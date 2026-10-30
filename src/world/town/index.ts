@@ -94,7 +94,7 @@ export interface TownWorld {
   setSeating(seats: SeatingEntry[]): void;
   setTown(state: TownState, now: number): void;
   /** `mine`: the local player's own stool, ringed in gold while the bell calls them to it. */
-  setMeeting(m: { n: number; nominee: number | null; nominator?: number | null; hand: number | null; active: boolean; votes: number[]; label?: string; mine?: number | null }): void;
+  setMeeting(m: { n: number; nominee: number | null; nominator?: number | null; hand: number | null; active: boolean; votes: number[]; label?: string; mine?: number | null; speaker?: number | null }): void;
   /** The name on each stool round the dais, in grimoire order (`me`: the viewer's own). The stools are always out. */
   setStoolNames(seats: { name: string; dead: boolean; me: boolean }[]): void;
   /** Gravestones for the dead, by seat name. */
@@ -818,6 +818,31 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       const k = (STOOL_R + 0.62) / Math.max(0.01, Math.hypot(dx, dz));
       tag.obj.position.set(MEETING_CENTRE.x + dx * k, 0.05, MEETING_CENTRE.z + dz * k);
     });
+  // Whoever has the floor before a vote (the accusation, then the defence): a soft beam of light down onto their
+  // stool and a pool of light round it. Additive, so black vertices are clear: the beam fades out going up.
+  const BEAM_H = 10;
+  const beamGeo = new THREE.CylinderGeometry(0.5, 1.35, BEAM_H, 32, 6, true);
+  {
+    const pos = beamGeo.attributes.position;
+    const col = new Float32Array(pos.count * 3);
+    const c = new THREE.Color('#fff1c2');
+    for (let i = 0; i < pos.count; i++) {
+      const k = Math.pow(1 - (pos.getY(i) + BEAM_H / 2) / BEAM_H, 2) * 0.16;
+      col.set([c.r * k, c.g * k, c.b * k], i * 3);
+    }
+    beamGeo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  }
+  const glow = { transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide } as const;
+  const floorSpot = new THREE.Group();
+  const beam = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ ...glow, vertexColors: true }));
+  beam.position.y = BEAM_H / 2;
+  const pool = new THREE.Mesh(new THREE.CircleGeometry(1.35, 40), new THREE.MeshBasicMaterial({ ...glow, color: '#ffe9a8', opacity: 0.2 }));
+  pool.rotation.x = -Math.PI / 2;
+  pool.position.y = 0.07;
+  floorSpot.add(beam, pool);
+  floorSpot.name = 'speaker-spot';
+  floorSpot.visible = false;
+  meeting.add(floorSpot);
   let handTarget = 0;
   const signEl = document.createElement('div');
   signEl.className = 'meeting-sign cosy-panel';
@@ -1271,6 +1296,12 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         s.material = m.active && i === m.nominee ? nomineeMat : stoolMat;
       });
       placeStoolTags();
+      const speaker = m.speaker ?? null;
+      floorSpot.visible = speaker !== null && speaker >= 0 && speaker < m.n;
+      if (floorSpot.visible) {
+        const at = meetingSpot(speaker!, m.n);
+        floorSpot.position.set(at.x, 0, at.z);
+      }
       if (!m.active) return;
       const mine = m.mine ?? null;
       mineRing.visible = mine !== null && mine >= 0 && mine < m.n;
@@ -1443,6 +1474,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       // Puddles fill while it rains and dry slowly after; arriving in the rain, they're already there.
       wetK = rainK > 0.5 ? (t < 8 ? 1 : Math.min(1, wetK + dt / 25)) : Math.max(0, wetK - dt / 90);
       glowUniforms.uGlowTime.value = t;
+      if (floorSpot.visible) (pool.material as THREE.MeshBasicMaterial).opacity = 0.2 + 0.06 * Math.sin(t * 2.4);
       if (mineRing.visible) {
         const k = 0.5 + 0.5 * Math.sin(t * 3.2);
         mineRing.scale.setScalar(1 + k * 0.12);

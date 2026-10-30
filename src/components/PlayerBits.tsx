@@ -6,6 +6,7 @@ import { useView } from '../state/view';
 import { Icon, type IconName } from './Icon';
 import { RichText } from './RichText';
 import { nominateButton } from './Nominate';
+import { pigeonBlock } from '../state/host';
 import { slayerButton } from './Slayer';
 import { TeamCounts } from './TeamCounts';
 import { Token } from './Token';
@@ -72,6 +73,7 @@ export function VoteBar() {
   if (locked) note = up ? 'Your vote is in.' : 'The hand has passed you.';
   else if (!canVote) note = 'You have used your ghost vote.';
   else if (myTurn) note = 'The hand is on you. You can still change your mind.';
+  else if (n.speech) note = n.speech.kind === 'accuse' ? 'First the accusation, then the defence, then the vote.' : 'After the defence, the vote.';
   else if (me.dead) note = 'Voting uses your one ghost vote.';
   return (
     <div className={`vote-bar surface ${myTurn ? 'my-turn' : ''}`}>
@@ -124,7 +126,7 @@ export function PlayerRail() {
   const nominate = nominateButton(view);
   const open = (p: Exclude<Panel, null>) => () => ui.togglePanel(p);
   const notesOpen = panel === 'notes' || panel === 'journal';
-  const items: { key: string; icon: IconName; label: string; on?: boolean; disabled?: boolean; action: () => void }[] = [
+  const items: { key: string; icon: IconName; label: string; on?: boolean; disabled?: boolean; dim?: boolean; action: () => void }[] = [
     // Only on phones: on a wider screen the card in the corner is the same thing.
     {
       key: 'me',
@@ -144,14 +146,16 @@ export function PlayerRail() {
       on: notesOpen,
       action: () => useUI.setState({ panel: notesOpen ? null : 'notes' }),
     },
-    // By day, for the living: once a day, for the Storyteller to start.
+    // By day, for the living: once a day, at a town meeting, for the Storyteller to start. (Outside a meeting it
+    // says so when pressed.)
     ...(nominate.show
       ? [
           {
             key: 'nominate',
             icon: 'point' as const,
-            label: nominate.waiting ? 'Waiting…' : nominate.why ? 'Nominated' : 'Nominate',
-            disabled: Boolean(nominate.why && !nominate.waiting),
+            label: nominate.waiting ? 'Waiting…' : nominate.why && !nominate.closed ? 'Nominated' : 'Nominate',
+            disabled: Boolean(nominate.why && !nominate.waiting && !nominate.closed),
+            dim: nominate.closed,
             action: () => ui.open({ kind: 'nominate' }),
           },
         ]
@@ -161,14 +165,22 @@ export function PlayerRail() {
     ...(slayer.show
       ? [{ key: 'slayer', icon: 'dagger' as const, label: slayer.used ? 'Slayer used' : 'Slayer', disabled: slayer.used, action: () => ui.open({ kind: 'slayer' }) }]
       : []),
-    { key: 'pigeon', icon: 'bird', label: 'Pigeon', disabled: view.phase === 'night', action: () => ui.open({ kind: 'pigeon' }) },
+    // (While a nomination is on it stays pressable, to say why the pigeons are staying put.)
+    {
+      key: 'pigeon',
+      icon: 'bird',
+      label: 'Pigeon',
+      disabled: view.phase === 'night',
+      dim: Boolean(pigeonBlock(view)),
+      action: () => ui.open({ kind: 'pigeon' }),
+    },
     { key: 'awards', icon: 'trophy', label: 'Awards', action: () => ui.open({ kind: 'awards' }) },
     // (Settings are in the cog at the top right, with the sound and voice.)
   ];
   return (
     <nav className="player-rail surface" aria-label="Menu">
       {items.map((it) => (
-        <button key={it.key} className={`rail-item rail-${it.key} ${it.on ? 'on' : ''}`} onClick={it.action} disabled={it.disabled} aria-pressed={it.on}>
+        <button key={it.key} className={`rail-item rail-${it.key} ${it.on ? 'on' : ''} ${it.dim ? 'dim' : ''}`} onClick={it.action} disabled={it.disabled} aria-pressed={it.on}>
           <Icon name={it.icon} />
           <span>{it.label}</span>
         </button>

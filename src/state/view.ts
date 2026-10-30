@@ -219,7 +219,10 @@ export function usePlayerView(): View | null {
         };
       }),
       fabled: pub.fabled,
-      nomination: pub.nomination,
+      // (Whoever has the floor before the vote, until when in this browser's clock.)
+      nomination: pub.nomination?.speech
+        ? { ...pub.nomination, speech: { ...pub.nomination.speech, until: pub.nomination.speech.until - (clockOffset ?? 0) } }
+        : pub.nomination,
       marked: pub.marked,
       history: pub.history,
       nomRequests: Array.isArray(priv?.nomRequests) ? priv.nomRequests : [],

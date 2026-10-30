@@ -1,4 +1,4 @@
-import { underway } from '../state/host';
+import { nominationsToday, underway } from '../state/host';
 import { ui, useUI } from '../state/ui';
 import { useView } from '../state/view';
 
@@ -17,9 +17,12 @@ export function PickBanner() {
         : pick.kind === 'move'
           ? `Move ${name(pick.seatId)} to which seat?`
           : `Swap ${name(pick.seatId)}’s character with…`;
+  // The Storyteller can overrule once a day, but is told (the red markers on the tokens show who's been nominated).
+  const again = pick.kind === 'nominee' && pick.nominatorId && nominationsToday(view).by.has(pick.nominatorId);
   return (
     <div className="pick-banner surface" role="status">
       <span>{text}</span>
+      {again && <em className="pick-note">They’ve already nominated today</em>}
       {sides && (
         <label className="check" title="Off: each player keeps their alignment, as with the Barber. On: alignments swap too, as with the Snake Charmer.">
           <input type="checkbox" checked={Boolean(pick.alignments)} onChange={(e) => ui.pick({ ...pick, alignments: e.target.checked })} /> Alignments swap too

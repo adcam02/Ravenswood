@@ -153,6 +153,8 @@ export interface WorldSeat {
   star: boolean;
   /** Letters are waiting in their letterbox. */
   mail: boolean;
+  /** Today they've nominated someone (`by`), or been nominated (`of`): each happens once a day. */
+  noms?: { by: boolean; of: boolean };
 }
 
 /** Everything the 3D world needs from the game, refreshed whenever it changes. */
@@ -744,6 +746,7 @@ export class Engine {
       const alive = v.seats.filter((s) => !s.dead).length;
       const needs = Math.ceil(alive / 2);
       label = `${who(nom.nominatorId)} nominates ${who(nom.nomineeId)} · ${nom.votes.length} ${nom.votes.length === 1 ? 'vote' : 'votes'} · needs ${needs}`;
+      if (nom.speech) label = nom.speech.kind === 'accuse' ? `${who(nom.nominatorId)} accuses ${who(nom.nomineeId)}` : `${who(nom.nomineeId)}’s defence`;
       if (nom.status === 'done') label = `${who(nom.nomineeId)}: ${nom.votes.length} ${nom.votes.length === 1 ? 'vote' : 'votes'}, needs ${needs}`;
     } else if (v.ended) {
       label = v.ended.winner === 'good' ? 'Good wins!' : 'Evil wins!';
@@ -765,6 +768,7 @@ export class Engine {
       hand: handOn ? seatIndex(handOn) : null,
       votes: nom ? nom.votes.map(seatIndex).filter((i) => i >= 0) : [],
       label,
+      speaker: nom?.speech ? seatIndex(nom.speech.seatId) : null,
     });
     // Who sits where round the dais, by the names this viewer calls them.
     this.town.setStoolNames(v.seats.map((s, i) => ({ name: s.name || `Seat ${i + 1}`, dead: s.dead, me: s.id === v.mySeatId })));
@@ -869,7 +873,11 @@ export class Engine {
     const really = s?.really ? getRole(s.really) : undefined;
     let badge: string | null = null;
     if (v.nomination?.nomineeId === key) badge = 'nominated';
+    // Whoever has the floor before the vote.
+    if (v.nomination?.speech?.seatId === key) badge = v.nomination.speech.kind === 'accuse' ? 'accusing' : 'defending';
     if (v.marked?.seatId === key) badge = 'on the block';
+    // Who has nominated and been nominated today, on the name plates at a meeting.
+    const meeting = Boolean(v.townHall || v.nomination);
     return {
       name: s?.name ?? 'Someone',
       look: s?.look ?? null,
@@ -882,6 +890,7 @@ export class Engine {
       star: Boolean(s?.star),
       voting: Boolean(v.nomination && v.nomination.status !== 'done' && v.nomination.votes.includes(key)),
       crown: crowned(s?.name),
+      noms: meeting ? s?.noms : undefined,
     };
   }
 
@@ -3219,6 +3228,9 @@ export class Engine {
 
   private decorating = () => Boolean(useDecor.getState().draft) && zoneKind(local.zone) === 'flat';
 
+  /** How loud each person is to us and we to them, by seat id, as of the last voice sync (for tests and debugging). */
+  gains: Record<string, { gain: number; heard: number }> = {};
+
   private meetCam: { key: string; pos: THREE.Vector3; look: THREE.Vector3 } | null = null;
   private meetProbe = new THREE.PerspectiveCamera();
 
@@ -3279,13 +3291,17 @@ export class Engine {
   private syncVoice(v: WorldView | null) {
     if (!v || v.mode === 'preview' || !this.me) return;
     const meeting = Boolean(v.townHall || (v.nomination && v.nomination.status !== 'done'));
-    const ctx = { meeting, meetingRadius: this.town.meetingRadius, announce: presence.announce };
+    // (Before a vote, whoever has the floor is heard by the whole meeting.)
+    const ctx = { meeting, meetingRadius: this.town.meetingRadius, announce: presence.announce, speaker: v.nomination?.speech?.seatId ?? null };
+    const myKey = v.mode === 'st' ? 'st' : v.mySeatId;
     const list: Listener[] = [];
     let hearing = 0;
+    this.gains = {};
     for (const [key, p] of presence.others) {
-      const gain = earshot(local, p, key === 'st', ctx);
+      const gain = earshot(local, p, key === 'st', ctx, key);
       // And the other way round: who can hear us (not the same when one of us shouts, or the Storyteller speaks to everyone).
-      const heard = earshot(p, local, v.mode === 'st', ctx);
+      const heard = earshot(p, local, v.mode === 'st', ctx, myKey);
+      this.gains[key] = { gain, heard };
       const av = this.others.get(key);
       const near = heard > 0.02;
       av?.setHearing(near);

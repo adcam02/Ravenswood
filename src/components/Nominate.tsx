@@ -11,14 +11,15 @@ import { shownName } from '../state/nicks';
 
 /**
  * Whether this player has a Nominate button: by day once the game is under way, for the living. `why` says why
- * they can't nominate just now (they've had today's), and `waiting` is a request the Storyteller hasn't answered.
+ * they can't nominate just now (they've had today's, or there's no meeting on: `closed`), and `waiting` is a request
+ * the Storyteller hasn't answered.
  */
-export function nominateButton(view: View): { show: boolean; why: string | null; waiting: NominationRequest | null } {
+export function nominateButton(view: View): { show: boolean; why: string | null; waiting: NominationRequest | null; closed: boolean } {
   const me = view.seats.find((s) => s.isMe);
-  if (!me || me.dead || !nominationsOpen(view)) return { show: false, why: null, waiting: null };
+  if (!me || me.dead || !nominationsOpen(view)) return { show: false, why: null, waiting: null, closed: false };
   const block = nominateBlock(view, me.id);
   const waiting = view.nomRequests.find((r) => r.by === me.id && r.status === 'pending') ?? null;
-  return { show: true, why: block ? nominateWhy(block) : null, waiting };
+  return { show: true, why: block ? nominateWhy(block) : null, waiting, closed: block === 'noMeeting' };
 }
 
 const nameIn = (view: View, id: string) => view.seats.find((s) => s.id === id)?.label ?? 'Someone';
@@ -186,8 +187,12 @@ export function NominationPrompt() {
   if (!r || !nominationsOpen(g) || g.slayer.some((x) => x.result === 'pending')) return null;
   const by = shownName(seatName(g, r.by));
   const target = shownName(seatName(g, r.target));
-  const block = nominateBlock(g, r.by, r.target, r.id);
+  // (The Storyteller can start one outside a meeting, so that doesn't count here.)
+  const raw = nominateBlock(g, r.by, r.target, r.id);
+  const block = raw === 'noMeeting' ? null : raw;
   const open = g.nomination && g.nomination.status !== 'done' ? g.nomination : null;
+  // Once a day each way is the rule, but the Storyteller can overrule it.
+  const overrule = !open && (block === 'nominated' || block === 'targetNominated');
   const note =
     block === 'dead'
       ? `${by} has died since, and the dead can’t nominate.`
@@ -215,14 +220,14 @@ export function NominationPrompt() {
         </button>
         <button
           className="btn primary"
-          disabled={Boolean(note)}
+          disabled={Boolean(note) && !overrule}
           onClick={() => {
-            st.startNominationRequest(r.id);
+            st.startNominationRequest(r.id, overrule);
             // The clock and its controls are in the grimoire.
             useUI.setState({ grimoireOpen: true });
           }}
         >
-          <Icon name="vote" /> Start the nomination
+          <Icon name="vote" /> {overrule ? 'Start it anyway' : 'Start the nomination'}
         </button>
       </div>
     </div>

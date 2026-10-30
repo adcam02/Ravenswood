@@ -12,6 +12,7 @@ import { useView, type View } from '../state/view';
 import { Icon } from './Icon';
 import { blockOutlook } from '../lib/block';
 import type { Geometry } from './Square';
+import { SpeechControls } from './Speech';
 
 const NUMERALS = ['XII', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'];
 
@@ -116,9 +117,15 @@ function Nomination() {
         </span>
       </div>
       {!done && blockLine && <div className={`nom-block ${blockLine.state}`}>{blockLine.text}</div>}
+      {n.speech && (
+        <div className="nom-status nom-speech">
+          {n.speech.kind === 'accuse' ? `${name(n.nominatorId)} is making the case` : `${name(n.nomineeId)} is defending themselves`}
+        </div>
+      )}
+      {n.speech && <SpeechControls />}
       {n.status === 'running' && <div className="nom-status">{n.step === 0 ? 'The hand is about to move…' : `The hand is on ${name(handOn)}`}</div>}
       {n.status === 'paused' && <div className="nom-status">Voting paused</div>}
-      {n.status === 'idle' && !isST && <div className="nom-status">Raise your hand to vote. Voting starts soon.</div>}
+      {n.status === 'idle' && !isST && !n.speech && <div className="nom-status">Raise your hand to vote. Voting starts soon.</div>}
       {v && <div className={`nom-verdict ${v.tone}`}>{v.text}</div>}
 
       {isST && (

@@ -6,7 +6,7 @@ import { ambience } from '../lib/ambience';
 import { presence } from '../game/presence';
 import { clientLink, player } from '../net/client';
 import { hostLink } from '../net/host';
-import { DISGUISED, heldRole, st, townAction, useHost } from '../state/host';
+import { DISGUISED, heldRole, nominationsToday, st, townAction, useHost } from '../state/host';
 import { useUI } from '../state/ui';
 import { ViewContext, type View } from '../state/view';
 import { voice } from '../voice/voice';
@@ -23,6 +23,7 @@ function lastWakeOf(g: { wakes: { id: string; to: string[] }[] }) {
 function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', paused: boolean, reading: boolean): WorldView {
   const me = view?.seats.find((s) => s.isMe);
   const dim = mode === 'player' && !me?.look;
+  const today = view ? nominationsToday(view) : null;
   if (!view) {
     return {
       mode: 'preview',
@@ -73,6 +74,7 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
       evil: s.alignment === 'evil',
       star: s.star,
       mail: s.mail,
+      noms: { by: Boolean(today?.by.has(s.id)), of: Boolean(today?.of.has(s.id)) },
     })),
     nomination: view.nomination,
     marked: view.marked,

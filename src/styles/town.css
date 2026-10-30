@@ -166,6 +166,32 @@
 .tag-badge.on {
   display: inline-block;
 }
+/* Today's nominations by the name at a meeting: having nominated (blue), having been nominated (red). */
+.tag-noms {
+  display: none;
+  gap: 2px;
+}
+.tag-noms.on {
+  display: inline-flex;
+}
+.tag-nom {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1;
+}
+.tag-nom.by {
+  background: #cfe0ff;
+  box-shadow: inset 0 0 0 1.5px #3d6fd1;
+}
+.tag-nom.of {
+  background: #ffd9d9;
+  box-shadow: inset 0 0 0 1.5px #c8323c;
+}
 .tag-role {
   display: none;
   align-items: center;
@@ -740,6 +766,109 @@
 .meeting-votes svg {
   width: 18px;
   height: 18px;
+}
+
+/* Before a vote: who has the floor (the accusation, then the defence) and the time they have left. */
+.speech-banner {
+  position: absolute;
+  left: 50%;
+  top: 70px;
+  z-index: 26;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 9px 12px 9px 10px;
+  animation: bell-in 0.4s var(--ease-spring);
+}
+.speech-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  flex: none;
+  color: #fff;
+  background: #3d6fd1;
+}
+.speech-banner.defend .speech-icon {
+  background: #c8323c;
+}
+.speech-icon svg {
+  width: 24px;
+  height: 24px;
+}
+.speech-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.speech-text strong {
+  font-size: 19px;
+  line-height: 1.2;
+}
+.speech-text > span {
+  font-size: 13px;
+  color: var(--cosy-ink-soft);
+}
+.speech-clock {
+  display: inline-block;
+  min-width: 2.6em;
+  margin-left: 6px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(60, 40, 20, 0.1);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.speech-banner.ending .speech-clock {
+  background: #c8323c;
+  color: #fff;
+}
+/* A player's vote bar sits at the top during a nomination: the banner goes just under it. */
+.app:has(.vote-bar) .speech-banner {
+  top: 144px;
+}
+/* It's you: a warm glow round the banner. */
+.speech-banner.mine {
+  box-shadow: 0 0 0 4px rgba(255, 214, 110, 0.65), 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+.speech-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.speech-banner .speech-controls {
+  flex: none;
+  max-width: 240px;
+}
+.nomination .speech-controls {
+  justify-content: center;
+  margin: 4px 0 2px;
+}
+.speech-lengths {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+@media (max-width: 560px) {
+  .speech-banner {
+    top: 62px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .speech-text strong {
+    font-size: 16px;
+  }
+  .app:has(.vote-bar) .speech-banner {
+    top: 136px;
+  }
+  .speech-banner .speech-controls {
+    max-width: none;
+    justify-content: center;
+  }
 }
 
 /* Nominating from your stool, and a nomination waiting on the Storyteller (above "Take your seat" if that's up). */
@@ -1976,6 +2105,26 @@
 /* The Drunk's real character, small, on the corner of the Townsfolk token they hold. */
 .mini-seat .mini-secret .token {
   --size: 15px;
+}
+/* Today's nominations: a blue dot for having nominated, a red one for having been nominated. */
+.mini-noms {
+  position: absolute;
+  bottom: 14px;
+  right: 0;
+  display: flex;
+  gap: 1px;
+}
+.mini-noms i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+}
+.mini-noms .by {
+  background: #5b8cff;
+}
+.mini-noms .of {
+  background: #ff5a63;
 }
 .mini-star {
   position: absolute;
