@@ -694,7 +694,8 @@ function stopSpeech() {
 function runSpeech() {
   stopSpeech();
   const sp = hostGame().nomination?.speech;
-  if (!sp) return;
+  // (Open discussion has no time limit: the Storyteller starts the vote.)
+  if (!sp || sp.kind === 'discuss') return;
   speechClock = setTimeout(() => {
     speechClock = null;
     const now = hostGame().nomination?.speech;
@@ -1211,30 +1212,37 @@ export const st = {
     });
     runSpeech();
   },
-  /** The floor moves on: from the accusation to the defence, or from the defence to the vote (its countdown). */
+  /**
+   * The talking stick moves on: from the accuser to the nominee for their defence, then to open discussion, and from
+   * there (the Storyteller's call) to the vote's countdown.
+   */
   nextSpeech() {
     const sp = hostGame().nomination?.speech;
     if (!sp) return;
-    if (sp.kind === 'defend') return st.countdown();
+    if (sp.kind === 'discuss') return st.countdown();
     update((g) => {
       const n = g.nomination;
-      if (n?.speech) n.speech = { kind: 'defend', seatId: n.nomineeId, until: Date.now() + speechSecs(g) * 1000 };
+      if (!n?.speech) return;
+      n.speech =
+        n.speech.kind === 'accuse'
+          ? { kind: 'defend', seatId: n.nomineeId, until: Date.now() + speechSecs(g) * 1000 }
+          : { kind: 'discuss', seatId: n.nomineeId, until: 0 };
     });
     runSpeech();
   },
-  /** Straight to the vote, skipping what's left of the accusation and the defence. */
+  /** Straight to the vote, from any stage before it. */
   skipSpeeches() {
     if (hostGame().nomination?.speech) st.countdown();
   },
-  /** More time (or less) for whoever has the floor. */
+  /** More time (or less) for whoever has the talking stick. */
   speechTime(secs: number) {
     update((g) => {
       const sp = g.nomination?.speech;
-      if (sp) sp.until = Math.max(Date.now() + 3000, sp.until + secs * 1000);
+      if (sp && sp.kind !== 'discuss') sp.until = Math.max(Date.now() + 3000, sp.until + secs * 1000);
     });
     runSpeech();
   },
-  /** How long the accusation and the defence each last before a vote (0 turns them off). */
+  /** How long the accusation and the defence each last at most before a vote (0 turns all the stages off). */
   setSpeechSecs(secs: number) {
     update((g) => void (g.speechSecs = Math.max(0, Math.min(120, Math.round(secs)))));
   },
@@ -1578,6 +1586,13 @@ export const st = {
         g.nomRequests = [...(g.nomRequests ?? []), request].slice(-40);
       });
       return null;
+    },
+    /** The one holding the talking stick has finished: it passes on (to the defence, or to open discussion). */
+    speechDone(playerId: string) {
+      const g = hostGame();
+      const s = g.seats.find((x) => x.playerId === playerId);
+      const sp = g.nomination?.speech;
+      if (s && sp && sp.kind !== 'discuss' && sp.seatId === s.id) st.nextSpeech();
     },
     /** Takes back a request to nominate that the Storyteller hasn't answered yet. */
     withdrawNomination(playerId: string, id: string) {

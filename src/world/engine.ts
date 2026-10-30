@@ -746,7 +746,14 @@ export class Engine {
       const alive = v.seats.filter((s) => !s.dead).length;
       const needs = Math.ceil(alive / 2);
       label = `${who(nom.nominatorId)} nominates ${who(nom.nomineeId)} · ${nom.votes.length} ${nom.votes.length === 1 ? 'vote' : 'votes'} · needs ${needs}`;
-      if (nom.speech) label = nom.speech.kind === 'accuse' ? `${who(nom.nominatorId)} accuses ${who(nom.nomineeId)}` : `${who(nom.nomineeId)}’s defence`;
+      if (nom.speech) {
+        label =
+          nom.speech.kind === 'accuse'
+            ? `${who(nom.nominatorId)} accuses ${who(nom.nomineeId)}`
+            : nom.speech.kind === 'defend'
+              ? `${who(nom.nomineeId)}’s defence`
+              : `Open discussion · ${who(nom.nomineeId)}`;
+      }
       if (nom.status === 'done') label = `${who(nom.nomineeId)}: ${nom.votes.length} ${nom.votes.length === 1 ? 'vote' : 'votes'}, needs ${needs}`;
     } else if (v.ended) {
       label = v.ended.winner === 'good' ? 'Good wins!' : 'Evil wins!';
@@ -768,7 +775,7 @@ export class Engine {
       hand: handOn ? seatIndex(handOn) : null,
       votes: nom ? nom.votes.map(seatIndex).filter((i) => i >= 0) : [],
       label,
-      speaker: nom?.speech ? seatIndex(nom.speech.seatId) : null,
+      speaker: nom?.speech && nom.speech.kind !== 'discuss' ? seatIndex(nom.speech.seatId) : null,
     });
     // Who sits where round the dais, by the names this viewer calls them.
     this.town.setStoolNames(v.seats.map((s, i) => ({ name: s.name || `Seat ${i + 1}`, dead: s.dead, me: s.id === v.mySeatId })));
@@ -873,8 +880,9 @@ export class Engine {
     const really = s?.really ? getRole(s.really) : undefined;
     let badge: string | null = null;
     if (v.nomination?.nomineeId === key) badge = 'nominated';
-    // Whoever has the floor before the vote.
-    if (v.nomination?.speech?.seatId === key) badge = v.nomination.speech.kind === 'accuse' ? 'accusing' : 'defending';
+    // Whoever holds the talking stick before the vote.
+    const sp = v.nomination?.speech;
+    if (sp && sp.kind !== 'discuss' && sp.seatId === key) badge = sp.kind === 'accuse' ? '🎤 accusing' : '🎤 defending';
     if (v.marked?.seatId === key) badge = 'on the block';
     // Who has nominated and been nominated today, on the name plates at a meeting.
     const meeting = Boolean(v.townHall || v.nomination);
@@ -3291,8 +3299,9 @@ export class Engine {
   private syncVoice(v: WorldView | null) {
     if (!v || v.mode === 'preview' || !this.me) return;
     const meeting = Boolean(v.townHall || (v.nomination && v.nomination.status !== 'done'));
-    // (Before a vote, whoever has the floor is heard by the whole meeting.)
-    const ctx = { meeting, meetingRadius: this.town.meetingRadius, announce: presence.announce, speaker: v.nomination?.speech?.seatId ?? null };
+    // (Before a vote, whoever holds the talking stick is heard by the whole meeting, and nobody else.)
+    const sp = v.nomination?.speech;
+    const ctx = { meeting, meetingRadius: this.town.meetingRadius, announce: presence.announce, speaker: sp && sp.kind !== 'discuss' ? sp.seatId : null };
     const myKey = v.mode === 'st' ? 'st' : v.mySeatId;
     const list: Listener[] = [];
     let hearing = 0;

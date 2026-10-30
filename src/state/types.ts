@@ -50,13 +50,19 @@ export interface Nomination {
   status: NominationStatus;
   countdown: number;
   secondsPerPlayer: number;
-  /** Before the vote: the nominator's accusation, then the nominee's defence, each with the floor for a while. */
+  /**
+   * Before the vote: the nominator's accusation, then the nominee's defence (each holding the talking stick for a
+   * while), then open discussion until the Storyteller starts the vote.
+   */
   speech?: NominationSpeech | null;
 }
 
-/** Who has the floor before a vote, and until when (host clock; a player's view has it in their own clock). */
+/**
+ * Who has the talking stick before a vote, and until when (host clock; a player's view has it in their own clock).
+ * In open discussion nobody has it ('discuss': `seatId` is the nominee's, and there's no time limit, `until` 0).
+ */
 export interface NominationSpeech {
-  kind: 'accuse' | 'defend';
+  kind: 'accuse' | 'defend' | 'discuss';
   seatId: string;
   until: number;
 }
@@ -664,6 +670,8 @@ export type ClientMessage =
   | { t: 'give'; to: string; item: Item }
   /** Claim to be the Slayer and choose this seat. */
   | { t: 'slay'; seatId: string }
+  /** The one holding the talking stick before a vote is done speaking: it passes on. */
+  | { t: 'speechDone' }
   /** Ask the Storyteller to start a nomination of this seat, or take back a request still waiting. */
   | { t: 'nominate'; seatId: string }
   | { t: 'withdrawNomination'; id: string }

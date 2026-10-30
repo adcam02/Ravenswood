@@ -91,7 +91,7 @@ function Nomination() {
           : { state: 'locked', text: `${onBlock.label}’s execution can’t be stopped by this vote.` }
       : null;
   const handOn = n.step === 0 ? n.nomineeId : n.order[n.step - 1];
-  const speechLeft = useSecondsLeft(n.speech?.until ?? null);
+  const speechLeft = useSecondsLeft(n.speech && n.speech.kind !== 'discuss' ? n.speech.until : null);
 
   return (
     <div className="nomination">
@@ -120,7 +120,9 @@ function Nomination() {
       {!done && blockLine && <div className={`nom-block ${blockLine.state}`}>{blockLine.text}</div>}
       {n.speech && (
         <div className="nom-status nom-speech">
-          {n.speech.kind === 'accuse' ? `${name(n.nominatorId)} is making the case` : `${name(n.nomineeId)} is defending themselves`} · {clock(speechLeft)}
+          {n.speech.kind === 'discuss'
+            ? 'Open discussion'
+            : `${n.speech.kind === 'accuse' ? `${name(n.nominatorId)} is making the case` : `${name(n.nomineeId)} is defending themselves`} · ${clock(speechLeft)}`}
         </div>
       )}
       {n.speech && <SpeechControls />}

@@ -15,12 +15,12 @@ export interface EarshotContext {
   meetingRadius: number;
   /** The Storyteller is speaking to the whole town. */
   announce: boolean;
-  /** Before a vote, the seat with the floor (the accusation, then the defence): everyone at the meeting hears them. */
+  /**
+   * Before a vote, the seat holding the talking stick (the accuser, then the nominee): everyone at the meeting hears
+   * them, and no other player is heard at all.
+   */
   speaker?: string | null;
 }
-
-/** How loud everyone else at the meeting is while someone has the floor: a murmur, so the speaker is heard. */
-export const HUSH = 0.12;
 
 const atMeeting = (p: PoseState, r: number) => p.zone === 'town' && Math.hypot(p.x, p.z) < r;
 
@@ -30,11 +30,13 @@ const atMeeting = (p: PoseState, r: number) => p.zone === 'town' && Math.hypot(p
  */
 export function earshot(me: PoseState, other: PoseState, otherIsStoryteller: boolean, ctx: EarshotContext, otherKey?: string | null): number {
   if (otherIsStoryteller && ctx.announce) return 1;
-  // The accusation or the defence: the speaker is heard clearly by everyone at the meeting (like the Storyteller
-  // speaking to the town), and everyone else there drops to a murmur for each other. The Storyteller isn't hushed.
-  if (ctx.speaker && ctx.meeting && atMeeting(me, ctx.meetingRadius)) {
-    if (otherKey === ctx.speaker) return 1;
-    if (!otherIsStoryteller && atMeeting(other, ctx.meetingRadius)) return HUSH;
+  // The talking stick (the accusation, then the defence): whoever holds it is heard clearly by everyone at the
+  // meeting (like the Storyteller speaking to the town), and every other player is muted to everyone. Never the
+  // Storyteller.
+  if (ctx.speaker && ctx.meeting) {
+    if (otherKey === ctx.speaker) {
+      if (atMeeting(me, ctx.meetingRadius)) return 1;
+    } else if (!otherIsStoryteller) return 0;
   }
   if (me.zone !== other.zone) return 0;
   // A confession booth: the two inside hear each other clearly, and nobody else, either way.

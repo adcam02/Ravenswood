@@ -796,6 +796,17 @@
 .speech-banner.defend .speech-icon {
   background: #c8323c;
 }
+.speech-banner.discuss .speech-icon {
+  background: #3f9a5c;
+}
+/* The talking stick. */
+.speech-icon {
+  font-size: 22px;
+}
+/* Passing the talking stick on early. */
+.speech-banner .speech-done {
+  flex: none;
+}
 .speech-icon svg {
   width: 24px;
   height: 24px;

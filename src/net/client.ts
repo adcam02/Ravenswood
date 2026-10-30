@@ -435,6 +435,8 @@ export const player = {
   /** Ask the Storyteller to start a nomination of this seat (or take back one still waiting). */
   nominate: (seatId: string) => clientLink.send({ t: 'nominate', seatId }),
   withdrawNomination: (id: string) => clientLink.send({ t: 'withdrawNomination', id }),
+  /** Done speaking with the talking stick: pass it on. */
+  speechDone: () => clientLink.send({ t: 'speechDone' }),
   /** A vote on how today's execution goes. */
   method: (m: ExecMethod) => clientLink.send({ t: 'method', m }),
   /** Send a messenger pigeon to someone, saying where we are. */

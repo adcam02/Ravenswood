@@ -160,18 +160,22 @@ export function VoiceDock() {
   else if (v.mic === 'denied') label = 'Mic blocked';
   else if (v.mic === 'error') label = 'No mic: try again';
   else if (v.mic === 'on') label = v.muted ? 'Muted' : v.pushToTalk ? (v.holding || v.shouting ? 'Talking' : 'Hold V to talk') : 'Mic on';
+  // Someone else holds the talking stick before a vote: nobody hears us until it's passed on.
+  const sp = view.nomination?.speech;
+  const stick = view.mode === 'player' && sp && sp.kind !== 'discuss' && sp.seatId !== view.mySeatId ? (view.seats.find((s) => s.id === sp.seatId)?.label ?? 'Someone') : null;
+  if (stick && v.mic === 'on') label = `Muted: ${stick} has the talking stick`;
 
   return (
     <div className="voice-dock" ref={wrap}>
       <button
-        className={`voice-main cosy-btn ${live ? 'live' : ''} ${talking ? 'talking' : ''} ${v.mic === 'on' && v.muted ? 'muted' : ''}`}
+        className={`voice-main cosy-btn ${live && !stick ? 'live' : ''} ${talking && !stick ? 'talking' : ''} ${v.mic === 'on' && (v.muted || stick) ? 'muted' : ''}`}
         onClick={() => {
           if (v.mic !== 'on') void voice.enableMic();
           else voice.setMuted(!v.muted);
         }}
         title={v.mic === 'on' ? 'Mute or unmute (M)' : 'Turn on your microphone'}
       >
-        <Icon name={v.mic === 'on' && !v.muted ? 'mic' : 'micOff'} />
+        <Icon name={v.mic === 'on' && !v.muted && !stick ? 'mic' : 'micOff'} />
         <span>{label}</span>
       </button>
       {view.mode === 'player' && <ShoutButton />}

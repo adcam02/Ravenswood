@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { player } from '../net/client';
 import { speechSecs, st, useHost } from '../state/host';
 import { useUI } from '../state/ui';
 import { useView } from '../state/view';
@@ -18,61 +19,79 @@ export function useSecondsLeft(until: number | null): number {
   return until === null ? 0 : Math.max(0, Math.ceil((until - Date.now()) / 1000));
 }
 
-/** The Storyteller's say over the speeches: more time, on to the next one, or straight to the vote. */
+/** The Storyteller's say over the stages: more time, on to the next one, or straight to the vote. */
 export function SpeechControls({ cosy = false }: { cosy?: boolean }) {
   const view = useView();
   const sp = view.nomination?.speech;
   if (view.mode !== 'st' || !sp) return null;
   // The grimoire's own buttons on the clock; the town's cosy ones on the banner.
   const b = (kind: string) => (cosy ? `cosy-btn small ${kind === 'go' ? 'primary' : ''}` : `btn small ${kind === 'go' ? 'sapphire' : kind === 'more' ? 'quiet' : ''}`);
+  // Open discussion goes on until the Storyteller starts the vote.
+  if (sp.kind === 'discuss') {
+    return (
+      <div className="speech-controls">
+        <button className={b('go')} onClick={st.nextSpeech}>
+          Start the vote
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="speech-controls">
       <button className={b('more')} onClick={() => st.speechTime(15)} title="Give them 15 more seconds">
         +15s
       </button>
       <button className={b('next')} onClick={st.nextSpeech}>
-        {sp.kind === 'accuse' ? 'On to the defence' : 'Start the vote'}
+        {sp.kind === 'accuse' ? 'On to the defence' : 'On to discussion'}
       </button>
-      {sp.kind === 'accuse' && (
-        <button className={b('go')} onClick={st.skipSpeeches}>
-          Straight to the vote
-        </button>
-      )}
+      <button className={b('go')} onClick={st.skipSpeeches}>
+        Straight to the vote
+      </button>
     </div>
   );
 }
 
 /**
- * Before a vote, for everyone: who has the floor (the nominator's accusation, then the nominee's defence) and how
- * long they have left. Everyone at the meeting hears them clearly while the rest are hushed.
+ * Before a vote, for everyone: who holds the talking stick (the nominator's accusation, then the nominee's defence)
+ * and how long they have at most, then open discussion until the Storyteller starts the vote. Whoever holds the stick
+ * is heard by the whole meeting and every other player is muted; they can pass it on early.
  */
 export function SpeechBanner() {
   const view = useView();
   const n = view.nomination;
   const sp = n?.speech ?? null;
-  const left = useSecondsLeft(sp?.until ?? null);
+  const left = useSecondsLeft(sp && sp.kind !== 'discuss' ? sp.until : null);
   // (In the grimoire the clock in the middle says it all, with the same buttons.)
   const grimoire = useUI((s) => s.grimoireOpen) && view.mode === 'st';
   if (!n || !sp || grimoire) return null;
   const name = (id: string | null) => view.seats.find((s) => s.id === id)?.label ?? 'Someone';
-  const mine = view.seats.find((s) => s.id === sp.seatId)?.isMe;
-  const title = sp.kind === 'accuse' ? `${name(n.nominatorId)} accuses ${name(n.nomineeId)}` : `${name(n.nomineeId)}’s defence`;
-  const note = mine
-    ? 'You have the floor: everyone at the meeting can hear you, and the others are hushed.'
-    : sp.kind === 'accuse'
-      ? `Then ${name(n.nomineeId)} defends themselves, then the vote.`
-      : 'Then the vote.';
+  const open = sp.kind === 'discuss';
+  const mine = !open && view.seats.find((s) => s.id === sp.seatId)?.isMe;
+  const title = sp.kind === 'accuse' ? `${name(n.nominatorId)} accuses ${name(n.nomineeId)}` : sp.kind === 'defend' ? `${name(n.nomineeId)}’s defence` : 'Open discussion';
+  const holder = name(sp.seatId);
+  const note = open
+    ? `Everyone can talk about ${name(n.nomineeId)}. The Storyteller starts the vote when you’re ready.`
+    : mine
+      ? 'You have the talking stick: everyone at the meeting hears you, and everyone else is muted.'
+      : view.mode === 'st'
+        ? `${holder} has the talking stick: the players are muted (you aren’t).`
+        : `You’re muted: ${holder} has the talking stick.`;
   return (
-    <div className={`speech-banner cosy-panel ${sp.kind} ${mine ? 'mine' : ''} ${left <= 5 ? 'ending' : ''}`} role="status" aria-live="polite">
+    <div className={`speech-banner cosy-panel ${sp.kind} ${mine ? 'mine' : ''} ${!open && left <= 5 ? 'ending' : ''}`} role="status" aria-live="polite">
       <span className="speech-icon" aria-hidden="true">
-        <Icon name={sp.kind === 'accuse' ? 'point' : 'megaphone'} />
+        {open ? <Icon name="users" /> : '🎤'}
       </span>
       <span className="speech-text">
         <strong>
-          {title} <span className="speech-clock">{clock(left)}</span>
+          {title} {!open && <span className="speech-clock">{clock(left)}</span>}
         </strong>
         <span>{note}</span>
       </span>
+      {mine && (
+        <button className="cosy-btn small primary speech-done" onClick={() => player.speechDone()} title="Pass the talking stick on">
+          I’m done
+        </button>
+      )}
       <SpeechControls cosy />
     </div>
   );
@@ -85,7 +104,10 @@ export function SpeechSetting() {
     <div className="setting">
       <div>
         <strong>Accusation and defence</strong>
-        <span>Before each vote the nominator makes their case, then the nominee defends themselves, each heard by the whole meeting</span>
+        <span>
+          Before each vote the nominator, then the nominee, holds the talking stick for up to this long (everyone else is muted), then
+          open discussion until you start the vote. Off goes straight to the vote.
+        </span>
       </div>
       <div className="speech-lengths">
         {[0, 15, 30, 45, 60].map((n) => (

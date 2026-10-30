@@ -73,7 +73,9 @@ export function VoteBar() {
   if (locked) note = up ? 'Your vote is in.' : 'The hand has passed you.';
   else if (!canVote) note = 'You have used your ghost vote.';
   else if (myTurn) note = 'The hand is on you. You can still change your mind.';
-  else if (n.speech) note = n.speech.kind === 'accuse' ? 'First the accusation, then the defence, then the vote.' : 'After the defence, the vote.';
+  else if (n.speech) {
+    note = n.speech.kind === 'accuse' ? 'The accusation, the defence, a discussion, then the vote.' : n.speech.kind === 'defend' ? 'After the defence, a discussion, then the vote.' : 'Talk it over. The vote is next.';
+  }
   else if (me.dead) note = 'Voting uses your one ghost vote.';
   return (
     <div className={`vote-bar surface ${myTurn ? 'my-turn' : ''}`}>

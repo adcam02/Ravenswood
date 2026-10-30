@@ -430,6 +430,9 @@ class HostLink {
       case 'withdrawNomination':
         p.withdrawNomination(pid, String(msg.id ?? ''));
         break;
+      case 'speechDone':
+        p.speechDone(pid);
+        break;
       case 'method':
         p.method(pid, msg.m);
         break;
