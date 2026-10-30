@@ -597,14 +597,14 @@ function plateLines(view: CasinoView, table: SeatTable): Plate[] {
 }
 
 /**
- * Where a seat's plate stands (its bottom edge): just above the table's edge in front of them, below their face and
- * clear of their cards. (Across the poker table it's kept low, to stay in the seat's view.)
+ * Where a seat's plate goes, in front of them and below their face: across the poker table, hanging from the table's
+ * edge over the felt (`hang`); beside us at the others, standing just above the edge.
  */
-function plateSpot(table: SeatTable, i: number): { x: number; y: number; z: number } {
-  if (table === 'poker') return { ...pkAround(i, 0.05), y: TOP + 0.1 };
-  if (table === 'blackjack') return { ...bjSpot(i, 1.78), y: TOP + 0.3 };
+function plateSpot(table: SeatTable, i: number): { x: number; y: number; z: number; hang: boolean } {
+  if (table === 'poker') return { ...pkAround(i, 0.05), y: TOP + 0.08, hang: true };
+  if (table === 'blackjack') return { ...bjSpot(i, 1.78), y: TOP + 0.3, hang: false };
   const s = rlSeat(i);
-  return { x: s.x - Math.sin(s.ry) * 0.38, y: TOP + 0.3, z: s.z - Math.cos(s.ry) * 0.38 };
+  return { x: s.x - Math.sin(s.ry) * 0.38, y: TOP + 0.3, z: s.z - Math.cos(s.ry) * 0.38, hang: false };
 }
 
 /** The plates round each table, shown only while we're sitting at it. */
@@ -616,8 +616,8 @@ function makePlates(group: THREE.Group) {
       const el = document.createElement('div');
       el.className = 'seat-plate';
       const obj = new CSS2DObject(el);
-      obj.center.set(0.5, 1);
       const at = plateSpot(table, i);
+      obj.center.set(0.5, at.hang ? 0 : 1);
       obj.position.set(at.x, at.y, at.z);
       obj.visible = false;
       group.add(obj);
