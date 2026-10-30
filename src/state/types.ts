@@ -612,8 +612,8 @@ export type HostMessage =
   | { t: 'ideaIn'; ok: boolean }
   /** Whether the pigeon just sent took off (they only fly by day, and need a rest between flights). */
   | { t: 'pigeoned'; ok: boolean; why?: string }
-  /** `at` is the ping's own time, sent back so the player can tell how long the round trip took. */
-  | { t: 'pong'; at?: number }
+  /** `at` is the ping's own time, sent back so the player can tell how long the round trip took; `now` is the host's. */
+  | { t: 'pong'; at?: number; now?: number }
   | { t: 'host' }
   | { t: 'error'; message: string }
   /** A copy of the Storyteller's book of profiles, for this browser to keep in case theirs is lost. */

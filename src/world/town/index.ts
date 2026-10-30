@@ -1405,7 +1405,8 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         const bar = Math.floor(beat / 4);
         const n = clubBeat.colors.length;
         for (let i = 0; i < 2; i++) {
-          lamps[i].color.copy(clubBeat.colors[(bar + i) % n]);
+          // (A song that, by this browser's clock, starts a moment from now counts its bars from below zero.)
+          lamps[i].color.copy(clubBeat.colors[(((bar + i) % n) + n) % n]);
           lampSpecs[i] = { base: 10 + 10 * pulse, flicker: false };
         }
       }

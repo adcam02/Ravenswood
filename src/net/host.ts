@@ -336,7 +336,8 @@ class HostLink {
     if (!meta || !msg || typeof msg !== 'object') return;
     meta.lastSeen = Date.now();
     if (msg.t === 'ping') {
-      link.send({ t: 'pong', at: typeof msg.at === 'number' ? msg.at : undefined });
+      // (With our clock, so a player can tell how far theirs is from ours.)
+      link.send({ t: 'pong', at: typeof msg.at === 'number' ? msg.at : undefined, now: Date.now() });
       if (meta.playerId && typeof msg.rtt === 'number' && Number.isFinite(msg.rtt)) {
         meta.rtt = msg.rtt;
         this.noteSpeed(meta.playerId, msg.rtt);

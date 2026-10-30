@@ -295,11 +295,31 @@ class ClientLink {
     if (s.slow !== slow || s.rtt !== rtt) useClient.setState({ slow, rtt });
   }
 
+  /** The host's clock less ours, sampled from each state message (when it was sent, by the host's clock). */
+  private offsets: { at: number; off: number }[] = [];
+  /** The same from the pings' answers, with how long each took there and back. */
+  private pinged: { at: number; rtt: number; off: number }[] = [];
+  /**
+   * Where the host's clock is, against ours. Best from the quickest ping of the last couple of minutes (out by at
+   * most half its time there and back). From a host too old to say, the state messages: each is short by however
+   * long it took to come, so the biggest of the last minute's is the one that came quickest.
+   */
+  private offsetFrom(sent: number): number {
+    const now = Date.now();
+    this.pinged = this.pinged.filter((x) => now - x.at < 120000);
+    if (this.pinged.length) return Math.round(this.pinged.reduce((a, b) => (b.rtt < a.rtt ? b : a)).off);
+    this.offsets = this.offsets.filter((x) => now - x.at < 60000);
+    this.offsets.push({ at: now, off: sent - now });
+    return Math.max(...this.offsets.map((x) => x.off));
+  }
+
   private receive(msg: HostMessage) {
     if (msg.t === 'pong') {
       if (typeof msg.at === 'number') {
         const sample = Date.now() - msg.at;
         if (sample >= 0 && sample < 60000) this.rtt = this.rtt === null ? sample : this.rtt * 0.7 + sample * 0.3;
+        // The host's clock as it answered, against ours halfway there and back.
+        if (typeof msg.now === 'number' && sample >= 0 && sample < 60000) this.pinged.push({ at: Date.now(), rtt: sample, off: msg.now - (msg.at + sample / 2) });
         this.judgeSpeed();
       }
       return;
@@ -308,7 +328,7 @@ class ClientLink {
       setCustomRoles(msg.s.script.custom);
       useClient.setState({
         pub: msg.s,
-        clockOffset: msg.now ? msg.now - Date.now() : useClient.getState().clockOffset,
+        clockOffset: msg.now ? this.offsetFrom(msg.now) : useClient.getState().clockOffset,
         hostOutdated: !msg.v || msg.v < __BUILD__,
       });
       this.checkJoined();
