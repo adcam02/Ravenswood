@@ -434,6 +434,8 @@ export class Engine {
   /** Sitting at a card table in the casino: the seat's-eye camera. */
   private tableCam: TableCam | null = null;
   private tableKind: TableKind = 'poker';
+  /** Everyone else at the table we're sitting at (their plates on the table name them, so their tags are hidden). */
+  private tablemates = new Set<string>();
   private hidSelf = false;
   private signs: { station: Pick<Station, 'zone' | 'x' | 'z'> & { job?: Station['job'] }; el: HTMLDivElement; obj: CSS2DObject }[] = [];
   private wellTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1849,8 +1851,16 @@ export class Engine {
     } else if (atTable && !this.tableCam) useHud.setState({ casino: null });
     if (at?.kind === 'shop' && !at.away && zoneKind(local.zone) !== 'casino') useHud.setState({ casino: null });
     if (zoneKind(local.zone) === 'casino' && v && v.mode !== 'preview') this.town.setCasino(casinoNow(v.mode), v.mode === 'st' ? 0 : hostNow() - Date.now());
-    // From a seat at a card table, everyone else round it gets a plate saying who they are.
-    this.town.setCasinoSeat(this.tableCam && this.tableKind !== 'slots' ? this.tableKind : null);
+    // From a seat at a card table, everyone else round it gets a plate saying who they are (in place of their name
+    // tag, which would sit just above it).
+    const plated = this.tableCam && this.tableKind !== 'slots' ? this.tableKind : null;
+    this.town.setCasinoSeat(plated);
+    this.tablemates.clear();
+    const cv = plated && v && v.mode !== 'preview' ? casinoNow(v.mode) : null;
+    if (cv && plated) {
+      const names = (plated === 'blackjack' ? cv.bj : plated === 'poker' ? cv.pk.seats : cv.rl.seats).filter((s) => s && !s.mine).map((s) => s!.name);
+      for (const s of v?.seats ?? []) if (names.includes(s.real ?? s.name)) this.tablemates.add(s.id);
+    }
   }
 
   private finishJob(result: unknown) {
@@ -3242,7 +3252,7 @@ export class Engine {
       const hidden = inBooth(p.zone, p.x, p.z) && v.mode !== 'st';
       // A prestige hat's glow would give away who's in the booth, and gets in the way of an execution.
       av.setHatFxShown(!hidden && this.show?.seatId !== key);
-      av.setTagShown(!dangle?.hidden && !hidden && (v.mode === 'st' || key === 'st' || far < TAG_FAR || p.speaking || Boolean(p.shout)));
+      av.setTagShown(!dangle?.hidden && !hidden && !this.tablemates.has(key) && (v.mode === 'st' || key === 'st' || far < TAG_FAR || p.speaking || Boolean(p.shout)));
       av.setVoiceState(Boolean(p.muted), Boolean(p.shout));
       av.update(dt, t, anim, p.speaking, true);
       const jolt = this.visit && !this.visit.mine && this.visit.seatId === key ? this.victimPose : null;
@@ -3268,7 +3278,9 @@ export class Engine {
     const kind = zoneKind(zone);
     const want = anim === 'sleep' ? 'sleep' : 'sit';
     for (const s of this.town.stations) {
-      if (s.zone === kind && (s.job === want || (want === 'sit' && s.job === 'confess')) && Math.hypot(s.stand.x - x, s.stand.z - z) < 0.6) return s.y ?? 0.45;
+      // (The casino's chairs and stools count too: someone at a table sits up at it, not on the floor under it.)
+      const seat = want === 'sit' && (s.job === 'confess' || s.job === 'blackjack' || s.job === 'poker' || s.job === 'roulette' || s.job === 'slots');
+      if (s.zone === kind && (s.job === want || seat) && Math.hypot(s.stand.x - x, s.stand.z - z) < 0.6) return s.y ?? 0.45;
     }
     const v = this.view;
     if (kind === 'town' && v && (v.nomination || v.townHall)) {
