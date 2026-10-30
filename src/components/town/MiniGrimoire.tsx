@@ -1,5 +1,5 @@
 import { disguise, heldRole, nominationsToday } from '../../state/host';
-import { useUI } from '../../state/ui';
+import { ui, useUI } from '../../state/ui';
 import { useView } from '../../state/view';
 import { Icon } from '../Icon';
 import { TeamCounts } from '../TeamCounts';
@@ -70,6 +70,40 @@ export function MiniGrimoire() {
           );
         })}
         {n === 0 && <span className="mini-empty">No seats yet</span>}
+      </span>
+    </button>
+  );
+}
+
+const PR = 62;
+
+/**
+ * The players' own little circle, in the same corner style: who sits where and who has died, nothing more (no
+ * characters). Click it for the full "Who sits where".
+ */
+export function PlayerCircle() {
+  const view = useView();
+  const n = view.seats.length;
+  if (n < 2) return null;
+  return (
+    <button className="mini-grimoire player-circle cosy-panel" onClick={() => ui.open({ kind: 'seating' })} title="Who sits where round the circle">
+      <span className="mini-title">
+        <Icon name="book" /> {view.phase === 'night' ? `Night ${view.day}` : view.day === 0 ? 'The circle' : `Day ${view.day}`}
+      </span>
+      <span className="mini-ring" style={{ width: PR * 2 + 44, height: PR * 2 + 44 }}>
+        {view.seats.map((s, i) => {
+          const a = (i / n) * Math.PI * 2 - Math.PI / 2;
+          return (
+            <span
+              key={s.id}
+              className={['mini-seat', s.dead && 'is-dead', s.isMe && 'is-me'].filter(Boolean).join(' ')}
+              style={{ left: `calc(50% + ${Math.cos(a) * PR}px)`, top: `calc(50% + ${Math.sin(a) * PR}px)` }}
+            >
+              <Token roleId={null} dead={s.dead} deadBadge={false} blank={s.claimed ? 'unknown' : 'empty'} label={false} />
+              <em>{s.label}</em>
+            </span>
+          );
+        })}
       </span>
     </button>
   );

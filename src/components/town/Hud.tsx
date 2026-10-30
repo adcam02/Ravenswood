@@ -60,12 +60,6 @@ export function PlaceChip() {
         {view.day === 0 && !night ? 'Before the game' : `${night ? 'Night' : 'Day'} ${view.day}`}
       </span>
       <strong>{place}</strong>
-      {/* Who sits where round the circle, any time (the stools round the dais go in the same order). */}
-      {view.seats.length > 0 && (
-        <button className="place-circle" onClick={() => ui.open({ kind: 'seating' })} title="Who sits where round the circle" aria-label="Who sits where round the circle">
-          🪑
-        </button>
-      )}
       {view.mode === 'player' && status !== 'open' && <span className="place-warn">{status === 'waiting' ? 'Waiting for the Storyteller…' : 'Reconnecting…'}</span>}
       {view.mode === 'player' && status === 'open' && slow && (
         <span

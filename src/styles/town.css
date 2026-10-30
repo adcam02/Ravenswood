@@ -2024,6 +2024,27 @@
 .mini-counts b {
   font-size: 13px;
 }
+/* The players' circle: the same box, left of their menu; on narrower screens the emotes need the corner, and the
+   Notepad's Circle tab (or the chair by the place name) shows the order instead. */
+.player-circle {
+  right: 112px;
+}
+.player-circle .mini-seat.is-me em {
+  color: #f3c96b;
+  font-weight: 700;
+}
+@media (max-width: 1100px), (max-height: 600px) {
+  .player-circle {
+    display: none;
+  }
+}
+/* The keyboard help sits above the players' circle, where it shows. */
+@media (min-width: 1101px) and (min-height: 601px) {
+  .mode-player .help-btn,
+  .mode-player .help-card {
+    bottom: 232px;
+  }
+}
 .mini-grimoire:hover {
   border-color: rgba(207, 167, 91, 0.7);
 }

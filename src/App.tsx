@@ -117,7 +117,7 @@ import { BedLetters } from './components/Letters';
 import { PigeonNote } from './components/Pigeon';
 import { SpeechBanner } from './components/Speech';
 import { World } from './world/World';
-import { MiniGrimoire } from './components/town/MiniGrimoire';
+import { MiniGrimoire, PlayerCircle } from './components/town/MiniGrimoire';
 import { MiniMap } from './components/town/MiniMap';
 import { useHud } from './game/hud';
 import { local } from './game/local';
@@ -319,6 +319,7 @@ function Player({ room }: { room: string }) {
               <MiniMap />
               <VoiceDock />
               <MyCharacter />
+              <PlayerCircle />
               <PlayerRail />
               <SidePanel />
               <BellCall />
