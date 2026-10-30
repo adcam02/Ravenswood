@@ -101,6 +101,11 @@
   gap: 2px;
   min-width: 64px;
 }
+.pit-ring {
+  font-size: 11px;
+  font-weight: 600;
+  color: #ffd98a;
+}
 .pit-round {
   font-size: 12px;
   font-weight: 600;
@@ -160,6 +165,14 @@
 .pit-lobby-head > :first-child {
   flex: 1;
   text-align: left;
+}
+.pit-here {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cosy-ink-soft);
 }
 .pit-badge-count {
   display: grid;
@@ -226,6 +239,34 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* Each ring, free or who's fighting in it. */
+.pit-rings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pit-rings li {
+  flex: 1 1 90px;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 10px;
+  background: var(--cosy-bg-2);
+  font-size: 12px;
+  color: var(--cosy-ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pit-rings li.is-on {
+  background: #ffe7c7;
+  color: var(--cosy-ink);
+}
+.pit-rings li.is-here {
+  box-shadow: inset 0 0 0 2px var(--cosy-accent);
 }
 .pit-note {
   margin: 0;

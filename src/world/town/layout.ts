@@ -283,7 +283,7 @@ export const ROOMS: Record<Exclude<ZoneKind, 'town'>, { hw: number; hd: number }
   bakery: { hw: 6, hd: 5 },
   church: { hw: 6, hd: 9 },
   tower: { hw: 5, hd: 5 },
-  cellar: { hw: 7, hd: 6 },
+  cellar: { hw: 11.5, hd: 6 },
   house: { hw: 5, hd: 4 },
   club: { hw: 7, hd: 5.5 },
   casino: CASINO_ROOM,
@@ -299,7 +299,7 @@ export const ROOM_DOOR: Record<Exclude<ZoneKind, 'town'>, { exit: { x: number; z
   church: { exit: { x: 0, z: 8.3, r: 1.0 }, arrive: { x: 0, z: 6.8, ry: Math.PI } },
   tower: { exit: { x: 0, z: 4.3, r: 1.0 }, arrive: { x: 0, z: 2.8, ry: Math.PI } },
   // The cellar's way out is the foot of its stairs, up to the tavern.
-  cellar: { exit: { x: -6.1, z: 5.25, r: 0.8 }, arrive: { x: -4.7, z: 4.4, ry: Math.PI / 2 } },
+  cellar: { exit: { x: -10.6, z: 5.25, r: 0.8 }, arrive: { x: -9.2, z: 4.4, ry: Math.PI / 2 } },
   house: { exit: { x: 0, z: 3.3, r: 0.9 }, arrive: { x: 0, z: 1.9, ry: Math.PI } },
   club: { exit: { x: 0, z: 4.8, r: 1.0 }, arrive: { x: 0, z: 3.3, ry: Math.PI } },
   casino: CASINO_DOOR,
@@ -351,29 +351,45 @@ export const WORK_STOOL = { x: -3.55, z: 1.5, ry: -Math.PI / 2 };
 export const TOWER_BENCH = { x: 4.5, z0: 0, z1: 1.8 };
 
 /**
- * The cellar under the tavern, where pets fight. The pit is a sanded ring with a low rail round it; the two owners
- * stand at its front corners, and the benches face it from the sides and back. The stairs up run along the left wall.
- * In the tavern, an open trapdoor by the right wall leads down.
+ * The cellar under the tavern, where pets fight. Three pits side by side, each a sanded ring with a low rail round it
+ * and its sign hanging over the back; the two owners stand at its front corners, and benches face it from the sides
+ * and back (back to back between two rings). The stairs up run along the left wall. In the tavern, an open trapdoor
+ * by the right wall leads down.
  */
-export const PIT_RING = { x: 0.8, z: -0.4, r: 2.0, rail: 0.42 };
-export const PIT_CORNERS: Spot[] = [-1, 1].map((sx) => {
-  const x = PIT_RING.x + sx * 2.1;
-  const z = PIT_RING.z + 1.75;
-  return { x, z, ry: face(x, z, PIT_RING.x, PIT_RING.z) };
-});
-export const PIT_BENCHES: Spot[] = [
-  [-3.3, -0.3],
-  [3.3, -0.3],
-  [-2.2, -2.7],
-  [2.2, -2.7],
-].map(([dx, dz]) => {
-  const x = PIT_RING.x + dx;
-  const z = PIT_RING.z + dz;
-  return { x, z, ry: face(x, z, PIT_RING.x, PIT_RING.z) };
-});
+export const PIT_RINGS = [-6.4, 0.4, 7.2].map((x) => ({ x, z: -0.4, r: 2.0, rail: 0.42 }));
+/** The ring someone at (x, z) is standing by: the nearest. */
+export const pitRingAt = (x: number, z: number) => {
+  let best = 0;
+  PIT_RINGS.forEach((R, i) => {
+    if (Math.hypot(x - R.x, z - R.z) < Math.hypot(x - PIT_RINGS[best].x, z - PIT_RINGS[best].z)) best = i;
+  });
+  return best;
+};
+/** Each ring's two corners, the challenger's on the left. */
+export const PIT_CORNERS: Spot[][] = PIT_RINGS.map((R) =>
+  [-1, 1].map((sx) => {
+    const x = R.x + sx * 2.1;
+    const z = R.z + 1.75;
+    return { x, z, ry: face(x, z, R.x, R.z) };
+  }),
+);
+export const PIT_BENCHES: Spot[] = PIT_RINGS.flatMap((R) =>
+  [
+    [-3.1, -0.3],
+    [3.1, -0.3],
+    [-2.2, -2.7],
+    [2.2, -2.7],
+  ].map(([dx, dz]) => {
+    const x = R.x + dx;
+    const z = R.z + dz;
+    return { x, z, ry: face(x, z, R.x, R.z) };
+  }),
+);
 export const PIT_BENCH_LEN = 1.8;
-export const CELLAR_STAIRS = { x: -6.1, w: 1.3, z0: 4.6, z1: 0.2, h: 3.3 };
-export const TALLY_BOARD = { x: PIT_RING.x, y: 2.0, w: 2.6, h: 1.5 };
+export const CELLAR_STAIRS = { x: -10.6, w: 1.3, z0: 4.6, z1: 0.2, h: 3.3 };
+/** The chalk boards on the back wall: the tally of wins behind the middle ring, the rules between the first two. */
+export const TALLY_BOARD = { x: PIT_RINGS[1].x, y: 2.0, w: 2.6, h: 1.5 };
+export const RULES_BOARD = { x: (PIT_RINGS[0].x + PIT_RINGS[1].x) / 2, y: 2.05, w: 2.0, h: 1.15 };
 export const TRAPDOOR = { x: 6.3, z: 1.75, w: 1.0, d: 1.1 };
 
 export const BED = { x: 3.1, z: -2.65, w: 1.7, d: 2.6, top: 0.52 };
@@ -676,14 +692,14 @@ export function roomColliders(kind: Exclude<ZoneKind, 'town'>): Collider[] {
     c.push(at(TRAPDOOR.x + TRAPDOOR.w / 2 + 0.12, TRAPDOOR.z, 0.12, TRAPDOOR.d / 2));
   } else if (kind === 'cellar') {
     // Nobody but the pets goes in the ring.
-    c.push({ kind: 'circle', x: PIT_RING.x, z: PIT_RING.z, r: PIT_RING.r + 0.15 });
+    for (const R of PIT_RINGS) c.push({ kind: 'circle', x: R.x, z: R.z, r: R.r + 0.15 });
     for (const b of PIT_BENCHES) c.push(at(b.x, b.z, PIT_BENCH_LEN / 2, 0.3, b.ry));
     c.push(at(CELLAR_STAIRS.x, (CELLAR_STAIRS.z0 + CELLAR_STAIRS.z1) / 2 - 0.2, CELLAR_STAIRS.w / 2 + 0.1, (CELLAR_STAIRS.z0 - CELLAR_STAIRS.z1) / 2 + 0.4));
-    // Barrels and crates in the corners and along the right wall.
-    c.push(at(-4.6, -5.2, 1.5, 0.8));
-    c.push(at(5.6, -5.0, 1.4, 1.0));
-    c.push(at(6.3, 2.6, 0.7, 1.3));
-    c.push({ kind: 'circle', x: 5.9, z: 4.9, r: 0.55 });
+    // Barrels and crates in the back corners and the front right one.
+    c.push(at(-9.1, -5.2, 1.5, 0.8));
+    c.push(at(10.1, -5.0, 1.4, 1.0));
+    c.push(at(10.8, 3.6, 0.7, 1.0));
+    c.push({ kind: 'circle', x: 10.4, z: 5.1, r: 0.55 });
   } else if (kind === 'bakery') {
     c.push(at(OVEN.x, OVEN.z, 1.45, 1.1));
     c.push(at((SHELF.x0 + SHELF.x1) / 2, SHELF.z, (SHELF.x1 - SHELF.x0) / 2, 0.4));

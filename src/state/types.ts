@@ -514,6 +514,8 @@ export interface PitRound {
 
 export interface PitFight {
   id: string;
+  /** Which ring it's in (0 to 2, left to right as the cellar is seen). */
+  ring: number;
   /** The challenger first. */
   sides: [PitSide, PitSide];
   /** Walking into the ring, picking, the reveal playing out, and the result. */
@@ -532,11 +534,14 @@ export interface PitChallenge {
   /** Seat ids. */
   from: string;
   to: string;
+  /** The ring the challenger was standing by: the fight goes there, or to the nearest free ring. */
+  ring: number;
   at: number;
 }
 
 export interface PitState {
-  fight: PitFight | null;
+  /** The fight in each ring, left to right (null while it's free). */
+  rings: (PitFight | null)[];
   challenges: PitChallenge[];
   /** The chalk board: most wins first. */
   board: { name: string; wins: number }[];

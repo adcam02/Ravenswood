@@ -23,7 +23,7 @@ import { AvatarView, type AvatarInfo } from './avatar';
 import { buildAnimal, type Rig } from './animals';
 import { resolve, turnToward } from './collide';
 import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWorld } from './town';
-import { BED, BOUNCER, CLUB, CLUB_NAME, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, FLATS, FLATS_NAME, GRAVEYARD, MEETING_CENTRE, PIT_CORNERS, PIT_RING, ROOM_DOOR, SQUARE_R, STOOL_R, TOWER, TRAPDOOR, doorPoint, groundAt, onDanceFloor, roadDistance } from './town/layout';
+import { BED, BOUNCER, CLUB, CLUB_NAME, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, FLATS, FLATS_NAME, GRAVEYARD, MEETING_CENTRE, PIT_CORNERS, PIT_RINGS, ROOM_DOOR, SQUARE_R, STOOL_R, TOWER, TRAPDOOR, doorPoint, groundAt, onDanceFloor, roadDistance } from './town/layout';
 import { local as localSpot } from './town/kit';
 import { nearPath } from './town/outdoor';
 import { blocksLine } from './town/occlusion';
@@ -32,7 +32,7 @@ import { reportProblem } from '../lib/report';
 import { earn, hatBoost, notePerfect, noteTopJob, tally, useProgress } from '../game/progress';
 import { setHatFxLow } from './hatFx';
 import { crowned } from '../game/leaders';
-import { PitShow } from './pitfight';
+import { PitShow, pitFightFor } from './pitfight';
 import type { PitState } from '../state/types';
 
 /** Hats are a player's own: the Storyteller doesn't collect them. */
@@ -41,7 +41,7 @@ import { drawless, joinNames, loadJSON, saveJSON } from '../lib/util';
 import { steadyInterval } from '../lib/ticker';
 import { casino, casinoNow, hostNow } from '../casino/client';
 import { TableCam } from './tablecam';
-import { CHAIR_Y, FELT_Y, RL_LOOK, SLOTS, bjSpot, pkAround } from './town/casinoLayout';
+import { CHAIR_Y, FELT_Y, PK_TABLE, RL_LOOK, SLOTS, bjSpot } from './town/casinoLayout';
 import type { CasinoView } from '../casino/types';
 import { decor, flatNav, flatNow, useDecor } from '../flats/client';
 import { useClient } from '../net/client';
@@ -498,7 +498,7 @@ export class Engine {
   private pigeonsSeen = new Set<string>();
   /** The side of the confession booth we're sitting in, if we are. */
   private booth: Station | null = null;
-  /** The pet fight in the cellar's ring, and which fight we last went to our corner for. */
+  /** The pet fights in the cellar's rings, and which fight we last went to our corner for. */
   private pitShow: PitShow;
   private pitCorner = '';
   /** Since when (on the clock) we've been in the booth with someone on the other side, for the achievement. */
@@ -1778,9 +1778,9 @@ export class Engine {
     const ahead = kind === 'slots' ? -0.95 : 0.18;
     const eyeY = this.seated.y + THREE.MathUtils.clamp(this.me.rig.headHeight * 0.75, 0.65, 1.05);
     const eye = new THREE.Vector3(local.x + Math.sin(local.ry) * ahead, eyeY, local.z + Math.cos(local.ry) * ahead);
-    // Looking down past our own cards towards the middle of the table.
-    // (At a slot machine, at its reels.)
-    const at = kind === 'blackjack' ? bjSpot(seat, 0.8) : kind === 'poker' ? pkAround(seat, -0.8) : kind === 'slots' ? { x: SLOTS[seat].x - 0.3, z: SLOTS[seat].z } : RL_LOOK;
+    // Looking down past our own cards towards the middle of the table. (At poker, at the middle itself, so the faces
+    // round it are in view and not just the felt; at a slot machine, at its reels.)
+    const at = kind === 'blackjack' ? bjSpot(seat, 0.8) : kind === 'poker' ? PK_TABLE : kind === 'slots' ? { x: SLOTS[seat].x - 0.3, z: SLOTS[seat].z } : RL_LOOK;
     this.tableCam = new TableCam(this.renderer.domElement, eye, new THREE.Vector3(at.x, kind === 'slots' ? 1.15 : FELT_Y, at.z));
   }
 
@@ -1849,6 +1849,8 @@ export class Engine {
     } else if (atTable && !this.tableCam) useHud.setState({ casino: null });
     if (at?.kind === 'shop' && !at.away && zoneKind(local.zone) !== 'casino') useHud.setState({ casino: null });
     if (zoneKind(local.zone) === 'casino' && v && v.mode !== 'preview') this.town.setCasino(casinoNow(v.mode), v.mode === 'st' ? 0 : hostNow() - Date.now());
+    // From a seat at a card table, everyone else round it gets a plate saying who they are.
+    this.town.setCasinoSeat(this.tableCam && this.tableKind !== 'slots' ? this.tableKind : null);
   }
 
   private finishJob(result: unknown) {
@@ -3022,19 +3024,19 @@ export class Engine {
   private runPit(dt: number, t: number, v: WorldView | null) {
     const pit = v?.pit ?? null;
     const here = zoneKind(local.zone) === 'cellar';
-    this.pitShow.update(dt, t, pit, here, (seat) => Boolean(v?.seats.find((s) => s.id === seat)?.dead), this.pitFreeze);
+    this.pitShow.update(dt, t, pit, here, local, (seat) => Boolean(v?.seats.find((s) => s.id === seat)?.dead), this.pitFreeze);
     const away = new Set(this.pitShow.inRing);
     // (The condemned's pet keeps out of the way of the show too.)
     if (this.show) away.add(this.show.seatId);
     for (const [key, av] of this.others) av.setPetAway(away.has(key));
     this.me?.setPetAway(Boolean(v?.mySeatId && away.has(v.mySeatId)));
-    const f = pit?.fight;
-    if (!f || !v || v.mode !== 'player' || !v.mySeatId) return;
+    if (!v || v.mode !== 'player' || !v.mySeatId) return;
+    const f = pit?.rings?.find((x) => x?.sides.some((s) => s.seat === v.mySeatId));
+    if (!f) return;
     const i = f.sides.findIndex((s) => s.seat === v.mySeatId);
-    if (i < 0) return;
     if (f.stage === 'intro' && this.pitCorner !== f.id && here) {
       this.pitCorner = f.id;
-      const c = PIT_CORNERS[i];
+      const c = PIT_CORNERS[f.ring][i];
       this.stopEverything();
       this.place('cellar', c.x, c.z, c.ry, true);
     }
@@ -3319,11 +3321,12 @@ export class Engine {
     if (this.me) {
       tx = local.x;
       tz = local.z;
-      // In the cellar while a fight is on, the camera leans over to keep the ring in the shot.
-      const fight = this.view?.pit?.fight;
-      if (fight && zoneKind(local.zone) === 'cellar') {
-        tx = local.x * 0.35 + PIT_RING.x * 0.65;
-        tz = local.z * 0.35 + PIT_RING.z * 0.65;
+      // In the cellar while a fight is on in the ring we're by (or ours), the camera leans over to keep it in the shot.
+      const fight = zoneKind(local.zone) === 'cellar' ? pitFightFor(this.view?.pit, this.view?.mySeatId ?? null, local) : null;
+      if (fight) {
+        const R = PIT_RINGS[fight.ring];
+        tx = local.x * 0.35 + R.x * 0.65;
+        tz = local.z * 0.35 + R.z * 0.65;
       }
     } else {
       // Nobody to follow yet: drift slowly round the square.

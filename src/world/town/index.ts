@@ -43,7 +43,7 @@ import { makeSwingDoors } from './doors';
 import { postFront } from './post';
 import { addCloudShadow, beamUniforms, makeClouds, makeContactShadows, makeDust, makePuddles, type Footprint, type PuddleSpot } from './looks';
 import { signBoard, TextSign } from './sign';
-import { makeCasinoTables } from './casinoTables';
+import { makeCasinoTables, type SeatTable } from './casinoTables';
 import type { FlatScene } from './flats';
 import type { CasinoView } from '../../casino/types';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
@@ -147,6 +147,8 @@ export interface TownWorld {
   shadowsDrawn(): void;
   /** The casino's tables: the cards and chips on them, as this player may see them (and the host's clock, ahead of ours by this many ms, for the roulette wheel). */
   setCasino(view: CasinoView | null, hostOffset?: number): void;
+  /** The casino table we're sitting at and looking across (null: none), so everyone else at it is labelled. */
+  setCasinoSeat(table: SeatTable | null): void;
   /** The flat being visited: its finishes and furniture, and while decorating, the piece in hand. */
   setFlat(scene: FlatScene | null): void;
 }
@@ -1669,6 +1671,10 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
 
     setCasino(view, hostOffset) {
       casinoTables.set(view, hostOffset);
+    },
+
+    setCasinoSeat(table) {
+      casinoTables.seatView(table);
     },
 
     consumeShadowDirty() {

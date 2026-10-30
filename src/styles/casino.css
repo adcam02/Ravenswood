@@ -923,3 +923,68 @@
     font-size: 12px;
   }
 }
+
+/* From a seat at a table: a plate in front of everyone else round it (casinoTables.ts). */
+.seat-plate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 130px;
+  padding: 3px 9px 4px;
+  border-radius: 10px;
+  background: rgba(29, 26, 36, 0.86);
+  border: 2px solid rgba(246, 215, 122, 0.55);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+  font-family: var(--cosy-font);
+  font-size: 12px;
+  line-height: 1.2;
+  color: #f4efe2;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  transition: background 0.2s, border-color 0.2s, opacity 0.2s;
+}
+.seat-plate b {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #ffe9a8;
+}
+.seat-plate-chips {
+  font-size: 11.5px;
+  opacity: 0.85;
+}
+.seat-plate-state {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.seat-plate.is-turn {
+  background: rgba(120, 88, 20, 0.92);
+  border-color: #f6d77a;
+  box-shadow: 0 0 0 3px rgba(246, 215, 122, 0.35), 0 3px 10px rgba(0, 0, 0, 0.3);
+}
+.seat-plate.is-won {
+  border-color: #8cd98a;
+}
+.seat-plate.is-ready .seat-plate-state {
+  color: #a6e3a4;
+}
+.seat-plate.is-folded {
+  opacity: 0.6;
+}
+@media (max-width: 760px) {
+  .seat-plate {
+    max-width: 96px;
+    padding: 2px 6px 3px;
+    font-size: 10.5px;
+  }
+  .seat-plate b {
+    font-size: 11.5px;
+  }
+  .seat-plate-chips,
+  .seat-plate-state {
+    font-size: 10px;
+  }
+}

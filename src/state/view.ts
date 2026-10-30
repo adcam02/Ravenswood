@@ -95,7 +95,7 @@ export interface View {
 function pitHere(p: PitState | undefined, offset: number): PitState | null {
   if (!p) return null;
   return {
-    fight: p.fight && { ...p.fight, until: p.fight.until - offset, at: p.fight.at - offset },
+    rings: (p.rings ?? []).map((f) => f && { ...f, until: f.until - offset, at: f.at - offset }),
     challenges: p.challenges.map((c) => ({ ...c, at: c.at - offset })),
     board: p.board,
   };

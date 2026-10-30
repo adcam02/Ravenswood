@@ -8,6 +8,7 @@ import { useHud } from '../../game/hud';
 import { money } from '../../game/profiles';
 import { useMoney, useMyPets } from '../../game/progress';
 import { cardSound, casinoLose, casinoWin, chipSound, rouletteSpin, slotLever, slotReels, slotWin, tillSound } from '../../lib/audio';
+import { shownName } from '../../state/nicks';
 import { useView } from '../../state/view';
 import { Shop } from './Shop';
 
@@ -164,7 +165,7 @@ function Blackjack({ view, seat }: { view: CasinoView; seat: number }) {
   if (s && !s.mine && v.mode === 'player') {
     return (
       <TableShell title="Blackjack" onLeave={close}>
-        <p className="casino-wait">{s.name} is sitting there. Try another seat!</p>
+        <p className="casino-wait">{shownName(s.name)} is sitting there. Try another seat!</p>
       </TableShell>
     );
   }
@@ -234,7 +235,7 @@ function Blackjack({ view, seat }: { view: CasinoView; seat: number }) {
         <ul className="table-others">
           {others.map((o) => (
             <li key={o.name}>
-              <b>{o.name}</b> {o.state === 'betting' ? 'is choosing a bet' : o.state === 'done' && o.result ? `${BJ_SAY[o.result].replace(/^You win!$/, 'won').replace('!', '')}` : `${handTotal(o.cards)} against ${handTotal(o.dealer)}`}
+              <b>{shownName(o.name)}</b> {o.state === 'betting' ? 'is choosing a bet' : o.state === 'done' && o.result ? `${BJ_SAY[o.result].replace(/^You win!$/, 'won').replace('!', '')}` : `${handTotal(o.cards)} against ${handTotal(o.dealer)}`}
             </li>
           ))}
         </ul>
@@ -299,7 +300,7 @@ function Poker({ view, seat }: { view: CasinoView; seat: number }) {
   if (s && !s.mine && v.mode === 'player') {
     return (
       <TableShell title="Texas hold’em" onLeave={close}>
-        <p className="casino-wait">{s.name} is sitting there. Try another seat!</p>
+        <p className="casino-wait">{shownName(s.name)} is sitting there. Try another seat!</p>
       </TableShell>
     );
   }
@@ -346,7 +347,7 @@ function Poker({ view, seat }: { view: CasinoView; seat: number }) {
             ) : myTurn ? (
               <Betting pk={pk} me={mine} />
             ) : (
-              <p className="casino-wait">{pk.stage === 'waiting' ? pk.note : !mine.inHand ? 'You’re in from the next hand.' : mine.folded ? 'Folded. Next hand soon.' : mine.allIn ? 'All in! Good luck.' : pk.turn !== null ? `${pk.seats[pk.turn]?.name ?? 'Someone'} to play…` : '…'}</p>
+              <p className="casino-wait">{pk.stage === 'waiting' ? pk.note : !mine.inHand ? 'You’re in from the next hand.' : mine.folded ? 'Folded. Next hand soon.' : mine.allIn ? 'All in! Good luck.' : pk.turn !== null ? `${shownName(pk.seats[pk.turn]?.name)} to play…` : '…'}</p>
             )}
           </>
         ) : v.mode === 'player' ? (
@@ -372,7 +373,7 @@ function SeatChip({ p, i, pk }: { p: PkSeatView; i: number; pk: PkView }) {
     <li className={`pk-seat ${pk.turn === i ? 'turn' : ''} ${p.folded ? 'folded' : ''} ${p.mine ? 'mine' : ''} ${p.won > 0 && pk.stage === 'showdown' ? 'won' : ''}`}>
       <span className="pk-seat-name">
         {pk.button === i && <i className="dealer-button">D</i>}
-        {p.name}
+        {p.mine ? p.name : shownName(p.name)}
       </span>
       <span className="pk-seat-stack">{p.out ? 'sitting out' : money(p.stack)}</span>
       {!p.mine && p.cards.length > 0 && <Hand cards={p.cards} size="sm" />}
@@ -467,7 +468,7 @@ function Roulette({ view, seat }: { view: CasinoView; seat: number }) {
   if (s && !s.mine && v.mode === 'player') {
     return (
       <TableShell title="Roulette" onLeave={close}>
-        <p className="casino-wait">{s.name} is sitting there. Try another seat!</p>
+        <p className="casino-wait">{shownName(s.name)} is sitting there. Try another seat!</p>
       </TableShell>
     );
   }
@@ -558,7 +559,7 @@ function Roulette({ view, seat }: { view: CasinoView; seat: number }) {
             const on = Object.values(o.bets).reduce((a, b) => a + b, 0);
             return (
               <li key={o.name}>
-                <b>{o.name}</b> {rl.stage === 'result' && o.staked ? (o.won ? `won ${money(o.won)}` : 'lost') : on ? `${money(on)} down${o.ready ? ', ready' : ''}` : 'choosing'}
+                <b>{shownName(o.name)}</b> {rl.stage === 'result' && o.staked ? (o.won ? `won ${money(o.won)}` : 'lost') : on ? `${money(on)} down${o.ready ? ', ready' : ''}` : 'choosing'}
               </li>
             );
           })}
@@ -640,7 +641,7 @@ function Slots({ view, machine }: { view: CasinoView; machine: number }) {
   if (m?.name && !m.mine && v.mode === 'player') {
     return (
       <TableShell title="Slot machine" onLeave={close} hint="">
-        <p className="casino-wait">{m.name} is playing this one. Try another machine!</p>
+        <p className="casino-wait">{shownName(m.name)} is playing this one. Try another machine!</p>
       </TableShell>
     );
   }
@@ -710,7 +711,7 @@ function Slots({ view, machine }: { view: CasinoView; machine: number }) {
         <ul className="table-others">
           {others.map((o) => (
             <li key={o.name}>
-              <b>{o.name}</b> {o.spin && hostNow() >= o.spin.at + SL.stops[2] && hostNow() < o.spin.at + SL.stops[2] + 8000 && o.spin.won > o.spin.bet ? `won ${money(o.spin.won)}!` : 'is playing the slots'}
+              <b>{shownName(o.name)}</b> {o.spin && hostNow() >= o.spin.at + SL.stops[2] && hostNow() < o.spin.at + SL.stops[2] + 8000 && o.spin.won > o.spin.bet ? `won ${money(o.spin.won)}!` : 'is playing the slots'}
             </li>
           ))}
         </ul>

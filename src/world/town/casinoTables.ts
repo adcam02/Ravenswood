@@ -1,17 +1,20 @@
 import * as THREE from 'three';
+import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import type { CasinoView } from '../../casino/types';
-import { HIDDEN } from '../../casino/types';
+import { BJ_SEATS, HIDDEN, PK_SEATS, RL_SEATS } from '../../casino/types';
 import { buildAnimal, type Rig } from '../animals';
 import type { Anim } from '../types';
-import { BJ_DEALER, CASHIER, FELT_Y, STEP, PK_DEALER, PK_TABLE, RL_BOARD, RL_CROUPIER, RL_WHEEL, bjSpot, pkAround, rlCell } from './casinoLayout';
+import { BJ_DEALER, CASHIER, FELT_Y, STEP, PK_DEALER, PK_TABLE, RL_BOARD, RL_CROUPIER, RL_WHEEL, bjSpot, pkAround, rlCell, rlSeat } from './casinoLayout';
 import { BET_KEYS, WHEEL, betName, boardCell, colourOf } from '../../casino/roulette';
 import { makeSlotMachines } from './slotReels';
+import { shownName, useNicks } from '../../state/nicks';
 
 /**
  * What's on the casino's tables, drawn in the room: the cards (face up where this player may see them, backs
  * otherwise), the chips, the pot and the dealer button, a glow at the seat whose turn it is; and the three staff,
  * a raccoon dealing blackjack, a fox dealing poker and an otter at the pet shop's till; and the slot machines' reels
- * and levers (slotReels.ts).
+ * and levers (slotReels.ts). And for whoever is sitting at a table, looking across it from their seat, a plate in front
+ * of everyone else there: their name, their chips, and how they stand (folded, to play, bust).
  */
 
 export const CARD_W = 0.19;
@@ -340,10 +343,15 @@ function makeWheel(group: THREE.Group) {
   };
 }
 
+/** The tables you can sit at and look across. */
+export type SeatTable = 'blackjack' | 'poker' | 'roulette';
+
 export interface CasinoTables {
   group: THREE.Group;
   /** What's on the tables now (null: nothing to show, nobody's playing), and how far the host's clock is ahead of ours. */
   set(view: CasinoView | null, hostOffset?: number): void;
+  /** The table we're sitting at, looking across it from our seat (null: not sitting at one): its plates show. */
+  seatView(table: SeatTable | null): void;
   update(dt: number, t: number): void;
 }
 
@@ -400,6 +408,8 @@ export function makeCasinoTables(): CasinoTables {
   turnGlow.visible = false;
   group.add(turnGlow);
 
+  const plates = makePlates(group);
+
   const staff = {
     bj: new Staff({ animal: 'raccoon', color: '#8a8c94', hat: 'tophat' }, BJ_DEALER, group),
     pk: new Staff({ animal: 'fox', color: '#e2793a', hat: 'tophat' }, PK_DEALER, group),
@@ -448,8 +458,12 @@ export function makeCasinoTables(): CasinoTables {
 
   return {
     group,
+    seatView(table) {
+      plates.show(table);
+    },
     set(view, hostOffset = 0) {
       offset = hostOffset;
+      plates.set(view);
       if (view === last && view) return;
       slots.set(view?.sl ?? null);
       const k = view ? JSON.stringify([view.bj, view.pk.seats, view.pk.board, view.pk.pot, view.pk.turn, view.pk.button, view.rl?.seats, view.rl?.stage]) : '';
@@ -532,3 +546,127 @@ export function makeCasinoTables(): CasinoTables {
   };
 }
 
+
+const money = (n: number) => `$${n}`;
+
+/** One plate's lines: the name, then the chips and how they stand; `kind` colours it (their turn, folded, a win). */
+type Plate = { name: string; chips: string; state: string; kind: string } | null;
+
+/** What each table's plates say, seat by seat (nobody's own: they're the one looking). */
+function plateLines(view: CasinoView, table: SeatTable): Plate[] {
+  if (table === 'poker') {
+    const pk = view.pk;
+    return pk.seats.map((s, i) => {
+      if (!s || s.mine) return null;
+      const turn = pk.turn === i;
+      const showdown = pk.stage === 'showdown';
+      const state = s.out
+        ? 'Sitting out'
+        : showdown && s.won > 0
+          ? `Wins ${money(s.won)}`
+          : s.folded
+            ? 'Folded'
+            : s.allIn
+              ? 'All in'
+              : turn
+                ? 'To play…'
+                : !s.inHand && pk.stage !== 'waiting'
+                  ? 'Next hand'
+                  : (s.last ?? '');
+      const kind = turn ? 'turn' : showdown && s.won > 0 ? 'won' : s.folded || s.out ? 'folded' : '';
+      const chips = `${money(s.stack)}${s.bet ? ` · bet ${money(s.bet)}` : ''}${pk.button === i ? ' · D' : ''}`;
+      return { name: s.name, chips, state, kind };
+    });
+  }
+  if (table === 'blackjack') {
+    return view.bj.map((s) => {
+      if (!s || s.mine) return null;
+      const said: Record<string, string> = { blackjack: 'Blackjack!', win: 'Wins', push: 'Push', lose: 'Loses', bust: 'Bust' };
+      const state = s.state === 'betting' ? 'Betting…' : s.state === 'playing' ? 'Playing…' : s.state === 'dealer' ? 'Dealer’s turn' : s.result ? said[s.result] : '';
+      const kind = s.state === 'playing' ? 'turn' : s.result === 'blackjack' || s.result === 'win' ? 'won' : s.result === 'bust' || s.result === 'lose' ? 'folded' : '';
+      return { name: s.name, chips: s.bet ? `bet ${money(s.bet)}` : '', state, kind };
+    });
+  }
+  return view.rl.seats.map((s) => {
+    if (!s || s.mine) return null;
+    const down = Object.values(s.bets).reduce((n, b) => n + b, 0);
+    const result = view.rl.stage === 'result' && s.staked ? (s.won ? `Wins ${money(s.won)}` : 'No luck') : '';
+    const state = result || (s.ready ? 'Ready' : down ? 'Betting…' : '');
+    return { name: s.name, chips: down ? `on the board ${money(down)}` : '', state, kind: result ? (s.won ? 'won' : 'folded') : s.ready ? 'ready' : '' };
+  });
+}
+
+/**
+ * Where a seat's plate stands (its bottom edge): just above the table's edge in front of them, below their face and
+ * clear of their cards. (Across the poker table it's kept low, to stay in the seat's view.)
+ */
+function plateSpot(table: SeatTable, i: number): { x: number; y: number; z: number } {
+  if (table === 'poker') return { ...pkAround(i, 0.05), y: TOP + 0.1 };
+  if (table === 'blackjack') return { ...bjSpot(i, 1.78), y: TOP + 0.3 };
+  const s = rlSeat(i);
+  return { x: s.x - Math.sin(s.ry) * 0.38, y: TOP + 0.3, z: s.z - Math.cos(s.ry) * 0.38 };
+}
+
+/** The plates round each table, shown only while we're sitting at it. */
+function makePlates(group: THREE.Group) {
+  const counts: Record<SeatTable, number> = { poker: PK_SEATS, blackjack: BJ_SEATS, roulette: RL_SEATS };
+  const all = {} as Record<SeatTable, { obj: CSS2DObject; el: HTMLDivElement; key: string }[]>;
+  for (const table of Object.keys(counts) as SeatTable[]) {
+    all[table] = Array.from({ length: counts[table] }, (_, i) => {
+      const el = document.createElement('div');
+      el.className = 'seat-plate';
+      const obj = new CSS2DObject(el);
+      obj.center.set(0.5, 1);
+      const at = plateSpot(table, i);
+      obj.position.set(at.x, at.y, at.z);
+      obj.visible = false;
+      group.add(obj);
+      return { obj, el, key: '' };
+    });
+  }
+  let table: SeatTable | null = null;
+  let last: CasinoView | null = null;
+  let nicks = useNicks.getState();
+  const draw = () => {
+    for (const t of Object.keys(all) as SeatTable[]) {
+      const lines = t === table && last ? plateLines(last, t) : [];
+      all[t].forEach((p, i) => {
+        const l = lines[i] ?? null;
+        p.obj.visible = Boolean(l);
+        if (!l) return;
+        const key = `${l.name}|${l.chips}|${l.state}|${l.kind}|${shownName(l.name)}`;
+        if (key === p.key) return;
+        p.key = key;
+        p.el.className = `seat-plate${l.kind ? ` is-${l.kind}` : ''}`;
+        p.el.replaceChildren();
+        const name = document.createElement('b');
+        name.textContent = shownName(l.name);
+        p.el.append(name);
+        for (const [text, cls] of [
+          [l.chips, 'seat-plate-chips'],
+          [l.state, 'seat-plate-state'],
+        ]) {
+          if (!text) continue;
+          const span = document.createElement('span');
+          span.className = cls;
+          span.textContent = text;
+          p.el.append(span);
+        }
+      });
+    }
+  };
+  return {
+    show(t: SeatTable | null) {
+      if (t === table) return;
+      table = t;
+      draw();
+    },
+    set(view: CasinoView | null) {
+      const n = useNicks.getState();
+      if (view === last && n === nicks) return;
+      last = view;
+      nicks = n;
+      draw();
+    },
+  };
+}

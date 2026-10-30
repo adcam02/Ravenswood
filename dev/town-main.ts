@@ -2,6 +2,9 @@
 // Also ?weather=rain|mist, ?day=0.9 (how far through the day), ?sway=4 (exaggerated wind, to check it moves),
 // ?follow=x,z (where the player is, for the birds and the rain), ?ripple to drop rings on the pond.
 import * as THREE from 'three';
+import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+import '../src/styles/cosy.css';
+import '../src/styles/casino.css';
 import { createTown } from '../src/world/town';
 import { swayUniforms } from '../src/world/town/fx';
 import { ANIMALS, BOOTHS, animalInfo, emptyTown, type AnimalId, type HatId, type PetId, type Weather, type ZoneKind } from '../src/world/types';
@@ -13,7 +16,7 @@ import { AvatarView } from '../src/world/avatar';
 import type { ExecStage } from '../src/world/exec/stage';
 import { EXEC_CAM, execCamera, makeStage } from '../src/world/exec/shows';
 import type { ExecMethod } from '../src/state/types';
-import { CHAIR_Y, FELT_Y, RL_LOOK, SLOTS, bjSeat, bjSpot, pkAround, pkSeat, rlSeat, slStool } from '../src/world/town/casinoLayout';
+import { CHAIR_Y, FELT_Y, PK_TABLE, RL_LOOK, SLOTS, bjSeat, bjSpot, pkSeat, rlSeat, slStool } from '../src/world/town/casinoLayout';
 import { PIECES, freeSpot, type FlatItem } from '../src/flats/catalogue';
 
 const q = new URLSearchParams(location.search);
@@ -22,6 +25,11 @@ const zone = (q.get('zone') ?? 'town') as ZoneKind;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
+// Labels over the scene (the plates round a card table from a seat).
+const labels = new CSS2DRenderer();
+labels.setSize(innerWidth, innerHeight);
+Object.assign(labels.domElement.style, { position: 'absolute', inset: '0', pointerEvents: 'none' });
+document.body.append(labels.domElement);
 renderer.shadowMap.enabled = !q.has('noshadow');
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 // As in the game: the shadows are drawn only when the town says something changed.
@@ -268,7 +276,7 @@ if (q.has('casino')) {
     const [table, n] = q.get('seatcam')!.split(':');
     const i = Number(n);
     const spot = seatOf(table, i);
-    const look = table === 'bj' ? bjSpot(i, 0.8) : table === 'pk' ? pkAround(i, -0.8) : table === 'sl' ? { x: SLOTS[i].x - 0.3, z: SLOTS[i].z } : RL_LOOK;
+    const look = table === 'bj' ? bjSpot(i, 0.8) : table === 'pk' ? PK_TABLE : table === 'sl' ? { x: SLOTS[i].x - 0.3, z: SLOTS[i].z } : RL_LOOK;
     // (At a slot machine the eyes sit a little behind the stool, looking at the reels, as in the game.)
     const ahead = table === 'sl' ? -0.95 : 0.18;
     camera.fov = num('fov', 58);
@@ -278,6 +286,8 @@ if (q.has('casino')) {
     camera.lookAt(look.x, table === 'sl' ? 1.15 : FELT_Y, look.z);
     // (As in the game, the picture sits a little higher, above the table's panel.)
     camera.setViewOffset(1000, 1000, 0, 170, 1000, 1000);
+    // Everyone else round the table gets a plate, as in the game.
+    if (table !== 'sl') town.setCasinoSeat(table === 'bj' ? 'blackjack' : table === 'pk' ? 'poker' : 'roulette');
     // (Whoever sits there is us: out of the lens's way.)
     sitters.forEach((a) => Math.hypot(a.root.position.x - spot.x, a.root.position.z - spot.z) < 0.1 && (a.root.visible = false));
   }
@@ -410,6 +420,7 @@ function loop() {
     shadowRenders++;
   }
   renderer.render(scene, camera);
+  labels.render(scene, camera);
   frames++;
   if (frames === settle) {
     (window as unknown as { done: boolean }).done = true;

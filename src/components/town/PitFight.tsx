@@ -5,14 +5,17 @@ import { BEATS, PIT, allowed, heartsAt } from '../../game/pitRules';
 import { player } from '../../net/client';
 import type { PitFight, PitMove, PitRound } from '../../state/types';
 import { ui } from '../../state/ui';
+import { shownName } from '../../state/nicks';
 import { useView, type SeatView } from '../../state/view';
 import { MOVE_LABEL } from '../../world/pitfight';
+import { PIT_RINGS, pitRingAt } from '../../world/town/layout';
 import { PETS, zoneKind } from '../../world/types';
 
 /**
- * The pet pit on screen, for anyone down in the tavern's cellar: the lobby (who's here, challenges in and out), the
- * scoreboard over a fight (both pets' hearts and charges, the round, the clock, what just happened), and for the two
- * fighters, the three big buttons to pick a move.
+ * The pet pit on screen, for anyone down in the tavern's cellar: the lobby (who's here, challenges in and out, which
+ * rings are free), the scoreboard over the fight at the ring you're standing by (both pets' hearts and charges, the
+ * round, the clock, what just happened), and for the two fighters, their own fight and the three big buttons to pick
+ * a move.
  */
 
 const HINT: Record<PitMove, string> = {
@@ -21,22 +24,26 @@ const HINT: Record<PitMove, string> = {
   charge: '+1 to your next attack',
 };
 
-/** Whether we're in the cellar, and who else is, checked a few times a second. */
-function useCellar(): { here: boolean; others: string[] } {
+/** Whether we're in the cellar, the ring we're standing by, and who else is down here, checked a few times a second. */
+function useCellar(): { here: boolean; ring: number; others: string[] } {
   const read = () => ({
     here: zoneKind(local.zone) === 'cellar',
+    ring: pitRingAt(local.x, local.z),
     others: [...presence.others].filter(([key, p]) => key !== 'st' && p.zone === 'cellar').map(([key]) => key),
   });
   const [state, set] = useState(read);
   useEffect(() => {
     const t = setInterval(() => {
       const next = read();
-      set((prev) => (prev.here === next.here && prev.others.join() === next.others.join() ? prev : next));
+      set((prev) => (prev.here === next.here && prev.ring === next.ring && prev.others.join() === next.others.join() ? prev : next));
     }, 300);
     return () => clearInterval(t);
   }, []);
   return state;
 }
+
+const ringName = (i: number) => `Ring ${i + 1}`;
+const isOn = (f: PitFight | null | undefined) => Boolean(f && f.stage !== 'over');
 
 /** Re-renders every so often while `on`. */
 function useTicking(on: boolean, ms = 100) {
@@ -101,7 +108,7 @@ function Scoreboard({ f, mine }: { f: PitFight; mine: number }) {
   const age = ageOf(f);
   const r = f.last;
   const reveal = f.stage === 'reveal' && r;
-  const names: [string, string] = [f.sides[0].name, f.sides[1].name];
+  const names: [string, string] = [shownName(f.sides[0].name), shownName(f.sides[1].name)];
   const hearts = (i: 0 | 1) => (reveal ? heartsAt(r, i, age) : f.sides[i].hp);
   const charges = (i: 0 | 1) => (reveal ? (age < BEATS.lunge + 0.3 ? r.had[i] : r.charge[i]) : f.sides[i].charge);
   let line = '';
@@ -127,7 +134,7 @@ function Scoreboard({ f, mine }: { f: PitFight; mine: number }) {
     <div className={`pit-side side-${i}${mine === i ? ' is-me' : ''}`}>
       <div className="pit-who">
         <span className="pit-pet">{petIcon(f.sides[i].pet)}</span>
-        <b>{mine === i ? 'You' : f.sides[i].name}</b>
+        <b>{mine === i ? 'You' : names[i]}</b>
       </div>
       <div className="pit-stats">
         <Hearts n={hearts(i)} />
@@ -140,6 +147,7 @@ function Scoreboard({ f, mine }: { f: PitFight; mine: number }) {
       <div className="pit-row">
         {side(0)}
         <div className="pit-mid">
+          <span className="pit-ring">{ringName(f.ring)}</span>
           <span className="pit-round">{f.round ? `Round ${f.round}` : 'Fight!'}</span>
           {f.stage === 'pick' && <span className={`pit-clock${left <= 3 ? ' is-low' : ''}`}>{left}</span>}
         </div>
@@ -169,7 +177,7 @@ function Moves({ f, i }: { f: PitFight; i: number }) {
       </div>
       {picked ? (
         <p className="pit-picked">
-          {mine?.key === key ? `${MOVE_LABEL[mine.move].icon} ${MOVE_LABEL[mine.move].name}. ` : ''}Waiting for {f.sides[i === 0 ? 1 : 0].name}…
+          {mine?.key === key ? `${MOVE_LABEL[mine.move].icon} ${MOVE_LABEL[mine.move].name}. ` : ''}Waiting for {shownName(f.sides[i === 0 ? 1 : 0].name)}…
         </p>
       ) : (
         <div className="pit-buttons">
@@ -190,24 +198,27 @@ function Moves({ f, i }: { f: PitFight; i: number }) {
   );
 }
 
-/** Who's down here, and challenges in and out. */
-function Lobby({ others, busy }: { others: string[]; busy: boolean }) {
+/** Who's down here, challenges in and out, and which rings are free. */
+function Lobby({ others, ring }: { others: string[]; ring: number }) {
   const view = useView();
   const pit = view.pit;
   const me = view.seats.find((s) => s.isMe);
-  // Folded away while a fight's on (so it doesn't hide the ring), unless someone's challenging us; or as last set.
+  // Folded away while a fight's on at our ring (so it doesn't hide it), unless someone's challenging us; or as last set.
   const [chosen, setOpen] = useState<boolean | null>(null);
   if (!me) return null;
   const myPet = petOf(me);
+  const fights = PIT_RINGS.map((_, i) => pit?.rings?.[i] ?? null);
+  const full = fights.every(isOn);
   const incoming = (pit?.challenges ?? []).filter((c) => c.to === me.id);
   const outgoing = (pit?.challenges ?? []).find((c) => c.from === me.id);
   const people = others.map((id) => view.seats.find((s) => s.id === id)).filter((s): s is SeatView => Boolean(s?.claimed && s.look));
   const name = (id: string) => view.seats.find((s) => s.id === id)?.label ?? 'Someone';
-  const open = chosen ?? (!busy || incoming.length > 0);
+  const open = chosen ?? (!isOn(fights[ring]) || incoming.length > 0);
   return (
     <div className={`pit-lobby cosy-panel${open ? '' : ' is-closed'}`}>
       <button className="pit-lobby-head" onClick={() => setOpen(!open)}>
         <span>🥊 The Pet Pit</span>
+        <span className="pit-here">{ringName(ring)}</span>
         {incoming.length > 0 && <span className="pit-badge-count">{incoming.length}</span>}
         <span className="pit-caret">{open ? '▾' : '▸'}</span>
       </button>
@@ -216,10 +227,10 @@ function Lobby({ others, busy }: { others: string[]; busy: boolean }) {
           {incoming.map((c) => (
             <div key={c.id} className="pit-challenge is-in">
               <span>
-                <b>{name(c.from)}</b> challenges you!
+                <b>{name(c.from)}</b> challenges you! <small>({ringName(c.ring ?? 1)})</small>
               </span>
               <span className="pit-challenge-btns">
-                <button className="cosy-btn small primary" disabled={busy || !myPet} title={busy ? 'Wait for the ring to be free' : ''} onClick={() => player.pit({ k: 'answer', id: c.id, yes: true })}>
+                <button className="cosy-btn small primary" disabled={full || !myPet} title={full ? 'All the rings are busy: wait for one to be free' : ''} onClick={() => player.pit({ k: 'answer', id: c.id, yes: true })}>
                   Fight
                 </button>
                 <button className="cosy-btn small" onClick={() => player.pit({ k: 'answer', id: c.id, yes: false })}>
@@ -258,7 +269,7 @@ function Lobby({ others, busy }: { others: string[]; busy: boolean }) {
                       <span className="pit-pet">{pet?.icon ?? '·'}</span>
                       {s.label}
                     </span>
-                    <button className="cosy-btn small" disabled={!pet || sent} onClick={() => player.pit({ k: 'challenge', to: s.id })} title={pet ? `Challenge ${s.label}’s ${pet.name.toLowerCase()}` : 'No pet with them'}>
+                    <button className="cosy-btn small" disabled={!pet || sent} onClick={() => player.pit({ k: 'challenge', to: s.id })} title={pet ? `Challenge ${s.label}’s ${pet.name.toLowerCase()} at ${ringName(ring)}` : 'No pet with them'}>
                       {sent ? 'Sent' : pet ? 'Challenge' : 'No pet'}
                     </button>
                   </li>
@@ -266,8 +277,15 @@ function Lobby({ others, busy }: { others: string[]; busy: boolean }) {
               })}
             </ul>
           )}
+          <ul className="pit-rings">
+            {fights.map((f, i) => (
+              <li key={i} className={`${isOn(f) ? 'is-on' : ''}${i === ring ? ' is-here' : ''}`}>
+                <b>{ringName(i)}</b> {isOn(f) ? `${shownName(f!.sides[0].name)} v ${shownName(f!.sides[1].name)}` : 'free'}
+              </li>
+            ))}
+          </ul>
           <p className="pit-note small">
-            Win ${PIT.prize} from the house. {busy ? 'A fight’s on: next up when the ring’s free.' : ''}
+            Win ${PIT.prize} from the house (up to {PIT.dailyWins} prizes a day). Challenge someone to fight at the ring you’re standing by.
           </p>
         </div>
       )}
@@ -277,18 +295,19 @@ function Lobby({ others, busy }: { others: string[]; busy: boolean }) {
 
 export function PitPanel() {
   const view = useView();
-  const { here, others } = useCellar();
-  const f = view.pit?.fight ?? null;
+  const { here, ring, others } = useCellar();
+  // Our own fight wherever it is; otherwise the one at the ring we're standing by.
+  const rings = view.pit?.rings ?? [];
+  const f = rings.find((x) => x?.sides.some((s) => s.seat === view.mySeatId)) ?? rings[ring] ?? null;
   useTicking(here && Boolean(f));
   if (!here) return null;
   const mine = f ? f.sides.findIndex((s) => s.seat === view.mySeatId) : -1;
-  const busy = Boolean(f && f.stage !== 'over');
   const lobby = view.mode === 'player' && (mine < 0 || f?.stage === 'over');
   return (
     <>
       <div className="pit-top">
         {f && <Scoreboard f={f} mine={mine} />}
-        {lobby && <Lobby others={others} busy={busy} />}
+        {lobby && <Lobby others={others} ring={ring} />}
       </div>
       {f && mine >= 0 && f.stage === 'pick' && <Moves f={f} i={mine} />}
     </>

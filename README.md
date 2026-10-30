@@ -41,11 +41,17 @@ logins: the Storyteller's browser hosts the game, and everyone connects straight
    - **The Lucky Raven** casino, facing the square between the churchyard and the tavern: **the Shop** (pets,
      hats and dances), blackjack against the dealer, Texas hold'em between players, roulette and three
      **slot machines** ($1, $2 or $5 a pull; three 7s pay 100 times the bet), all for real money from your profile and run by the Storyteller's browser so nobody can
-     cheat. Sitting at a table takes you to a seat's-eye view (drag with the right button to look round).
+     cheat. Sitting at a table takes you to a seat's-eye view (drag with the right button to look round), with a
+     plate in front of everyone else at the table: their name (or your nickname for them), their chips, and
+     whether they've folded or it's their turn.
    - **The Pet Pit**, down a trapdoor in the tavern: challenge someone and your pets fight in the ring.
+     The cellar has three rings (Ring 1, 2 and 3 on their signs), so three fights can be on at once: a
+     challenge is fought at the ring you're standing by (or the nearest free one), and the panel shows the
+     fight at the ring you're next to.
      Each round both pick in secret: **Attack** (1 damage, plus any charge), **Block** (stops an attack
      and hits back for 2, but not two rounds running) or **Charge** (+1 on your next attack, up to 3).
-     Five hearts each; the winner gets $2 (up to five prizes a day), and the wins go up on the chalk board.
+     Five hearts each; the winner gets $5 (up to five prizes a day, nothing for a draw), and the wins go up
+     on the chalk board.
    - **Wren Court**, the apartment block in the north-east of town, has a flat for every player. Take the lift
      to anyone's flat to visit (and sit on their sofa). In your own, **Decorate** opens a catalogue of 42
      pieces ($5 to $150) plus wallpapers and floors: buy them, move and turn them, or put them away. The

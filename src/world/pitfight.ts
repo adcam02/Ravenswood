@@ -2,17 +2,19 @@ import * as THREE from 'three';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { BEATS, PIT, heartsAt } from '../game/pitRules';
 import { pitSound } from '../lib/audio';
+import { shownName } from '../state/nicks';
 import type { PitFight, PitMove, PitState } from '../state/types';
 import { buildPet, type Pet } from './pets';
-import { PIT_CORNERS, PIT_RING, ROOMS, TALLY_BOARD } from './town/layout';
+import { PIT_CORNERS, PIT_RINGS, ROOMS, RULES_BOARD, TALLY_BOARD, pitRingAt } from './town/layout';
 import type { PetId } from './types';
 
 /**
- * The fight in the pet pit, as everyone in the cellar sees it: the two pets hop over the rail into the ring, face
+ * The fights in the pet pit, as everyone in the cellar sees them (one in each ring): the two pets hop over the rail into the ring, face
  * off, and play out each round as it's revealed (a lunge and a bump for an attack, a shield for a block, a glow and
  * a puff for a charge, a flash and a heart popping off for each hit), then a knockout tumble and a victory hop.
  * Everything is worked out from the fight's state and the time, so everyone watching sees the same thing at the
- * same moment, whenever they came down the stairs. Also the chalk boards: the tally of wins and the rules.
+ * same moment, whenever they came down the stairs. Each ring is heard loudest from beside it. Also the chalk boards:
+ * the tally of wins and the rules.
  */
 
 /** The pets are puffed up a little in the ring, so they can be seen from the benches. */
@@ -28,6 +30,8 @@ export const MOVE_LABEL: Record<PitMove, { icon: string; name: string }> = {
   charge: { icon: '⚡', name: 'Charge' },
 };
 
+/** A name, safe to put in a badge's HTML. */
+const esc = (t: string) => t.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
 const ease = (k: number) => (k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k));
 const span = (age: number, a: number, b: number) => Math.max(0, Math.min(1, (age - a) / (b - a)));
 /** Up and down once over k = 0 to 1. */
@@ -290,45 +294,36 @@ function drawRules(c: CanvasRenderingContext2D, w: number, h: number) {
   });
 }
 
+/** The fight someone at (x, z) is watching: their own if they're in one, or else the one at the ring they're standing by. */
+export function pitFightFor(pit: PitState | null | undefined, seatId: string | null, at: { x: number; z: number }): PitFight | null {
+  const rings = pit?.rings ?? [];
+  return (seatId && rings.find((f) => f?.sides.some((s) => s.seat === seatId))) || rings[pitRingAt(at.x, at.z)] || null;
+}
+
 /** Seconds into the current stage. */
 function stageAge(f: PitFight, now: number): number {
   const len = f.stage === 'intro' ? PIT.introMs : f.stage === 'pick' ? PIT.pickMs : f.stage === 'reveal' ? PIT.revealMs : PIT.overMs;
   return (now - (f.until - len)) / 1000;
 }
 
-export class PitShow {
-  private fighters: [Fighter, Fighter] | null = null;
+/** One ring's fight. */
+class RingShow {
+  fighters: [Fighter, Fighter] | null = null;
   private fightId = '';
   /** Moments already sounded (and popped), so each happens once. */
   private done = new Set<string>();
-  private tally: Chalk;
-  private rules: Chalk;
   private wasHere = false;
 
-  constructor(private group: THREE.Group) {
-    const hd = ROOMS.cellar.hd;
-    this.tally = new Chalk(TALLY_BOARD.w, TALLY_BOARD.h, 512);
-    this.tally.mesh.position.set(TALLY_BOARD.x, TALLY_BOARD.y, -hd + 0.16);
-    this.rules = new Chalk(2.0, 1.15, 420);
-    this.rules.mesh.position.set(-2.4, 2.05, -hd + 0.16);
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(2.14, 1.29, 0.05), new THREE.MeshLambertMaterial({ color: '#4f3423' }));
-    frame.position.set(-2.4, 2.05, -hd + 0.12);
-    group.add(this.tally.mesh, this.rules.mesh, frame);
-    this.rules.draw('rules', drawRules);
-    this.tally.draw('[]', (c, w, h) => drawTally(c, w, h, []));
-  }
-
-  /** The seats whose pets are in the ring right now (their owners' own pets are hidden meanwhile). */
-  get inRing(): string[] {
-    return this.fighters ? this.fighters.map((f) => f.seat) : [];
-  }
+  constructor(
+    private group: THREE.Group,
+    readonly ring: number,
+  ) {}
 
   /**
-   * One frame. `here`: we're in the cellar (sounds only then). `ghost`: whose pets are ghostly (dead owners).
+   * One frame. `here`: we're in the cellar (sounds only then), `loud` how loud this ring is from where we are.
+   * `ghost`: whose pets are ghostly (dead owners).
    */
-  update(dt: number, t: number, pit: PitState | null, here: boolean, ghost: (seat: string) => boolean, freeze: number | null = null) {
-    if (pit) this.tally.draw(JSON.stringify(pit.board), (c, w, h) => drawTally(c, w, h, pit.board));
-    const f = pit?.fight ?? null;
+  update(dt: number, t: number, f: PitFight | null, here: boolean, loud: number, ghost: (seat: string) => boolean, freeze: number | null) {
     if (!f || f.id !== this.fightId) {
       this.fighters?.forEach((x) => x.dispose());
       this.fighters = null;
@@ -352,8 +347,8 @@ export class PitShow {
       this.done.add(k);
       if (live) fn();
     };
-    const sound = (name: Parameters<typeof pitSound>[0], vol = 1) => pitSound(name, vol);
-    const R = PIT_RING;
+    const sound = (name: Parameters<typeof pitSound>[0], vol = 1) => pitSound(name, vol * loud);
+    const R = PIT_RINGS[this.ring];
     this.fighters.forEach((F, i) => {
       const s = f.sides[i];
       const o = i === 0 ? 1 : 0;
@@ -377,7 +372,7 @@ export class PitShow {
       F.pet.setGhost(ghost(s.seat));
       if (f.stage === 'intro') {
         // Over the rail from the owner's corner to the mark, then a bounce on the spot.
-        const c = PIT_CORNERS[i];
+        const c = PIT_CORNERS[this.ring][i];
         const k = ease(span(age, 0.3, 1.5));
         x = c.x + (homeX - c.x) * k;
         z = c.z + (R.z - c.z) * k;
@@ -385,7 +380,7 @@ export class PitShow {
         moving = k > 0 && k < 1;
         ry = moving ? Math.atan2(homeX - c.x, R.z - c.z) : face;
         if (age > 1.5) squash = 1 - 0.25 * arc(span(age, 1.5, 1.8));
-        F.setBadge(s.name, 'name');
+        F.setBadge(esc(shownName(s.name)), 'name');
         if (age > 0.3) once(`hop${i}`, () => sound('whoosh', 0.6));
         if (i === 0 && age > 2.4) once('bell', () => sound('bell'));
       } else if (f.stage === 'pick') {
@@ -488,7 +483,7 @@ export class PitShow {
           lift = Math.abs(Math.sin(age * 7)) * 0.4 * (age > 0.4 ? 1 : 0);
           squash = 1 + Math.sin(age * 14) * 0.08;
           ry = face + ease(span(age, 0.4, 1.2)) * -face;
-          F.setBadge(`🏆 ${s.name} wins!`, 'win');
+          F.setBadge(`🏆 ${esc(shownName(s.name))} wins!`, 'win');
           if (age > 0.4) once('win', () => sound('win'));
         } else F.setBadge('', '');
       }
@@ -505,5 +500,46 @@ export class PitShow {
   dispose() {
     this.fighters?.forEach((x) => x.dispose());
     this.fighters = null;
+  }
+}
+
+export class PitShow {
+  private rings: RingShow[];
+  private tally: Chalk;
+  private rules: Chalk;
+
+  constructor(group: THREE.Group) {
+    const hd = ROOMS.cellar.hd;
+    this.tally = new Chalk(TALLY_BOARD.w, TALLY_BOARD.h, 512);
+    this.tally.mesh.position.set(TALLY_BOARD.x, TALLY_BOARD.y, -hd + 0.16);
+    this.rules = new Chalk(RULES_BOARD.w, RULES_BOARD.h, 420);
+    this.rules.mesh.position.set(RULES_BOARD.x, RULES_BOARD.y, -hd + 0.16);
+    group.add(this.tally.mesh, this.rules.mesh);
+    this.rules.draw('rules', drawRules);
+    this.tally.draw('[]', (c, w, h) => drawTally(c, w, h, []));
+    this.rings = PIT_RINGS.map((_, i) => new RingShow(group, i));
+  }
+
+  /** The seats whose pets are in a ring right now (their owners' own pets are hidden meanwhile). */
+  get inRing(): string[] {
+    return this.rings.flatMap((r) => (r.fighters ? r.fighters.map((f) => f.seat) : []));
+  }
+
+  /**
+   * One frame. `here`: we're in the cellar (sounds only then), at `at` (each ring is loudest from beside it).
+   * `ghost`: whose pets are ghostly (dead owners).
+   */
+  update(dt: number, t: number, pit: PitState | null, here: boolean, at: { x: number; z: number }, ghost: (seat: string) => boolean, freeze: number | null = null) {
+    if (pit) this.tally.draw(JSON.stringify(pit.board), (c, w, h) => drawTally(c, w, h, pit.board));
+    this.rings.forEach((show, i) => {
+      const R = PIT_RINGS[i];
+      const d = Math.hypot(at.x - R.x, at.z - R.z);
+      const loud = Math.max(0.2, Math.min(1, 1.35 - d / 9));
+      show.update(dt, t, pit?.rings[i] ?? null, here, loud, ghost, freeze);
+    });
+  }
+
+  dispose() {
+    this.rings.forEach((r) => r.dispose());
   }
 }

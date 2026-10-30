@@ -20,8 +20,9 @@ import {
   PIT_BENCHES,
   PIT_BENCH_LEN,
   PIT_CORNERS,
-  PIT_RING,
+  PIT_RINGS,
   ROOMS,
+  RULES_BOARD,
   SHELF,
   SIDE_DIAL,
   TALLY_BOARD,
@@ -1433,6 +1434,8 @@ function nightWindow(x: number, y: number, z: number, w: number, h: number): THR
 // ---------------------------------------------------------------- the cellar under the tavern: the pet pit
 
 const CELLAR_STONE = ['#8a8178', '#7f766d', '#938a7f', '#776e66'];
+/** Each ring's sign: its size, height, and how far behind the ring's middle it hangs. */
+const RING_SIGN = { w: 1.1, h: 0.42, y: 2.75, dz: -2.35 };
 
 /** A bare bulb on a flex, with a little tin shade. */
 function bulb(p: Paint, glow: Builder, x: number, y: number, z: number) {
@@ -1482,39 +1485,42 @@ function cellar(p: Paint, glow: Builder, r: () => number) {
   // The front edge: a low stone kerb either side of nothing, so the room reads as a cut-away.
   for (const sx of [-1, 1]) p.box('#4a423b', hw - 0.4, 0.3, 0.2, sx * ((hw + 0.4) / 2), 0.15, hd + 0.05);
 
-  // The pit: packed sand inside a low wooden rail, chalk marks where the pets start.
-  const R = PIT_RING;
-  p.cyl('#cdb488', R.r + 0.05, 0.05, R.x, 0.02, R.z, 40);
-  for (let k = 0; k < 18; k++) {
-    const a = r() * Math.PI * 2;
-    const d = r() * (R.r - 0.4);
-    p.cyl(shade('#cdb488', -0.06 - r() * 0.06), 0.12 + r() * 0.2, 0.004, R.x + Math.cos(a) * d, 0.047, R.z + Math.sin(a) * d, 10);
-  }
-  for (const sx of [-1, 1]) p.box('#ecebe4', 0.06, 0.008, 0.5, R.x + sx * 0.8, 0.05, R.z);
-  const posts = 16;
-  for (let k = 0; k < posts; k++) {
-    const a = (k / posts) * Math.PI * 2;
-    const x = R.x + Math.cos(a) * (R.r + 0.08);
-    const z = R.z + Math.sin(a) * (R.r + 0.08);
-    p.box(WOOD_DARK, 0.1, R.rail + 0.06, 0.1, x, (R.rail + 0.06) / 2, z, 0, -a, 0);
-    p.cyl(shade(WOOD_DARK, 0.1), 0.06, 0.04, x, R.rail + 0.08, z, 8);
-    // Two rails from this post to the next.
-    const b = ((k + 1) / posts) * Math.PI * 2;
-    const len = 2 * (R.r + 0.08) * Math.sin(Math.PI / posts);
-    const mx = R.x + Math.cos((a + b) / 2) * (R.r + 0.08) * Math.cos(Math.PI / posts);
-    const mz = R.z + Math.sin((a + b) / 2) * (R.r + 0.08) * Math.cos(Math.PI / posts);
-    p.box(WOOD, len, 0.07, 0.07, mx, R.rail, mz, 0, -(a + b) / 2 + Math.PI / 2, 0);
-    p.box(shade(WOOD, -0.08), len, 0.05, 0.05, mx, R.rail * 0.45, mz, 0, -(a + b) / 2 + Math.PI / 2, 0);
-  }
-  // Each owner's corner: a chalk cross on the floor and a bucket with a towel over it.
-  PIT_CORNERS.forEach((c, i) => {
-    for (const rz of [0.7, -0.7]) p.box('#e6e1d4', 0.5, 0.006, 0.06, c.x, 0.004, c.z, 0, rz, 0);
-    const bx = c.x + (i ? 0.75 : -0.75);
-    const bz = c.z - 0.35;
-    p.taper('#7d8389', 0.85, 0.17, 0.3, bx, 0, bz, 12);
-    p.torus('#5f656b', 0.17, 0.012, bx, 0.3, bz, Math.PI / 2);
-    p.box(i ? '#c94f4f' : '#4f7ec9', 0.36, 0.02, 0.14, bx, 0.31, bz);
-    p.box(i ? '#c94f4f' : '#4f7ec9', 0.02, 0.2, 0.14, bx + (i ? 0.18 : -0.18), 0.22, bz);
+  // The pits: packed sand inside a low wooden rail, chalk marks where the pets start.
+  PIT_RINGS.forEach((R, ring) => {
+    p.cyl('#cdb488', R.r + 0.05, 0.05, R.x, 0.02, R.z, 40);
+    for (let k = 0; k < 18; k++) {
+      const a = r() * Math.PI * 2;
+      const d = r() * (R.r - 0.4);
+      p.cyl(shade('#cdb488', -0.06 - r() * 0.06), 0.12 + r() * 0.2, 0.004, R.x + Math.cos(a) * d, 0.047, R.z + Math.sin(a) * d, 10);
+    }
+    for (const sx of [-1, 1]) p.box('#ecebe4', 0.06, 0.008, 0.5, R.x + sx * 0.8, 0.05, R.z);
+    const posts = 16;
+    for (let k = 0; k < posts; k++) {
+      const a = (k / posts) * Math.PI * 2;
+      const x = R.x + Math.cos(a) * (R.r + 0.08);
+      const z = R.z + Math.sin(a) * (R.r + 0.08);
+      p.box(WOOD_DARK, 0.1, R.rail + 0.06, 0.1, x, (R.rail + 0.06) / 2, z, 0, -a, 0);
+      p.cyl(shade(WOOD_DARK, 0.1), 0.06, 0.04, x, R.rail + 0.08, z, 8);
+      // Two rails from this post to the next.
+      const b = ((k + 1) / posts) * Math.PI * 2;
+      const len = 2 * (R.r + 0.08) * Math.sin(Math.PI / posts);
+      const mx = R.x + Math.cos((a + b) / 2) * (R.r + 0.08) * Math.cos(Math.PI / posts);
+      const mz = R.z + Math.sin((a + b) / 2) * (R.r + 0.08) * Math.cos(Math.PI / posts);
+      p.box(WOOD, len, 0.07, 0.07, mx, R.rail, mz, 0, -(a + b) / 2 + Math.PI / 2, 0);
+      p.box(shade(WOOD, -0.08), len, 0.05, 0.05, mx, R.rail * 0.45, mz, 0, -(a + b) / 2 + Math.PI / 2, 0);
+    }
+    // Each owner's corner: a chalk cross on the floor and a bucket with a towel over it.
+    PIT_CORNERS[ring].forEach((c, i) => {
+      for (const rz of [0.7, -0.7]) p.box('#e6e1d4', 0.5, 0.006, 0.06, c.x, 0.004, c.z, 0, rz, 0);
+      const bx = c.x + (i ? 0.75 : -0.75);
+      const bz = c.z - 0.35;
+      p.taper('#7d8389', 0.85, 0.17, 0.3, bx, 0, bz, 12);
+      p.torus('#5f656b', 0.17, 0.012, bx, 0.3, bz, Math.PI / 2);
+      p.box(i ? '#c94f4f' : '#4f7ec9', 0.36, 0.02, 0.14, bx, 0.31, bz);
+      p.box(i ? '#c94f4f' : '#4f7ec9', 0.02, 0.2, 0.14, bx + (i ? 0.18 : -0.18), 0.22, bz);
+    });
+    // The chains its sign hangs from, over the back of the ring (the sign itself is drawn below).
+    for (const sx of [-1, 1]) p.cyl('#3a3633', 0.012, 3.3 - RING_SIGN.y - RING_SIGN.h / 2, R.x + sx * (RING_SIGN.w / 2 - 0.08), (3.3 + RING_SIGN.y + RING_SIGN.h / 2) / 2, R.z + RING_SIGN.dz, 4);
   });
   // Rough benches round the pit: planks on trestles.
   for (const b of PIT_BENCHES) {
@@ -1551,41 +1557,55 @@ function cellar(p: Paint, glow: Builder, r: () => number) {
   bulb(p, glow, S.x + 0.2, 2.6, S.z0 - 0.1);
   p.box('#4a3020', S.w + 0.2, 0.08, 0.9, S.x, S.h + 0.06, S.z1 + 0.25);
 
-  // The tally board's frame on the back wall (the chalk on it is drawn as the fights go).
+  // The tally board's frame on the back wall (the chalk on it is drawn as the fights go), and the rules board's.
   const B = TALLY_BOARD;
   p.box(WOOD_DARK, B.w + 0.2, B.h + 0.2, 0.06, B.x, B.y, -hd + 0.1);
   p.box('#2e3430', B.w, B.h, 0.04, B.x, B.y, -hd + 0.13);
   p.box(WOOD_DARK, B.w, 0.05, 0.12, B.x, B.y - B.h / 2 - 0.08, -hd + 0.15);
   for (const x of [-0.6, -0.4, 0.5]) p.box('#f2efe6', 0.1, 0.025, 0.025, B.x + x, B.y - B.h / 2 - 0.04, -hd + 0.16);
+  p.box(WOOD_DARK, RULES_BOARD.w + 0.14, RULES_BOARD.h + 0.14, 0.05, RULES_BOARD.x, RULES_BOARD.y, -hd + 0.12);
 
-  // Barrels and crates in the corners, sacks, and a crate stack along the right wall.
-  barrel(p.at(-5.8, 0, -5.2), r);
-  barrel(p.at(-4.9, 0, -5.3), r);
-  barrel(p.at(-5.35, 0.95, -5.25), r);
-  barrel(p.at(-3.6, 0, -5.2, 0.3), r, true);
-  crate(p.at(5.2, 0, -5.1), r, 0.9);
-  crate(p.at(6.15, 0, -4.7), r, 0.8);
-  crate(p.at(5.3, 0.9, -5.1), r, 0.6);
-  crate(p.at(6.3, 0, 1.7), r, 0.8);
-  crate(p.at(6.3, 0, 2.7), r, 0.9);
-  crate(p.at(6.35, 0.9, 2.3), r, 0.7);
-  crate(p.at(6.2, 0, 3.6), r, 0.6);
-  barrel(p.at(5.9, 0, 4.9), r);
+  // Barrels and crates in the back corners, sacks, and a crate stack in the front right corner.
+  barrel(p.at(-10.3, 0, -5.2), r);
+  barrel(p.at(-9.4, 0, -5.3), r);
+  barrel(p.at(-9.85, 0.95, -5.25), r);
+  barrel(p.at(-8.1, 0, -5.2, 0.3), r, true);
+  crate(p.at(9.7, 0, -5.1), r, 0.9);
+  crate(p.at(10.65, 0, -4.7), r, 0.8);
+  crate(p.at(9.8, 0.9, -5.1), r, 0.6);
+  crate(p.at(10.8, 0, 3.0), r, 0.8);
+  crate(p.at(10.8, 0, 4.0), r, 0.9);
+  crate(p.at(10.85, 0.9, 3.6), r, 0.7);
+  barrel(p.at(10.4, 0, 5.1), r);
   for (const [x, z, ry] of [
-    [-6.3, -3.4, 0.4],
-    [-6.4, -2.6, -0.2],
+    [-10.8, -3.4, 0.4],
+    [-10.9, -2.6, -0.2],
+    [3.8, -5.5, 0.1],
   ] as const) {
     const q = p.at(x, 0, z, ry);
     q.blob('#c9b07a', 0.3, 0, 0.28, 0, 0.3, 1.2);
     q.cyl('#a8905f', 0.08, 0.1, 0, 0.62, 0, 8);
   }
-  // Bulbs over the ring, the board and the corners.
-  for (let k = 0; k < 3; k++) {
-    const a = (k / 3) * Math.PI * 2 + Math.PI / 2;
-    bulb(p, glow, R.x + Math.cos(a) * 1.1, 2.55, R.z + Math.sin(a) * 1.1);
-  }
+  // Bulbs over each ring, the board and the corners.
+  for (const R of PIT_RINGS)
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2 + Math.PI / 2;
+      bulb(p, glow, R.x + Math.cos(a) * 1.1, 2.55, R.z + Math.sin(a) * 1.1);
+    }
   bulb(p, glow, B.x, 2.9, -hd + 0.9);
-  bulb(p, glow, 5.2, 2.6, 1.0);
+  bulb(p, glow, 10.2, 2.6, 2.4);
+
+  // Each ring's sign: "Ring 1" to "Ring 3", left to right, on a board hanging over the back of the ring.
+  const signs = new THREE.Group();
+  PIT_RINGS.forEach((R, i) => {
+    const text = new TextSign({ w: 512, h: 192, bg: '#3a2418', fg: '#f6d77a', border: '#d8a845', grain: true, size: 120 }, [`Ring ${i + 1}`]);
+    const { mesh } = signBoard(text, RING_SIGN.w, RING_SIGN.h, { lit: true });
+    mesh.position.set(R.x, RING_SIGN.y, R.z + RING_SIGN.dz);
+    // (Tipped a little towards the room, so it reads from the benches and from above.)
+    mesh.rotation.x = -0.2;
+    signs.add(mesh);
+  });
+  return signs;
 }
 
 // ---------------------------------------------------------------- the casino
@@ -1941,11 +1961,9 @@ export function buildInteriors(): Interiors {
       hemi: { sky: '#d8c2a2', ground: '#2a201a', intensity: 0.8 },
       sun: { color: '#ffd9a8', intensity: 0.55, dir: [0.2, 1, 0.5] },
       lights: [
-        // The bulbs over the ring do most of it; one by the stairs and one over the board.
-        { pos: [PIT_RING.x, 2.4, PIT_RING.z], color: '#ffd08a', intensity: 26, distance: 9 },
-        { pos: [PIT_RING.x, 2.6, -4.6], color: '#ffd08a', intensity: 8, distance: 6 },
+        // The bulbs over the rings do it all (reaching the boards behind them), but for one by the stairs.
+        ...PIT_RINGS.map((R) => ({ pos: [R.x, 2.4, R.z] as [number, number, number], color: '#ffd08a', intensity: 28, distance: 10 })),
         { pos: [CELLAR_STAIRS.x + 0.3, 2.4, CELLAR_STAIRS.z0 - 0.4], color: '#ffc77a', intensity: 7, distance: 6 },
-        { pos: [5.2, 2.4, 1.0], color: '#ffc77a', intensity: 6, distance: 6 },
       ],
     },
     house: {

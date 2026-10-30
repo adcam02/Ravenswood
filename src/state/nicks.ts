@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { loadJSON, saveJSON } from '../lib/util';
+import { debugHooks, loadJSON, saveJSON } from '../lib/util';
 
 /**
  * Nicknames a player has given other players, which only they see (Luke can call Xengeath "Tyler" on his own
@@ -44,3 +44,6 @@ export function withReal(name: string | null | undefined, fallback = 'Someone', 
   const nick = nickFor(name, map);
   return nick ? `${nick} (${name})` : name || fallback;
 }
+
+// (Tests can give someone a nickname: `__nicks.set('Bruno', 'Big B')`.)
+if (debugHooks()) Object.assign(window, { __nicks: nicks });

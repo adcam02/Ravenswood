@@ -56,6 +56,10 @@ const ALL = {
   'casino-front': 'x=-15.95&z=-20.41&t=0&dist=17&pitch=0.32&yaw=0.66',
   'casino-night': 'x=-15.95&z=-20.41&t=1&dist=17&pitch=0.32&yaw=0.66',
   'casino-inside': 'zone=casino&t=0&casino',
+  // The pet pit's three rings in the tavern's cellar, the whole room and the right-hand ring close up.
+  'cellar-inside': 'zone=cellar&t=0&dist=24',
+  'cellar-ring3': 'zone=cellar&x=7.2&z=0.5&t=0&dist=11',
+  'casino-seat-rl': 'zone=casino&t=0&casino&seatcam=rl:2',
   'casino-poker': 'zone=casino&x=-3.7&z=1.5&t=0&dist=7&pitch=0.75&casino',
   'casino-bj': 'zone=casino&x=4.4&z=-3&t=0&dist=6&pitch=0.8&casino',
   'casino-seat-pk': 'zone=casino&t=0&casino&seatcam=pk:5',

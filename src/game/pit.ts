@@ -1,11 +1,13 @@
 /**
- * The pet pit, run by the Storyteller's browser: players in the tavern's cellar challenge each other, the fight's
+ * The pet pit, run by the Storyteller's browser: players in the tavern's cellar challenge each other, each fight's
  * rounds are timed and resolved here (so everyone watching sees the same fight), and the house pays the winner.
- * The rules themselves are in pitRules.ts.
+ * The cellar has three rings, so three fights can be on at once: a challenge is made at the ring the challenger is
+ * standing by, and the fight goes there (or to the nearest ring that's free). The rules themselves are in pitRules.ts.
  */
 import { debugHooks, uid } from '../lib/util';
 import { useHost } from '../state/host';
 import type { GameState, PitAction, PitFight, PitMove, PitSide, PitState, Seat } from '../state/types';
+import { PIT_RINGS, pitRingAt } from '../world/town/layout';
 import { PETS, type PetId } from '../world/types';
 import { addTally, credit, nameKey, topTally } from './profiles';
 import { presence } from './presence';
@@ -21,7 +23,11 @@ const update = (fn: (g: GameState) => void) => useHost.getState().update(fn);
 const today = () => new Date().toLocaleDateString('en-CA');
 
 function pitOf(g: GameState): PitState {
-  g.pit ??= { fight: null, challenges: [], board: board() };
+  g.pit ??= { rings: [], challenges: [], board: board() };
+  // (A pit from before there were three rings had just the one fight.)
+  if (!Array.isArray(g.pit.rings)) g.pit.rings = [];
+  while (g.pit.rings.length < PIT_RINGS.length) g.pit.rings.push(null);
+  if ('fight' in g.pit) delete (g.pit as { fight?: unknown }).fight;
   return g.pit;
 }
 
@@ -37,7 +43,21 @@ function inPit(seatId: string, now = Date.now()): boolean {
 }
 
 const petOf = (s: Seat | undefined): PetId | null => (s?.look?.pet && PETS.some((p) => p.id === s.look!.pet) ? s.look.pet : null);
-const fighting = (pit: PitState, seatId: string) => Boolean(pit.fight && pit.fight.stage !== 'over' && pit.fight.sides.some((s) => s.seat === seatId));
+const busy = (f: PitFight | null | undefined) => Boolean(f && f.stage !== 'over');
+const fighting = (pit: PitState, seatId: string) => (pit.rings ?? []).some((f) => busy(f) && f!.sides.some((s) => s.seat === seatId));
+
+/** The ring a fight goes in: the one it was called at if it's free, or else the nearest one that is (null: all busy). */
+function freeRing(pit: PitState | undefined, want: number): number | null {
+  const free = PIT_RINGS.map((_, i) => i).filter((i) => !busy(pit?.rings?.[i]));
+  if (!free.length) return null;
+  return free.sort((a, b) => Math.abs(a - want) - Math.abs(b - want))[0];
+}
+
+/** The ring a player is standing by, by where they last said they were. */
+function ringOf(seatId: string): number {
+  const p = presence.others.get(seatId);
+  return p ? pitRingAt(p.x, p.z) : 1;
+}
 
 function side(s: Seat, pet: PetId): PitSide {
   return { seat: s.id, name: s.name || 'Someone', pet, hp: PIT.hearts, charge: 0, picked: false, move: null, last: null };
@@ -104,7 +124,7 @@ export const pit = {
           const p = pitOf(g);
           if (fighting(p, me.id) || fighting(p, them.id)) return;
           // One challenge out at a time: a new one replaces the last.
-          p.challenges = [...p.challenges.filter((c) => c.from !== me.id), { id: uid(), from: me.id, to: them.id, at: now }].slice(-20);
+          p.challenges = [...p.challenges.filter((c) => c.from !== me.id), { id: uid(), from: me.id, to: them.id, ring: ringOf(me.id), at: now }].slice(-20);
         });
         break;
       }
@@ -127,22 +147,24 @@ export const pit = {
         const them = g.seats.find((s) => s.id === c.from);
         const a = petOf(them);
         const b = petOf(me);
-        // The ring takes one fight at a time.
-        if (!them || !a || !b || !inPit(them.id) || !inPit(me.id) || (g.pit?.fight && g.pit.fight.stage !== 'over')) return;
+        // Each ring takes one fight at a time.
+        const ring = freeRing(g.pit, typeof c.ring === 'number' ? c.ring : 1);
+        if (!them || !a || !b || !inPit(them.id) || !inPit(me.id) || ring === null || (g.pit && (fighting(g.pit, me.id) || fighting(g.pit, them.id)))) return;
         update((g) => {
           const p = pitOf(g);
           p.challenges = p.challenges.filter((x) => ![x.from, x.to].some((id) => id === me.id || id === them.id));
-          p.fight = { id: uid(), sides: [side(them, a), side(me, b)], stage: 'intro', round: 0, until: now + PIT.introMs, last: null, at: now };
+          p.rings[ring] = { id: uid(), ring, sides: [side(them, a), side(me, b)], stage: 'intro', round: 0, until: now + PIT.introMs, last: null, at: now };
         });
-        away.clear();
+        away.delete(me.id);
+        away.delete(them.id);
         break;
       }
       case 'move': {
         const move = raw.move;
         if (!MOVES.includes(move)) return;
         update((g) => {
-          const f = g.pit?.fight;
-          if (!f || f.stage !== 'pick') return;
+          const f = g.pit?.rings?.find((x) => x?.stage === 'pick' && x.sides.some((s) => s.seat === me.id));
+          if (!f) return;
           const s = f.sides.find((x) => x.seat === me.id);
           if (!s || s.picked || !allowed(move, s.last)) return;
           s.move = move;
@@ -159,53 +181,59 @@ export const pit = {
     const g = useHost.getState().g;
     const p = g.pit;
     // (The board goes up as soon as the room opens.)
-    if (!p) return update((g) => void pitOf(g));
+    if (!p || !Array.isArray(p.rings) || p.rings.length < PIT_RINGS.length) return update((g) => void pitOf(g));
     const now = Date.now();
     // Challenges go when they're old, or either side has left the cellar.
     const stale = p.challenges.some((c) => now - c.at > PIT.challengeMs || !inPit(c.from, now) || !inPit(c.to, now));
     if (stale) update((g) => void (pitOf(g).challenges = pitOf(g).challenges.filter((c) => now - c.at <= PIT.challengeMs && inPit(c.from, now) && inPit(c.to, now))));
-    const f = p.fight;
-    if (!f) return;
-    if (f.stage !== 'over') {
-      // Night sends everyone home: the fight's off. Otherwise, a fighter out of the cellar for long has walked out.
-      const night = g.phase === 'night' && (g.revealed || g.day > 0);
-      for (const s of f.sides) {
-        if (inPit(s.seat, now)) away.delete(s.seat);
-        else if (!away.has(s.seat)) away.set(s.seat, now);
-      }
-      const gone = f.sides.map((s) => now - (away.get(s.seat) ?? now) >= PIT.leaveMs);
-      if (night || gone[0] || gone[1]) {
-        update((g) => {
-          const p = pitOf(g);
-          const x = p.fight;
-          if (!x || x.stage === 'over') return;
-          if (night || (gone[0] && gone[1])) finish(p, x, null, 'off', now);
-          else finish(p, x, gone[0] ? 1 : 0, 'left', now);
-        });
-        return;
-      }
-    }
-    if (now < f.until) return;
-    update((g) => {
-      const p = pitOf(g);
-      const x = p.fight;
-      if (!x || now < x.until) return;
-      if (x.stage === 'intro') {
-        x.stage = 'pick';
-        x.round = 1;
-        x.until = now + PIT.pickMs;
-      } else if (x.stage === 'pick') resolve(x, now);
-      else if (x.stage === 'reveal') {
-        const won = outcome([x.sides[0].hp, x.sides[1].hp]);
-        if (won === null) {
-          x.stage = 'pick';
-          x.round += 1;
-          x.until = now + PIT.pickMs;
-        } else finish(p, x, won === 'draw' ? null : won, won === 'draw' ? 'draw' : 'ko', now);
-      } else p.fight = null;
-    });
+    // Night sends everyone home: every fight's off.
+    const night = g.phase === 'night' && (g.revealed || g.day > 0);
+    p.rings.forEach((f, ring) => f && tickRing(ring, f, night, now));
   },
 };
+
+/** One ring's fight: a fighter out of the cellar for long has walked out, and each stage ends on time. */
+function tickRing(ring: number, f: PitFight, night: boolean, now: number) {
+  const fightIn = (g: GameState) => {
+    const x = pitOf(g).rings[ring];
+    return x && x.id === f.id ? x : null;
+  };
+  if (f.stage !== 'over') {
+    for (const s of f.sides) {
+      if (inPit(s.seat, now)) away.delete(s.seat);
+      else if (!away.has(s.seat)) away.set(s.seat, now);
+    }
+    const gone = f.sides.map((s) => now - (away.get(s.seat) ?? now) >= PIT.leaveMs);
+    if (night || gone[0] || gone[1]) {
+      update((g) => {
+        const x = fightIn(g);
+        if (!x || x.stage === 'over') return;
+        if (night || (gone[0] && gone[1])) finish(pitOf(g), x, null, 'off', now);
+        else finish(pitOf(g), x, gone[0] ? 1 : 0, 'left', now);
+      });
+      return;
+    }
+  }
+  if (now < f.until) return;
+  update((g) => {
+    const p = pitOf(g);
+    const x = fightIn(g);
+    if (!x || now < x.until) return;
+    if (x.stage === 'intro') {
+      x.stage = 'pick';
+      x.round = 1;
+      x.until = now + PIT.pickMs;
+    } else if (x.stage === 'pick') resolve(x, now);
+    else if (x.stage === 'reveal') {
+      const won = outcome([x.sides[0].hp, x.sides[1].hp]);
+      if (won === null) {
+        x.stage = 'pick';
+        x.round += 1;
+        x.until = now + PIT.pickMs;
+      } else finish(p, x, won === 'draw' ? null : won, won === 'draw' ? 'draw' : 'ko', now);
+    } else p.rings[ring] = null;
+  });
+}
 
 // (Tests can stretch the clock: `__pit.PIT.pickMs = 60000`.)
 if (debugHooks()) Object.assign(window, { __pit: { PIT, pit } });

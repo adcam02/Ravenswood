@@ -26,7 +26,7 @@ export const PIT = {
   /** A challenge left unanswered goes away. */
   challengeMs: 30000,
   /** From the house: the winner's prize, and each side's for a draw (nothing: nobody won). */
-  prize: 2,
+  prize: 5,
   drawPrize: 0,
   /** Prizes a player can win in a day (the house isn't made of money, and fighting a friend over and over shouldn't
    * pay more than playing a game). */
@@ -98,6 +98,6 @@ export function outcome(hp: [number, number]): 0 | 1 | 'draw' | null {
 
 /** The pit as players see it: nobody's pick, and none of the house's books. */
 export function pitPublic(p: PitState): PitState {
-  const f: PitFight | null = p.fight && { ...p.fight, sides: [{ ...p.fight.sides[0], move: undefined }, { ...p.fight.sides[1], move: undefined }] };
-  return { fight: f, challenges: p.challenges, board: p.board };
+  const hide = (f: PitFight | null): PitFight | null => f && { ...f, sides: [{ ...f.sides[0], move: undefined }, { ...f.sides[1], move: undefined }] };
+  return { rings: (p.rings ?? []).map(hide), challenges: p.challenges, board: p.board };
 }
