@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { speechSecs, st, useHost } from '../state/host';
+import { useUI } from '../state/ui';
 import { useView } from '../state/view';
 import { Icon } from './Icon';
 
 /** The seconds left as a clock: 0:24. */
-const clock = (secs: number) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+export const clock = (secs: number) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
 
 /** Seconds left for whoever has the floor, ticking down (in this browser's clock). */
-function useSecondsLeft(until: number | null): number {
+export function useSecondsLeft(until: number | null): number {
   const [, tick] = useState(0);
   useEffect(() => {
     if (until === null) return;
@@ -50,7 +51,9 @@ export function SpeechBanner() {
   const n = view.nomination;
   const sp = n?.speech ?? null;
   const left = useSecondsLeft(sp?.until ?? null);
-  if (!n || !sp) return null;
+  // (In the grimoire the clock in the middle says it all, with the same buttons.)
+  const grimoire = useUI((s) => s.grimoireOpen) && view.mode === 'st';
+  if (!n || !sp || grimoire) return null;
   const name = (id: string | null) => view.seats.find((s) => s.id === id)?.label ?? 'Someone';
   const mine = view.seats.find((s) => s.id === sp.seatId)?.isMe;
   const title = sp.kind === 'accuse' ? `${name(n.nominatorId)} accuses ${name(n.nomineeId)}` : `${name(n.nomineeId)}’s defence`;

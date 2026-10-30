@@ -827,6 +827,10 @@
   background: #c8323c;
   color: #fff;
 }
+/* The Storyteller's own buttons (Mic, Settings) are along the top of the town: under them. */
+.mode-st .speech-banner {
+  top: 134px;
+}
 /* A player's vote bar sits at the top during a nomination: the banner goes just under it. */
 .app:has(.vote-bar) .speech-banner {
   top: 144px;

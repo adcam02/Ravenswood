@@ -12,7 +12,7 @@ import { useView, type View } from '../state/view';
 import { Icon } from './Icon';
 import { blockOutlook } from '../lib/block';
 import type { Geometry } from './Square';
-import { SpeechControls } from './Speech';
+import { clock, SpeechControls, useSecondsLeft } from './Speech';
 
 const NUMERALS = ['XII', 'I', 'II', 'III', 'IIII', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI'];
 
@@ -91,6 +91,7 @@ function Nomination() {
           : { state: 'locked', text: `${onBlock.label}’s execution can’t be stopped by this vote.` }
       : null;
   const handOn = n.step === 0 ? n.nomineeId : n.order[n.step - 1];
+  const speechLeft = useSecondsLeft(n.speech?.until ?? null);
 
   return (
     <div className="nomination">
@@ -119,7 +120,7 @@ function Nomination() {
       {!done && blockLine && <div className={`nom-block ${blockLine.state}`}>{blockLine.text}</div>}
       {n.speech && (
         <div className="nom-status nom-speech">
-          {n.speech.kind === 'accuse' ? `${name(n.nominatorId)} is making the case` : `${name(n.nomineeId)} is defending themselves`}
+          {n.speech.kind === 'accuse' ? `${name(n.nominatorId)} is making the case` : `${name(n.nomineeId)} is defending themselves`} · {clock(speechLeft)}
         </div>
       )}
       {n.speech && <SpeechControls />}
@@ -131,7 +132,7 @@ function Nomination() {
       {isST && (
         <div className="nom-controls">
           <div className="nom-row">
-            {(n.status === 'idle' || n.status === 'paused') && (
+            {(n.status === 'idle' || n.status === 'paused') && !n.speech && (
               <>
                 {n.status === 'idle' && (
                   <button className="btn sapphire small" onClick={st.countdown}>
