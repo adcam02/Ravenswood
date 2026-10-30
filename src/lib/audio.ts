@@ -1016,6 +1016,130 @@ export function execSound(name: string) {
       hush(c, out, t, 0.12, 'bandpass', 2500, 1500, 0.2, 1.2);
       blip(c, out, t + 0.02, 0.15, 'sine', 400, 900, 0.08);
       break;
+    // The newer ways (see exec/stage2.ts).
+    case 'strain':
+      // "Nnnngh": a low wavering grunt.
+      for (let k = 0; k < 3; k++) blip(c, out, t + k * 0.42, 0.38, 'sawtooth', 150 + k * 18, 120 + k * 18, 0.04);
+      hush(c, out, t, 1.2, 'bandpass', 400, 500, 0.04, 3, 0.2);
+      break;
+    case 'clank':
+      blip(c, out, t, 0.5, 'square', 180, 120, 0.08);
+      blip(c, out, t, 0.4, 'sine', 90, 40, 0.4);
+      hush(c, out, t, 0.25, 'bandpass', 3000, 1800, 0.18, 3);
+      break;
+    case 'spin':
+      hush(c, out, t, 0.7, 'bandpass', 600, 2400, 0.14, 2, 0.2);
+      break;
+    case 'snipe':
+      hush(c, out, t, 0.35, 'lowpass', 5000, 400, 0.4, 0.7, 0.003);
+      blip(c, out, t, 0.2, 'sine', 160, 50, 0.3);
+      break;
+    case 'airhorn':
+      // Three brash blasts.
+      [0, 0.18, 0.36].forEach((at, i) => {
+        for (const f of [466, 470, 587]) blip(c, out, t + at, i === 2 ? 0.55 : 0.15, 'sawtooth', f, f * 0.98, 0.035);
+      });
+      break;
+    case 'rattle':
+      for (let k = 0; k < 8; k++) blip(c, out, t + k * 0.07, 0.05, 'square', 900 + (k % 2) * 200, 700, 0.03);
+      break;
+    case 'splash':
+      hush(c, out, t, 0.6, 'bandpass', 1800, 500, 0.3, 0.7, 0.005);
+      for (let k = 0; k < 6; k++) blip(c, out, t + 0.1 + Math.random() * 0.4, 0.08, 'sine', 900 + Math.random() * 900, 1600, 0.03);
+      break;
+    case 'beep':
+      blip(c, out, t, 0.08, 'square', 1760, 1760, 0.035);
+      break;
+    case 'nuke':
+      // A deep, long roar of a boom, rumbling on.
+      blip(c, out, t, 3.0, 'sine', 70, 22, 0.7);
+      hush(c, out, t, 3.6, 'lowpass', 3000, 80, 0.55, 0.7, 0.005);
+      hush(c, out, t + 0.3, 3.2, 'lowpass', 220, 90, 0.4, 0.6, 0.3);
+      break;
+    case 'toll':
+      bell(147, 4.5, 0.12);
+      bell(294, 3, 0.04, 0.01);
+      break;
+    case 'honk':
+      [0, 0.22].forEach((at) => {
+        blip(c, out, t + at, 0.16, 'square', 392, 380, 0.05);
+        blip(c, out, t + at, 0.16, 'square', 494, 480, 0.04);
+      });
+      break;
+    case 'meep':
+      blip(c, out, t, 0.12, 'square', 660, 640, 0.04);
+      break;
+    case 'skid':
+      hush(c, out, t, 0.75, 'bandpass', 2600, 1900, 0.16, 6, 0.02);
+      blip(c, out, t, 0.7, 'triangle', 1400, 1100, 0.03);
+      break;
+    case 'scratch':
+      // A record scratch: a squeal up and back.
+      hush(c, out, t, 0.12, 'bandpass', 900, 3500, 0.3, 4);
+      hush(c, out, t + 0.12, 0.18, 'bandpass', 3500, 700, 0.25, 4);
+      break;
+    case 'chord':
+      for (const f of [130.8, 196, 261.6, 311.1]) blip(c, out, t, 1.1, 'sawtooth', f, f, 0.025);
+      break;
+    case 'tada':
+      blip(c, out, t, 0.12, 'square', 523, 523, 0.04);
+      for (const f of [523, 659, 784]) blip(c, out, t + 0.14, 0.6, 'square', f, f, 0.03);
+      break;
+    case 'saw':
+      for (let k = 0; k < 4; k++) hush(c, out, t + k * 0.22, 0.2, 'bandpass', k % 2 ? 2400 : 1600, k % 2 ? 1600 : 2400, 0.12, 3, 0.03);
+      break;
+    case 'slurp':
+      blip(c, out, t, 0.45, 'sine', 300, 120, 0.12);
+      hush(c, out, t, 0.4, 'bandpass', 700, 300, 0.1, 2);
+      break;
+    case 'grind': {
+      // The crank's clatter going round, and a whirr under it.
+      for (let k = 0; k < 16; k++) blip(c, out, t + k * 0.16, 0.08, 'square', 140, 90, 0.05);
+      const w = blip(c, out, t, 2.6, 'sawtooth', 70, 64, 0.05);
+      const wob = c.createOscillator();
+      const d = c.createGain();
+      wob.frequency.value = 6;
+      d.gain.value = 10;
+      wob.connect(d).connect(w.frequency);
+      wob.start(t);
+      wob.stop(t + 2.65);
+      break;
+    }
+    case 'plop':
+      blip(c, out, t, 0.12, 'sine', 500, 200, 0.1);
+      break;
+    case 'bonng':
+      // Every string at once, thrown down hard.
+      for (const f of [55, 110, 164.8, 220, 277.2, 330]) bell(f, 3.5, 0.05);
+      blip(c, out, t, 0.6, 'sine', 80, 35, 0.4);
+      break;
+    case 'piano':
+      // A great discordant crash of keys and strings, and the wood splintering.
+      for (const f of [61.7, 65.4, 92.5, 98, 138.6, 146.8, 207.7, 220, 311.1, 329.6]) bell(f, 2.6, 0.045);
+      blip(c, out, t, 0.6, 'sine', 90, 30, 0.5);
+      hush(c, out, t, 0.9, 'lowpass', 4000, 300, 0.4, 0.7, 0.003);
+      for (let k = 0; k < 10; k++) hush(c, out, t + 0.05 + Math.random() * 0.5, 0.05, 'bandpass', 1500 + Math.random() * 2000, 1200, 0.08, 2);
+      break;
+    case 'tune':
+      // A happy little tune on the piano.
+      [523.3, 659.3, 784, 659.3, 784, 1046.5].forEach((f, i) => bell(f, 0.9, 0.05, i * 0.17));
+      break;
+    case 'stomp':
+      blip(c, out, t, 0.35, 'sine', 70, 35, 0.4);
+      hush(c, out, t, 0.25, 'lowpass', 400, 120, 0.15);
+      break;
+    case 'slam':
+      blip(c, out, t, 0.4, 'sine', 100, 35, 0.55);
+      hush(c, out, t, 0.35, 'lowpass', 1600, 150, 0.35, 0.7, 0.003);
+      blip(c, out, t + 0.02, 0.3, 'sine', 300, 600, 0.04);
+      break;
+    case 'hmph':
+      blip(c, out, t, 0.35, 'sawtooth', 110, 80, 0.07);
+      hush(c, out, t, 0.3, 'lowpass', 500, 300, 0.12);
+      break;
+    case 'hmm':
+      blip(c, out, t, 0.8, 'sawtooth', 100, 120, 0.04);
+      break;
   }
 }
 

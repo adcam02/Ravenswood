@@ -6,7 +6,7 @@ import { local, setItem } from '../game/local';
 import { presence } from '../game/presence';
 import { SCORE_OF, type GameJob, type JobResults } from '../jobs/meta';
 import { rememberBest } from '../game/bests';
-import type { DayTimer, ExecMethod, Execution, Nomination, TownAction, TownHall, Visit } from '../state/types';
+import type { DawnReel, DayTimer, ExecMethod, Execution, Nomination, TownAction, TownHall, Visit } from '../state/types';
 import { ambience } from '../lib/ambience';
 import { doorChime, drumroll, execSound, gavel, gulpSound, munchSound, pigeonSound, ropeSnap, visitSound } from '../lib/audio';
 import { clubMusic, songById } from '../lib/disco';
@@ -20,6 +20,7 @@ import { ui, useUI } from '../state/ui';
 import { earshot } from '../voice/earshot';
 import { useVoice, voice, type Listener } from '../voice/voice';
 import { AvatarView, type AvatarInfo } from './avatar';
+import { buildAnimal, type Rig } from './animals';
 import { resolve, turnToward } from './collide';
 import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWorld } from './town';
 import { BED, BOUNCER, CLUB, CLUB_NAME, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, FLATS, FLATS_NAME, GRAVEYARD, MEETING_CENTRE, PIT_CORNERS, PIT_RING, ROOM_DOOR, SQUARE_R, STOOL_R, TOWER, TRAPDOOR, doorPoint, groundAt, onDanceFloor, roadDistance } from './town/layout';
@@ -36,7 +37,7 @@ import type { PitState } from '../state/types';
 
 /** Hats are a player's own: the Storyteller doesn't collect them. */
 const isPlayerView = (v: WorldView | null) => v?.mode === 'player';
-import { drawless, loadJSON, saveJSON } from '../lib/util';
+import { drawless, joinNames, loadJSON, saveJSON } from '../lib/util';
 import { steadyInterval } from '../lib/ticker';
 import { casino, casinoNow, hostNow } from '../casino/client';
 import { TableCam } from './tablecam';
@@ -95,9 +96,14 @@ const TAG_FAR = 26;
 const SHOW = { lower: 0.9, drop: 1.6, puff: 3.3, rise: 0.6, end: 3.3 + SOUL.rise + SOUL.pop + 0.5, spared: 4.3, snap: 0.18 };
 /** Still no method this long after the vote should have closed, something went astray: the show is called off. */
 const SHOW_WAIT_S = 20;
+/**
+ * The dawn reel's timings, in seconds: how long each death with a visit is shown, and how far into the visit it
+ * starts (the figure already gliding in); how long one without a visit is, and when they slip away in it.
+ */
+const DAWN = { visit: 6.4, from: 1.2, quiet: 3.4, quietAt: 1.0 };
 // Every way but the gallows, and the hooded figure's visits, arrive when first needed (or soon after the page
 // loads, whichever comes first): nobody needs them for the first look at the town.
-const execShows = lazyModule(() => import('./exec/stage'));
+const execShows = lazyModule(() => import('./exec/shows'));
 const nightVisits = lazyModule(() => import('./visit'));
 /** Even with nothing changing, the shadow map is redrawn this often, just in case. */
 const SHADOW_SAFETY_S = 10;
@@ -196,6 +202,8 @@ export interface WorldView {
   pit?: PitState | null;
   /** The song on at the club, since when (this browser's clock), and who put it on. */
   club: { song: string; at: number; by: string };
+  /** This morning's replay of the night's deaths (this browser's clock). */
+  dawn: DawnReel | null;
 }
 
 /** What the world asks of the game around it. */
@@ -466,6 +474,25 @@ export class Engine {
   private visit: { id: string; seatId: string; zone: ZoneId; mine: boolean; scene: NightVisit; start: number; kit: typeof import('./visit') } | null = null;
   private victimPose: VictimPose | null = null;
   private visitsSeen = new Set<string>(loadJSON<string[]>(VISITS_SEEN_KEY, []));
+  /**
+   * Dawn: the night's deaths played for everyone in turn, each in the victim's bedroom (a stand-in of them in bed
+   * and the hooded figure's visit again), before the day carries on. `slot` is the death on screen (-1 before the
+   * first).
+   */
+  private dawn: {
+    id: string;
+    /** How far through it is, and when it was last moved on (our clock). */
+    age: number;
+    last: number;
+    slots: { seatId: string; variant: number | null; from: number; to: number }[];
+    slot: number;
+    zone: ZoneId | null;
+    rig: Rig | null;
+    scene: NightVisit | null;
+    kit: typeof import('./visit') | null;
+    pose: VictimPose | null;
+    cut: boolean;
+  } | null = null;
   /** Messenger pigeons flying (or perched, or bursting) here, by id, with whose shoulder each is for. */
   private pigeons = new Map<string, { flight: PigeonFlight; to: string; start: number; noted: boolean }>();
   private pigeonsSeen = new Set<string>();
@@ -954,6 +981,10 @@ export class Engine {
     if (key === this.lastPhaseKey) return;
     const first = !this.lastPhaseKey;
     this.lastPhaseKey = key;
+    // Dawn, seen as it happens (not on arriving or reloading in the middle of it, when it's simply day): everyone
+    // watches the night's deaths first. (A line that dropped all through the dawn doesn't bring it back much later;
+    // the window is wide, since a busy line can put the host's clock seconds out.)
+    if (!first && prev?.phase === 'night' && v.phase === 'day' && v.dawn?.deaths.length && !v.ended && this.me && Math.abs(Date.now() - v.dawn.at) < 45000) this.startDawn(v.dawn);
     // A flat's lights go down at nightfall (and up again at dawn) for whoever is in one.
     if (zoneKind(local.zone) === 'flat') this.showZone();
     // Morning: the Storyteller leaves the last bedside they visited and comes back out with everyone (inside a
@@ -1063,6 +1094,8 @@ export class Engine {
   }
 
   private showZone() {
+    // (The dawn reel keeps last night's bedroom up, wherever we've been moved to meanwhile.)
+    if (this.dawn) return this.town.show('flat', true);
     const kind = zoneKind(local.zone);
     // A flat at night is somebody's bedroom: fire out, moon in the window.
     const night = Boolean(this.view?.started && this.view.phase === 'night');
@@ -1608,7 +1641,7 @@ export class Engine {
   }
 
   private interact() {
-    if (!this.me || this.view?.paused || this.job || this.bedGame || this.frozen || this.pinned()) return;
+    if (!this.me || this.view?.paused || this.job || this.bedGame || this.frozen || this.dawn || this.pinned()) return;
     if (this.inBed) {
       if (useHud.getState().sheep === 'offer' && !useHud.getState().bedMenu) useHud.setState({ sheep: 'playing' });
       return;
@@ -1756,6 +1789,7 @@ export class Engine {
    * puts down whatever's in hand and stops decorating; leaving the lobby closes its list.
    */
   private syncFlats(v: WorldView | null) {
+    if (this.dawn) return;
     const kind = zoneKind(local.zone);
     const d = useDecor.getState();
     if (kind !== 'lobby' && d.dir) useDecor.setState({ dir: false });
@@ -2065,7 +2099,7 @@ export class Engine {
     // Night falls (and lifts) over a few seconds.
     const night = v && v.started && v.phase === 'night' ? 1 : 0;
     this.time += (night - this.time) * Math.min(1, dt * 0.7);
-    ambience.update({ zone: local.zone, x: local.x, z: local.z, night: this.time, yaw: this.yaw });
+    ambience.update({ zone: this.dawn?.zone ?? local.zone, x: local.x, z: local.z, night: this.dawn ? 1 : this.time, yaw: this.yaw });
     if (Math.abs(this.time - this.litAt) > 0.002) {
       this.litAt = this.time;
       this.town.setTime(this.time);
@@ -2084,10 +2118,11 @@ export class Engine {
 
     this.runShow(t);
     this.runVisit(t, v);
+    this.runDawn(t, v);
     this.runPigeons(t, v);
     this.runPit(dt, t, v);
     // Unlock popups wait while something everyone should watch is on screen.
-    const drama = Boolean(this.show || this.visit);
+    const drama = Boolean(this.show || this.visit || this.dawn);
     if (drama !== useHud.getState().drama) useHud.setState({ drama });
     if (this.me && v) this.moveMe(dt, t, v);
     if (v) this.runClub(v);
@@ -2169,7 +2204,7 @@ export class Engine {
     let iz = 0;
     const pinned = this.pinned();
     if (pinned) this.moveTarget = null;
-    if (!v.paused && !this.job && !this.frozen && !this.inBed && !pinned && !this.entering) {
+    if (!v.paused && !this.job && !this.frozen && !this.dawn && !this.inBed && !pinned && !this.entering) {
       if (this.keys.has('w') || this.keys.has('arrowup')) iz -= 1;
       if (this.keys.has('s') || this.keys.has('arrowdown')) iz += 1;
       if (this.keys.has('a') || this.keys.has('arrowleft')) ix -= 1;
@@ -2187,7 +2222,7 @@ export class Engine {
       dx = ix * cos + iz * sin;
       dz = -ix * sin + iz * cos;
     }
-    if (!(ix || iz) && this.moveTarget && !this.frozen && !this.entering) {
+    if (!(ix || iz) && this.moveTarget && !this.frozen && !this.dawn && !this.entering) {
       const tx = this.moveTarget.x - local.x;
       const tz = this.moveTarget.z - local.z;
       const d = Math.hypot(tx, tz);
@@ -2299,7 +2334,8 @@ export class Engine {
     }
     me.setTarget(local.x, local.z, local.ry, myY);
     me.setItem(local.item);
-    me.setVisible(true);
+    // (Nobody is drawn while the dawn reel shows last night's deaths, but the stand-in in bed.)
+    me.setVisible(!this.dawn);
     // (A prestige hat's glow would only get in the way of the show.)
     me.setHatFxShown(!this.show?.mine);
     me.update(dt, t, anim, local.speaking, false);
@@ -2648,7 +2684,7 @@ export class Engine {
     if (show.method && show.method !== 'hang' && !show.stage && show.start !== null) {
       const shows = execShows.now();
       if (shows) {
-        show.stage = new shows.ExecStage(show.method, show.survives, this.town.gallowsSpot, execSound);
+        show.stage = shows.makeStage(show.method, show.survives, this.town.gallowsSpot, execSound);
         this.town.groups.town.add(show.stage.group);
       } else {
         // Its props are still on their way (a slow line): they wait on the trapdoor and it starts as they arrive,
@@ -2789,6 +2825,154 @@ export class Engine {
     if (vis.mine && age > vis.kit.VISIT.dark && useHud.getState().visit !== 'dark') useHud.setState({ visit: 'dark' });
   }
 
+  // ---------------------------------------------------------------- the dawn reel
+
+  private startDawn(reel: DawnReel) {
+    if (this.dawn) this.endDawn(false);
+    let at = 0;
+    const slots = reel.deaths.map((d) => {
+      const len = d.variant === null ? DAWN.quiet : DAWN.visit;
+      const slot = { seatId: d.seatId, variant: d.variant, from: at, to: at + len };
+      at += len;
+      return slot;
+    });
+    this.dawn = { id: reel.id, age: 0, last: this.clock.elapsedTime, slots, slot: -1, zone: null, rig: null, scene: null, kit: null, pose: null, cut: true };
+    nightVisits.want();
+    this.stopEverything();
+  }
+
+  /**
+   * The dawn reel: each of the night's deaths in turn, in the victim's bedroom, with a caption. The Storyteller can
+   * skip it (for everyone); night falling, the game ending or the reel running out ends it too.
+   */
+  private runDawn(t: number, v: WorldView | null) {
+    const d = this.dawn;
+    if (!d) return;
+    if (!v || v.dawn?.id !== d.id || v.phase !== 'day' || v.ended) return this.endDawn(true);
+    // (A slow frame moves it on a little at most, so a struggling screen still sees each death, only later.)
+    d.age += Math.min(0.25, Math.max(0, t - d.last));
+    d.last = t;
+    const age = d.age;
+    const i = d.slots.findIndex((s) => age < s.to);
+    if (i < 0) return this.endDawn(true);
+    if (i !== d.slot) this.dawnSlot(i, v);
+    const slot = d.slots[i];
+    const u = age - slot.from;
+    const rig = d.rig;
+    if (rig) {
+      rig.update({ anim: 'sleep', speed: 0, dt: 1 / 30, t });
+      rig.root.rotation.z = 0;
+      rig.root.scale.setScalar(1);
+    }
+    if (d.scene) {
+      const pose = d.scene.update(u + DAWN.from);
+      if (rig && d.kit) {
+        rig.root.position.y = this.dawnBedY() + pose.dy;
+        rig.root.rotation.z = pose.shake;
+        d.kit.bendVictim(rig.root, pose);
+        rig.root.visible = !pose.hidden;
+      }
+    } else if (u > DAWN.quietAt && rig) {
+      // No visit: they slip away in their sleep, a little ghost rising out of the bed and gone.
+      const k = Math.min(1, (u - DAWN.quietAt) / 1.6);
+      if (!rig.root.userData.ghost) {
+        rig.root.userData.ghost = true;
+        rig.setGhost(true);
+        execSound('soul');
+        this.town.puff(rig.root.position.x, rig.root.position.y + 0.3, rig.root.position.z);
+      }
+      rig.root.position.y = this.dawnBedY() + k * 1.4;
+      rig.root.scale.setScalar(Math.max(0.001, 1 - Math.max(0, k - 0.7) / 0.3));
+    } else if (u > DAWN.quietAt && !rig) {
+      this.once(`dawnpuff:${d.id}:${i}`, () => {
+        const bed = this.dawnBed();
+        this.town.puff(bed.x, this.dawnBedY() + 0.4, bed.z);
+        execSound('soul');
+      });
+    }
+  }
+
+  /** Something done once only, by key (for the dawn reel's moments). */
+  private onceKeys = new Set<string>();
+  private once(key: string, fn: () => void) {
+    if (this.onceKeys.has(key)) return;
+    this.onceKeys.add(key);
+    fn();
+  }
+
+  private dawnBed() {
+    const bed = this.town.stations.find((s) => s.id === 'flat-bed');
+    return { x: bed?.stand?.x ?? BED.x, z: bed?.stand?.z ?? BED.z, ry: bed?.stand?.ry ?? 0, y: bed?.y ?? BED.top };
+  }
+
+  private dawnBedY() {
+    return this.dawnBed().y;
+  }
+
+  /** On to the next death: their bedroom, them in bed (a stand-in: they're out in the square by now), and the visit. */
+  private dawnSlot(i: number, v: WorldView) {
+    const d = this.dawn!;
+    this.clearDawnSet(d);
+    d.slot = i;
+    d.cut = true;
+    const slot = d.slots[i];
+    const seat = v.seats.find((s) => s.id === slot.seatId);
+    const name = seat ? shownName(seat.name) : 'Someone';
+    d.zone = this.homeOf(slot.seatId);
+    // Their own flat as it's furnished, where we can see it (the Storyteller can); a plain one otherwise.
+    const key = d.zone ? flatOwner(d.zone) : null;
+    const fv = key && v.mode === 'st' ? flatNow('st', { key }) : null;
+    this.town.setFlat({ layout: fv?.flat?.layout ?? emptyLayout(), held: null, grid: false });
+    this.town.setHomeOwner(name);
+    this.town.show('flat', true);
+    const bed = this.dawnBed();
+    if (seat?.look) {
+      const rig = buildAnimal({ ...seat.look, pet: null });
+      rig.root.position.set(bed.x, bed.y, bed.z);
+      rig.root.rotation.y = bed.ry;
+      rig.update({ anim: 'sleep', speed: 0, dt: 1, t: 0 });
+      this.scene.add(rig.root);
+      d.rig = rig;
+    }
+    const kit = nightVisits.now();
+    if (slot.variant !== null && kit && d.rig) {
+      const variant = Math.abs(Math.floor(slot.variant)) % kit.VISIT_NAMES.length;
+      d.scene = new kit.NightVisit(this.town.groups.flat, variant, visitSound);
+      d.rig.root.updateMatrixWorld(true);
+      d.scene.aim(new THREE.Box3().setFromObject(d.rig.root).translate(this.town.groups.flat.position.clone().negate()));
+      d.kit = kit;
+    }
+    const line = d.scene ? `Last night, at ${name}’s flat…` : `Last night, ${name} slipped away in their sleep…`;
+    useHud.setState({ dawnReel: { line, n: i + 1, of: d.slots.length, key: `${d.id}:${i}` } });
+  }
+
+  private clearDawnSet(d: NonNullable<Engine['dawn']>) {
+    d.scene?.dispose();
+    d.scene = null;
+    d.kit = null;
+    if (d.rig) {
+      d.rig.root.removeFromParent();
+      d.rig.dispose();
+      d.rig = null;
+    }
+  }
+
+  /** The reel is over (or skipped): the bedroom comes down, and it's morning in town, everyone in the square. */
+  private endDawn(news: boolean) {
+    const d = this.dawn;
+    if (!d) return;
+    this.clearDawnSet(d);
+    this.dawn = null;
+    useHud.setState({ dawnReel: null });
+    this.showZone();
+    const v = this.view;
+    if (news && v && v.phase === 'day' && !v.ended) {
+      // The morning's news, held back while the reel played.
+      const died = d.slots.map((s) => v.seats.find((x) => x.id === s.seatId)?.name).filter((x): x is string => Boolean(x)).map((n) => shownName(n));
+      ui.banner(`Day ${v.day}`, `${joinNames(died)} died in the night`);
+    }
+  }
+
   /**
    * Messenger pigeons. Each new one (sent in the last few seconds) flies in to its person's shoulder wherever they
    * are, if they're in sight here, sits a moment, and bursts into confetti. The one it came for also gets the note
@@ -2840,6 +3024,8 @@ export class Engine {
     const here = zoneKind(local.zone) === 'cellar';
     this.pitShow.update(dt, t, pit, here, (seat) => Boolean(v?.seats.find((s) => s.id === seat)?.dead), this.pitFreeze);
     const away = new Set(this.pitShow.inRing);
+    // (The condemned's pet keeps out of the way of the show too.)
+    if (this.show) away.add(this.show.seatId);
     for (const [key, av] of this.others) av.setPetAway(away.has(key));
     this.me?.setPetAway(Boolean(v?.mySeatId && away.has(v.mySeatId)));
     const f = pit?.fight;
@@ -3020,7 +3206,7 @@ export class Engine {
         this.others.set(key, av);
       }
       const here = p.zone === local.zone;
-      av.setVisible(here);
+      av.setVisible(here && !this.dawn);
       if (!here) {
         av.placed = false;
         continue;
@@ -3152,7 +3338,12 @@ export class Engine {
     const wantPos = new THREE.Vector3();
     const wantLook = new THREE.Vector3();
     const shows = execShows.now();
-    if (this.show?.stage && shows && this.showAge(t) >= 0 && zoneKind(local.zone) === 'town') {
+    if (this.dawn && this.dawn.slot >= 0) {
+      // The dawn reel: the night visit's shot, from the foot of the bedroom.
+      const b = BED;
+      wantPos.set(b.x + 1.5, 2.6, b.z + 3.3);
+      wantLook.set(b.x - 0.6, 0.9, b.z - 0.6);
+    } else if (this.show?.stage && shows && this.showAge(t) >= 0 && zoneKind(local.zone) === 'town') {
       // The other ways: from nearly in front, between the posts, framed to take in the props.
       const shot = shows.execCamera(this.show.stage.framing(), this.camera.aspect, t);
       wantPos.copy(shot.pos);
@@ -3228,6 +3419,11 @@ export class Engine {
     // Closing in on the book (or pulling back over the meeting) is a slow swoop; everything else follows closely.
     let ease = this.view?.reading || this.pinned() || this.tableCam ? 1 - Math.exp(-dt * 4) : this.show ? 1 - Math.exp(-dt * 6) : 1 - Math.exp(-dt * 9);
     if (!this.me && !this.view?.reading) ease = 1;
+    // (A cut, from one death to the next.)
+    if (this.dawn?.cut) {
+      this.dawn.cut = false;
+      ease = 1;
+    }
     this.camPos.lerp(wantPos, ease);
     this.camLook.lerp(wantLook, ease);
     this.camera.position.copy(this.camPos);

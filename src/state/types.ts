@@ -177,7 +177,28 @@ export interface TownHall {
 }
 
 /** The ways to be executed: the gallows, and the town's other entertainments (see src/game/execution.ts). */
-export type ExecMethod = 'hang' | 'squad' | 'guillotine' | 'chair' | 'missile' | 'roast' | 'kaiju' | 'plane' | 'pigeon' | 'moon';
+export type ExecMethod =
+  | 'hang'
+  | 'squad'
+  | 'guillotine'
+  | 'chair'
+  | 'missile'
+  | 'roast'
+  | 'kaiju'
+  | 'plane'
+  | 'pigeon'
+  | 'moon'
+  | 'bench'
+  | 'noscope'
+  | 'toaster'
+  | 'nuke'
+  | 'cross'
+  | 'runover'
+  | 'cliff'
+  | 'magic'
+  | 'mincer'
+  | 'piano'
+  | 'brute';
 
 /** A player put to death in front of the town: the show plays for everyone who sees it. */
 export interface Execution {
@@ -261,6 +282,18 @@ export interface Visit {
   at: number;
 }
 
+/**
+ * Dawn: the night's deaths, played for everyone in turn before they gather in the square (the hooded figure's
+ * visit to each, or a quiet moment for a death without one). See the engine's dawn reel.
+ */
+export interface DawnReel {
+  id: string;
+  /** When the day began (host clock). */
+  at: number;
+  /** In the order they died; `variant` is the visit's way (as in Visit), or null for a death with no visit. */
+  deaths: { seatId: string; variant: number | null }[];
+}
+
 /** The game is over: who won, and why. */
 export interface GameEnd {
   winner: 'good' | 'evil';
@@ -304,6 +337,8 @@ export interface GameState {
   town: TownState;
   /** Seats killed during this night. Players don't see these deaths until the day begins. */
   nightDeaths: string[];
+  /** This morning's replay of the night's deaths, until night falls again (or the Storyteller skips it). */
+  dawn?: DawnReel | null;
   /** Letters posted this game. */
   letters?: Letter[];
   /** Messenger pigeons sent lately, newest last. */
@@ -378,6 +413,8 @@ export interface PublicState {
   deaths?: DeathRecord[];
   /** The pet pit, without anyone's secret pick. */
   pit?: PitState;
+  /** This morning's replay of the night's deaths. */
+  dawn?: DawnReel | null;
   /** The tavern's leaderboard (from everyone's profile, which only the Storyteller has). */
   leaders?: Leaders;
   /** When tonight's automated night began (host clock): everyone's screen has the same moment of sleep then. */

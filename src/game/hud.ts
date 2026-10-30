@@ -58,6 +58,8 @@ interface Hud {
   boost: { until: number; mul: number; kind: 'drink' | 'food' } | null;
   /** A messenger pigeon has just landed on our shoulder: who sent it and where they are. */
   pigeon: { name: string; where: string; key: number } | null;
+  /** Dawn: the night's deaths being shown to everyone, which one this is and its caption. */
+  dawnReel: { line: string; n: number; of: number; key: string } | null;
 }
 
 export const useHud = create<Hud>(() => ({
@@ -82,6 +84,7 @@ export const useHud = create<Hud>(() => ({
   bedMenu: false,
   boost: null,
   pigeon: null,
+  dawnReel: null,
 }));
 
 /** Commands from the on-screen buttons to the 3D world. The world fills these in when it starts. */

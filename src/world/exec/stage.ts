@@ -101,7 +101,7 @@ const UP = new THREE.Vector3(0, 1, 0);
 const tmpQ = new THREE.Quaternion();
 
 /** A turn that takes `a` (and the way `a2` leans about it) to `b` (and `b2`), from two pairs of directions. */
-function basis(a: THREE.Vector3, a2: THREE.Vector3, b: THREE.Vector3, b2: THREE.Vector3): THREE.Quaternion {
+export function basis(a: THREE.Vector3, a2: THREE.Vector3, b: THREE.Vector3, b2: THREE.Vector3): THREE.Quaternion {
   const frame = (x: THREE.Vector3, y: THREE.Vector3) => {
     const X = x.clone().normalize();
     const Y = y.clone().sub(X.clone().multiplyScalar(y.dot(X))).normalize();
@@ -114,7 +114,7 @@ function basis(a: THREE.Vector3, a2: THREE.Vector3, b: THREE.Vector3, b2: THREE.
 }
 
 /** A smooth path through points, each passed at its own moment (a Catmull-Rom curve, walked a segment at a time). */
-class Flight {
+export class Flight {
   private curve: THREE.CatmullRomCurve3;
   private times: number[];
 
@@ -169,6 +169,18 @@ const TIMES: Record<Exclude<ExecMethod, 'hang'>, { soul: number; spared: number 
   plane: { soul: 8.2, spared: 6.0 },
   pigeon: { soul: 6.4, spared: 9.0 },
   moon: { soul: 7.1, spared: 8.8 },
+  // The newer ways (see more.ts).
+  bench: { soul: 4.5, spared: 6.2 },
+  noscope: { soul: 4.4, spared: 6.0 },
+  toaster: { soul: 5.0, spared: 6.4 },
+  nuke: { soul: 6.6, spared: 6.8 },
+  cross: { soul: 5.6, spared: 7.4 },
+  runover: { soul: 4.6, spared: 6.2 },
+  cliff: { soul: 7.6, spared: 9.4 },
+  magic: { soul: 6.4, spared: 8.2 },
+  mincer: { soul: 6.2, spared: 7.4 },
+  piano: { soul: 4.4, spared: 6.0 },
+  brute: { soul: 7.4, spared: 7.6 },
 };
 
 /** The plane crash: when it hits the ground (unless spared), and the giant pigeon: when it lets go over the nest. */
@@ -182,70 +194,70 @@ export class ExecStage {
   readonly end: number;
   /** When the ghost starts up (Infinity when spared). */
   readonly soulAt: number;
-  private P: number;
+  protected P: number;
   /** In the stage's frame: towards the camera, and the screen's left (both flat). */
-  private cam = new THREE.Vector3();
-  private left = new THREE.Vector3();
-  private bursts = new Bursts();
+  protected cam = new THREE.Vector3();
+  protected left = new THREE.Vector3();
+  protected bursts = new Bursts();
   /** Holds what's placed in world coordinates (puffs, sparks, what's left behind): it undoes the stage's own place. */
-  private fx = new THREE.Group();
-  private done = new Set<string>();
-  private build: Build | null = null;
-  private who: THREE.Object3D | null = null;
-  private tinted = false;
-  private corpse: BakedPiece | null = null;
-  private pieces: BakedPiece[] = [];
-  private props = new THREE.Group();
-  private disposers: (() => void)[] = [];
-  private camera: THREE.Camera | undefined;
-  private frame: ExecFrame;
+  protected fx = new THREE.Group();
+  protected done = new Set<string>();
+  protected build: Build | null = null;
+  protected who: THREE.Object3D | null = null;
+  protected tinted = false;
+  protected corpse: BakedPiece | null = null;
+  protected pieces: BakedPiece[] = [];
+  protected props = new THREE.Group();
+  protected disposers: (() => void)[] = [];
+  protected camera: THREE.Camera | undefined;
+  protected frame: ExecFrame;
   /** The local pose being built this frame. */
-  private at = new THREE.Vector3();
-  private turn = new THREE.Quaternion();
-  private stretch = new THREE.Vector3(1, 1, 1);
+  protected at = new THREE.Vector3();
+  protected turn = new THREE.Quaternion();
+  protected stretch = new THREE.Vector3(1, 1, 1);
 
   // Each method's own bits.
-  private soldiers: Soldier[] = [];
-  private blade: Guillotine | null = null;
-  private seat: Chair | null = null;
-  private bolts: Bolts | null = null;
-  private rocket: Launcher | null = null;
-  private spit: Roast | null = null;
-  private flames: Flames | null = null;
-  private apple: THREE.Mesh | null = null;
-  private cloud: Cloud | null = null;
-  private beast: Kaiju | null = null;
-  private beam: THREE.Group | null = null;
-  private dizzy: Dizzy | null = null;
-  private crack: THREE.Mesh | null = null;
-  private craft: Plane | null = null;
-  private flight: Flight | null = null;
-  private hay: THREE.Group | null = null;
-  private pit: THREE.Group | null = null;
-  private loose: Propeller | null = null;
-  private mushroom: Mushroom | null = null;
-  private bird: GiantPigeon | null = null;
-  private tree: NestTree | null = null;
+  protected soldiers: Soldier[] = [];
+  protected blade: Guillotine | null = null;
+  protected seat: Chair | null = null;
+  protected bolts: Bolts | null = null;
+  protected rocket: Launcher | null = null;
+  protected spit: Roast | null = null;
+  protected flames: Flames | null = null;
+  protected apple: THREE.Mesh | null = null;
+  protected cloud: Cloud | null = null;
+  protected beast: Kaiju | null = null;
+  protected beam: THREE.Group | null = null;
+  protected dizzy: Dizzy | null = null;
+  protected crack: THREE.Mesh | null = null;
+  protected craft: Plane | null = null;
+  protected flight: Flight | null = null;
+  protected hay: THREE.Group | null = null;
+  protected pit: THREE.Group | null = null;
+  protected loose: Propeller | null = null;
+  protected mushroom: Mushroom | null = null;
+  protected bird: GiantPigeon | null = null;
+  protected tree: NestTree | null = null;
   /** A sign that pops up: YUCK!, or LOW BATTERY. */
-  private notice: { group: THREE.Group; dispose(): void } | null = null;
-  private feather: THREE.Mesh | null = null;
-  private rock: Moon | null = null;
-  private base: Station | null = null;
-  private columns: { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial }[] = [];
-  private rays: THREE.Mesh[] = [];
-  private rayMat: THREE.MeshBasicMaterial | null = null;
-  private ring: THREE.Mesh | null = null;
-  private chunks: THREE.Mesh[] = [];
+  protected notice: { group: THREE.Group; dispose(): void } | null = null;
+  protected feather: THREE.Mesh | null = null;
+  protected rock: Moon | null = null;
+  protected base: Station | null = null;
+  protected columns: { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial }[] = [];
+  protected rays: THREE.Mesh[] = [];
+  protected rayMat: THREE.MeshBasicMaterial | null = null;
+  protected ring: THREE.Mesh | null = null;
+  protected chunks: THREE.Mesh[] = [];
   /** Worked out once the condemned has been measured. */
-  private lay = new THREE.Quaternion();
-  private layAt = new THREE.Vector3();
-  private extra: Record<string, number> = {};
+  protected lay = new THREE.Quaternion();
+  protected layAt = new THREE.Vector3();
+  protected extra: Record<string, number> = {};
 
   constructor(
     readonly method: Exclude<ExecMethod, 'hang'>,
     readonly survives: boolean,
     spot: { x: number; z: number; ry: number; y: number },
-    private sound: Sound = () => {},
+    protected sound: Sound = () => {},
   ) {
     this.P = spot.y;
     this.group.position.set(spot.x, 0, spot.z);
@@ -267,24 +279,24 @@ export class ExecStage {
   }
 
   /** A point in the stage's frame, in the world. */
-  private world(v: THREE.Vector3): THREE.Vector3 {
+  protected world(v: THREE.Vector3): THREE.Vector3 {
     return this.group.localToWorld(v.clone());
   }
 
   /** Runs `fn` once, the first time the show reaches `at`. */
-  private once(key: string, at: number, t: number, fn: () => void) {
+  protected once(key: string, at: number, t: number, fn: () => void) {
     if (t < at || this.done.has(key)) return;
     this.done.add(key);
     fn();
   }
 
   /** A sound, once, as the show passes `at` (not when it's been jumped well past). */
-  private sfx(name: string, at: number, t: number) {
+  protected sfx(name: string, at: number, t: number) {
     this.once(`sfx:${name}:${at}`, at, t, () => t - at < 0.3 && this.sound(name));
   }
 
   /** The animal's size, measured once (or a middling animal, if they can't be seen here). */
-  private size(): Build {
+  protected size(): Build {
     if (!this.build && this.who) this.build = measureAnimal(this.who);
     return (
       this.build ?? {
@@ -297,12 +309,12 @@ export class ExecStage {
   }
 
   /** Facing this way (in the stage's frame), upright. */
-  private face(dir: THREE.Vector3): THREE.Quaternion {
+  protected face(dir: THREE.Vector3): THREE.Quaternion {
     return new THREE.Quaternion().setFromAxisAngle(UP, Math.atan2(dir.x, dir.z));
   }
 
   /** The props pop in with a puff at the start and go the same way at the end. */
-  private popProps(t: number, where: THREE.Vector3[]) {
+  protected popProps(t: number, where: THREE.Vector3[]) {
     const out = this.end - 0.45;
     this.once('in', 0, t, () => where.forEach((w) => this.bursts.add(0, 'poof', w, 1.1)));
     this.once('out', out, t, () => where.forEach((w) => this.bursts.add(out, 'poof', w, 1.1)));
@@ -359,6 +371,8 @@ export class ExecStage {
       case 'moon':
         ({ anim, visible } = this.moon(t));
         break;
+      default:
+        ({ anim, visible } = this.more(t));
     }
     if (this.survives && t > this.end - 1.6) tag = true;
     // The ghost: the body left where it lies (or the pieces, already cut), and the ghost floating up out of it.
@@ -384,6 +398,21 @@ export class ExecStage {
     return { pos, quat, scale: this.stretch.clone(), anim, visible, tag, ghost };
   }
 
+  /** The newer ways, which more.ts adds. */
+  protected more(_t: number): { anim: Anim; visible: boolean } {
+    return { anim: 'idle', visible: true };
+  }
+
+  /** Nothing of them is left behind for the ghost to rise from (blown to bits, gobbled up, minced). */
+  protected noBody(): boolean {
+    return this.method === 'plane' || this.method === 'pigeon' || this.method === 'moon';
+  }
+
+  /** What's left behind has its coat roughed up (after a shock or a blast). */
+  protected frazzled(): boolean {
+    return this.method === 'chair' || this.method === 'missile' || this.method === 'kaiju';
+  }
+
   /** The camera's framing for this moment. */
   framing(): ExecFrame {
     return this.frame;
@@ -392,31 +421,31 @@ export class ExecStage {
   // ---------------------------------------------------------------- the ghost
 
   /** Where the ghost starts from: the middle of whatever is left, near the floor. */
-  private soulFrom(): THREE.Vector3 {
+  protected soulFrom(): THREE.Vector3 {
     return this.extraVec('soulFrom') ?? new THREE.Vector3(0, this.P, 0);
   }
 
-  private soulTop(): THREE.Vector3 {
+  protected soulTop(): THREE.Vector3 {
     return this.soulFrom().add(new THREE.Vector3(0, (2.6 + this.size().box.max.y * 0.5) * this.soulWay(), 0));
   }
 
   /** Up and away, as a rule; but from up on the moon, drifting down. */
-  private soulWay(): number {
+  protected soulWay(): number {
     return this.method === 'moon' ? -0.8 : 1;
   }
 
-  private extraVec(key: string): THREE.Vector3 | null {
+  protected extraVec(key: string): THREE.Vector3 | null {
     return key + 'x' in this.extra ? new THREE.Vector3(this.extra[key + 'x'], this.extra[key + 'y'], this.extra[key + 'z']) : null;
   }
 
-  private setExtraVec(key: string, v: THREE.Vector3) {
+  protected setExtraVec(key: string, v: THREE.Vector3) {
     this.extra[key + 'x'] = v.x;
     this.extra[key + 'y'] = v.y;
     this.extra[key + 'z'] = v.z;
   }
 
   /** Slowly up and away, swaying like a cartoon soul, looking out at everyone; then a twinkle and gone. */
-  private soulPose(u: number) {
+  protected soulPose(u: number) {
     const from = this.soulFrom();
     const rise = ease(u / SOUL.rise);
     const sway = Math.sin(u * 2.3) * 0.22 * Math.min(1, u / 0.8);
@@ -428,9 +457,9 @@ export class ExecStage {
   }
 
   /** What's left of them, baked where it lies, sooted as it is; their own coat goes back to how it was for the ghost. */
-  private leaveBody() {
+  protected leaveBody() {
     // (Blown to bits, or gobbled up: nothing is left behind.)
-    if (!this.who || this.pieces.length || this.method === 'plane' || this.method === 'pigeon' || this.method === 'moon') {
+    if (!this.who || this.pieces.length || this.noBody()) {
       if (this.who && this.tinted) tintAnimal(this.who, null);
       return;
     }
@@ -443,8 +472,7 @@ export class ExecStage {
     const mid = box.getCenter(new THREE.Vector3());
     const turnAbout = this.extraVec('pivot');
     const pivot = turnAbout ? this.world(turnAbout) : new THREE.Vector3(mid.x, box.min.y, mid.z);
-    const frazzled = this.method === 'chair' || this.method === 'missile' || this.method === 'kaiju';
-    this.corpse = new BakedPiece(parts, pivot, { frazzle: frazzled ? 0.045 : 0 });
+    this.corpse = new BakedPiece(parts, pivot, { frazzle: this.frazzled() ? 0.045 : 0 });
     freeBake(parts);
     this.fx.add(this.corpse.group);
     if (this.tinted) tintAnimal(this.who, null);
@@ -452,7 +480,7 @@ export class ExecStage {
   }
 
   /** Darkens the live animal's coat (soot, a toasting), or puts it back. */
-  private tint(color: string, k: number) {
+  protected tint(color: string, k: number) {
     if (!this.who) return;
     tintAnimal(this.who, new THREE.Color(color), k);
     this.tinted = true;
@@ -460,7 +488,7 @@ export class ExecStage {
 
   // ---------------------------------------------------------------- the firing squad
 
-  private squad(t: number): Anim {
+  protected squad(t: number): Anim {
     // Between the camera and the gallows, off to the left: their backs to us, muskets at the condemned.
     const squadDir = this.cam.clone().multiplyScalar(0.8).addScaledVector(this.left, 0.6).normalize();
     const centre = squadDir.clone().multiplyScalar(3.1);
@@ -545,7 +573,7 @@ export class ExecStage {
 
   // ---------------------------------------------------------------- the guillotine
 
-  private guillotine(t: number): { anim: Anim; visible: boolean } {
+  protected guillotine(t: number): { anim: Anim; visible: boolean } {
     const b = this.size();
     // The body lies along F, head first through the hole, seen three-quarters on.
     const F = this.left.clone().multiplyScalar(0.8).addScaledVector(this.cam, 0.6).normalize();
@@ -661,7 +689,7 @@ export class ExecStage {
   }
 
   /** The chop: the animal baked as it lies, cut at the neck into two pieces that go their own ways. */
-  private cut(F: THREE.Vector3, neckW: THREE.Vector3) {
+  protected cut(F: THREE.Vector3, neckW: THREE.Vector3) {
     if (!this.who) return;
     const parts = bakeAnimal(this.who);
     // Into the stage's frame: the pieces live in its group.
@@ -681,7 +709,7 @@ export class ExecStage {
 
   // ---------------------------------------------------------------- the electric chair
 
-  private chair(t: number): Anim {
+  protected chair(t: number): Anim {
     const b = this.size();
     const faceDir = this.cam.clone().applyAxisAngle(UP, 0.45);
     if (!this.seat) {
@@ -783,7 +811,7 @@ export class ExecStage {
 
   // ---------------------------------------------------------------- the missile
 
-  private missile(t: number): Anim {
+  protected missile(t: number): Anim {
     const b = this.size();
     const side = this.left.clone().multiplyScalar(3.4).addScaledVector(this.cam, 1.3);
     if (!this.rocket) {
@@ -903,7 +931,7 @@ export class ExecStage {
 
   // ---------------------------------------------------------------- the spit roast
 
-  private roast(t: number): Anim {
+  protected roast(t: number): Anim {
     const b = this.size();
     // The spit runs across the screen; they lie along it, head to one end, turning over the fire.
     const A = this.left.clone();
@@ -1019,7 +1047,7 @@ export class ExecStage {
 
   // ---------------------------------------------------------------- the kaiju
 
-  private kaiju(t: number): Anim {
+  protected kaiju(t: number): Anim {
     const b = this.size();
     const home = this.cam.clone().multiplyScalar(-7.5).addScaledVector(this.left, 2.4);
     if (!this.beast) {
@@ -1177,7 +1205,7 @@ export class ExecStage {
   // ---------------------------------------------------------------- the plane crash
 
   /** A point in the stage's frame: so far towards the camera, so far to the screen's left, and so high. */
-  private V(c: number, l: number, y: number): THREE.Vector3 {
+  protected V(c: number, l: number, y: number): THREE.Vector3 {
     return this.cam.clone().multiplyScalar(c).addScaledVector(this.left, l).setY(y);
   }
 
@@ -1185,11 +1213,11 @@ export class ExecStage {
    * Where the plane comes down: out on the open grass beyond the gallows and to the right of it, between the
    * bakery, the pond and the cottages, well clear of them all (and of the square and its tower).
    */
-  private crashAt(): THREE.Vector3 {
+  protected crashAt(): THREE.Vector3 {
     return this.V(-3.8, -6.6, 0);
   }
 
-  private plane(t: number): { anim: Anim; visible: boolean } {
+  protected plane(t: number): { anim: Anim; visible: boolean } {
     const b = this.size();
     const P = this.P;
     // Facing out over the front of the platform, towards the square, turned a little to the screen's left.
@@ -1467,7 +1495,7 @@ export class ExecStage {
 
   // ---------------------------------------------------------------- the giant pigeon
 
-  private pigeon(t: number): { anim: Anim; visible: boolean } {
+  protected pigeon(t: number): { anim: Anim; visible: boolean } {
     const b = this.size();
     const P = this.P;
     const A = b.box.max.y;
@@ -1720,7 +1748,7 @@ export class ExecStage {
   // ---------------------------------------------------------------- the moon
 
   /** A transporter beam at a spot: the column of light, and them fading out of it (or into it). */
-  private beamAt(col: { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial }, at: THREE.Vector3, from: number, to: number, t: number, r: number, h: number) {
+  protected beamAt(col: { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial }, at: THREE.Vector3, from: number, to: number, t: number, r: number, h: number) {
     const on = span(t, from, from + 0.25) * (1 - span(t, to - 0.3, to));
     col.mesh.visible = on > 0.01;
     col.mesh.position.copy(at);
@@ -1732,7 +1760,7 @@ export class ExecStage {
     }
   }
 
-  private moon(t: number): { anim: Anim; visible: boolean } {
+  protected moon(t: number): { anim: Anim; visible: boolean } {
     const b = this.size();
     const P = this.P;
     const A = b.box.max.y;

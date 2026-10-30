@@ -209,6 +209,10 @@ const ALL = {
   'hatfx-night': `x=0&z=6&t=1&dist=15&pitch=0.62&frames=24&stop=8&walkers=${HATFX}`,
   'hatfx-close': 'x=0&z=6&t=0&dist=6&pitch=0.55&frames=24&stop=8&walkers=frog::centurion,fox::trophy,deer::crown',
   'hatfx-exec': 'exec=guillotine&et=3.4&hat=trophy&frames=10',
+  // A few of the newer executions (exec/stage2.ts) at their big moment: the bench press, the cross, the brute.
+  'exec-bench': 'exec=bench&et=3.2&frames=10',
+  'exec-cross': 'exec=cross&et=4.2&frames=10',
+  'exec-brute': 'exec=brute&et=4.2&frames=10',
   'hatfx-nofx': `x=0&z=6&t=0&dist=15&pitch=0.62&frames=24&stop=8&nofx&walkers=${HATFX}`,
   'hatfx-bare': `x=0&z=6&t=0&dist=15&pitch=0.62&frames=24&stop=8&walkers=${HATFX.replace(/:[a-z]+(?=,|$)/g, ':')}`,
   'build-1': 'wide&t=0&z=4&dist=70&run=1',

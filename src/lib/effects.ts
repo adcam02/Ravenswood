@@ -38,13 +38,14 @@ export function useEffects(view: View | null) {
       } else {
         dawn();
         const died = view.seats.filter((s) => s.dead && !p.seats.find((x) => x.id === s.id)?.dead).map((s) => s.label);
+        // (With deaths to show first, the news waits until everyone has watched them: see the engine's dawn reel.)
         const news =
           view.mode === 'player'
             ? died.length
               ? `${joinNames(died)} died in the night`
               : 'Nobody died in the night'
             : 'The town wakes';
-        ui.banner(`Day ${view.day}`, news);
+        if (!view.dawn?.deaths.length) ui.banner(`Day ${view.day}`, news);
       }
     }
     const n = view.nomination;

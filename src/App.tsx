@@ -77,6 +77,7 @@ import { MeetingVotes, MyCharacter, PlayerRail, VoteBar } from './components/Pla
 import { WakeOverlay } from './components/WakeOverlay';
 import { DayClock, ProgressWatcher, SceneBar } from './components/town/Scenes';
 import { ExecVote } from './components/town/ExecVote';
+import { DawnReel } from './components/town/DawnReel';
 import { WorldSeatMenu } from './components/town/WorldSeatMenu';
 import { UpdateNotice } from './components/UpdateNotice';
 import { Landing } from './components/Landing';
@@ -244,6 +245,7 @@ function Storyteller() {
           <DoorPrompt />
           <RestorePrompt />
           <ExecVote />
+          <DawnReel />
           <WinPrompt />
           <GameOverLayer />
           <Modals />
@@ -337,6 +339,7 @@ function Player({ room }: { room: string }) {
               <VisitCard />
               <PigeonNote />
               <ExecVote />
+              <DawnReel />
               <DayClock />
               <PitPanel />
               <ProgressWatcher />

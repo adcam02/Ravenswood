@@ -30,6 +30,7 @@ import {
 } from '../world/types';
 import type {
   Ask,
+  DawnReel,
   DeathRecord,
   ExecMethod,
   Execution,
@@ -256,6 +257,7 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
     pit: g.pit ? pitPublic(g.pit) : undefined,
     // The automated night's start: only when, never who is being asked what.
     nightFall: g.phase === 'night' && g.autoNight?.on && g.autoNight.night === g.day ? g.autoNight.dusk : undefined,
+    dawn: g.dawn ?? null,
   };
 }
 
@@ -524,6 +526,21 @@ export function visitFor(g: GameState, seatId: string): Visit | null {
   return { id: `${g.day}:${seatId}`, seatId, variant, at: nights[n]?.at ?? Date.now() };
 }
 
+/**
+ * The night's deaths to replay at dawn, in the order they happened: each with its visit, or none for a seat with
+ * no animal to visit. Null when nobody died.
+ */
+function dawnReel(g: GameState): DawnReel | null {
+  const deaths = g.nightDeaths
+    .filter((id) => g.seats.some((s) => s.id === id && s.dead))
+    .map((id) => {
+      const seat = g.seats.find((s) => s.id === id);
+      const visit = seat?.look ? visitFor(g, id) : null;
+      return { seatId: id, variant: visit ? visit.variant : null };
+    });
+  return deaths.length ? { id: uid(), at: Date.now(), deaths } : null;
+}
+
 /** The ways in a shuffled order: the same every time for this game and each round of ten. */
 function visitOrder(g: GameState, round: number): number[] {
   let h = ((g.startedAt ?? 0) % 2147483647) + round * 7919;
@@ -719,7 +736,7 @@ function newExecution(seatId: string, method?: ExecMethod, voteMs = VOTE_MS): Ex
 
 /** The vote is over: the wheel's result, drawn here from the votes, for everyone's wheel to land on. */
 function settleMethod(ex: Execution) {
-  ex.method = drawMethod(ex.vote?.picks);
+  ex.method = drawMethod(ex.vote?.picks, Math.random(), ex.id);
   ex.drawn = { at: Date.now(), spin: true };
 }
 
@@ -1114,6 +1131,8 @@ export const st = {
     stopClock();
     update((g) => {
       if (g.phase === phase) return;
+      // Dawn: the night's deaths, for everyone to watch before they gather (worked out while it's still night).
+      g.dawn = phase === 'day' && g.phase === 'night' && !g.ended ? dawnReel(g) : null;
       if (phase === 'night' && g.phase === 'day') g.day += 1;
       g.phase = phase;
       g.nomination = null;
@@ -1127,6 +1146,10 @@ export const st = {
       g.dayTimer = null;
       if (phase === 'day') g.awake = {};
     });
+  },
+  /** Stops this morning's replay of the night's deaths for everyone (they carry on into the day). */
+  skipDawn() {
+    update((g) => void (g.dawn = null));
   },
   /** Rain, mist or clear skies over the town. */
   setWeather(w: Weather) {

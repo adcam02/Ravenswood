@@ -16,6 +16,17 @@ export const EXEC_METHODS: { id: ExecMethod; name: string; icon: string; color: 
   { id: 'plane', name: 'Plane crash', icon: '🛩️', color: '#4f8fd0', sign: (n) => `${n} takes a last flight` },
   { id: 'pigeon', name: 'Giant pigeon', icon: '🕊️', color: '#8e7cb8', sign: (n) => `${n} is fed to the chicks` },
   { id: 'moon', name: 'Moon blast', icon: '🌕', color: '#5c6a9a', sign: (n) => `${n} is sent to the moon` },
+  { id: 'bench', name: 'Bench press', icon: '🏋️', color: '#b0563c', sign: (n) => `${n} hits the gym` },
+  { id: 'noscope', name: '360 no scope', icon: '🎯', color: '#5f7f3a', sign: (n) => `${n} gets no-scoped` },
+  { id: 'toaster', name: 'Bath and toaster', icon: '🛁', color: '#4c9cc0', sign: (n) => `${n} takes a last bath` },
+  { id: 'nuke', name: 'Nuclear bomb', icon: '☢️', color: '#c2a826', sign: (n) => `${n} goes nuclear` },
+  { id: 'cross', name: 'Crucified', icon: '✝️', color: '#b0714e', sign: (n) => `${n} is crucified` },
+  { id: 'runover', name: 'Run over', icon: '🚗', color: '#d0473f', sign: (n) => `${n} is run over` },
+  { id: 'cliff', name: 'Bonnie and Clyde', icon: '🕶️', color: '#8a6a9c', sign: (n) => `${n} goes out in style` },
+  { id: 'magic', name: 'Failed magic trick', icon: '🎩', color: '#7b4fa8', sign: (n) => `${n} is sawn in half` },
+  { id: 'mincer', name: 'Meat grinder', icon: '🌭', color: '#c4687a', sign: (n) => `${n} goes through the mincer` },
+  { id: 'piano', name: 'Piano', icon: '🎹', color: '#45455a', sign: (n) => `${n} is under the piano` },
+  { id: 'brute', name: 'Big green brute', icon: '💪', color: '#5c9a3a', sign: (n) => `${n} meets the brute` },
 ];
 
 export const isExecMethod = (m: unknown): m is ExecMethod => EXEC_METHODS.some((x) => x.id === m);
@@ -27,18 +38,28 @@ export const SPIN_MS = 2600;
 export const LAND_MS = 900;
 export const PICK_MS = 1600;
 
-/** Each method's share of the votes, in wheel order, leaving out those nobody chose (every method alike when nobody voted). */
-export function methodShares(picks: Record<string, ExecMethod> | undefined): { id: ExecMethod; share: number }[] {
+/** How many ways go on the wheel when nobody voted (all of them would be slices too thin to read). */
+export const WHEEL_UNVOTED = 8;
+
+/**
+ * Each method's share of the votes, in wheel order, leaving out those nobody chose. When nobody voted, a handful
+ * of ways chosen by the execution's `id` (the same on every screen) get a slice each.
+ */
+export function methodShares(picks: Record<string, ExecMethod> | undefined, id = ''): { id: ExecMethod; share: number }[] {
   const counts = new Map<ExecMethod, number>();
   for (const m of Object.values(picks ?? {})) if (isExecMethod(m)) counts.set(m, (counts.get(m) ?? 0) + 1);
   const total = [...counts.values()].reduce((a, b) => a + b, 0);
-  if (!total) return EXEC_METHODS.map((x) => ({ id: x.id, share: 1 / EXEC_METHODS.length }));
+  if (!total) {
+    const order = EXEC_METHODS.map((x, i) => ({ id: x.id, i, r: idFraction(`${id}:${x.id}`) })).sort((a, b) => a.r - b.r);
+    const some = order.slice(0, WHEEL_UNVOTED).sort((a, b) => a.i - b.i);
+    return some.map((x) => ({ id: x.id, share: 1 / some.length }));
+  }
   return EXEC_METHODS.filter((x) => counts.has(x.id)).map((x) => ({ id: x.id, share: counts.get(x.id)! / total }));
 }
 
 /** The host's draw: a method at random, weighted by the votes. `r` is a number from 0 up to 1. */
-export function drawMethod(picks: Record<string, ExecMethod> | undefined, r = Math.random()): ExecMethod {
-  const shares = methodShares(picks);
+export function drawMethod(picks: Record<string, ExecMethod> | undefined, r = Math.random(), id = ''): ExecMethod {
+  const shares = methodShares(picks, id);
   let at = 0;
   for (const s of shares) {
     at += s.share;
@@ -59,7 +80,7 @@ export function idFraction(id: string): number {
  * sits inside the chosen method's slice, at a spot taken from the execution's id so every screen agrees.
  */
 export function wheelTurns(ex: Execution): number {
-  const shares = methodShares(ex.vote?.picks);
+  const shares = methodShares(ex.vote?.picks, ex.id);
   let start = 0;
   let width = 1;
   for (const s of shares) {

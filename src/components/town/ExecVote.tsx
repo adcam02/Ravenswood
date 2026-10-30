@@ -114,7 +114,7 @@ function Vote({ ex, name, now, st: storyteller, mine }: { ex: Execution; name: s
 
 /** A pie of the votes, spinning fast and slowing to land on the drawn way, ticking past each slice. */
 function Wheel({ ex, now }: { ex: Execution; now: number }) {
-  const shares = methodShares(ex.vote?.picks);
+  const shares = methodShares(ex.vote?.picks, ex.id);
   const start = ex.drawn?.at ?? now;
   const k = Math.min(1, Math.max(0, (now - start) / SPIN_MS));
   // Fast at first, slowing right down at the end.

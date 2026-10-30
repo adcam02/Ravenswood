@@ -8,7 +8,7 @@
   top: 72px;
   z-index: 78;
   transform: translateX(-50%);
-  width: min(560px, calc(100vw - 20px));
+  width: min(700px, calc(100vw - 20px));
   padding: 14px 16px 12px;
   display: flex;
   flex-direction: column;
@@ -50,8 +50,8 @@
 }
 .exec-methods {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 7px;
   width: 100%;
 }
 .exec-method {
@@ -60,9 +60,9 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
-  padding: 10px 4px 8px;
+  padding: 7px 3px 6px;
   border: 3px solid transparent;
-  border-radius: 16px;
+  border-radius: 14px;
   background: var(--cosy-bg-2);
   box-shadow: 0 4px 0 rgba(90, 68, 52, 0.2);
   font-family: var(--cosy-font);
@@ -85,12 +85,12 @@
   cursor: default;
 }
 .exec-icon {
-  font-size: 34px;
+  font-size: 27px;
   line-height: 1.1;
 }
 .exec-name {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.1;
 }
 .exec-count {
@@ -155,7 +155,7 @@
   color: var(--m);
 }
 
-/* A phone held upright: smaller buttons, still five across. */
+/* A phone held upright: three across, each a little row with its icon beside its name. */
 @media (max-width: 520px) {
   .exec-vote {
     top: 58px;
@@ -166,16 +166,113 @@
     font-size: 17px;
   }
   .exec-methods {
-    gap: 6px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
   }
   .exec-method {
-    padding: 7px 2px 6px;
-    border-radius: 13px;
+    flex-direction: row;
+    gap: 5px;
+    padding: 4px 5px;
+    border-radius: 11px;
+    text-align: left;
+    min-height: 36px;
   }
   .exec-icon {
-    font-size: 24px;
+    font-size: 19px;
+    flex: none;
   }
   .exec-name {
     font-size: 10.5px;
+  }
+  .exec-count {
+    top: -7px;
+    right: -4px;
+    min-width: 20px;
+    height: 20px;
+    font-size: 12px;
+    line-height: 20px;
+  }
+}
+
+/*
+ * Dawn: the night's deaths shown to everyone, letterboxed like a film, with a caption along the bottom bar and,
+ * for the Storyteller, a button to skip the rest.
+ */
+.dawn-reel {
+  position: fixed;
+  inset: 0;
+  z-index: 76;
+  pointer-events: none;
+}
+.dawn-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: max(64px, 13vh);
+  background: #0c0a10;
+  animation: dawn-bar-in 0.5s ease-out both;
+}
+.dawn-bar.top {
+  top: 0;
+}
+.dawn-bar.bottom {
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 0 16px;
+  --from: 100%;
+}
+.dawn-bar.top {
+  --from: -100%;
+}
+@keyframes dawn-bar-in {
+  from {
+    transform: translateY(var(--from));
+  }
+}
+.dawn-line {
+  margin: 0;
+  color: #f6ecd8;
+  font-family: var(--cosy-font);
+  font-size: clamp(16px, 2.6vw, 26px);
+  font-style: italic;
+  text-align: center;
+  animation: dawn-line-in 0.8s ease-out both;
+}
+@keyframes dawn-line-in {
+  from {
+    opacity: 0;
+    letter-spacing: 0.08em;
+  }
+}
+.dawn-count {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-style: normal;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #b8aa98;
+}
+.dawn-skip {
+  pointer-events: auto;
+  flex: none;
+}
+body.dawn-on .minimap,
+body.dawn-on .action-prompt {
+  opacity: 0;
+  pointer-events: none;
+}
+@media (max-width: 520px) {
+  .dawn-bar.bottom {
+    flex-direction: column;
+    gap: 6px;
+    height: max(92px, 15vh);
+  }
+  .dawn-skip {
+    padding: 4px 12px;
+    font-size: 13px;
   }
 }

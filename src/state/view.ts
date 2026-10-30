@@ -3,7 +3,7 @@ import { defaultAlignment, getRole, type Alignment, type Script } from '../data'
 import { useClient } from '../net/client';
 import { useHostNet } from '../net/host';
 import { isTraveller, seatAlignment, useHost, visitFor } from './host';
-import type { AwakeState, DayTimer, DeathRecord, Execution, GameEnd, LetterIn, Nomination, NominationRequest, Phase, Reminder, SlayerShot, TownHall, Visit, VoteRecord, PitState } from './types';
+import type { AwakeState, DawnReel, DayTimer, DeathRecord, Execution, GameEnd, LetterIn, Nomination, NominationRequest, Phase, Reminder, SlayerShot, TownHall, Visit, VoteRecord, PitState } from './types';
 import type { Look, TownState, Weather } from '../world/types';
 import { nickFor, useNicks } from './nicks';
 import { SONGS } from '../lib/disco';
@@ -87,6 +87,8 @@ export interface View {
   pit: PitState | null;
   /** The song on at the club, since when (in this browser's clock), and who put it on ('' for nobody yet). */
   club: { song: string; at: number; by: string };
+  /** This morning's replay of the night's deaths (in this browser's clock). */
+  dawn: DawnReel | null;
 }
 
 /** The pit with its times moved onto this browser's clock. */
@@ -170,6 +172,7 @@ export function useStorytellerView(): View {
       pigeonNotes: [],
       pit: pitHere(g.pit && pitPublic(g.pit), 0),
       club: clubOf(g.town, 0),
+      dawn: g.dawn ?? null,
     }),
     [g, online, slow, hide, nicks],
   );
@@ -243,6 +246,7 @@ export function usePlayerView(): View | null {
       pigeonNotes: (Array.isArray(priv?.pigeons) ? priv.pigeons : []).map((p) => ({ ...p, at: p.at - (clockOffset ?? 0) })),
       pit: pitHere(pub.pit, clockOffset ?? 0),
       club: clubOf(pub.town, clockOffset ?? 0),
+      dawn: pub.dawn ? { ...pub.dawn, at: pub.dawn.at - (clockOffset ?? 0) } : null,
     };
   }, [pub, priv, clockOffset, nicks]);
 }

@@ -10,7 +10,8 @@ import { BED, groundAt } from '../src/world/town/layout';
 import { NightVisit, bendVictim } from '../src/world/visit';
 import { PigeonFlight } from '../src/world/pigeon';
 import { AvatarView } from '../src/world/avatar';
-import { EXEC_CAM, ExecStage, execCamera } from '../src/world/exec/stage';
+import type { ExecStage } from '../src/world/exec/stage';
+import { EXEC_CAM, execCamera, makeStage } from '../src/world/exec/shows';
 import type { ExecMethod } from '../src/state/types';
 import { CHAIR_Y, FELT_Y, RL_LOOK, SLOTS, bjSeat, bjSpot, pkAround, pkSeat, rlSeat, slStool } from '../src/world/town/casinoLayout';
 import { PIECES, freeSpot, type FlatItem } from '../src/flats/catalogue';
@@ -299,7 +300,7 @@ function execAt(o: { exec: string; et: number; animal?: string; spared?: boolean
   const spot = town.gallowsSpot;
   rig.root.position.set(spot.x, spot.y, spot.z);
   rig.root.rotation.y = spot.ry;
-  const stage = new ExecStage(o.exec as Exclude<ExecMethod, 'hang'>, Boolean(o.spared), spot);
+  const stage = makeStage(o.exec as Exclude<ExecMethod, 'hang'>, Boolean(o.spared), spot);
   exec = stage;
   town.groups.town.add(stage.group);
   // The gallows' own noose is tied up out of the way.
@@ -325,6 +326,20 @@ function execAt(o: { exec: string; et: number; animal?: string; spared?: boolean
   camera.lookAt(shot.look);
 }
 (window as unknown as { execAt: typeof execAt }).execAt = execAt;
+// window.execClear(): takes down the show and its animal, and says what's left in memory and in the town, so a show
+// that leaves something behind shows up as a difference from before it.
+function execClear() {
+  exec?.dispose();
+  exec = null;
+  condemned?.root.removeFromParent();
+  condemned?.dispose();
+  condemned = null;
+  renderer.render(scene, camera);
+  let objects = 0;
+  scene.traverse(() => objects++);
+  return { geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, objects };
+}
+(window as unknown as { execClear: typeof execClear }).execClear = execClear;
 if (q.has('exec')) execAt({ exec: q.get('exec')!, et: num('et', 2), animal: q.get('animal') ?? undefined, spared: q.has('spared'), hat: q.get('hat') ?? undefined, ry: num('ry', 0), edist: q.has('edist') ? num('edist', 8.5) : undefined });
 // ?walkers=fox:zapmouse,bear:dragon: animals walking towards the camera past the focus, each with its pet in
 // tow (?stop=12 has them stand still for the last 12 frames, the pets catching up; ?ghost makes the second a ghost).
