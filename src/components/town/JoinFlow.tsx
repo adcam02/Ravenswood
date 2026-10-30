@@ -313,7 +313,7 @@ function DressUp({ tab, look, setLook }: { tab: 'hat' | 'pet'; look: Look; setLo
   const progress = useProgress();
   const [hint, setHint] = useState<string | null>(null);
   useEffect(() => setHint(null), [tab]);
-  const items: { id: string; name: string; icon: string; locked?: string; price?: number; fx?: string }[] =
+  const items: { id: string; name: string; icon: string; locked?: string; price?: number; fx?: string; secret?: boolean }[] =
     tab === 'hat'
       ? HATS.map((h) => {
           const got = h.unlocked(progress);
@@ -322,7 +322,7 @@ function DressUp({ tab, look, setLook }: { tab: 'hat' | 'pet'; look: Look; setLo
           // Secret hats keep their secret until they're found; the shop's show their price.
           if (got) return { id: h.id, name: h.name, icon: h.icon, fx };
           if (h.price) return { id: h.id, name: h.name, icon: h.icon, price: h.price, fx, locked: `${money(h.price)} at the Lucky Raven’s shop` };
-          return h.secret ? { id: h.id, name: 'A secret hat', icon: '❓', locked: 'Keep exploring Ravenswood…' } : { id: h.id, name: h.name, icon: h.icon, fx, locked: h.how };
+          return h.secret ? { id: h.id, name: 'A secret hat', icon: '❓', locked: 'Keep exploring Ravenswood…', secret: true } : { id: h.id, name: h.name, icon: h.icon, fx, locked: h.how };
         })
           // The ones you have first.
           .sort((a, b) => Number(Boolean(a.locked)) - Number(Boolean(b.locked)))
@@ -358,8 +358,12 @@ function DressUp({ tab, look, setLook }: { tab: 'hat' | 'pet'; look: Look; setLo
             aria-disabled={Boolean(it.locked)}
             title={it.locked ? `${it.name}: ${it.locked}` : it.name}
           >
-            <span className="join-item-icon">{tab === 'pet' ? <PetPicture id={it.id as PetId} icon={it.icon} /> : it.icon}</span>
+            <span className="join-item-icon">
+              {tab === 'pet' ? <PetPicture id={it.id as PetId} icon={it.icon} /> : it.secret ? it.icon : <HatPicture id={it.id as HatId} icon={it.icon} />}
+            </span>
             <span className="join-item-name">{it.name}</span>
+            {/* (A hat still to earn says how, under its name; the shop's say their price instead.) */}
+            {tab === 'hat' && it.locked && it.price === undefined && !it.secret && <span className="join-item-how">{it.locked}</span>}
             {it.locked ? <i>🔒</i> : it.fx && <i title={it.fx}>✨</i>}
             {it.price !== undefined && <span className="join-item-price">{money(it.price)}</span>}
           </button>
@@ -469,7 +473,7 @@ export function HatPicture({ id, icon }: { id: HatId; icon: string }) {
       cancel();
     };
   }, [id, key, src]);
-  return src ? <img className="pet-picture" src={src} alt="" /> : <>{icon}</>;
+  return src ? <img className="pet-picture hat-picture" src={src} alt="" /> : <>{icon}</>;
 }
 
 /**

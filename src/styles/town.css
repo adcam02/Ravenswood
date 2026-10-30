@@ -3273,6 +3273,21 @@
   filter: none;
   opacity: 0.6;
 }
+/* A hat still to earn is a faded picture, with how to earn it underneath (the shop's are in colour, like the pets). */
+.join-item.locked:not(:has(.join-item-price)) .join-item-icon:has(.hat-picture) {
+  filter: grayscale(0.6);
+  opacity: 0.6;
+}
+.join-item-how {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--cosy-ink-soft);
+  text-align: center;
+}
 
 /* A part of the page still on its way (the casino's tables on a slow line), where it will appear. */
 .part-wait {
