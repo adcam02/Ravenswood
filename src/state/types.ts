@@ -588,6 +588,8 @@ export interface ProfileView extends ProgressSnapshot {
   pets: PetId[];
   /** Hats, dances and the like bought at the shop ('hat:topper', 'dance:worm'). */
   items?: string[];
+  /** Their emote hotbar ('' for an empty slot), if they've ever arranged it. */
+  hotbar?: string[];
   /** Money in and out lately, newest last. */
   pay: PayLine[];
   /** What minigames have paid them today, toward the day's cap (PAY.jobDaily). */
@@ -751,4 +753,6 @@ export type ClientMessage =
   /** The copies of books of profiles the Storyteller asked for. */
   | { t: 'backup'; copies: BackupCopy[] }
   /** Buying furniture for your flat, or laying it out. */
-  | { t: 'flat'; a: FlatAction };
+  | { t: 'flat'; a: FlatAction }
+  /** The player's emote hotbar, as they've arranged it in Customise (see world/emotes.ts). */
+  | { t: 'hotbar'; slots: string[] };

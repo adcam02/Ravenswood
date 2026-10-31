@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { casino, hostNow } from '../../casino/client';
-import { boughtNote, danceKey, hatKey, petPrice, shopDances, shopHats, shopPets, shopSlayMoves, wareOf } from '../../casino/shop';
+import { boughtNote, danceKey, hatKey, petPrice, shopDances, shopEmotes, shopHats, shopPets, shopSlayMoves, wareOf } from '../../casino/shop';
+import { emoteKey, type EmoteAnim } from '../../world/emotes';
+import { AnimalPreview } from '../../world/AnimalPreview';
 import { slayKey } from '../../game/slayMoves';
 import type { CasinoView } from '../../casino/types';
 import { game, useHud, type ShopTab } from '../../game/hud';
@@ -40,6 +42,7 @@ export function Shop({ view, tab: wanted, away }: { view: CasinoView | null; tab
     ['seats', '🪑', 'Seats'],
     ['graves', '🪦', 'Graves'],
     ['slay', '🏹', 'Slayer moves'],
+    ['emotes', '🎭', 'Emotes'],
   ];
   return (
     <div className="notice-layer casino-layer" onClick={close}>
@@ -71,6 +74,8 @@ export function Shop({ view, tab: wanted, away }: { view: CasinoView | null; tab
           <GraveShelf BuyButton={BuyButton} />
         ) : tab === 'slay' ? (
           <SlayMoves />
+        ) : tab === 'emotes' ? (
+          <Emotes />
         ) : (
           <Dances />
         )}
@@ -255,6 +260,64 @@ function SlayMoves() {
             </div>
           );
         })}
+      </div>
+    </>
+  );
+}
+
+function Emotes() {
+  const items = useMyItems();
+  const v = useView();
+  const player = v.mode === 'player';
+  const me = v.seats.find((s) => s.isMe);
+  const list = shopEmotes();
+  const owned = (anim: EmoteAnim) => !player || items.includes(emoteKey(anim));
+  // The one shown on your animal: the first not bought yet, until another is picked.
+  const [picked, setPicked] = useState<EmoteAnim>(() => (list.find((e) => !owned(e.anim)) ?? list[0]).anim);
+  const shown = list.find((e) => e.anim === picked)!;
+  const action = (e: (typeof list)[number]) =>
+    owned(e.anim) ? (
+      <button
+        className="cosy-btn"
+        onClick={() => {
+          close();
+          game.emote(e.anim);
+        }}
+      >
+        Do it
+      </button>
+    ) : (
+      <BuyButton price={e.price} what={`“${e.label}”`} onBuy={() => casino({ k: 'buyItem', item: emoteKey(e.anim) })} />
+    );
+  return (
+    <>
+      <p className="casino-blurb">
+        Little moves for every animal, a couple of seconds each, some with a prop or a puff of something. Yours to keep: put them on your emote bar from Customise, or find them in the
+        Emotes picker. Tap one to see it.
+      </p>
+      {me?.look && (
+        <div className="try-on emote-try">
+          <AnimalPreview look={{ ...me.look, pet: null }} size={150} spin={false} anim={picked} className="try-on-picture try-on-live" />
+          <div className="try-on-words">
+            <b>
+              {shown.icon} {shown.label}
+            </b>
+            <span>{owned(picked) ? 'Yours' : money(shown.price)}</span>
+            <span className="try-on-fx">{shown.blurb}</span>
+            {action(shown)}
+          </div>
+        </div>
+      )}
+      <div className="shop-grid">
+        {list.map((e) => (
+          <div key={e.anim} className={`shop-pet shop-dance shop-emote ${owned(e.anim) ? 'owned' : ''} ${picked === e.anim ? 'picked' : ''}`} onClick={() => setPicked(e.anim)}>
+            <span className="shop-pet-icon shop-dance-icon">{e.icon}</span>
+            <span className="shop-pet-name">{e.label}</span>
+            <span onClick={(ev) => ev.stopPropagation()} className="shop-hat-buy">
+              {action(e)}
+            </span>
+          </div>
+        ))}
       </div>
     </>
   );

@@ -191,7 +191,7 @@ function buyItem(player: string, key: string) {
   const ware = wareOf(key);
   if (!seat || !ware) return;
   const p = profileOf({ name: seat.name });
-  const what = ware.kind === 'dance' ? `“${ware.name}”` : `the ${ware.name.toLowerCase()}`;
+  const what = ware.kind === 'dance' || ware.kind === 'emote' ? `“${ware.name}”` : `the ${ware.name.toLowerCase()}`;
   if (p?.items.includes(key)) return tell(player, `You already have ${what}.`);
   if (!debit({ name: seat.name }, ware.price, `for ${what}`)) return tell(player, `That’s ${money(ware.price)}, and you have ${money(p?.coins ?? 0)}.`);
   grantItem({ name: seat.name }, key);

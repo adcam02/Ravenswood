@@ -1,9 +1,10 @@
 import { create } from 'zustand';
 import type { GameJob } from '../jobs/meta';
 import type { Anim, Item } from '../world/types';
+import { PICK_DANCES, PICK_EMOTES } from '../world/emotes';
 
 /** The shop's shelves. */
-export type ShopTab = 'pets' | 'hats' | 'dances' | 'seats' | 'graves' | 'slay';
+export type ShopTab = 'pets' | 'hats' | 'dances' | 'seats' | 'graves' | 'slay' | 'emotes';
 
 export interface Prompt {
   label: string;
@@ -33,6 +34,8 @@ interface Hud {
   emote: Anim | null;
   /** The Dances picker is open (above the emote bar). */
   dances: boolean;
+  /** The Emotes picker (the bought emotes) is open, like the Dances one. */
+  emotePick: boolean;
   /** Holding something you can sip. */
   canSip: boolean;
   /** How many people are close enough to hear you right now. */
@@ -77,6 +80,7 @@ export const useHud = create<Hud>(() => ({
   gfxLost: null,
   emote: null,
   dances: false,
+  emotePick: false,
   canSip: false,
   hearing: 0,
   notice: false,
@@ -119,3 +123,13 @@ export const game = {
   /** The item in your paw, as the HUD shows it. */
   item: null as Item | null,
 };
+
+/**
+ * One of the emote hotbar's slots pressed (a button on the bar, or its number key): a picker opens (or closes), and
+ * anything else plays. (See world/emotes.ts.)
+ */
+export function pressHotSlot(id: string) {
+  if (id === PICK_DANCES) useHud.setState((h) => ({ dances: !h.dances, emotePick: false }));
+  else if (id === PICK_EMOTES) useHud.setState((h) => ({ emotePick: !h.emotePick, dances: false }));
+  else if (id) game.emote(id as Anim);
+}

@@ -3,6 +3,8 @@ import { SMOOTH_LOOK, eyeMaterial, glow, shifting, soft, wet, type Shift, type V
 import { all, any, armForms, details, finishSculpt, region, sculptOf, sock, useSurface } from './forms';
 import { buildHat, fitHat, type BuiltHat, type HatBit, type HatFit, type HatHead, type HatNudge } from './hats';
 import { buildHatFx, type HatFx } from './hatFx';
+import { buyEmote, isBuyEmote, type EmoteAnim } from './emotes';
+import { EmoteFx, type EmoteSpots } from './emoteFx';
 import { buildItem, disposeObject } from './items';
 import { Fold, lowDetail, seedOf, seeded, solid, tube } from './paper';
 import { ellipsoid, rod, type Probe } from './sculpt';
@@ -532,6 +534,9 @@ class AnimalRig implements Rig {
   private hat: { id: HatId; built: BuiltHat; holder: THREE.Group; fold: string[] } | null = null;
   /** The prestige hats' glow or motes (see hatFx.ts), and whether they're wanted just now. */
   private hatFx: HatFx | null = null;
+  /** A shop emote's props and effects while it plays (emoteFx.ts), and the left paw's hand for a prop there. */
+  private emoteFx: EmoteFx | null = null;
+  private handL: THREE.Group | null = null;
   private hatFxOn = true;
   private baseHeadHeight = 1;
   // Landmarks in body space, for aiming paws.
@@ -2326,6 +2331,394 @@ class AnimalRig implements Rig {
   }
 
   /** The little things it does while standing about, one at a time. */
+  /**
+   * The shop's emotes (emotes.ts), `d` seconds in: built, like the dances, from reaches to places on the body and face,
+   * so they fit every animal. (They go round again after a pause, for the previews.) Props and effects: emoteFx.ts.
+   */
+  private gesture(P: Pose, A: AuxMap, anim: EmoteAnim, d: number, t: number) {
+    const sin = Math.sin;
+    const ss = THREE.MathUtils.smoothstep;
+    const sh = this.shoulder;
+    const ax = Math.abs(sh.x);
+    const T = buyEmote(anim)?.time ?? 2.5;
+    const u = d % (T + 0.6);
+    // Out to the middle of the body, for `reach`.
+    const mid = -ax;
+    // A spot on the face, once the head is bowed this far (the species' posture is added later, as in 'cry').
+    const face = (p: THREE.Vector3, hrx: number) => this.headNow(p, hrx + this.prof.head - this.prof.lean);
+    const brow = (hrx: number) => face(this.headC.clone().add(new THREE.Vector3(0, this.headR.y * 0.35, this.headR.z * 0.8)), hrx);
+    const ears = (x: number) => {
+      aux(A, 'earL')[0] = aux(A, 'earR')[0] = x;
+      aux(A, 'stalkL')[0] = aux(A, 'stalkR')[0] = x;
+    };
+    switch (anim) {
+      case 'facepalm': {
+        // Paw over the eyes, head bowed, shaking it slowly.
+        const h = 0.32 + (u > 0.5 ? sin(u * 7) * 0.04 : 0);
+        P.hrx = h;
+        P.hry = u > 0.5 ? sin(u * 4.5) * 0.15 : 0;
+        const e = face(this.eyePos, h);
+        this.reach(P, 'r', e.y + 0.02, e.z + this.pawR + 0.02, mid, 'paw');
+        this.freePaw(P);
+        P.brx = 0.06;
+        P.by = -0.01;
+        this.shut = 1;
+        ears(0.3);
+        break;
+      }
+      case 'shrug': {
+        const up = ss(u, 0.1, 0.35) * (1 - ss(u, T - 0.45, T - 0.1));
+        this.reach(P, 'both', sh.y - 0.06 + up * 0.05, this.front + this.pawR + 0.05, 0.08 + up * 0.08, 'paw');
+        P.by = up * 0.025;
+        P.hrz = up * 0.22;
+        P.hrx = -0.06 * up;
+        P.brz = -0.03 * up;
+        ears(-0.2 * up);
+        break;
+      }
+      case 'slowclap': {
+        // Apart, then together at the middle, once a second, deadpan.
+        const k = Math.pow(0.5 + 0.5 * Math.cos(u * Math.PI * 2), 0.7);
+        this.reach(P, 'both', sh.y - 0.06, this.front + this.pawR + 0.08, mid + this.pawR + k * 0.09, 'paw');
+        P.hrx = 0.05;
+        P.by = -0.005;
+        this.shut = 0.4;
+        break;
+      }
+      case 'thumbsup':
+        this.reach(P, 'r', sh.y + 0.02, this.front + 0.14, 0.04);
+        this.freePaw(P);
+        P.hrz = -0.14;
+        P.hrx = -0.06;
+        P.by = Math.max(0, sin(Math.min(u, 0.5) * Math.PI * 2)) * 0.025;
+        break;
+      case 'salute': {
+        // Chest out, paw to the brow, the other arm straight down.
+        const b = brow(-0.06);
+        P.hrx = -0.06;
+        P.brx = -0.1;
+        this.reach(P, 'r', b.y, b.z + this.pawR, mid + this.headR.x * 0.45, 'paw');
+        P.alx = -this.armFwd * 0.3;
+        P.alz = this.armOut * 0.4;
+        P.sl = 1;
+        P.llz = 0.02;
+        P.lrz = -0.02;
+        break;
+      }
+      case 'bow': {
+        const b = ss(u, 0.15, 0.6) * (1 - ss(u, T - 0.7, T - 0.15));
+        P.brx = 0.75 * b;
+        P.hrx = 0.2 * b;
+        P.bz = -0.03 * b;
+        // One paw across the tummy, the other swept out behind.
+        this.reach(P, 'r', sh.y - 0.18, this.front + this.pawR, -ax * 0.7, 'paw');
+        P.alx = 0.5 * b - this.armFwd * (1 - b);
+        P.alz = this.armOut + 0.35 * b;
+        break;
+      }
+      case 'blowkiss':
+        if (u < 0.75) {
+          const m = face(this.mouth, 0);
+          this.reach(P, 'r', m.y, m.z + this.pawR + 0.01, mid, 'paw');
+          P.brx = 0.05;
+          this.shut = 0.6 * ss(u, 0.3, 0.6);
+        } else {
+          // Flung out towards whoever it's for.
+          this.reach(P, 'r', sh.y + 0.12, this.front + 0.22, 0.12, 'paw');
+          P.hrx = -0.1;
+          P.hrz = 0.15;
+          P.brx = -0.04;
+        }
+        this.freePaw(P);
+        break;
+      case 'micdrop':
+        // Held out to the side, chin up, looking away; after the drop, a turn to walk off.
+        this.reach(P, 'r', sh.y + 0.04, this.front + 0.16, 0.2);
+        this.freePaw(P);
+        P.hry = -0.35;
+        P.hrx = -0.12;
+        P.brx = -0.06;
+        P.bry = -0.45 * ss(u, 1.9, 2.4);
+        break;
+      case 'dab':
+        // One arm flung up and out, the head tucked into the crook of the other.
+        this.reach(P, 'l', this.headC.y + 0.18, this.front - 0.02, 0.32, 'paw');
+        this.reach(P, 'r', this.headC.y + 0.06, this.front + 0.1, mid * 2 - 0.1, 'paw');
+        P.hrx = 0.38;
+        P.hry = -0.4;
+        P.brz = 0.08;
+        P.bry = 0.15;
+        P.by = -0.01;
+        break;
+      case 'loser': {
+        // The L on the forehead, swaying smugly.
+        const b = brow(0);
+        this.reach(P, 'r', b.y, b.z + this.pawR + 0.01, mid + this.headR.x * 0.15, 'paw');
+        this.freePaw(P);
+        P.hrz = sin(u * 3) * 0.12;
+        P.bry = sin(u * 3) * 0.1;
+        P.by = Math.abs(sin(u * 3)) * 0.01;
+        break;
+      }
+      case 'think': {
+        // A paw rubbing the chin, the other arm across the tummy holding the elbow, looking up and away.
+        const h = -0.12;
+        P.hrx = h;
+        P.hrz = 0.15;
+        P.hry = 0.2;
+        const m = face(this.mouth, h);
+        const rub = sin(u * 5) * 0.012;
+        this.reach(P, 'r', m.y - 0.05 + rub, m.z + this.pawR * 0.6, mid + rub, 'paw');
+        this.reach(P, 'l', sh.y - 0.2, this.front + this.pawR, -ax * 0.5, 'paw');
+        break;
+      }
+      case 'shush': {
+        const h = 0.05;
+        P.hrx = h;
+        P.brx = 0.12;
+        const m = face(this.mouth, h);
+        this.reach(P, 'r', m.y - 0.05, m.z + this.pawR + 0.015, mid);
+        this.freePaw(P);
+        P.by = -0.01;
+        this.shut = 0.3;
+        break;
+      }
+      case 'ragequit': {
+        // Stomping, fists down and pumping, ears back.
+        const st = sin(u * 11);
+        P.llx = -0.55 * Math.max(0, st);
+        P.lrx = -0.55 * Math.max(0, -st);
+        P.by = Math.abs(st) * 0.03;
+        P.brz = st * 0.06;
+        P.brx = 0.12;
+        this.reach(P, 'both', sh.y - 0.18 + Math.abs(st) * 0.05, this.front + this.pawR + 0.03, 0.06, 'paw');
+        P.hrx = 0.18 + sin(u * 23) * 0.03;
+        P.hrz = sin(u * 17) * 0.05;
+        P.try = st * 0.5;
+        ears(0.4);
+        break;
+      }
+      case 'yawn':
+        if (u < 1.2) {
+          // A big stretch, head back, eyes shut.
+          const s = ss(u, 0.05, 0.5);
+          this.raise(P, 'both', this.headC.y + this.headR.y + 0.15 * s, 0.04);
+          P.hrx = -0.35 * s;
+          P.by = 0.02 * s;
+          P.brx = -0.08 * s;
+          this.shut = s;
+        } else {
+          // Then drooping, nodding off.
+          P.hrx = 0.28 + sin((u - 1.2) * 2.5) * 0.06;
+          P.by = -0.01;
+          P.brx = 0.05;
+          this.reach(P, 'both', sh.y - 0.15, this.front + this.pawR, -0.02, 'paw');
+          this.shut = 0.8;
+          ears(0.25);
+        }
+        break;
+      case 'sneeze':
+        if (u < 1.1) {
+          // Ah… ah…: the head going back in jerks, eyes screwing shut.
+          const b = ss(u, 0.1, 1.1);
+          const jerk = sin(u * 9) > 0.6 ? 0.05 : 0;
+          P.hrx = -0.12 - 0.35 * b - jerk;
+          P.brx = -0.12 * b;
+          P.by = 0.015 * b;
+          this.shut = b * 0.9;
+          this.freePaw(P);
+        } else {
+          // CHOO, and a wipe of the nose.
+          P.hrx = u < 1.5 ? 0.45 : 0.25;
+          P.brx = u < 1.5 ? 0.25 : 0.1;
+          P.by = -0.02;
+          this.shut = u < 1.5 ? 1 : 0.4;
+          if (u > 1.5) {
+            const m = face(this.mouth, 0.25);
+            this.reach(P, 'r', m.y + sin(u * 14) * 0.01, m.z + this.pawR, mid + sin(u * 14) * 0.03, 'paw');
+          }
+          this.freePaw(P);
+        }
+        break;
+      case 'hearthands':
+        // Paws together in front of the chest (the heart sits between them), swaying.
+        this.reach(P, 'both', sh.y - 0.02, this.front + 0.14, mid + this.pawR * 0.9, 'paw');
+        P.hrz = sin(u * 2.5) * 0.12;
+        P.brz = sin(u * 2.5) * 0.04;
+        P.hrx = -0.05;
+        P.by = Math.abs(sin(u * 5)) * 0.008;
+        break;
+      case 'flex': {
+        const p = 0.5 + 0.5 * sin(u * 6);
+        this.raise(P, 'both', this.headC.y + 0.02 + p * 0.03, 0.1 + p * 0.03);
+        P.brx = -0.1;
+        P.by = 0.01 + p * 0.01;
+        P.hrx = -0.05;
+        P.hry = sin(u * 3) * 0.3;
+        P.llz = 0.12;
+        P.lrz = -0.12;
+        break;
+      }
+      case 'eyeroll': {
+        // The whole head rolls up and round, then a weary tilt, a paw on the hip.
+        const a = ss(u, 0.15, 1.2) * Math.PI * 2;
+        if (u < 1.25) {
+          P.hrz = 0.22 * sin(a);
+          P.hrx = -0.15 - 0.15 * Math.cos(a);
+        } else {
+          P.hrx = 0.1;
+          P.hrz = -0.1;
+          P.by = -0.01;
+        }
+        this.reach(P, 'l', sh.y - 0.22, this.front - 0.02, 0.1, 'paw');
+        this.shut = 0.45;
+        break;
+      }
+      case 'peace':
+        this.raise(P, 'r', this.headC.y + 0.04, 0.03 + sin(u * 4) * 0.01);
+        this.freePaw(P);
+        P.hrz = -0.2;
+        P.brz = 0.05;
+        P.by = Math.max(0, sin(Math.min(u, 0.5) * Math.PI * 2)) * 0.03;
+        break;
+      case 'fingerguns': {
+        let kick = 0;
+        for (const t0 of [0.45, 1.05, 1.6]) if (u > t0 && u < t0 + 0.25) kick = Math.max(kick, 1 - (u - t0) / 0.25);
+        this.reach(P, 'both', sh.y - 0.02 + kick * 0.06, this.front + 0.2, 0.05);
+        P.hrz = -0.12;
+        P.hry = 0.1;
+        P.bry = sin(u * 3) * 0.1;
+        P.by = kick * 0.01;
+        break;
+      }
+      case 'thisisfine': {
+        // Sat down with a cuppa, sipping now and then, quite calm.
+        this.sit(P, A, t);
+        const sip = u > 1.0 && u < 1.9 ? sin(((u - 1) / 0.9) * Math.PI) : 0;
+        const m = face(this.mouth, 0.05);
+        const lerp = THREE.MathUtils.lerp;
+        this.reach(P, 'r', lerp(sh.y - 0.12, m.y - 0.07, sip), lerp(this.front + 0.12, m.z + 0.06, sip), lerp(0.02, mid + 0.03, sip));
+        P.hrx = 0.05 - sip * 0.1;
+        P.tilt = -0.5 * sip;
+        break;
+      }
+      case 'sweat': {
+        // Tugging at the collar, eyes darting one way and the other, trembling.
+        const tug = sin(u * 9) * 0.015;
+        this.reach(P, 'r', this.neckPos.y - 0.02, this.front + this.pawR + 0.02 + tug, -ax * 0.7, 'paw');
+        this.freePaw(P);
+        P.hry = Math.floor(u * 2.2) % 2 ? 0.35 : -0.35;
+        P.hrx = 0.05;
+        P.by = sin(u * 40) * 0.003;
+        P.brz = sin(u * 37) * 0.01;
+        ears(0.3);
+        break;
+      }
+      case 'teasip': {
+        // Up for a sip, then down, with a long look to one side.
+        const sip = ss(u, 0.35, 0.7) * (1 - ss(u, 1.3, 1.6));
+        const m = face(this.mouth, 0);
+        const lerp = THREE.MathUtils.lerp;
+        this.reach(P, 'r', lerp(sh.y - 0.1, m.y - 0.07, sip), lerp(this.front + 0.12, m.z + 0.06, sip), lerp(0.02, mid + 0.03, sip));
+        this.freePaw(P);
+        P.tilt = -0.6 * sip;
+        P.hry = 0.45 * ss(u, 1.7, 1.95);
+        P.hrx = 0.04;
+        this.shut = u > 1.7 ? 0.4 : 0;
+        break;
+      }
+      case 'confused':
+        P.hrz = sin(u * 2.2) * 0.25;
+        P.hrx = -0.1 + sin(u * 1.3) * 0.05;
+        P.hry = sin(u * 1.7) * 0.15;
+        this.reach(P, 'both', sh.y - 0.08, this.front + this.pawR + 0.08, 0.06, 'paw');
+        this.shut = 0.25;
+        break;
+      case 'sigh': {
+        // A breath in, shoulders up, then all of it out: slumped, head down.
+        const inh = ss(u, 0.05, 0.6) * (1 - ss(u, 0.75, 1.0));
+        const ex = ss(u, 0.8, 1.4);
+        P.by = inh * 0.025 - ex * 0.025;
+        P.brx = -0.08 * inh + 0.2 * ex;
+        P.hrx = -0.15 * inh + 0.35 * ex;
+        P.alz = this.armOut + inh * 0.15 - ex * 0.08;
+        P.arz = -P.alz;
+        this.shut = 0.3 + ex * 0.4;
+        ears(0.35 * ex);
+        break;
+      }
+      case 'crylaugh':
+        // Leaning back, paws on the belly, shaking with it (and the tears: emoteFx).
+        P.hrx = -0.4 + sin(u * 16) * 0.07;
+        P.brx = -0.12;
+        P.brz = sin(u * 18) * 0.04;
+        P.by = Math.abs(sin(u * 9)) * 0.03;
+        this.reach(P, 'both', sh.y - 0.2, this.front + this.pawR, 0, 'paw');
+        P.try = sin(u * 9) * 0.3;
+        this.shut = 0.85;
+        break;
+      case 'doot': {
+        // The trumpet to the lips (the other paw on its valves), a bob for each doot.
+        let b = 0;
+        for (const t0 of [0.3, 0.9, 1.45]) if (u > t0 && u < t0 + 0.35) b = Math.max(b, sin(((u - t0) / 0.35) * Math.PI));
+        const h = -0.1 - b * 0.12;
+        P.hrx = h;
+        const m = face(this.mouth, h);
+        this.reach(P, 'r', m.y - 0.01, m.z + 0.015, mid);
+        this.reach(P, 'l', m.y - 0.03, m.z + 0.08, mid + 0.02, 'paw');
+        P.by = b * 0.02;
+        P.brx = -0.05 - b * 0.05;
+        this.shut = b * 0.6;
+        break;
+      }
+    }
+  }
+
+  /** The shop's emotes' props and effects (emoteFx.ts): made as one starts, updated, and thrown away as it ends. */
+  private emoteExtras(s: RigState) {
+    const anim = isBuyEmote(s.anim) ? s.anim : null;
+    if (this.emoteFx && this.emoteFx.anim !== anim) {
+      this.emoteFx.dispose();
+      this.emoteFx = null;
+    }
+    // (Whatever's in the paw is put away for it.)
+    if (this.item) this.item.visible = !anim;
+    if (!anim) return;
+    if (!this.emoteFx) {
+      const fx = new EmoteFx(anim, this.material, this.pawR);
+      if (fx.props.r) this.handTilt.add(fx.props.r);
+      if (fx.props.l) this.leftHand().add(fx.props.l);
+      this.float.add(fx.group);
+      this.emoteFx = fx;
+    }
+    if (!EmoteFx.wanted(anim)) return;
+    const T = buyEmote(anim)?.time ?? 2.5;
+    this.emoteFx.update((s.t - this.animStart) % (T + 0.6), this.emoteSpots());
+  }
+
+  /** A hand on the left paw too (made the first time it's wanted), placed like the right one: see applyPose. */
+  private leftHand(): THREE.Group {
+    if (!this.handL) {
+      this.handL = new THREE.Group();
+      this.handL.matrixAutoUpdate = false;
+      (this.foreL ?? this.armL).add(this.handL);
+    }
+    return this.handL;
+  }
+
+  /** Where the head, face and paws are right now, in the float's space (where the effects are drawn). */
+  private emoteSpots(): EmoteSpots {
+    this.float.updateMatrixWorld(true);
+    const inv = this.m4.copy(this.float.matrixWorld).invert();
+    const onHead = (p: THREE.Vector3) => this.neck.localToWorld(p.clone().sub(this.neckPos)).applyMatrix4(inv);
+    const head = onHead(this.headC);
+    const eyeL = onHead(this.eyePos);
+    const eyeR = onHead(this.eyePos.clone().setX(-this.eyePos.x));
+    const hand = this.hand.getWorldPosition(new THREE.Vector3()).applyMatrix4(inv);
+    const handL = this.handL ? this.handL.getWorldPosition(new THREE.Vector3()).applyMatrix4(inv) : hand.clone().setX(-hand.x);
+    return { top: onHead(this.headC.clone().setY(this.headC.y + this.headR.y)).y, head, mouth: onHead(this.mouth), eyeL, eyeR, hand, handL, size: this.headR.x };
+  }
+
   private mannerism(P: Pose, A: AuxMap, t: number) {
     if (!this.clip && t >= this.nextClip && this.prof.idles.length) {
       const name = this.prof.idles[Math.floor(Math.random() * this.prof.idles.length)];
@@ -2535,7 +2928,8 @@ class AnimalRig implements Rig {
     }
     this.shut = 0;
     this.flutter = 0;
-    switch (s.anim) {
+    if (isBuyEmote(s.anim)) this.gesture(P, A, s.anim, s.t - this.animStart, t);
+    else switch (s.anim) {
       case 'walk':
       case 'run':
         this.gait(P, A, s);
@@ -2979,6 +3373,22 @@ class AnimalRig implements Rig {
     this.handTilt.rotation.set(P.tilt, 0, 0);
     // A load held in both paws slides across to sit in front of the middle of the body.
     if (this.item) this.item.position.x = -grip.x * P.carry;
+    // (Heart hands: the heart sits between the paws.)
+    if (this.emoteFx?.anim === 'hearthands' && this.emoteFx.props.r) this.emoteFx.props.r.position.x = -grip.x;
+    if (this.handL) {
+      // The left paw's hand, the same way (the grip mirrored).
+      this.armL.updateMatrix();
+      const chainL = this.m6.copy(this.armL.matrix);
+      let localL = this.v2.copy(this.grip).setX(-this.grip.x);
+      if (this.foreL) {
+        this.foreL.updateMatrix();
+        chainL.multiply(this.foreL.matrix);
+        localL = localL.add(this.v3.set(0, this.elbow, 0));
+      }
+      const gripL = this.v.copy(localL).applyMatrix4(chainL);
+      this.handL.matrix.copy(chainL).invert().multiply(this.m4.makeTranslation(gripL.x, gripL.y, gripL.z));
+      this.handL.matrixWorldNeedsUpdate = true;
+    }
   }
 
   update(s: RigState) {
@@ -3036,6 +3446,7 @@ class AnimalRig implements Rig {
       this.shift.tint.value = Math.abs(away);
     }
     this.hat?.built.update?.(s.t + this.seed);
+    this.emoteExtras(s);
     // Hats come off for bed.
     if (this.hat) this.hat.holder.visible = s.anim !== 'sleep';
     if (this.hatFx) {
@@ -3185,6 +3596,8 @@ class AnimalRig implements Rig {
   }
 
   dispose() {
+    this.emoteFx?.dispose();
+    this.emoteFx = null;
     this.setItem(null);
     this.setHat(null);
     // Back to this rig's own geometry first: the distant version is shared and stays cached.

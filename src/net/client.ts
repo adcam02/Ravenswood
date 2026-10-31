@@ -458,6 +458,8 @@ export const player = {
   casino: (a: CasinoAction) => clientLink.send({ t: 'casino', a }),
   /** Buying furniture for your flat, or laying it out. */
   flat: (a: FlatAction) => clientLink.send({ t: 'flat', a }),
+  /** The emote hotbar, as arranged in Customise. */
+  hotbar: (slots: string[]) => clientLink.send({ t: 'hotbar', slots }),
   /** The night's drawing and the gallery: a drawing (in pieces), a vote, pictures wanted, a piece to keep. */
   gallery: (a: GalleryAction) => clientLink.send({ t: 'gallery', a }),
   reply: (wakeId: string, r: { seatIds?: string[]; roleIds?: string[]; answer?: boolean }) =>

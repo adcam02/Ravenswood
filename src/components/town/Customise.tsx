@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTaken } from '../../net/client';
 import { animalsLocked } from '../../state/host';
-import { ui } from '../../state/ui';
+import { ui, useUI } from '../../state/ui';
 import { useView } from '../../state/view';
 import { animalInfo, fixLook, type AnimalId, type Look } from '../../world/types';
 import { letGoOfAnimal, LookEditor, savedLook, useJoin, wearLook, type PickTab } from './JoinFlow';
@@ -21,7 +21,9 @@ export function CustomiseModal() {
   const locked = Boolean(mine) && animalsLocked(view);
   const [name, setName] = useState(me?.name ?? '');
   const [look, setLook] = useState<Look>(() => fixLook(mine ?? savedLook()));
-  const [tab, setTab] = useState<PickTab>(locked ? 'hat' : 'animal');
+  // (Opened from the emote bar, straight to its slots.)
+  const wanted = useUI((s) => (s.modal?.kind === 'customise' ? s.modal.tab : undefined));
+  const [tab, setTab] = useState<PickTab>(wanted ?? (locked ? 'hat' : 'animal'));
   const [note, setNote] = useState<string | null>(null);
   // What we've asked the host for, while we wait to see it on our seat.
   const [sent, setSent] = useState<Look | null>(null);

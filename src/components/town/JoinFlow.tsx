@@ -13,6 +13,7 @@ import { shownName } from '../../state/nicks';
 import { money } from '../../game/profiles';
 import { petPrice, shopPets } from '../../casino/shop';
 import { SeatPicks } from './SeatPicks';
+import { HotbarPicks, usePreviewAnim } from './HotbarPicks';
 
 type Step = 'name' | 'animal' | 'mic';
 
@@ -185,12 +186,13 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
   );
 }
 
-export type PickTab = 'animal' | 'hat' | 'pet' | 'seat';
+export type PickTab = 'animal' | 'hat' | 'pet' | 'seat' | 'emotes';
 const TABS: { id: PickTab; label: string; icon: string }[] = [
   { id: 'animal', label: 'Animal', icon: '🦊' },
   { id: 'hat', label: 'Hats', icon: '🎩' },
   { id: 'pet', label: 'Pet', icon: '🐾' },
   { id: 'seat', label: 'Seat', icon: '🪑' },
+  { id: 'emotes', label: 'Emotes', icon: '🎭' },
 ];
 
 /**
@@ -220,6 +222,7 @@ export function LookEditor({
   confirm?: { label: string; onClick: () => void };
 }) {
   const others = useOthersAnimals();
+  const previewAnim = usePreviewAnim();
   const theirs = (id: string) => others.get(id);
   // The animal we are (or are looking at) in view in the list, which can be a long way down.
   const grid = useRef<HTMLDivElement>(null);
@@ -248,7 +251,7 @@ export function LookEditor({
   return (
     <div className="join-animal-body">
       <div className="join-stage">
-        <AnimalPreview look={look} size={260} spin={false} turnable anim="idle" />
+        <AnimalPreview look={look} size={260} spin={false} turnable anim={(tab === 'emotes' && previewAnim) || 'idle'} />
         <strong className="join-animal-name">
           {info.name}
           {info.aquatic && <span className="join-wet"> · a little bit wet</span>}
@@ -281,7 +284,7 @@ export function LookEditor({
               key={t.id}
               role="tab"
               aria-selected={tab === t.id}
-              className={`dress-tab ${tab === t.id ? 'on' : ''} ${(t.id === 'seat' ? look.stool || look.grave : t.id !== 'animal' && look[t.id]) ? 'has' : ''}`}
+              className={`dress-tab ${tab === t.id ? 'on' : ''} ${(t.id === 'seat' ? look.stool || look.grave : t.id === 'hat' || t.id === 'pet' ? look[t.id] : false) ? 'has' : ''}`}
               onClick={() => setTab(t.id)}
             >
               <span>{t.icon}</span> {t.label}
@@ -304,6 +307,8 @@ export function LookEditor({
           </>
         ) : tab === 'seat' ? (
           <SeatPicks look={look} setLook={setLook} />
+        ) : tab === 'emotes' ? (
+          <HotbarPicks />
         ) : (
           <DressUp tab={tab} look={look} setLook={setLook} />
         )}

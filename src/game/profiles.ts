@@ -28,6 +28,7 @@ import { FEATS, PETS, type FeatId, type PetId } from '../world/types';
 import { cleanFlat, emptyFlat, type FlatStore } from '../flats/catalogue';
 import { GAME_JOBS, JOB_AT, type GameJob } from '../jobs/meta';
 import { ART_ID, SAVED_MAX, type SavedArt } from '../gallery/types';
+import { cleanHotbar } from '../world/emotes';
 
 /** What players earn, in dollars: all the amounts in one place. */
 export const PAY = {
@@ -182,6 +183,8 @@ export interface Profile extends ProgressSnapshot {
   devices?: string[];
   /** Their flat in Wren Court, the apartment block: the furniture they've bought and how it's laid out (flats/). */
   flat?: FlatStore;
+  /** Their emote hotbar, as they last arranged it in Customise ('' for an empty slot; see world/emotes.ts). */
+  hotbar?: string[];
   /** Their own drawings from the night's gallery that they've kept (only ids and prompts: the pictures are kept apart, see gallery/host.ts). */
   art?: SavedArt[];
   created: number;
@@ -226,6 +229,8 @@ export function cleanProfile(raw: unknown, key: string): Profile {
   const devices = strings(r.devices, DEVICES_KEPT, 64).filter((h) => /^[0-9a-f]{16,64}$/.test(h));
   if (devices.length) p.devices = devices;
   if (r.flat && typeof r.flat === 'object') p.flat = cleanFlat(r.flat);
+  const hotbar = cleanHotbar(r.hotbar);
+  if (hotbar) p.hotbar = hotbar;
   if (Array.isArray(r.art)) {
     const art = r.art
       .filter((a) => a && typeof a.id === 'string' && ART_ID.test(a.id))
@@ -397,6 +402,17 @@ export function grantItem(who: Who, key: string): boolean {
   return true;
 }
 
+/** Keeps a player's emote hotbar as they've arranged it (anything unknown is left blank). */
+export function setHotbar(who: Who, raw: unknown): boolean {
+  const name = nameOf(who);
+  const slots = cleanHotbar(raw);
+  if (!name || !slots) return false;
+  ensure(name);
+  if (useProfiles.getState().profiles[nameKey(name)].hotbar?.join() === slots.join()) return false;
+  change(name, (p) => void (p.hotbar = slots));
+  return true;
+}
+
 /** A player's profile as it stands, or null. Read only: change it through the functions here. */
 export function profileOf(who: Who): Readonly<Profile> | null {
   const name = nameOf(who);
@@ -522,6 +538,7 @@ export function profileFor(playerId: string): ProfileView | null {
     coins: p.coins,
     pets: p.pets,
     items: p.items,
+    ...(p.hotbar ? { hotbar: p.hotbar } : {}),
     pay: p.pay.filter((l) => now - l.at < NEWS_MS),
     jobPaid: p.jobPay?.day === today() ? p.jobPay.paid : 0,
     jobTops: p.jobTops?.day === today() ? p.jobTops.jobs : [],

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { getRole, iconUrl } from '../data';
-import { game, useHud, type Prompt } from '../game/hud';
+import { game, pressHotSlot, useHud, type Prompt } from '../game/hud';
+import { BUY_EMOTES, buyEmote, emoteOwned, shownHotbar } from './emotes';
 import { local, setItem } from '../game/local';
 import { presence } from '../game/presence';
 import { SCORE_OF, type GameJob, type JobResults } from '../jobs/meta';
@@ -128,7 +129,6 @@ import {
   cottageZone,
   DANCES,
   danceOwned,
-  DANCES_KEY,
   houseOwner,
   flatOwner,
   flatZone,
@@ -272,7 +272,7 @@ const phaseKey = (v: WorldView) => `${v.started}:${v.phase}:${v.day}`;
 
 const EMOTE_TIME: Partial<Record<Anim, number>> = { wave: 2.4, cheer: 2.6, laugh: 2.6, cry: 3.2, dance: 8, drink: 1.6 };
 /** How long an emote plays: a dance goes on until you move or do something else (on a meeting stool, a while). */
-const emoteTime = (anim: Anim, pinned = false) => (isDance(anim) ? (pinned ? 8 : Infinity) : (EMOTE_TIME[anim] ?? 2.5));
+const emoteTime = (anim: Anim, pinned = false) => (isDance(anim) ? (pinned ? 8 : Infinity) : (EMOTE_TIME[anim] ?? buyEmote(anim)?.time ?? 2.5));
 const SIPPABLE = new Set(['ale', 'cider', 'milk', 'cocoa', 'loaf', 'pie', 'bun', 'water', 'wine']);
 const DRINKS = new Set(['ale', 'cider', 'milk', 'cocoa', 'water', 'wine']);
 /** Seconds to eat or drink something down. */
@@ -1221,15 +1221,15 @@ export class Engine {
     } else if (k === 'g') this.give();
     else if (k === 'q') this.putAway();
     else if (k === 'm') voice.setMuted(!useVoice.getState().muted);
-    else if (k === DANCES_KEY) useHud.setState((h) => ({ dances: !h.dances }));
-    else if (useHud.getState().dances && /^[1-9]$/.test(k)) {
-      // The Dances picker is open: its own numbers.
-      const dance = DANCES[Number(k) - 1];
-      if (dance) this.startEmote(dance.anim);
-      useHud.setState({ dances: false });
-    } else {
-      const emote = ({ '1': 'wave', '2': 'dance', '3': 'cheer', '4': 'laugh', '5': 'cry', '6': 'sit' } as Record<string, Anim>)[k];
-      if (emote) this.startEmote(emote);
+    else if ((useHud.getState().dances || useHud.getState().emotePick) && /^[1-9]$/.test(k)) {
+      // The Dances (or Emotes) picker is open: its own numbers.
+      const pick = (useHud.getState().dances ? DANCES : BUY_EMOTES)[Number(k) - 1];
+      if (pick) this.startEmote(pick.anim);
+      useHud.setState({ dances: false, emotePick: false });
+    } else if (/^[1-8]$/.test(k)) {
+      // The emote hotbar's slots, as arranged in Customise.
+      const p = useProgress.getState();
+      pressHotSlot(shownHotbar(p.hotbar, p, this.view?.mode === 'st')[Number(k) - 1] ?? '');
     }
   };
 
@@ -1407,6 +1407,10 @@ export class Engine {
     // A dance from the shop not bought yet: the shop opens on it instead (the Storyteller has them all).
     if (this.view?.mode === 'player' && !danceOwned(anim, useProgress.getState())) {
       useHud.setState({ dances: false, casino: { kind: 'shop', tab: 'dances', away: zoneKind(local.zone) !== 'casino' } });
+      return;
+    }
+    if (this.view?.mode === 'player' && !emoteOwned(anim, useProgress.getState())) {
+      useHud.setState({ emotePick: false, casino: { kind: 'shop', tab: 'emotes', away: zoneKind(local.zone) !== 'casino' } });
       return;
     }
     // On a meeting stool: wave, laugh and the rest happen sitting there, and "sit" doesn't stand them up.

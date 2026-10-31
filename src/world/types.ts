@@ -4,6 +4,7 @@
  * Plain data only, so the game state and network messages can use it without pulling in three.js.
  */
 import { cleanEpitaph, fixGrave, fixStool, type GraveId, type StoolId } from './stoolShop';
+import type { EmoteAnim } from './emotes';
 
 // ---------------------------------------------------------------- animals
 
@@ -703,6 +704,8 @@ export type Anim =
   | 'water'
   /** A sip from whatever is in the right paw. */
   | 'drink'
+  /** The emotes bought at the shop (see emotes.ts). */
+  | EmoteAnim
   /** The dances in the Dances picker (see DANCES). */
   | 'twerk'
   | 'griddy'

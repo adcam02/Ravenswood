@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { JOB_TITLES, SCORE_LABEL, type GameJob } from '../../jobs/meta';
 import { useBests } from '../../game/bests';
-import { game, useHud } from '../../game/hud';
+import { game, pressHotSlot, useHud } from '../../game/hud';
 import { local, useLocal } from '../../game/local';
 import { presence } from '../../game/presence';
 import { loadJSON, saveJSON } from '../../lib/util';
@@ -10,8 +10,9 @@ import { ui, useUI } from '../../state/ui';
 import { nightMusic } from '../../lib/music';
 import { useView } from '../../state/view';
 import { setPersonVolume, useVoice, voice } from '../../voice/voice';
-import { DANCES, DANCES_KEY, EMOTES, danceOwned, isDance, type Item } from '../../world/types';
-import { useMyItems } from '../../game/progress';
+import { DANCES, danceOwned, isDance, type Item } from '../../world/types';
+import { BUY_EMOTES, emoteOwned, hotChoice, isBuyEmote, PICK_DANCES, PICK_EMOTES, shownHotbar } from '../../world/emotes';
+import { useMyHotbar, useMyItems } from '../../game/progress';
 import { money } from '../../game/profiles';
 import { lazyPart } from '../../lib/lazy';
 import { CrashNote, Guard } from '../Guard';
@@ -275,24 +276,33 @@ export function HandSlot() {
   );
 }
 
+/** Customise, open at the emote hotbar. */
+const editHotbar = () => {
+  useHud.setState({ dances: false, emotePick: false });
+  ui.open({ kind: 'customise', tab: 'emotes' });
+};
+
 export function EmoteBar() {
   const emote = useHud((s) => s.emote);
   const job = useHud((s) => s.job);
   // (At a card table the table's own panel sits there.)
   const atTable = useHud((s) => Boolean(s.casino && s.casino.kind !== 'shop'));
   const open = useHud((s) => s.dances);
+  const pickE = useHud((s) => s.emotePick);
   const bar = useRef<HTMLDivElement>(null);
   // Dances from the shop show their price until bought (the Storyteller has them all).
   const items = useMyItems();
   const st = useView().mode === 'st';
+  // The slots as arranged in Customise (the free emotes and the two pickers, until then).
+  const slots = shownHotbar(useMyHotbar(), { items }, st);
   // The picker closes on a tap anywhere else, or Escape.
   useEffect(() => {
-    if (!open) return;
+    if (!open && !pickE) return;
     const away = (e: PointerEvent) => {
-      if (!bar.current?.contains(e.target as Node)) useHud.setState({ dances: false });
+      if (!bar.current?.contains(e.target as Node)) useHud.setState({ dances: false, emotePick: false });
     };
     const esc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') useHud.setState({ dances: false });
+      if (e.key === 'Escape') useHud.setState({ dances: false, emotePick: false });
     };
     window.addEventListener('pointerdown', away);
     window.addEventListener('keydown', esc);
@@ -300,27 +310,68 @@ export function EmoteBar() {
       window.removeEventListener('pointerdown', away);
       window.removeEventListener('keydown', esc);
     };
-  }, [open]);
+  }, [open, pickE]);
   if (job || atTable) return null;
-  const picked = isDance(emote) && emote !== 'dance';
+  // (A picker's slot is lit while something from it plays that isn't on a slot of its own.)
+  const picked = isDance(emote) && emote !== 'dance' && !slots.includes(emote!);
+  const pickedE = isBuyEmote(emote) && !slots.includes(emote);
   return (
-    <div ref={bar} className="emote-bar cosy-panel" role="toolbar" aria-label="Emotes">
-      {EMOTES.map((e) => (
-        <button key={e.anim} className={`emote ${emote === e.anim ? 'on' : ''}`} onClick={() => game.emote(e.anim)} title={`${e.label} (${e.key})`}>
-          <span className="emote-icon">{({ wave: '👋', dance: '💃', cheer: '🙌', laugh: '😂', cry: '😢', sit: '🪑' } as Record<string, string>)[e.anim]}</span>
-          <span className="emote-label">{e.label}</span>
-        </button>
-      ))}
-      <button
-        className={`emote ${picked || open ? 'on' : ''}`}
-        onClick={() => useHud.setState({ dances: !open })}
-        title={`More dances (${DANCES_KEY})`}
-        aria-expanded={open}
-        aria-haspopup="menu"
-      >
-        <span className="emote-icon">🪩</span>
-        <span className="emote-label">Dances</span>
+    <div ref={bar} className="emote-bar hotbar cosy-panel" role="toolbar" aria-label="Emotes">
+      {slots.map((id, i) => {
+        const c = id ? hotChoice(id) : null;
+        const key = String(i + 1);
+        if (!c) {
+          return (
+            <button key={i} className="emote slot empty" onClick={editHotbar} title={`Empty slot ${key}: choose what goes here in Customise`}>
+              <span className="slot-key">{key}</span>
+              <span className="emote-icon">＋</span>
+              <span className="emote-label">Empty</span>
+            </button>
+          );
+        }
+        const pick = id === PICK_DANCES || id === PICK_EMOTES;
+        const lit = id === PICK_DANCES ? picked || open : id === PICK_EMOTES ? pickedE || pickE : emote === id;
+        return (
+          <button
+            key={i}
+            className={`emote slot ${lit ? 'on' : ''}`}
+            onClick={() => pressHotSlot(id)}
+            title={`${pick ? `More ${c.label.toLowerCase()}` : c.label} (${key})`}
+            {...(pick ? { 'aria-expanded': id === PICK_DANCES ? open : pickE, 'aria-haspopup': 'menu' as const } : {})}
+          >
+            <span className="slot-key">{key}</span>
+            <span className="emote-icon">{c.icon}</span>
+            <span className="emote-label">{c.label}</span>
+          </button>
+        );
+      })}
+      <button className="emote slot-edit" onClick={editHotbar} title="Change what’s on this bar (in Customise)" aria-label="Change what’s on this bar">
+        <Icon name="paw" />
       </button>
+      {pickE && (
+        <div className="dance-pick emote-pick cosy-panel" role="menu" aria-label="Emotes">
+          {BUY_EMOTES.map((d, i) => {
+            const locked = !st && !emoteOwned(d.anim, { items });
+            return (
+              <button
+                key={d.anim}
+                role="menuitem"
+                className={`dance-choice ${emote === d.anim ? 'on' : ''} ${locked ? 'locked' : ''}`}
+                title={locked ? `${d.label}: ${money(d.price)} at the Lucky Raven’s shop` : d.blurb}
+                onClick={() => {
+                  // (One not bought yet opens the shop on it.)
+                  game.emote(d.anim);
+                  useHud.setState({ emotePick: false });
+                }}
+              >
+                <span className="emote-icon">{d.icon}</span>
+                <span className="dance-name">{d.label}</span>
+                {locked ? <span className="dance-price">🔒 {money(d.price)}</span> : i < 9 ? <span className="cosy-key">{i + 1}</span> : null}
+              </button>
+            );
+          })}
+        </div>
+      )}
       {open && (
         <div className="dance-pick cosy-panel" role="menu" aria-label="Dances">
           {DANCES.map((d, i) => {

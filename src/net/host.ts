@@ -7,7 +7,7 @@ import { ui } from '../state/ui';
 import Peer, { type DataConnection } from 'peerjs';
 import { create } from 'zustand';
 import { st, toPrivate, toPublic, useHost } from '../state/host';
-import { admitDevice, backupCopy, nameKey, profileFor, profileOf, receiveProgress, startProfiles, trustDevice, useProfiles } from '../game/profiles';
+import { admitDevice, backupCopy, nameKey, profileFor, profileOf, receiveProgress, setHotbar, startProfiles, trustDevice, useProfiles } from '../game/profiles';
 import { backups, currentOffer, useBackups } from '../game/backup';
 import { hashDevice, knocks } from '../game/devices';
 import { pit } from '../game/pit';
@@ -491,6 +491,9 @@ class HostLink {
         break;
       case 'gallery':
         receiveGallery(pid, msg.a);
+        break;
+      case 'hotbar':
+        setHotbar({ player: pid }, msg.slots);
         break;
     }
   }

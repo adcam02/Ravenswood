@@ -8,6 +8,7 @@ import type { PayLine, PrivateState, ProfileView, ProgressEvent, ProgressSnapsho
 import type { View } from '../state/view';
 import { FEATS, HAT_SPEED, HATS, PETS, hatsOwned, type FeatId, type HatId, type PetId } from '../world/types';
 import { applyEvent, cleanSnapshot, mergeSnapshot } from './profiles';
+import { cleanHotbar } from '../world/emotes';
 import { HOUSES } from '../world/town/layout';
 
 const KEY = 'ravenswood:progress';
@@ -25,6 +26,8 @@ interface Stored extends ProgressSnapshot {
   pets: PetId[];
   /** Hats, dances and the like bought at the shop, as the Storyteller last said ('hat:topper', 'dance:worm'). */
   items: string[];
+  /** The emote hotbar as arranged in Customise (world/emotes.ts), once it has been. */
+  hotbar?: string[];
   /** Whose profile this is (a name, lower case); null for progress from before profiles, not yet anyone's. */
   owner: string | null;
   /** The Storytellers' books (and names) this browser's progress has gone into, so it's only merged in once. */
@@ -47,6 +50,7 @@ function load(): Stored {
     coins: Math.max(0, Math.floor(Number(raw?.coins) || 0)),
     pets: list<PetId>(raw?.pets, 40).filter((x) => PETS.some((p) => p.id === x)),
     items: list<string>(raw?.items, 200).filter((x) => typeof x === 'string'),
+    ...(cleanHotbar(raw?.hotbar) ? { hotbar: cleanHotbar(raw?.hotbar)! } : {}),
     owner: typeof raw?.owner === 'string' ? raw.owner : null,
     merged: list<string>(raw?.merged, 20).filter((x) => typeof x === 'string'),
     pending: list<ProgressEvent>(raw?.pending, 300).filter((e) => e && typeof e === 'object' && typeof e.k === 'string'),
@@ -69,6 +73,7 @@ const fromView = (p: ProfileView) => ({
   coins: p.coins,
   pets: p.pets,
   items: p.items ?? [],
+  ...(p.hotbar ? { hotbar: p.hotbar } : {}),
 });
 
 /** What to show: our own copy, or while joining, that with the profile of the name we're joining as. */
@@ -86,6 +91,8 @@ export const useMoney = () => useProgress((s) => s.coins);
 export const useMyPets = () => useProgress((s) => s.pets);
 /** What I've bought at the shop (hats and dances), as the Storyteller last said. */
 export const useMyItems = () => useProgress((s) => s.items);
+/** My emote hotbar as I last arranged it (undefined until I have: see shownHotbar in world/emotes.ts). */
+export const useMyHotbar = () => useProgress((s) => s.hotbar);
 
 /** Money in and out lately (newest last, `at` on the Storyteller's clock), for the little pops by the money. */
 export const usePay = create<{ pay: PayLine[] }>(() => ({ pay: [] }));
@@ -132,6 +139,14 @@ export function earn(feat: FeatId) {
   if (useProgress.getState().feats.includes(feat) || !FEATS.some((f) => f.id === feat)) return;
   record({ k: `feat:${feat}:${uid()}`, e: 'feat', id: feat });
   onFeat?.(feat);
+}
+
+/** The emote hotbar rearranged in Customise: kept here at once, and kept under our name by the Storyteller. */
+export function setMyHotbar(slots: string[]) {
+  const clean = cleanHotbar(slots);
+  if (!clean) return;
+  keep({ ...real, hotbar: clean });
+  if (isSeated()) clientLink.send({ t: 'hotbar', slots: clean });
 }
 
 /** Running counts toward achievements, and the count each needs. */
@@ -210,6 +225,8 @@ function fromHost(priv: PrivateState | null) {
   const news = p.news.filter((n) => !real.seen.includes(`news:${n.id}`));
   const seen = news.length ? [...real.seen, ...news.map((n) => `news:${n.id}`)].slice(-400) : real.seen;
   const merged = real.merged.includes(book) ? real.merged : [...real.merged, book].slice(-20);
+  // A hotbar arranged here before the Storyteller had one for us (while joining, say) goes to them.
+  if (!p.hotbar && real.hotbar && (real.owner === null || real.owner === p.key)) clientLink.send({ t: 'hotbar', slots: real.hotbar });
   keep(pending.reduce<Stored>((s, ev) => applyEvent(s, ev), { ...real, ...fromView(p), owner: p.key, merged, pending, seen }));
   for (const n of news) announce(n.feat as FeatId);
   usePay.setState({ pay: p.pay });

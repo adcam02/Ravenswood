@@ -35,7 +35,7 @@ export type Modal =
   /** Sending a messenger pigeon to someone. */
   | { kind: 'pigeon' }
   /** A player changing their name, animal, hat or pet. */
-  | { kind: 'customise' }
+  | { kind: 'customise'; tab?: 'emotes' }
   /** Storyteller: every player's money, achievements and hats, by name. */
   | { kind: 'profiles' }
   /** Choosing the song at the club's jukebox. */
