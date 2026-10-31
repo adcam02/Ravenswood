@@ -80,7 +80,6 @@ export function ProfilesModal() {
 
 function ProfileRow({ id, p, open, toggle }: { id: string; p: Profile; open: boolean; toggle: () => void }) {
   const hats = HATS.filter((h) => h.id !== 'beanie' && h.unlocked(p));
-  const devices = p.devices?.length ?? 0;
   return (
     <li className={`profile ${open ? 'open' : ''}`}>
       <button className="profile-row" onClick={toggle} aria-expanded={open}>
@@ -88,9 +87,6 @@ function ProfileRow({ id, p, open, toggle }: { id: string; p: Profile; open: boo
         <span className="profile-money">{money(p.coins)}</span>
         <span className="profile-feats" title="Achievements">
           🏆 {p.feats.length}
-        </span>
-        <span className="profile-devices" title={`Plays from ${devices === 1 ? 'one device' : `${devices} devices`}`}>
-          {devices ? `📱 ${devices}` : ''}
         </span>
         <span className="profile-hats" title={hats.map((h) => h.name).join(', ')}>
           {hats.slice(0, 9).map((h) => h.icon)}
@@ -107,7 +103,6 @@ function ProfileDetail({ id, p }: { id: string; p: Profile }) {
   const [amount, setAmount] = useState(10);
   const [forget, setForget] = useState(false);
   const pets = PETS.filter((x) => p.pets.includes(x.id));
-  const devices = p.devices?.length ?? 0;
   return (
     <div className="profile-detail">
       <div className="profile-section">
@@ -127,21 +122,6 @@ function ProfileDetail({ id, p }: { id: string; p: Profile }) {
           <button className="btn small" onClick={() => profiles.adjust(id, -amount)} disabled={p.coins <= 0}>
             <Icon name="minus" /> Take
           </button>
-        </div>
-      </div>
-      <div className="profile-section">
-        <span className="eyebrow">Devices</span>
-        <div className="profile-money-row">
-          <p className="profile-facts">
-            {devices
-              ? `${p.name} plays from ${devices === 1 ? 'one device' : `${devices} devices`}. Anyone joining as ${p.name} from another waits for you to let them in.`
-              : `No device yet: the next one to join as ${p.name} claims the name.`}
-          </p>
-          {devices > 0 && (
-            <button className="btn small" onClick={() => profiles.forgetDevices(id)} title="The next device to join as them claims the name">
-              Forget {devices === 1 ? 'it' : 'them'}
-            </button>
-          )}
         </div>
       </div>
       <div className="profile-section">

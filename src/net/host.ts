@@ -9,7 +9,7 @@ import { create } from 'zustand';
 import { st, toPrivate, toPublic, useHost } from '../state/host';
 import { admitDevice, backupCopy, nameKey, profileFor, profileOf, receiveProgress, startProfiles, trustDevice, useProfiles } from '../game/profiles';
 import { backups, currentOffer, useBackups } from '../game/backup';
-import { deviceSecret, hashDevice, knocks } from '../game/devices';
+import { hashDevice, knocks } from '../game/devices';
 import { pit } from '../game/pit';
 import { casinoFor, receiveCasino, startCasino, useCasino } from '../casino/host';
 import { hatKey, isShopHat } from '../casino/shop';
@@ -89,8 +89,6 @@ const RETRYABLE = new Set(['network', 'server-error', 'socket-error', 'socket-cl
 /** Players' copies of the profiles are brought up to date at most this often while things change. */
 const BACKUP_EVERY_MS = 30000;
 
-/** This browser's own device: the Storyteller can always play as any name from here. */
-let ownDevice: Promise<string | null> | null = null;
 /** How long a player's animal waits where it was after their line drops, for them to come back. */
 const GONE_AFTER_MS = 15000;
 
@@ -501,13 +499,9 @@ class HostLink {
    * Whether this player's device may play as this name (claiming it if nobody has): false if not, so the Storyteller
    * must be asked. Their own name stays theirs, and the Storyteller's own browser may be anyone.
    */
-  private async admit(meta: LinkMeta, name: string): Promise<boolean> {
-    const hash = (await meta.device) ?? null;
-    const seated = useHost.getState().g.seats.some((s) => s.playerId === meta.playerId && nameKey(s.name) === nameKey(name));
-    ownDevice ??= hashDevice(deviceSecret());
-    if (hash && hash === (await ownDevice)) return true;
-    if (!hash) return seated || !profileOf({ name })?.devices?.length;
-    return admitDevice(name, hash) || seated;
+  // Profiles go by the name alone (the Storyteller's call): any device can play as any name, with no asking.
+  private async admit(_meta: LinkMeta, _name: string): Promise<boolean> {
+    return true;
   }
 
   /** Takes a seat with a name and a look (once the device is known to be theirs). */
