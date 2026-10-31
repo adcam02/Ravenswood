@@ -10,7 +10,7 @@ import {
   type Script,
 } from '../data';
 import { loadJSON, roomCode, saveJSON, shuffle, uid } from '../lib/util';
-import { drawMethod, isExecMethod, VOTE_MS } from '../game/execution';
+import { drawMethod, isExecMethod, offerMethods, VOTE_MS } from '../game/execution';
 import { SONGS } from '../lib/disco';
 import { ui } from './ui';
 import { debit, profileOf } from '../game/profiles';
@@ -98,6 +98,7 @@ function freshGame(prev?: GameState, keepPlayers = true): GameState {
     nomRequests: [],
     townHall: null,
     execution: null,
+    execUsed: [],
     weather: prev?.weather ?? 'clear',
     dayTimer: null,
     town: prev?.town ?? emptyTown(),
@@ -135,8 +136,9 @@ function loadGame(): GameState | null {
   g.town ??= emptyTown();
   g.town.records ??= {};
   g.execution ??= null;
+  g.execUsed ??= [];
   // Reloaded while the town was voting on how: the wheel decides now.
-  if (g.execution && !g.execution.method && g.execution.vote) settleMethod(g.execution);
+  if (g.execution && !g.execution.method && g.execution.vote) settleMethod(g, g.execution);
   g.weather ??= 'clear';
   g.dayTimer ??= null;
   // (Only what a look can still hold: the face, neck and back pieces there once were are gone.)
@@ -727,26 +729,38 @@ function runSpeech() {
 
 // ---------------------------------------------------------------- executions
 
-/** A new execution of a seat: the town votes on how for a few seconds (or it comes with its method). */
-function newExecution(seatId: string, method?: ExecMethod, voteMs = VOTE_MS): Execution {
+/**
+ * A new execution of a seat: the town votes on how for a few seconds, between five ways drawn here (ones not used
+ * yet this game first), or it comes with its method.
+ */
+function newExecution(g: GameState, seatId: string, method?: ExecMethod, voteMs = VOTE_MS): Execution {
   const at = Date.now();
-  if (method && isExecMethod(method)) return { id: uid(), seatId, at, method };
-  const ex: Execution = { id: uid(), seatId, at, vote: { until: at + voteMs, picks: {} } };
+  if (method && isExecMethod(method)) {
+    usedMethod(g, method);
+    return { id: uid(), seatId, at, method };
+  }
+  const ex: Execution = { id: uid(), seatId, at, offer: offerMethods(g.execUsed), vote: { until: at + voteMs, picks: {} } };
   setTimeout(() => closeMethodVote(ex.id), voteMs + 60);
   return ex;
 }
 
+/** Notes the way an execution went, so later ones this game offer others first. */
+function usedMethod(g: GameState, m: ExecMethod) {
+  g.execUsed = [...(g.execUsed ?? []), m];
+}
+
 /** The vote is over: the wheel's result, drawn here from the votes, for everyone's wheel to land on. */
-function settleMethod(ex: Execution) {
-  ex.method = drawMethod(ex.vote?.picks, Math.random(), ex.id);
+function settleMethod(g: GameState, ex: Execution) {
+  ex.method = drawMethod(ex.vote?.picks, Math.random(), ex.id, ex.offer);
   ex.drawn = { at: Date.now(), spin: true };
+  usedMethod(g, ex.method);
 }
 
 function closeMethodVote(id: string) {
   const ex = hostGame().execution;
   if (!ex || ex.id !== id || ex.method) return;
   update((g) => {
-    if (g.execution?.id === id && !g.execution.method) settleMethod(g.execution);
+    if (g.execution?.id === id && !g.execution.method) settleMethod(g, g.execution);
   });
 }
 
@@ -1005,7 +1019,7 @@ export const st = {
       // Killing the player on the block by day is an execution: the whole town watches (and votes on how).
       const executed = s.dead && g.phase === 'day' && g.marked?.seatId === id;
       if (executed) {
-        g.execution = newExecution(id);
+        g.execution = newExecution(g, id);
         g.marked = null;
       }
       if (s.dead) died(g, id, g.phase === 'night' ? 'night' : executed ? 'executed' : 'other');
@@ -1022,7 +1036,7 @@ export const st = {
       if (!s || s.dead) return;
       s.dead = true;
       died(g, id, 'executed');
-      g.execution = newExecution(id, method, voteMs);
+      g.execution = newExecution(g, id, method, voteMs);
       if (g.marked?.seatId === id) g.marked = null;
     });
   },
@@ -1034,7 +1048,7 @@ export const st = {
     update((g) => {
       const s = seatOf(g, id);
       if (!s || s.dead) return;
-      g.execution = { ...newExecution(id, method), survives: true };
+      g.execution = { ...newExecution(g, id, method), survives: true };
       if (g.marked?.seatId === id) g.marked = null;
     });
   },
@@ -1046,6 +1060,7 @@ export const st = {
       if (!ex || ex.method) return;
       ex.method = method;
       ex.drawn = { at: Date.now(), spin: false };
+      usedMethod(g, method);
     });
   },
   toggleGhostVote(id: string) {
@@ -1593,7 +1608,7 @@ export const st = {
       const g = hostGame();
       const s = g.seats.find((x) => x.playerId === playerId);
       const ex = g.execution;
-      if (!s || !ex?.vote || ex.method || !isExecMethod(m) || Date.now() > ex.vote.until + 400) return;
+      if (!s || !ex?.vote || ex.method || !isExecMethod(m) || (ex.offer && !ex.offer.includes(m)) || Date.now() > ex.vote.until + 400) return;
       update((g) => {
         if (g.execution?.vote && g.execution.id === ex.id) g.execution.vote.picks[s.id] = m;
       });

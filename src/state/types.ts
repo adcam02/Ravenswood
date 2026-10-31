@@ -199,7 +199,19 @@ export type ExecMethod =
   | 'magic'
   | 'mincer'
   | 'piano'
-  | 'brute';
+  | 'brute'
+  | 'backflip'
+  | 'horse'
+  | 'bowling'
+  | 'tanks'
+  | 'hitman'
+  | 'paint'
+  | 'shark'
+  | 'chomp'
+  | 'blocks'
+  | 'sling'
+  | 'sting'
+  | 'titan';
 
 /** A player put to death in front of the town: the show plays for everyone who sees it. */
 export interface Execution {
@@ -213,6 +225,8 @@ export interface Execution {
    * from before there was a choice, is a hanging.)
    */
   method?: ExecMethod;
+  /** The ways on offer to vote on (drawn by the host, the same on every screen); unset offers them all. */
+  offer?: ExecMethod[];
   /** The town's vote on the method: open until `until` (host clock), with each seat's pick. */
   vote?: { until: number; picks: Record<string, ExecMethod> };
   /** When the method was settled (host clock): drawn on the wheel from the votes, or chosen by the Storyteller. */
@@ -332,6 +346,8 @@ export interface GameState {
   speechSecs?: number;
   townHall: TownHall | null;
   execution: Execution | null;
+  /** The ways executions have gone this game, in order (each new execution offers ones not used yet first). */
+  execUsed?: ExecMethod[];
   /** The weather the Storyteller has called for. */
   weather: Weather;
   /** Animals being looked at in the picker right now, by animal: one player each, so nobody doubles up. */

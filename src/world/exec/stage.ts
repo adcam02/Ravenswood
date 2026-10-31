@@ -178,12 +178,25 @@ const TIMES: Record<Exclude<ExecMethod, 'hang'>, { soul: number; spared: number 
   toaster: { soul: 5.0, spared: 6.4 },
   nuke: { soul: 6.6, spared: 6.8 },
   cross: { soul: 5.6, spared: 7.4 },
-  runover: { soul: 4.6, spared: 6.2 },
+  runover: { soul: 6.6, spared: 6.2 },
   cliff: { soul: 7.6, spared: 9.4 },
   magic: { soul: 6.4, spared: 8.2 },
   mincer: { soul: 6.2, spared: 7.4 },
   piano: { soul: 4.4, spared: 6.0 },
   brute: { soul: 7.4, spared: 7.6 },
+  // The third lot (see stage3.ts).
+  backflip: { soul: 4.8, spared: 6.6 },
+  horse: { soul: 5.4, spared: 6.6 },
+  bowling: { soul: 4.9, spared: 5.6 },
+  tanks: { soul: 5.4, spared: 6.4 },
+  hitman: { soul: 6.8, spared: 6.4 },
+  paint: { soul: 5.0, spared: 5.4 },
+  shark: { soul: 4.6, spared: 5.6 },
+  chomp: { soul: 4.6, spared: 5.4 },
+  blocks: { soul: 4.6, spared: 5.4 },
+  sling: { soul: 5.2, spared: 5.4 },
+  sting: { soul: 7.4, spared: 9.0 },
+  titan: { soul: 6.0, spared: 6.2 },
 };
 
 /** The plane crash: when it hits the ground (unless spared), and the giant pigeon: when it lets go over the nest. */
@@ -255,6 +268,11 @@ export class ExecStage {
   protected lay = new THREE.Quaternion();
   protected layAt = new THREE.Vector3();
   protected extra: Record<string, number> = {};
+  /**
+   * The gallows' own trapdoor and noose, for a show that uses them (the backflip; see GallowsState in the town):
+   * null leaves the trapdoor shut and the noose tied up out of the way.
+   */
+  gallows: { open: number; rope: number; ring: number; swing: number; puff: number } | null = null;
 
   constructor(
     readonly method: StageMethod,

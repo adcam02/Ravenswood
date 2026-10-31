@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { EXEC_METHODS, LAND_MS, PICK_MS, SPIN_MS, VOTE_MS, execMethod, methodShares, wheelTurns } from '../../game/execution';
+import { LAND_MS, PICK_MS, SPIN_MS, VOTE_MS, execMethod, methodShares, offered, wheelTurns } from '../../game/execution';
 import { execSound } from '../../lib/audio';
 import { player } from '../../net/client';
 import { st } from '../../state/host';
@@ -28,7 +28,8 @@ function useClock(on: boolean, fast: boolean) {
 }
 
 /**
- * An execution: everyone (the condemned too, and the dead) has a few seconds to vote on how, with big buttons and
+ * An execution: everyone (the condemned too, and the dead) has a few seconds to vote on how (between the five ways
+ * the host drew for it), with big buttons and
  * a running count; then a wheel spins, each way's slice its share of the votes, and lands on the one the
  * Storyteller's page drew, the same on every screen. The Storyteller can simply choose instead.
  */
@@ -90,7 +91,7 @@ function Vote({ ex, name, now, st: storyteller, mine }: { ex: Execution; name: s
         <i style={{ transform: `scaleX(${Math.min(1, left / VOTE_MS)})` }} />
       </div>
       <div className="exec-methods">
-        {EXEC_METHODS.map((m) => (
+        {offered(ex).map((m) => (
           <button
             key={m.id}
             className={`exec-method ${mineNow === m.id ? 'on' : ''}`}
@@ -114,7 +115,7 @@ function Vote({ ex, name, now, st: storyteller, mine }: { ex: Execution; name: s
 
 /** A pie of the votes, spinning fast and slowing to land on the drawn way, ticking past each slice. */
 function Wheel({ ex, now }: { ex: Execution; now: number }) {
-  const shares = methodShares(ex.vote?.picks, ex.id);
+  const shares = methodShares(ex.vote?.picks, ex.id, ex.offer);
   const start = ex.drawn?.at ?? now;
   const k = Math.min(1, Math.max(0, (now - start) / SPIN_MS));
   // Fast at first, slowing right down at the end.

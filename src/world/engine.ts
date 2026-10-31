@@ -2791,7 +2791,9 @@ export class Engine {
       show.pose = pose;
       const sign = execMethod(show.method).sign(show.name);
       const label = show.survives ? (age > stage.end - 1.8 ? `${show.name} survives!` : sign) : age < stage.soulAt ? sign : '';
-      this.town.setGallows({ open: 0, label: age > stage.end - 0.3 ? '' : label, rope: 0.25 });
+      // (A show may use the trapdoor and the noose itself: the backflip.)
+      const gs = stage.gallows;
+      this.town.setGallows({ open: gs?.open ?? 0, label: age > stage.end - 0.3 ? '' : label, rope: gs?.rope ?? 0.25, ring: gs?.ring ?? 0, swing: gs?.swing ?? 0, puff: gs?.puff ?? 0 });
       if (show.alive && pose.ghost) this.becomeGhost(show);
       if (age > (show.mine ? stage.end : stage.end + 0.8)) this.endShow();
       return;

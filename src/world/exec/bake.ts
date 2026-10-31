@@ -148,6 +148,16 @@ export class BakedPiece {
     for (const c of this.coats) c.m.color.copy(c.base).lerp(to, THREE.MathUtils.clamp(k, 0, 1));
   }
 
+  /**
+   * Moves the cut along its normal, `d` from the pivot (what's kept is beyond it): for a piece worn away a little at a
+   * time, like the titan's snap.
+   */
+  slide(d: number) {
+    if (!this.localPlane) return;
+    this.localPlane.constant = -d;
+    this.update();
+  }
+
   /** After moving the group: the cut goes with it. */
   update() {
     if (!this.plane || !this.localPlane) return;

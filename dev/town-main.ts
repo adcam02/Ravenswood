@@ -393,6 +393,8 @@ function execAt(o: { exec: string; et: number; animal?: string; spared?: boolean
     rig.root.updateMatrixWorld(true);
     if (x >= o.et) break;
   }
+  const gs = stage.gallows;
+  if (gs) town.setGallows({ open: gs.open, label: '', rope: gs.rope, ring: gs.ring, swing: gs.swing, puff: gs.puff });
   const shot = execCamera(stage.framing(), innerWidth / innerHeight, o.et);
   camera.position.copy(shot.pos).sub(shot.look).applyAxisAngle(new THREE.Vector3(0, 1, 0), o.ry ?? 0).multiplyScalar((o.edist ?? EXEC_CAM.dist) / EXEC_CAM.dist).add(shot.look);
   camera.lookAt(shot.look);

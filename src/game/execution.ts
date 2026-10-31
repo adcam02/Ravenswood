@@ -27,6 +27,18 @@ export const EXEC_METHODS: { id: ExecMethod; name: string; icon: string; color: 
   { id: 'mincer', name: 'Meat grinder', icon: '🌭', color: '#c4687a', sign: (n) => `${n} goes through the mincer` },
   { id: 'piano', name: 'Piano', icon: '🎹', color: '#45455a', sign: (n) => `${n} is under the piano` },
   { id: 'brute', name: 'Big green brute', icon: '💪', color: '#5c9a3a', sign: (n) => `${n} meets the brute` },
+  { id: 'backflip', name: 'Gallows backflip', icon: '🤸', color: '#c08a3e', sign: (n) => `${n} dives for a perfect ten` },
+  { id: 'horse', name: 'Horse kick', icon: '🐴', color: '#8a5a3a', sign: (n) => `${n} is kicked by a horse` },
+  { id: 'bowling', name: 'Bowling', icon: '🎳', color: '#3a6ec0', sign: (n) => `${n} is bowled over` },
+  { id: 'tanks', name: 'Tanks', icon: '🪖', color: '#6b7a3a', sign: (n) => `${n} meets the tanks` },
+  { id: 'hitman', name: 'Silent hitman', icon: '👔', color: '#2e2c36', sign: (n) => `${n} is quietly dealt with` },
+  { id: 'paint', name: 'Paint cans', icon: '🪣', color: '#c85a9a', sign: (n) => `${n} is home alone` },
+  { id: 'shark', name: 'Paddling pool shark', icon: '🦈', color: '#3a8ab0', sign: (n) => `${n} needs a bigger pool` },
+  { id: 'chomp', name: 'Wakka wakka', icon: '🟡', color: '#e6c22a', sign: (n) => `${n} is chomped` },
+  { id: 'blocks', name: 'Falling blocks', icon: '🧱', color: '#a050c0', sign: (n) => `${n} is cleared away` },
+  { id: 'sling', name: 'Slingshot', icon: '🐦', color: '#d04a3a', sign: (n) => `${n} is slingshotted` },
+  { id: 'sting', name: 'Take a seat', icon: '📺', color: '#4a6a8a', sign: (n) => `${n} is asked to take a seat` },
+  { id: 'titan', name: 'The snap', icon: '🫰', color: '#7a4aa8', sign: (n) => `${n} is snapped away` },
 ];
 
 export const isExecMethod = (m: unknown): m is ExecMethod => EXEC_METHODS.some((x) => x.id === m);
@@ -40,15 +52,45 @@ export const PICK_MS = 1600;
 
 /** How many ways go on the wheel when nobody voted (all of them would be slices too thin to read). */
 export const WHEEL_UNVOTED = 8;
+/** How many ways each execution offers to vote on. */
+export const OFFER_N = 5;
 
 /**
- * Each method's share of the votes, in wheel order, leaving out those nobody chose. When nobody voted, a handful
- * of ways chosen by the execution's `id` (the same on every screen) get a slice each.
+ * The ways an execution offers, drawn at random by the host: ones not yet used this game first (so each game has
+ * some variety), topped up from the used ones once fewer than OFFER_N are left. In wheel order.
  */
-export function methodShares(picks: Record<string, ExecMethod> | undefined, id = ''): { id: ExecMethod; share: number }[] {
+export function offerMethods(used: readonly ExecMethod[] = [], r: () => number = Math.random): ExecMethod[] {
+  const draw = (list: ExecMethod[]) => {
+    const out = [...list];
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(r() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  };
+  const fresh = draw(EXEC_METHODS.map((x) => x.id).filter((m) => !used.includes(m)));
+  const old = draw(EXEC_METHODS.map((x) => x.id).filter((m) => used.includes(m)));
+  const pick = [...fresh, ...old].slice(0, OFFER_N);
+  return EXEC_METHODS.map((x) => x.id).filter((m) => pick.includes(m));
+}
+
+/** The ways on offer at an execution: its own five, or (from before there was an offer) every way. */
+export const offered = (ex: Execution | null | undefined): typeof EXEC_METHODS =>
+  ex?.offer?.length ? EXEC_METHODS.filter((x) => ex.offer!.includes(x.id)) : EXEC_METHODS;
+
+/**
+ * Each method's share of the votes, in wheel order, leaving out those nobody chose. When nobody voted, the ways
+ * on offer get a slice each (or, from before there was an offer, a handful chosen by the execution's `id`, the
+ * same on every screen).
+ */
+export function methodShares(picks: Record<string, ExecMethod> | undefined, id = '', offer?: readonly ExecMethod[]): { id: ExecMethod; share: number }[] {
   const counts = new Map<ExecMethod, number>();
   for (const m of Object.values(picks ?? {})) if (isExecMethod(m)) counts.set(m, (counts.get(m) ?? 0) + 1);
   const total = [...counts.values()].reduce((a, b) => a + b, 0);
+  if (!total && offer?.length) {
+    const some = EXEC_METHODS.filter((x) => offer.includes(x.id));
+    return some.map((x) => ({ id: x.id, share: 1 / some.length }));
+  }
   if (!total) {
     const order = EXEC_METHODS.map((x, i) => ({ id: x.id, i, r: idFraction(`${id}:${x.id}`) })).sort((a, b) => a.r - b.r);
     const some = order.slice(0, WHEEL_UNVOTED).sort((a, b) => a.i - b.i);
@@ -58,8 +100,8 @@ export function methodShares(picks: Record<string, ExecMethod> | undefined, id =
 }
 
 /** The host's draw: a method at random, weighted by the votes. `r` is a number from 0 up to 1. */
-export function drawMethod(picks: Record<string, ExecMethod> | undefined, r = Math.random(), id = ''): ExecMethod {
-  const shares = methodShares(picks, id);
+export function drawMethod(picks: Record<string, ExecMethod> | undefined, r = Math.random(), id = '', offer?: readonly ExecMethod[]): ExecMethod {
+  const shares = methodShares(picks, id, offer);
   let at = 0;
   for (const s of shares) {
     at += s.share;
@@ -80,7 +122,7 @@ export function idFraction(id: string): number {
  * sits inside the chosen method's slice, at a spot taken from the execution's id so every screen agrees.
  */
 export function wheelTurns(ex: Execution): number {
-  const shares = methodShares(ex.vote?.picks, ex.id);
+  const shares = methodShares(ex.vote?.picks, ex.id, ex.offer);
   let start = 0;
   let width = 1;
   for (const s of shares) {

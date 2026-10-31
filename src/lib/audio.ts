@@ -1155,6 +1155,39 @@ export function execSound(name: string) {
     case 'hmm':
       blip(c, out, t, 0.8, 'sawtooth', 100, 120, 0.04);
       break;
+    // The third lot of ways (see world/exec/stage3.ts).
+    case 'dundun':
+      // Two low notes, close together: something is in the water.
+      blip(c, out, t, 0.4, 'triangle', 82, 80, 0.3);
+      blip(c, out, t + 0.45, 0.4, 'triangle', 87, 85, 0.3);
+      break;
+    case 'wakka':
+      blip(c, out, t, 0.11, 'square', 280, 560, 0.035);
+      blip(c, out, t + 0.12, 0.11, 'square', 560, 280, 0.035);
+      break;
+    case 'neigh':
+      tone(c, out, t, 0.9, 950, 520, 0.05, 'sawtooth', 14, 60);
+      break;
+    case 'splat':
+      hush(c, out, t, 0.3, 'lowpass', 1800, 200, 0.4, 0.7, 0.003);
+      blip(c, out, t, 0.25, 'sine', 140, 50, 0.4);
+      break;
+    case 'siren':
+      tone(c, out, t, 1.6, 700, 690, 0.04, 'square', 2.2, 180, 0.8);
+      break;
+    case 'snap':
+      // A sharp click of the fingers, and a long shimmer.
+      hush(c, out, t, 0.06, 'bandpass', 3000, 2500, 0.5, 3, 0.001);
+      [784, 1046.5, 1318.5, 1568].forEach((f, i) => blip(c, out, t + 0.05 + i * 0.05, 1.4, 'sine', f, f * 0.98, 0.03));
+      break;
+    case 'trombone':
+      // Wah, wah, wah, waaah.
+      [233.1, 220, 207.7].forEach((f, i) => tone(c, out, t + i * 0.42, 0.38, f, f * 0.97, 0.07, 'sawtooth'));
+      tone(c, out, t + 1.26, 1.1, 196, 185, 0.07, 'sawtooth', 5, 6, 0.6);
+      break;
+    case 'clear':
+      [523.3, 659.3, 784, 1046.5].forEach((f, i) => blip(c, out, t + i * 0.07, 0.16, 'square', f, f, 0.04));
+      break;
   }
 }
 

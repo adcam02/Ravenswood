@@ -42,6 +42,7 @@ import {
   type WeightBench,
   type WordSign,
 } from './props2';
+import { hitMarker, pixelShades, snack } from './props3';
 import { ExecStage, basis } from './stage';
 
 /**
@@ -79,6 +80,8 @@ export class MoreStage extends ExecStage {
   private gym: WeightBench | null = null;
   private shooter: Sniper | null = null;
   private tracer: THREE.Mesh | null = null;
+  /** The 360's party: snacks raining down, pixel shades for the sniper, and hit markers. */
+  private mlg: { snacks: THREE.Group[]; shades: THREE.Group; marks: THREE.Group[] } | null = null;
   private tub: Bath | null = null;
   private zap: Bolts | null = null;
   private nukeBomb: Bomb | null = null;
@@ -146,7 +149,7 @@ export class MoreStage extends ExecStage {
   }
 
   /** Turned by `q` with its point `p` (in the animal's own frame, before stretching) at `target`. */
-  private put(q: THREE.Quaternion, target: THREE.Vector3, p: THREE.Vector3) {
+  protected put(q: THREE.Quaternion, target: THREE.Vector3, p: THREE.Vector3) {
     this.turn.copy(q);
     this.at.copy(target).sub(p.clone().multiply(this.stretch).applyQuaternion(q));
   }
@@ -155,14 +158,14 @@ export class MoreStage extends ExecStage {
    * How thick they are front to back (a tail or a long snout would make the box too deep), and where their back is:
    * for lying them down on something.
    */
-  private thick(): { depth: number; back: number } {
+  protected thick(): { depth: number; back: number } {
     const b = this.size();
     const depth = THREE.MathUtils.clamp((b.box.max.x - b.box.min.x) * 0.8, 0.28, 0.9);
     return { depth, back: Math.max(b.box.min.z, b.head.z - depth * 0.55) };
   }
 
   /** The middle of them, in their own frame. */
-  private mid(): THREE.Vector3 {
+  protected mid(): THREE.Vector3 {
     return this.size().box.getCenter(new THREE.Vector3());
   }
 
@@ -170,7 +173,7 @@ export class MoreStage extends ExecStage {
    * About where their eyes are, in their own frame as they're posed now (sitting lowers the head): from the neck
    * bone of the live animal, measured against its root.
    */
-  private eyes(): THREE.Vector3 {
+  protected eyes(): THREE.Vector3 {
     const b = this.size();
     const off = new THREE.Vector3(b.head.x - b.neck.x, b.head.y - b.neck.y + 0.04, b.mouth.z - b.neck.z + 0.01);
     let neck: THREE.Object3D | undefined;
@@ -184,7 +187,7 @@ export class MoreStage extends ExecStage {
   }
 
   /** Off the platform in a puff, to stand somewhere else for the show (from `from` to `to`, at `at`). */
-  private hop(t: number, at: number, from: THREE.Vector3, to: THREE.Vector3): number {
+  protected hop(t: number, at: number, from: THREE.Vector3, to: THREE.Vector3): number {
     const k = span(t, at, at + 0.3);
     this.once(`hop${at}`, at, t, () => {
       this.bursts.add(at, 'poof', this.world(from.clone().setY(from.y + 0.5)), 0.8);
@@ -195,7 +198,7 @@ export class MoreStage extends ExecStage {
   }
 
   /** A sign that pops up over a spot with a little overshoot, and goes again. */
-  private sign(name: string, text: string, w: number, h: number, t: number, from: number, to: number, at: THREE.Vector3, colours?: { bg: string; fg: string; border?: string }) {
+  protected sign(name: string, text: string, w: number, h: number, t: number, from: number, to: number, at: THREE.Vector3, colours?: { bg: string; fg: string; border?: string }) {
     let s = this.signs.get(name);
     if (!s) {
       s = wordSign(text, w, h, colours);
@@ -210,14 +213,14 @@ export class MoreStage extends ExecStage {
   }
 
   /** Something kept in the stage's own group (not popped in with the props), disposed with it. */
-  private keep<T extends THREE.Object3D>(o: T): T {
+  protected keep<T extends THREE.Object3D>(o: T): T {
     this.group.add(o);
     this.disposers.push(() => disposeObject(o));
     return o;
   }
 
   /** Dizzy stars over a spot (or none, with null). */
-  private dizzyAt(t: number, at: THREE.Vector3 | null, r = 0.2) {
+  protected dizzyAt(t: number, at: THREE.Vector3 | null, r = 0.2) {
     if (!this.stars) {
       this.stars = new Dizzy(4);
       this.fx.add(this.stars.group);
@@ -227,7 +230,7 @@ export class MoreStage extends ExecStage {
   }
 
   /** Where the camera is, in the stage's frame (or a spot out in front, without one). */
-  private eye(): THREE.Vector3 {
+  protected eye(): THREE.Vector3 {
     if (!this.camera) return this.cam.clone().multiplyScalar(8).setY(5);
     return this.group.worldToLocal(this.camera.getWorldPosition(new THREE.Vector3()));
   }
@@ -382,14 +385,15 @@ export class MoreStage extends ExecStage {
     if (this.survives) {
       // Way off into the sky. A shrug, a sad trombone, and the condemned cheers.
       this.sign('miss', 'MISSED!', 1.3, 0.42, t, 2.7, 4.8, spot.clone().setY(2.6), { bg: '#fffaf0', fg: '#4f6a8a', border: '#4f6a8a' });
-      this.sfx('wahwah', 2.8, t);
+      this.sfx('trombone', 2.8, t);
       S.body.rotation.z = span(t, 2.7, 3.0) * 0.2 * (1 - span(t, 4.3, 4.6));
       const flinch = span(t, fire, fire + 0.1) * (1 - span(t, fire + 0.6, fire + 0.9));
       this.stretch.set(1 + flinch * 0.06, 1 - flinch * 0.12, 1 + flinch * 0.06);
       return { anim: t > 3.3 ? 'cheer' : t > fire ? 'idle' : 'cry', visible: true };
     }
     this.sign('noscope', '360 NO SCOPE!', 2.2, 0.48, t, fire + 0.35, this.soulAt + 0.3, spot.clone().setY(2.6), { bg: '#fff3a0', fg: '#d8402f', border: '#d8402f' });
-    this.sfx('airhorn', fire + 0.4, t);
+    for (const at of [0.4, 0.6, 0.8, 1.4, 1.55]) this.sfx('airhorn', fire + at, t);
+    this.party(t, fire, target, spot);
     const hit = t - fire - 0.06;
     if (hit <= 0) return { anim: t > 1.5 ? 'cry' : 'idle', visible: true };
     // Hit: spun right round by it, soot on the nose, then stiff as a board and over backwards.
@@ -397,7 +401,9 @@ export class MoreStage extends ExecStage {
       this.bursts.add(fire + 0.06, 'sparkle', this.world(target), 0.7);
       this.bursts.add(fire + 0.08, 'soot', this.world(target), 0.6);
     });
-    this.tint('#2a2420', span(hit, 0, 0.2) * 0.6);
+    // A second of rainbow glow, then the soot.
+    if (hit < 1.0) this.tint(`hsl(${Math.round((hit * 720) % 360)}, 90%, 60%)`, 0.55 * (1 - span(hit, 0.85, 1.0)));
+    else this.tint('#2a2420', span(hit, 1.0, 1.2) * 0.6);
     this.turn.multiply(tmpQ.setFromAxisAngle(UP, easeOut(hit / 0.5) * Math.PI * 2));
     const fall = hit > 0.7 ? Math.min(1, ((hit - 0.7) / 0.4) ** 2) : 0;
     const bounce = hit > 1.1 ? Math.exp(-(hit - 1.1) * 8) * Math.sin((hit - 1.1) * 22) * 0.08 : 0;
@@ -412,6 +418,82 @@ export class MoreStage extends ExecStage {
     this.dizzyAt(t, hit > 1.2 && t < this.soulAt ? heel.clone().addScaledVector(back, b.box.max.y * 0.9).setY(P + 0.35) : null);
     this.setExtraVec('soulFrom', new THREE.Vector3(0, P, 0).addScaledVector(back, b.box.max.y * 0.5));
     return { anim: 'idle', visible: true };
+  }
+
+  /**
+   * The 360's party, once the shot lands: hit markers, floating words, a punch-in and a shake, a second spin from
+   * the sniper, pixel shades dropping onto his face, and chips and fizzy drinks raining down all over.
+   */
+  private party(t: number, fire: number, target: THREE.Vector3, spot: THREE.Vector3) {
+    const P = this.P;
+    const S = this.shooter!;
+    if (!this.mlg) {
+      const snacks: THREE.Group[] = [];
+      for (let i = 0; i < 18; i++) {
+        const g = snack(i % 3);
+        g.scale.setScalar(1.7);
+        g.visible = false;
+        snacks.push(this.keep(g));
+      }
+      const shades = pixelShades(0.4);
+      shades.visible = false;
+      S.body.add(shades);
+      this.disposers.push(() => disposeObject(shades));
+      const marks = [0, 1, 2].map(() => {
+        const m = this.keep(hitMarker(0.18));
+        m.visible = false;
+        m.renderOrder = 10;
+        return m;
+      });
+      this.mlg = { snacks, shades, marks };
+    }
+    const M = this.mlg;
+    const u = t - fire;
+    // HITMARKER, three times over.
+    M.marks.forEach((m, i) => {
+      const at = 0.06 + i * 0.14;
+      const k = u - at;
+      m.visible = k > 0 && k < 0.3;
+      m.position.copy(target).addScaledVector(this.left, (i - 1) * 0.15).add(new THREE.Vector3(0, (i % 2) * 0.12, 0)).addScaledVector(this.cam, 0.5);
+      m.quaternion.copy(this.face(this.cam));
+      m.scale.setScalar(1 + Math.max(0, 0.3 - k) * 1.5);
+      this.sfx('click', fire + at, t);
+    });
+    // Punched in and shaken, for a moment.
+    if (u > 0.06 && u < 0.7) {
+      this.frame.radius *= 0.72 + 0.28 * span(u, 0.4, 0.7);
+      this.frame.shake = 0.45 * (1 - span(u, 0.3, 0.7));
+    }
+    // Words floating up.
+    const rise = (from: number) => Math.max(0, u - from) * 0.35;
+    this.sign('plus', '+100', 0.9, 0.42, t, fire + 0.15, fire + 1.3, target.clone().addScaledVector(this.left, 0.6).add(new THREE.Vector3(0, 0.5 + rise(0.15), 0)), { bg: '#1e1c22', fg: '#7aff4a', border: '#7aff4a' });
+    this.sign('wow', 'WOW', 0.9, 0.42, t, fire + 0.5, fire + 1.7, target.clone().addScaledVector(this.left, -0.9).add(new THREE.Vector3(0, 0.9 + rise(0.5), 0)), { bg: '#ff4ab8', fg: '#ffffff', border: '#ffffff' });
+    this.sign('triple', 'OH BABY A TRIPLE', 2.6, 0.45, t, fire + 0.9, fire + 2.3, new THREE.Vector3(0, P + 2.3 + rise(0.9) * 0.5, 0).addScaledVector(this.cam, 0.8), { bg: '#ffd52a', fg: '#1e1c22', border: '#1e1c22' });
+    // A victory spin, and the shades come down onto his face.
+    S.body.rotation.y += ease((u - 0.7) / 0.5) * Math.PI * 2;
+    const drop = span(u, 1.0, 1.45);
+    M.shades.visible = u > 0.95;
+    M.shades.position.set(0, 1.43 + (1 - drop) * 1.4, 0.15);
+    // Chips and fizzy drinks, raining down over everything and bouncing where they land.
+    M.snacks.forEach((g, i) => {
+      const from = 0.3 + i * 0.08;
+      const k = u - from;
+      g.visible = k > 0 && t < this.end - 0.3;
+      if (!g.visible) return;
+      const a = hash(i, 7) * Math.PI * 2;
+      const r = 0.4 + hash(i, 8) * 2.4;
+      const x = Math.cos(a) * r * 0.9;
+      const z = Math.sin(a) * r * 0.9;
+      const onDeck = Math.abs(x) < 1.25 && Math.abs(z) < 1.25;
+      const floor = (onDeck ? P : 0) + 0.06;
+      const fall = Math.sqrt((6 - floor) / 4.9);
+      const y = k < fall ? 6 - 4.9 * k * k : floor + Math.abs(Math.sin((k - fall) * 9)) * Math.exp(-(k - fall) * 5) * 0.2;
+      g.position.set(x, y, z);
+      const spin = Math.min(k, fall);
+      g.rotation.set(spin * (4 + i), spin * 3, spin * (2 + (i % 3)));
+      if (k > fall) g.rotation.set(Math.PI / 2, a, 0);
+    });
+    void spot;
   }
 
   // ---------------------------------------------------------------- the bath and the toaster
@@ -781,26 +863,62 @@ export class MoreStage extends ExecStage {
       this.stretch.set(1, 1 - faint * 0.1, 1);
       return { anim: t > 3.4 ? 'cheer' : t > 1.5 ? 'cry' : 'idle', visible: true };
     }
-    // Over them, bump bump: flat as a pancake, peeling up at the edges and fluttering.
-    const flat = t > hitAt - 0.15 ? 1 : 0;
-    // (Front wheels, then the back ones.)
-    for (const at of [hitAt - 0.15, hitAt + 0.05]) {
-      const u = t - at;
-      if (u > 0 && u < 0.15) C.body.position.y += Math.sin((u / 0.15) * Math.PI) * 0.18;
-      this.sfx('flump', at, t);
+    // WHAM: hit at full tilt and sent flying, head over heels in a great arc across the picture; down flat as a
+    // pancake; the car comes on over them, bump bump, stops, thinks, and backs up over them again.
+    const u = t - hitAt;
+    // (After the hit the car brakes to a stop, then on again over them, then back again.)
+    if (u > 0) {
+      s = 6 * Math.min(u, 1.2) - 2.5 * Math.min(u, 1.2) ** 2;
+      s += 4 * span(t, hitAt + 1.6, hitAt + 2.4) - 4.6 * span(t, hitAt + 2.8, hitAt + 3.6);
+      C.group.position.copy(lane).addScaledVector(across, s);
+      C.group.visible = t < this.end - 0.2;
+      for (const w of C.wheels) w.rotation.x = s / C.r;
     }
-    this.once('flat', hitAt - 0.15, t, () => this.bursts.add(hitAt - 0.15, 'dust', this.world(spot.clone().addScaledVector(this.cam, -0.5)), 0.4));
-    this.sfx('honk', hitAt + 0.5, t);
-    if (flat) {
-      // Flat on the ground, and a little bigger round: lying down, seen from above.
-      const lie = basis(Y, Z, this.cam.clone().negate(), UP);
+    const land = spot.clone().addScaledVector(across, 5.2);
+    const flyFor = 1.0;
+    this.frame.look = this.world(spot.clone().addScaledVector(across, 2.4).setY(0.9));
+    this.frame.radius = 3.9;
+    this.sfx('crash', hitAt, t);
+    this.once('wham', hitAt, t, () => {
+      this.bursts.add(hitAt, 'dust', this.world(spot.clone().setY(0.5)), 0.7);
+      this.bursts.add(hitAt, 'sparkle', this.world(spot.clone().setY(0.8)), 0.8);
+    });
+    if (u > 0 && u < flyFor) {
+      const k = u / flyFor;
+      this.at.lerpVectors(spot, land, k);
+      this.at.y = 3.2 * 4 * k * (1 - k);
+      this.turn.copy(this.face(this.cam)).multiply(tmpQ.setFromAxisAngle(Z, -k * Math.PI * 4));
+      this.sfx('whoosh', hitAt + 0.05, t);
+      return { anim: 'cry', visible: true };
+    }
+    const lie = basis(Y, Z, this.cam.clone().negate(), UP);
+    if (u >= flyFor) {
+      // Each squash flatter than the last: the landing, the car going over, and the car backing over.
+      const over = (at: number) => {
+        // When the car's middle is over them on its way.
+        return t > at;
+      };
+      const fwd = hitAt + 1.6 + ((5.2 - 3.6) / 4) * 0.8;
+      const back = hitAt + 2.8 + ((7.6 - 5.2) / 4.6) * 0.8;
+      const flat = over(back) ? 0.05 : over(fwd) ? 0.09 : 0.2;
+      const wide = over(back) ? 1.5 : over(fwd) ? 1.35 : 1.15;
       const breathe = Math.sin((t - hitAt) * 3) * 0.004;
-      this.stretch.set(1.35, 1.25, 0.09 + breathe);
-      this.put(lie, spot.clone().setY(0.07), new THREE.Vector3(this.mid().x, this.mid().y, this.thick().back));
-      this.dizzyAt(t, t > hitAt + 0.3 && t < this.soulAt ? spot.clone().setY(0.35) : null, 0.25);
+      this.stretch.set(wide, wide * 0.92, flat + breathe);
+      this.put(lie, land.clone().setY(0.05), new THREE.Vector3(this.mid().x, this.mid().y, this.thick().back));
+      for (const [k, at] of [[0, hitAt + flyFor], [1, fwd], [2, back]] as const) {
+        this.sfx(k ? 'flump' : 'thud', at, t);
+        this.once(`flat${k}`, at, t, () => this.bursts.add(at, 'dust', this.world(land.clone().setY(0.1)), 0.6));
+      }
+      // The car bumps up as it goes over.
+      for (const at of [fwd, back]) {
+        const v = t - at;
+        if (v > -0.12 && v < 0.12) C.body.position.y += Math.cos((v / 0.12) * (Math.PI / 2)) * 0.18;
+      }
+      this.sfx('honk', hitAt + 2.6, t);
+      this.dizzyAt(t, t > hitAt + 1.3 && t < this.soulAt ? land.clone().setY(0.35) : null, 0.25);
     }
-    this.setExtraVec('soulFrom', spot.clone().setY(0.05));
-    return { anim: flat ? 'idle' : t > 1.5 ? 'cry' : 'idle', visible: true };
+    this.setExtraVec('soulFrom', land.clone().setY(0.05));
+    return { anim: t > 1.5 ? 'cry' : 'idle', visible: true };
   }
 
   // ---------------------------------------------------------------- Bonnie and Clyde

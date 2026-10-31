@@ -8,7 +8,7 @@
   top: 72px;
   z-index: 78;
   transform: translateX(-50%);
-  width: min(700px, calc(100vw - 20px));
+  width: min(580px, calc(100vw - 20px));
   padding: 14px 16px 12px;
   display: flex;
   flex-direction: column;
@@ -50,8 +50,9 @@
 }
 .exec-methods {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 7px;
+  /* (Five ways on offer, side by side.) */
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
   width: 100%;
 }
 .exec-method {
@@ -85,12 +86,12 @@
   cursor: default;
 }
 .exec-icon {
-  font-size: 27px;
+  font-size: 34px;
   line-height: 1.1;
 }
 .exec-name {
   font-weight: 600;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.1;
 }
 .exec-count {
@@ -155,7 +156,7 @@
   color: var(--m);
 }
 
-/* A phone held upright: three across, each a little row with its icon beside its name. */
+/* A phone held upright: still five across, smaller. */
 @media (max-width: 520px) {
   .exec-vote {
     top: 58px;
@@ -166,19 +167,17 @@
     font-size: 17px;
   }
   .exec-methods {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 5px;
   }
   .exec-method {
-    flex-direction: row;
-    gap: 5px;
-    padding: 4px 5px;
+    gap: 2px;
+    padding: 5px 2px 4px;
     border-radius: 11px;
-    text-align: left;
     min-height: 36px;
   }
   .exec-icon {
-    font-size: 19px;
+    font-size: 24px;
     flex: none;
   }
   .exec-name {
