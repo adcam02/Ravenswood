@@ -4,7 +4,7 @@ import { casino, hostNow } from '../../casino/client';
 import { boughtNote, danceKey, hatKey, petPrice, shopDances, shopEmotes, shopHats, shopPets, shopSlayMoves, wareOf } from '../../casino/shop';
 import { emoteKey, type EmoteAnim } from '../../world/emotes';
 import { AnimalPreview } from '../../world/AnimalPreview';
-import { slayKey } from '../../game/slayMoves';
+import { SLAY_KINDS, slayKey } from '../../game/slayMoves';
 import type { CasinoView } from '../../casino/types';
 import { game, useHud, type ShopTab } from '../../game/hud';
 import { money } from '../../game/profiles';
@@ -248,19 +248,27 @@ function SlayMoves() {
       <p className="casino-blurb">
         How you do it when you claim to be the Slayer: the whole town watches in the square. Whether anyone dies is still up to the Storyteller. Everyone has the crossbow; each of these is yours to keep.
       </p>
-      <div className="shop-grid">
-        {shopSlayMoves().map((m) => {
-          const owned = !player || items.includes(slayKey(m.id));
-          return (
-            <div key={m.id} className={`shop-pet shop-slay ${owned ? 'owned' : ''}`}>
-              <span className="shop-pet-icon shop-dance-icon">{m.icon}</span>
-              <span className="shop-pet-name">{m.name}</span>
-              <span className="shop-slay-note">{m.blurb}</span>
-              {owned ? <span className="shop-owned">Yours ✓</span> : <BuyButton price={m.price!} what={`the ${m.name.toLowerCase()}`} onBuy={() => casino({ k: 'buyItem', item: slayKey(m.id) })} />}
-            </div>
-          );
-        })}
-      </div>
+      {/* On shelves by kind, cheapest first on each. */}
+      {SLAY_KINDS.map(([kind, label]) => (
+        <section key={kind} className="shop-slay-shelf">
+          <h3 className="shop-slay-kind">{label}</h3>
+          <div className="shop-grid">
+            {shopSlayMoves()
+              .filter((m) => m.kind === kind)
+              .map((m) => {
+                const owned = !player || items.includes(slayKey(m.id));
+                return (
+                  <div key={m.id} className={`shop-pet shop-slay ${owned ? 'owned' : ''}`}>
+                    <span className="shop-pet-icon shop-dance-icon">{m.icon}</span>
+                    <span className="shop-pet-name">{m.name}</span>
+                    <span className="shop-slay-note">{m.blurb}</span>
+                    {owned ? <span className="shop-owned">Yours ✓</span> : <BuyButton price={m.price!} what={`the ${m.name.toLowerCase()}`} onBuy={() => casino({ k: 'buyItem', item: slayKey(m.id) })} />}
+                  </div>
+                );
+              })}
+          </div>
+        </section>
+      ))}
     </>
   );
 }

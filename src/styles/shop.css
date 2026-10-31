@@ -287,3 +287,14 @@
   text-decoration: underline;
   cursor: pointer;
 }
+
+/* The Slayer moves, on shelves by kind. */
+.shop-slay-shelf + .shop-slay-shelf {
+  margin-top: 14px;
+}
+.shop-slay-kind {
+  margin: 0 0 8px;
+  font-family: var(--font-caps);
+  font-size: 17px;
+  font-weight: 400;
+}

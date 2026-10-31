@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { getRole } from '../data';
 import { player } from '../net/client';
 import { earn, useMyItems } from '../game/progress';
-import { ownsSlay, SLAY_MOVES, slayMove, type SlayMoveId } from '../game/slayMoves';
+import { ownsSlay, SLAY_KINDS, SLAY_MOVES, slayMove, type SlayMoveId } from '../game/slayMoves';
 import { useHud } from '../game/hud';
 import { seatName, slayerOpen, st, useHost } from '../state/host';
 import { ui, useUI } from '../state/ui';
@@ -52,16 +52,29 @@ export function SlayerModal() {
             ))}
           </div>
           <h3 className="slayer-ask slayer-how">How?</h3>
-          <div className="ask-seats slayer-moves">
-            {moves.map((m) => (
-              <button key={m.id} className={`ask-seat slayer-move ${how === m.id ? 'on' : ''}`} onClick={() => setMove(m.id)} title={m.blurb}>
-                <span className="slayer-move-icon" aria-hidden="true">
-                  {m.icon}
-                </span>
-                {m.name}
-              </button>
-            ))}
+          {/* Grouped by kind, and scrolling once there are a lot of them. */}
+          <div className="slayer-moves-box">
+            {SLAY_KINDS.map(([kind, label]) => {
+              const here = moves.filter((m) => m.kind === kind);
+              if (!here.length) return null;
+              return (
+                <div key={kind} className="slayer-kind">
+                  {moves.length > 4 && <span className="slayer-kind-label">{label}</span>}
+                  <div className="ask-seats slayer-moves">
+                    {here.map((m) => (
+                      <button key={m.id} className={`ask-seat slayer-move ${how === m.id ? 'on' : ''}`} onClick={() => setMove(m.id)} title={m.blurb}>
+                        <span className="slayer-move-icon" aria-hidden="true">
+                          {m.icon}
+                        </span>
+                        {m.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
+          <p className="slayer-move-blurb">{slayMove(how).blurb}</p>
           {moves.length < SLAY_MOVES.length && (
             <p className="slayer-more">
               More moves in the{' '}
