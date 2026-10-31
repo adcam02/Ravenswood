@@ -31,6 +31,7 @@ import { local as localSpot } from './town/kit';
 import { nearPath } from './town/outdoor';
 import { blocksLine } from './town/occlusion';
 import { Fireworks } from './fireworks';
+import { victoryAnim } from './victoryShop';
 import { reportProblem } from '../lib/report';
 import { earn, hatBoost, notePerfect, noteTopJob, tally, useProgress } from '../game/progress';
 import { setHatFxLow } from './hatFx';
@@ -348,6 +349,8 @@ export type Quality = 'high' | 'low';
 const params = new URLSearchParams(location.search);
 /** ?fps=10 caps the frame rate, for tests on machines without a graphics card. */
 const FPS_CAP = Number(params.get('fps')) || 0;
+/** Something covers the whole town (the victory lineup), so it only needs a frame now and then behind it. */
+export const townCovered = { on: false };
 /** How far round (radians, either way) from the clock tower's side of the meeting circle the meeting shot keeps. */
 const TOWER_CLEAR = 1.1;
 
@@ -2157,7 +2160,8 @@ export class Engine {
     this.partyTimer = setTimeout(() => {
       this.partyTimer = null;
       this.takeMeetingSeat();
-      this.party = { anim: won ? 'dance' : 'cry', left: won ? 18 : 8 };
+      // (Winners do their victory move, once the lineup's had its turn: see components/Victory.tsx.)
+      this.party = { anim: won ? victoryAnim(mine!.look?.win) : 'cry', left: won ? 30 : 8 };
     }, 700);
   }
 
@@ -2165,7 +2169,7 @@ export class Engine {
 
   private loop = () => {
     this.raf = requestAnimationFrame(this.loop);
-    const cap = FPS_CAP;
+    const cap = townCovered.on ? Math.min(FPS_CAP || 4, 4) : FPS_CAP;
     if (cap) {
       const now = performance.now();
       if (now - this.lastFrameAt < 1000 / cap) return;

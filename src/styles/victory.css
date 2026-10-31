@@ -1,0 +1,184 @@
+/* The victory lineup (components/Victory.tsx): the winning team on a stage, over everything. */
+.lineup {
+  position: fixed;
+  inset: 0;
+  z-index: 86;
+  overflow: hidden;
+  background: #060b1f;
+  animation: fade 0.5s ease;
+  transition: opacity 0.6s ease;
+}
+.lineup.evil {
+  background: #12030a;
+}
+.lineup.leaving {
+  opacity: 0;
+}
+.lineup-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.lineup-head {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: max(10px, env(safe-area-inset-top));
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 0 16px;
+  text-align: center;
+  pointer-events: none;
+  animation: victory-in 0.9s var(--ease-spring) 0.2s both;
+}
+.lineup-head .victory-title {
+  font-size: clamp(52px, 9vw, 128px);
+}
+.lineup.evil .victory-title {
+  background-image: linear-gradient(180deg, #ffd0d6 0%, #ff5d6c 50%, #8a2bd6 100%);
+  filter: drop-shadow(0 4px 24px rgba(255, 70, 90, 0.55));
+  animation-name: victory-glow-evil;
+}
+.lineup-head .victory-reason {
+  font-size: clamp(17px, 2.4vw, 24px);
+}
+.lineup-head .victory-eyebrow {
+  font-size: 15px;
+}
+.lineup-tags > div {
+  display: contents;
+}
+/* A name plate at each winner's feet: their name, their character and their move. */
+.lineup-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  justify-items: center;
+  min-width: 96px;
+  max-width: 150px;
+  padding: 4px 10px 5px;
+  border-radius: 10px;
+  background: rgba(8, 10, 24, 0.72);
+  border: 1px solid rgba(255, 224, 138, 0.45);
+  color: #fff;
+  text-align: center;
+  line-height: 1.15;
+  pointer-events: none;
+  will-change: transform;
+  animation: lineup-tag-in 0.5s var(--ease-spring) both;
+}
+.lineup.evil .lineup-tag {
+  background: rgba(24, 6, 12, 0.74);
+  border-color: rgba(255, 93, 108, 0.5);
+}
+.lineup-tag.me {
+  border-color: #ffe08a;
+  box-shadow: 0 0 14px rgba(255, 224, 138, 0.55);
+}
+.lineup-tag b {
+  font-family: var(--cosy-font);
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+.lineup-tag span {
+  font-size: 12px;
+  color: var(--brass-hi);
+}
+.lineup-tag em {
+  font-size: 11px;
+  font-style: normal;
+  opacity: 0.8;
+  white-space: nowrap;
+}
+@keyframes lineup-tag-in {
+  from {
+    opacity: 0;
+    scale: 0.6;
+  }
+}
+/* What a winner shouts with their move ("WOOOOO!"), in a bubble over their head now and then. */
+.lineup-shout {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 5px 12px 6px;
+  border-radius: 14px;
+  background: #fff;
+  color: #1a1420;
+  font-family: var(--font-black);
+  font-size: 18px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  scale: 0.5;
+  transition: opacity 0.2s ease, scale 0.3s var(--ease-spring);
+  will-change: transform;
+}
+.lineup-shout.on {
+  opacity: 1;
+  scale: 1;
+}
+.lineup-skip {
+  position: absolute;
+  right: 16px;
+  bottom: max(16px, env(safe-area-inset-bottom));
+}
+@media (max-width: 600px) {
+  .lineup-tag {
+    min-width: 0;
+    max-width: 110px;
+    padding: 3px 7px 4px;
+  }
+  .lineup-tag b {
+    font-size: 13px;
+  }
+  .lineup-tag em {
+    display: none;
+  }
+  .lineup-shout {
+    font-size: 14px;
+  }
+}
+.lineup + .confetti {
+  z-index: 87;
+}
+
+/* Customise's Victory tab: the move being shown, with its price or a buy button when it isn't yours. */
+.win-pick-now {
+  display: grid;
+  gap: 3px;
+  justify-items: start;
+  padding: 8px 12px 10px;
+  margin: 0 4px 4px;
+  border-radius: 12px;
+  background: var(--cosy-bg-2);
+  font-family: var(--cosy-font);
+  color: var(--cosy-ink);
+}
+.win-pick-now b {
+  font-size: 16px;
+}
+.win-pick-now > span:not(.shop-need):not(.win-pick-yours) {
+  font-size: 13px;
+  opacity: 0.85;
+}
+.win-pick-now .cosy-btn {
+  margin-top: 4px;
+}
+.win-pick-yours {
+  font-size: 13px;
+  color: var(--cosy-accent);
+  font-weight: 600;
+}
+.join-item.trying:not(.on) {
+  border-color: rgba(0, 0, 0, 0.18);
+  border-style: dashed;
+}

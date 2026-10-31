@@ -5,6 +5,7 @@
  */
 import { cleanEpitaph, fixGrave, fixStool, type GraveId, type StoolId } from './stoolShop';
 import type { EmoteAnim } from './emotes';
+import { fixVictory, type VictoryId } from './victoryShop';
 
 // ---------------------------------------------------------------- animals
 
@@ -144,6 +145,8 @@ export interface Look {
   grave?: GraveId | null;
   /** A line on their gravestone. */
   epitaph?: string;
+  /** Their victory move, for the lineup when their team wins (bought at the shop, see victoryShop.ts). */
+  win?: VictoryId | null;
 }
 
 // ---------------------------------------------------------------- pets, bought at the casino (see casino/shop.ts)
@@ -673,6 +676,8 @@ export function fixLook(look: Partial<Look> | null | undefined): Look {
   if (stool) out.stool = stool;
   if (grave) out.grave = grave;
   if (epitaph) out.epitaph = epitaph;
+  const win = fixVictory(look?.win);
+  if (win) out.win = win;
   return out;
 }
 
@@ -741,7 +746,9 @@ export type Anim =
   | 'windmill'
   | 'dabdance'
   | 'vogue'
-  | 'cancan';
+  | 'cancan'
+  /** A victory move, in the lineup at the end of a game (see victoryShop.ts). */
+  | `win:${VictoryId}`;
 
 export const EMOTES: { anim: Anim; label: string; key: string }[] = [
   { anim: 'wave', label: 'Wave', key: '1' },

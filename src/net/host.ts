@@ -13,6 +13,7 @@ import { hashDevice, knocks } from '../game/devices';
 import { pit } from '../game/pit';
 import { casinoFor, receiveCasino, startCasino, useCasino } from '../casino/host';
 import { hatKey, isShopHat } from '../casino/shop';
+import { ownsVictory } from '../world/victoryShop';
 import { leadersNow } from '../game/leaders';
 import { flatFor, receiveFlats, startFlats, useFlats } from '../flats/host';
 import { galleryFor, receiveGallery, startGallery, useGallery } from '../gallery/host';
@@ -517,6 +518,8 @@ class HostLink {
     // And the stools round the dais and the gravestones.
     if (look.stool && !profileOf({ name })?.items.includes(`stool:${look.stool}`)) look.stool = null;
     if (look.grave && !profileOf({ name })?.items.includes(`grave:${look.grave}`)) look.grave = null;
+    // And the victory moves.
+    if (look.win && !ownsVictory(look.win, profileOf({ name })?.items)) look.win = null;
     const refused = st.fromPlayer.join(playerId, name, look);
     if (refused) link.send({ t: 'taken', animal: refused.taken, by: refused.by });
   }

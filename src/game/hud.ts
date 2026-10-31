@@ -5,7 +5,7 @@ import type { AnimalId, Anim, Item } from '../world/types';
 import { PICK_DANCES, PICK_EMOTES } from '../world/emotes';
 
 /** The shop's shelves. */
-export type ShopTab = 'pets' | 'hats' | 'dances' | 'seats' | 'graves' | 'slay' | 'emotes';
+export type ShopTab = 'pets' | 'hats' | 'dances' | 'seats' | 'graves' | 'slay' | 'emotes' | 'win';
 
 export interface Prompt {
   label: string;

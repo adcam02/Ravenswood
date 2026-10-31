@@ -15,6 +15,7 @@ import { HAT_FX } from '../../world/hatFx';
 import { fixLook, HATS, TROPHY_HAT, type HatId } from '../../world/types';
 import { HatPicture, PetPicture, TryOn, wearLook } from './JoinFlow';
 import { GraveShelf, StoolShelf } from './SeatPicks';
+import { VictoryShelf } from './VictoryPicks';
 
 /**
  * The Lucky Raven's shop, at the counter by the door: pets, hats and dances, each on its own shelf. Everything is
@@ -44,6 +45,7 @@ export function Shop({ view, tab: wanted, away }: { view: CasinoView | null; tab
     ['graves', '🪦', 'Graves'],
     ['slay', '🏹', 'Slayer moves'],
     ['emotes', '🎭', 'Emotes'],
+    ['win', '🏆', 'Victory'],
   ];
   return (
     <div className="notice-layer casino-layer" onClick={close}>
@@ -77,6 +79,8 @@ export function Shop({ view, tab: wanted, away }: { view: CasinoView | null; tab
           <SlayMoves />
         ) : tab === 'emotes' ? (
           <Emotes />
+        ) : tab === 'win' ? (
+          <VictoryShelf />
         ) : (
           <Dances />
         )}

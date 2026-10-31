@@ -12,6 +12,7 @@ import { Token } from './Token';
 import { GamePay } from './town/Money';
 import { shownName } from '../state/nicks';
 import { NameAndReal } from './Nickname';
+import { VictoryLineup } from './Victory';
 
 const TEAM = { good: 'Good', evil: 'Evil' } as const;
 
@@ -116,11 +117,16 @@ export function GameOverLayer() {
   const view = useView();
   const ended = view.ended;
   const [open, setOpen] = useState(false);
+  // The winning team's lineup on the stage comes first (see Victory.tsx), then this card.
+  const [lineup, setLineup] = useState(false);
   const was = useRef(ended);
   useEffect(() => {
     // Only when it happens: a page loaded after the end just gets the recap button.
-    if (ended && !was.current) setOpen(true);
-    if (!ended) setOpen(false);
+    if (ended && !was.current) setLineup(true);
+    if (!ended) {
+      setOpen(false);
+      setLineup(false);
+    }
     was.current = ended;
   }, [ended]);
   useEffect(() => {
@@ -132,6 +138,22 @@ export function GameOverLayer() {
   const winners = players(view).filter((s) => onTeam(s, ended.winner));
   const me = view.seats.find((s) => s.isMe);
   const iWon = me ? onTeam(me, ended.winner) : null;
+  if (lineup) {
+    return (
+      <>
+        <VictoryLineup
+          winner={ended.winner}
+          seats={winners}
+          reason={ended.reason}
+          onDone={() => {
+            setLineup(false);
+            setOpen(true);
+          }}
+        />
+        <Confetti winner={ended.winner} />
+      </>
+    );
+  }
   return (
     <>
       {open && (
@@ -155,6 +177,15 @@ export function GameOverLayer() {
             <div className="victory-actions">
               <button className="btn" onClick={() => setOpen(false)}>
                 Close
+              </button>
+              <button
+                className="btn"
+                onClick={() => {
+                  setOpen(false);
+                  setLineup(true);
+                }}
+              >
+                🏆 The lineup again
               </button>
               <button
                 className="btn primary"

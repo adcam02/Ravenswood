@@ -14,6 +14,8 @@ import { money } from '../../game/profiles';
 import { petPrice, shopPets } from '../../casino/shop';
 import { SeatPicks } from './SeatPicks';
 import { HotbarPicks, usePreviewAnim } from './HotbarPicks';
+import { VictoryPicks } from './VictoryPicks';
+import { victoryAnim, type VictoryId } from '../../world/victoryShop';
 
 type Step = 'name' | 'animal' | 'mic';
 
@@ -186,13 +188,14 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
   );
 }
 
-export type PickTab = 'animal' | 'hat' | 'pet' | 'seat' | 'emotes';
+export type PickTab = 'animal' | 'hat' | 'pet' | 'seat' | 'emotes' | 'win';
 const TABS: { id: PickTab; label: string; icon: string }[] = [
   { id: 'animal', label: 'Animal', icon: '🦊' },
   { id: 'hat', label: 'Hats', icon: '🎩' },
   { id: 'pet', label: 'Pet', icon: '🐾' },
   { id: 'seat', label: 'Seat', icon: '🪑' },
   { id: 'emotes', label: 'Emotes', icon: '🎭' },
+  { id: 'win', label: 'Victory', icon: '🏆' },
 ];
 
 /**
@@ -224,6 +227,8 @@ export function LookEditor({
   const others = useOthersAnimals();
   const previewAnim = usePreviewAnim();
   const theirs = (id: string) => others.get(id);
+  // On the Victory tab, the move tapped last plays on the animal (otherwise the one chosen).
+  const [trying, setTrying] = useState<VictoryId | null>(null);
   // The animal we are (or are looking at) in view in the list, which can be a long way down.
   const grid = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -251,7 +256,7 @@ export function LookEditor({
   return (
     <div className="join-animal-body">
       <div className="join-stage">
-        <AnimalPreview look={look} size={260} spin={false} turnable anim={(tab === 'emotes' && previewAnim) || 'idle'} />
+        <AnimalPreview look={look} size={260} spin={false} turnable anim={tab === 'win' ? victoryAnim(trying ?? look.win) : (tab === 'emotes' && previewAnim) || 'idle'} />
         <strong className="join-animal-name">
           {info.name}
           {info.aquatic && <span className="join-wet"> · a little bit wet</span>}
@@ -309,6 +314,8 @@ export function LookEditor({
           <SeatPicks look={look} setLook={setLook} />
         ) : tab === 'emotes' ? (
           <HotbarPicks />
+        ) : tab === 'win' ? (
+          <VictoryPicks look={look} setLook={setLook} trying={trying} setTrying={setTrying} />
         ) : (
           <DressUp tab={tab} look={look} setLook={setLook} />
         )}

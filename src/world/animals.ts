@@ -13,6 +13,8 @@ import { col, colorsFor, mix, newKit, type Kit, type Mannerism, type Part, type 
 import { animalInfo, isDance, wrapAngle, type Anim, type AnimalId, type HatId, type Item, type ItemKind, type Look, type PetId } from './types';
 
 import { buildPet } from './pets';
+import { victoryPose, type WinBody } from './victoryMoves';
+import type { VictoryId } from './victoryShop';
 export { buildPet, type Pet } from './pets';
 
 /**
@@ -45,11 +47,13 @@ export interface Rig {
   /** 'low' swaps in a cheaper version of the model, for players far away. */
   setDetail(level: 'high' | 'low'): void;
   dispose(): void;
+  /** Something held in the right paw just for show (an animal's rig only). */
+  holdProp?(prop: THREE.Object3D | null): void;
 }
 
 // ---------------------------------------------------------------- poses
 
-interface Pose {
+export interface Pose {
   /** The body shifted sideways (a dance's hips swinging under a steady head). */
   bx: number;
   by: number;
@@ -131,7 +135,7 @@ const restPose = (): Pose => ({
 
 /** Rotation, offset from rest and scale for one of the extra bones (ears, tail segments, nose, stalks). */
 type AuxPose = [number, number, number, number, number, number, number];
-type AuxMap = Map<string, AuxPose>;
+export type AuxMap = Map<string, AuxPose>;
 const restAux = (): AuxPose => [0, 0, 0, 0, 0, 0, 1];
 function aux(A: AuxMap, name: string): AuxPose {
   let a = A.get(name);
@@ -945,6 +949,12 @@ class AnimalRig implements Rig {
       this.item.traverse((o) => (o.castShadow = !this.ghost));
       this.handTilt.add(this.item);
     }
+  }
+
+  /** Something held in the right paw just for show (the victory lineup's mic), without changing how it stands. */
+  holdProp(prop: THREE.Object3D | null) {
+    for (const o of [...this.handTilt.children]) if (o !== this.item) this.handTilt.remove(o);
+    if (prop) this.handTilt.add(prop);
   }
 
   /** The skinned mesh's materials, for the body, the eyes and anything see-through: its own, or a ghost's. */
@@ -3167,6 +3177,11 @@ class AnimalRig implements Rig {
         break;
       }
       default: {
+        // A victory move (see victoryMoves.ts).
+        if (s.anim.startsWith('win:')) {
+          victoryPose(this as unknown as WinBody, P, A, s.anim.slice(4) as VictoryId, s.t - this.animStart);
+          break;
+        }
         // Idle: breathing, a lazy tail, the paws carried the species' way, and now and then a mannerism.
         const slow = this.sleepy ? 0.45 : 1;
         P.hry = sin(t * 0.37 * slow) * 0.12 * (sin(t * 0.13) > 0 ? 1 : 0.3);
@@ -3311,9 +3326,12 @@ class AnimalRig implements Rig {
     const P = this.pose;
     if (target) {
       // Turning about the upright goes the short way round, so a dance's spin carries on rather than unwinding.
+      // (And about the side to side, for a victory backflip.)
       const bry = P.bry + wrapAngle(target.P.bry - P.bry) * k;
+      const brx = P.brx + wrapAngle(target.P.brx - P.brx) * k;
       for (const key of POSE_KEYS) P[key] += (target.P[key] - P[key]) * k;
       P.bry = wrapAngle(bry);
+      P.brx = wrapAngle(brx);
       for (const name of this.extra) {
         const now = this.auxNow.get(name) ?? restAux();
         const want = target.A.get(name) ?? restAux();

@@ -12,7 +12,8 @@ import { shownName } from '../../state/nicks';
  * on, the animal and its colour stay as they are (the host keeps them too); the hat and pet can change any time.
  */
 /** The same stool, gravestone and epitaph (what the Seat tab changes). */
-const sameSeat = (a: Look, b: Look) => (a.stool ?? null) === (b.stool ?? null) && (a.grave ?? null) === (b.grave ?? null) && (a.epitaph ?? '') === (b.epitaph ?? '');
+const sameSeat = (a: Look, b: Look) =>
+  (a.stool ?? null) === (b.stool ?? null) && (a.grave ?? null) === (b.grave ?? null) && (a.epitaph ?? '') === (b.epitaph ?? '') && (a.win ?? null) === (b.win ?? null);
 
 export function CustomiseModal() {
   const view = useView();
