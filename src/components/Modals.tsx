@@ -32,6 +32,7 @@ import { useProblems } from '../lib/report';
 import { ReminderToken, Token } from './Token';
 import { WakeComposer } from './WakeComposer';
 import { CustomiseModal } from './town/Customise';
+import { useExecPreview } from './town/ExecVote';
 import { NicknameModal } from './Nickname';
 import { SpeechSetting } from './Speech';
 import { shownName } from '../state/nicks';
@@ -454,6 +455,21 @@ function StorytellerSettings() {
           <Stepper value={g.day} onChange={st.setDay} min={0} max={30} />
         </div>
         <SpeechSetting />
+        <div className="setting">
+          <div>
+            <strong>Preview executions</strong>
+            <span>Watch any execution on your own screen, as often as you like</span>
+          </div>
+          <button
+            className="btn"
+            onClick={() => {
+              useExecPreview.setState({ open: true });
+              ui.close();
+            }}
+          >
+            Open
+          </button>
+        </div>
         <hr className="rule" />
         <div className="setting">
           <div>

@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import { LAND_MS, PICK_MS, SPIN_MS, VOTE_MS, execMethod, methodShares, offered, wheelTurns } from '../../game/execution';
+import { create } from 'zustand';
+import { EXEC_METHODS, LAND_MS, PICK_MS, SPIN_MS, VOTE_MS, execMethod, methodShares, offered, wheelTurns } from '../../game/execution';
+import { game } from '../../game/hud';
 import { execSound } from '../../lib/audio';
 import { player } from '../../net/client';
 import { st } from '../../state/host';
 import type { ExecMethod, Execution } from '../../state/types';
 import { useView } from '../../state/view';
+import { ANIMALS_ABC, type AnimalId } from '../../world/types';
 
 /** Redraws every frame while `on` (for the wheel), or every few hundred milliseconds otherwise. */
 function useClock(on: boolean, fast: boolean) {
@@ -27,13 +30,23 @@ function useClock(on: boolean, fast: boolean) {
   return now;
 }
 
+/** The execution, and (for the Storyteller) the preview panel. */
+export function ExecVote() {
+  return (
+    <>
+      <ExecVoteNow />
+      <ExecPreview />
+    </>
+  );
+}
+
 /**
  * An execution: everyone (the condemned too, and the dead) has a few seconds to vote on how (between the five ways
  * the host drew for it), with big buttons and
  * a running count; then a wheel spins, each way's slice its share of the votes, and lands on the one the
  * Storyteller's page drew, the same on every screen. The Storyteller can simply choose instead.
  */
-export function ExecVote() {
+function ExecVoteNow() {
   const view = useView();
   const ex = view.execution;
   const st_ = view.mode === 'st';
@@ -190,6 +203,70 @@ function Wheel({ ex, now }: { ex: Execution; now: number }) {
           '…'
         )}
       </strong>
+    </div>
+  );
+}
+
+/** Whether the Storyteller's preview panel is open (from the game settings). */
+export const useExecPreview = create<{ open: boolean }>(() => ({ open: false }));
+
+/**
+ * The Storyteller's preview of the executions: every way, played on their own screen only on a stand-in animal at
+ * the gallows, as often as they like (Play, Play spared for the lucky escape, Replay the last one). Nothing is sent
+ * and nobody dies.
+ */
+function ExecPreview() {
+  const view = useView();
+  const open = useExecPreview((s) => s.open);
+  const [animal, setAnimal] = useState<AnimalId>('fox');
+  const [pick, setPick] = useState<ExecMethod>('hang');
+  const [last, setLast] = useState<{ m: ExecMethod; spared: boolean } | null>(null);
+  const [note, setNote] = useState('');
+  if (!open || view.mode !== 'st') return null;
+  const play = (m: ExecMethod, spared: boolean) => {
+    const ok = game.previewExec(m, spared, animal);
+    setNote(ok ? `${execMethod(m).name}${spared ? ', spared' : ''}` : 'Not while a real execution is on');
+    if (ok) setLast({ m, spared });
+    execSound('click');
+  };
+  return (
+    <div className="exec-preview cosy-panel" role="dialog" aria-label="Preview executions">
+      <div className="exec-preview-head">
+        <strong>Preview executions</strong>
+        <button className="btn small" onClick={() => useExecPreview.setState({ open: false })}>
+          Close
+        </button>
+      </div>
+      <span className="exec-preview-sub">Only on your screen, on a stand-in. Nobody dies.</span>
+      <label className="exec-preview-animal">
+        Stand-in
+        <select value={animal} onChange={(e) => setAnimal(e.target.value as AnimalId)}>
+          {ANIMALS_ABC.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="exec-preview-list">
+        {EXEC_METHODS.map((m) => (
+          <button key={m.id} className={`exec-preview-way ${pick === m.id ? 'on' : ''}`} style={{ '--m': m.color } as React.CSSProperties} onClick={() => setPick(m.id)} onDoubleClick={() => play(m.id, false)}>
+            <span>{m.icon}</span> {m.name}
+          </button>
+        ))}
+      </div>
+      <div className="exec-preview-go">
+        <button className="btn primary" onClick={() => play(pick, false)}>
+          Play
+        </button>
+        <button className="btn" onClick={() => play(pick, true)}>
+          Play spared
+        </button>
+        <button className="btn" onClick={() => last && play(last.m, last.spared)} disabled={!last}>
+          Replay
+        </button>
+      </div>
+      {note && <span className="exec-preview-sub">{note}</span>}
     </div>
   );
 }

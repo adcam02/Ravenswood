@@ -120,6 +120,7 @@ const SHADOW_GAP_S = 0.5;
 /** And this long for a slow drift (the sun creeping round) to be drawn while the camera is still. */
 const SHADOW_DRIFT_GAP_S = 3;
 import {
+  ANIMALS,
   BOOTHS,
   BOOTH_HD,
   HATS,
@@ -136,6 +137,7 @@ import {
   inBooth,
   wrapAngle,
   zoneKind,
+  type AnimalId,
   type Anim,
   type Collider,
   type Door,
@@ -475,6 +477,8 @@ export class Engine {
     stage: ExecStage | null;
     pose: ExecPose | null;
     drum: boolean;
+    /** A Storyteller's preview on their own screen (see previewExecution): the stand-in animal it's played on. */
+    preview?: AvatarView;
   } | null = null;
   /**
    * A Slayer claim playing out on the dais (see exec/slay.ts): who did it to whom, how, whether they die, and when it
@@ -632,6 +636,7 @@ export class Engine {
     game.putAway = () => this.putAway();
     game.goTo = (key) => this.goTo(key);
     game.takeMeetingSeat = () => this.takeMeetingSeat();
+    game.previewExec = (method, spared, animal) => this.previewExecution(method, spared, animal);
     game.jobDone = (r) => (this.bedGame ? this.finishBedGame(r) : this.finishJob(r));
     game.jobCancel = () => (this.bedGame ? this.finishBedGame(undefined) : this.finishJob(undefined));
     game.bedGame = (job) => this.startBedGame(job);
@@ -2211,6 +2216,7 @@ export class Engine {
     if (this.me && v) this.moveMe(dt, t, v);
     if (v) this.runClub(v);
     this.updateOthers(dt, t, v);
+    this.updatePreview(dt, t);
     this.syncCasino(v);
     this.syncFlats(v);
     this.syncGallery(t, v);
@@ -2733,6 +2739,81 @@ export class Engine {
     return now - showStartAt(ex) < (ex.drawn ? 4000 : 12000);
   }
 
+  /** The animal a preview is played on. */
+  private previewAnimal: AnimalId = 'fox';
+
+  /** Whoever the show is played on: us, someone else, or a preview's stand-in. */
+  private showAv(show: NonNullable<Engine['show']>): AvatarView | null | undefined {
+    return show.preview ?? (show.mine ? this.me : this.others.get(show.seatId));
+  }
+
+  /** A stand-in animal for a preview, in its first colour. */
+  private standIn(animal: AnimalId): AvatarInfo {
+    const color = ANIMALS.find((a) => a.id === animal)?.colors[0] ?? '#e2793a';
+    return { name: 'The stand-in', look: { animal, color }, ghost: false, storyteller: false, isMe: false, role: null, badge: null };
+  }
+
+  /**
+   * The Storyteller watches an execution on their own screen only, as often as they like: played on a stand-in
+   * animal at the gallows, with the camera as in a real one. Nothing is sent and nobody dies; it's taken down after,
+   * or by the next preview. A real execution comes first (and ends a preview). False when it can't play now.
+   */
+  previewExecution(method: ExecMethod, survives: boolean, animal: AnimalId): boolean {
+    if (this.view?.mode !== 'st' || (this.show && !this.show.preview)) return false;
+    if (this.show) this.endShow();
+    const spot = this.town.gallowsSpot;
+    if (zoneKind(local.zone) !== 'town') this.place('town', spot.x + 2.2, spot.z + 1.4, Math.PI, false);
+    this.previewAnimal = animal;
+    const av = new AvatarView(this.scene, this.standIn(animal));
+    av.setTarget(spot.x, spot.z, spot.ry, spot.y);
+    av.snap();
+    av.setVisible(true);
+    const show = {
+      id: `preview:${Date.now()}`,
+      seatId: 'preview',
+      name: 'The stand-in',
+      start: this.clock.elapsedTime + 0.5,
+      giveUp: Infinity,
+      mine: false,
+      released: false,
+      alive: true,
+      survives,
+      method,
+      stage: null,
+      pose: null,
+      drum: false,
+      preview: av,
+    };
+    this.show = show;
+    if (method !== 'hang' && !execShows.now()) execShows.get().catch(() => this.show === show && !show.stage && (show.method = 'hang'));
+    return true;
+  }
+
+  /** A preview's stand-in, posed by the show each frame (as updateOthers does for the real condemned). */
+  private updatePreview(dt: number, t: number) {
+    const show = this.show;
+    const av = show?.preview;
+    if (!show || !av) return;
+    av.setVisible(zoneKind(local.zone) === 'town');
+    const staged = this.stagePose();
+    let anim: Anim = 'idle';
+    let dangle: { swing: number; scale: number } | null = null;
+    if (staged) {
+      av.setTarget(staged.pos.x, staged.pos.z, av.ry, staged.pos.y);
+      anim = staged.anim;
+    } else {
+      const sp = this.showPose(this.showAge(t), this.bodyOf(av));
+      av.setTarget(sp.x, sp.z, sp.ry, sp.y);
+      anim = sp.anim;
+      dangle = sp;
+    }
+    av.snap();
+    av.update(dt, t, anim, false, true);
+    av.rig.root.rotation.z = dangle?.swing ?? 0;
+    av.rig.root.scale.setScalar(dangle?.scale ?? 1);
+    if (staged) this.applyStagePose(av, staged);
+  }
+
   /** Over (or called off): the condemned carries on, as a ghost or not, and whatever the show put up comes down. */
   private endShow() {
     const show = this.show;
@@ -2742,6 +2823,11 @@ export class Engine {
     show.stage?.dispose();
     const spot = this.town.gallowsSpot;
     this.town.setGallows({ open: 0, label: '', rope: GALLOWS_ROPE_REST });
+    // (A preview's stand-in simply goes.)
+    if (show.preview) {
+      show.preview.dispose();
+      return;
+    }
     const av = show.mine ? this.me : this.others.get(show.seatId);
     if (av) av.rig.root.rotation.set(0, av.rig.root.rotation.y, 0);
     const v = this.view;
@@ -2778,7 +2864,7 @@ export class Engine {
       }
     }
     const age = this.showAge(t);
-    const av = show.mine ? this.me : this.others.get(show.seatId);
+    const av = this.showAv(show);
     if (show.start === null || age < 0) {
       // Something went astray (the vote never closed): called off rather than left standing there.
       if (show.start === null && t > show.giveUp) this.endShow();
@@ -2973,6 +3059,11 @@ export class Engine {
   /** From now on they're drawn as the ghost they are (until now they've been kept as they were). */
   private becomeGhost(show: NonNullable<Engine['show']>) {
     show.alive = false;
+    if (show.preview) {
+      show.preview.setInfo({ ...this.standIn(this.previewAnimal), ghost: true });
+      if (show.method === 'hang') execSound('soul');
+      return;
+    }
     const v = this.view;
     if (!v) return;
     if (show.mine) this.me?.setInfo(this.infoFor(show.seatId, v));
@@ -3370,7 +3461,7 @@ export class Engine {
   private gallowsShot(t: number): { pos: THREE.Vector3; look: THREE.Vector3 } {
     const g = this.town.gallowsSpot;
     const show = this.show!;
-    const av = show.mine ? this.me : this.others.get(show.seatId);
+    const av = this.showAv(show);
     const body = this.bodyOf(av);
     const age = show.start === null ? -1 : this.showAge(t);
     const pose = show.method === 'hang' && age >= 0 ? this.showPose(age, body) : null;

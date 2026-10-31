@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { GameJob } from '../jobs/meta';
-import type { Anim, Item } from '../world/types';
+import type { ExecMethod } from '../state/types';
+import type { AnimalId, Anim, Item } from '../world/types';
 import { PICK_DANCES, PICK_EMOTES } from '../world/emotes';
 
 /** The shop's shelves. */
@@ -106,6 +107,8 @@ export const game = {
   putAway: () => {},
   /** Storyteller: float over to someone. */
   goTo: (_key: string) => {},
+  /** Storyteller: watch an execution on your own screen only, on a stand-in animal (false if it can't play now). */
+  previewExec: (_method: ExecMethod, _spared: boolean, _animal: AnimalId): boolean => false,
   /** Walk (well, hop) to your own stool at the town meeting. */
   takeMeetingSeat: () => {},
   jobDone: (_result: unknown) => {},
