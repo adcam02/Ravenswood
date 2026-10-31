@@ -41,6 +41,7 @@ import {
 import { PATHS, buildOutdoor } from './outdoor';
 import { makeSwingDoors } from './doors';
 import { postFront } from './post';
+import { galleryStand, type GalleryPiece } from './gallery';
 import { addCloudShadow, beamUniforms, makeClouds, makeContactShadows, makeDust, makePuddles, type Footprint, type PuddleSpot } from './looks';
 import { signBoard, TextSign } from './sign';
 import { makeCasinoTables, type SeatTable } from './casinoTables';
@@ -101,6 +102,8 @@ export interface TownWorld {
   setGraves(names: string[]): void;
   /** The post office's letterboxes: everyone's name in grimoire order, and whose have letters waiting. */
   setPost(names: string[], mail: boolean[]): void;
+  /** The night gallery's board: what they were asked to draw, and the pieces in the order they hang. */
+  setGallery(title: string, pieces: GalleryPiece[]): void;
   /** Buildings that can be faded when they hide a player. */
   occluders: THREE.Mesh[];
   /** Where the condemned stands, on the trapdoor. */
@@ -773,6 +776,10 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   postBoxes.set([], []);
   outdoor.group.add(postBoxes.object);
   document.fonts?.ready.then(() => postBoxes.redraw()).catch(() => {});
+  // The night gallery, beside it.
+  const gallery = galleryStand();
+  outdoor.group.add(gallery.object);
+  document.fonts?.ready.then(() => gallery.redraw()).catch(() => {});
 
   // Meeting stools around the tower, the hand on the cobbles, and a mark by each raised hand.
   const stoolGeo = (() => {
@@ -1375,6 +1382,10 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
 
     setPost(names, mail) {
       postBoxes.set(names, mail);
+    },
+
+    setGallery(title, pieces) {
+      gallery.set(title, pieces);
     },
 
     setGraves(names) {

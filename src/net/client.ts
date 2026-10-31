@@ -9,6 +9,8 @@ import { presence } from '../game/presence';
 import type { Item, Look, Pose } from '../world/types';
 import type { CasinoAction } from '../casino/types';
 import type { FlatAction } from '../flats/catalogue';
+import type { GalleryAction } from '../gallery/types';
+import { receiveArt } from '../gallery/art';
 import { joinMesh, type Mesh } from './mesh';
 import { hostPeerId, linkAlive, peerDisabled, peerOptions, type LinkStatus } from './peer';
 import { reportTo } from '../lib/report';
@@ -371,6 +373,8 @@ class ClientLink {
       if (typeof msg.zone === 'string' && Number.isFinite(msg.x) && Number.isFinite(msg.z)) game.summoned(msg.zone, msg.x, msg.z);
     } else if (msg.t === 'seat') {
       game.calledToStool();
+    } else if (msg.t === 'art') {
+      receiveArt(msg.p);
     }
   }
 
@@ -450,6 +454,8 @@ export const player = {
   casino: (a: CasinoAction) => clientLink.send({ t: 'casino', a }),
   /** Buying furniture for your flat, or laying it out. */
   flat: (a: FlatAction) => clientLink.send({ t: 'flat', a }),
+  /** The night's drawing and the gallery: a drawing (in pieces), a vote, pictures wanted, a piece to keep. */
+  gallery: (a: GalleryAction) => clientLink.send({ t: 'gallery', a }),
   reply: (wakeId: string, r: { seatIds?: string[]; roleIds?: string[]; answer?: boolean }) =>
     clientLink.send({ t: 'reply', wakeId, ...r }),
   /** Challenge someone in the pet pit, answer a challenge, or pick a move in a fight. */

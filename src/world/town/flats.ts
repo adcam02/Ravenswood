@@ -523,6 +523,15 @@ function framed(p: Paint, w: number, h: number, frame: string, y = 1.85) {
   p.box(shade(frame, -0.15), w, h, 0.05, 0, y, 0.09);
 }
 
+/** Where the drawing sits in a "Your art" frame (4:3, like the drawings), in the piece's own frame. */
+const ART_PIC = { w: 0.8, h: 0.6, y: 1.85, z: 0.122 };
+
+/** A "Your art" frame: a warm wooden frame and a cream mount (the drawing itself goes in over it, see makeFlatRoom). */
+function artFrame(p: Paint) {
+  framed(p, ART_PIC.w + 0.08, ART_PIC.h + 0.08, '#a8743f', ART_PIC.y);
+  p.box('#f6efe0', ART_PIC.w + 0.04, ART_PIC.h + 0.04, 0.01, 0, ART_PIC.y, 0.115);
+}
+
 function landscape(p: Paint) {
   framed(p, 0.8, 0.55, GOLD);
   p.box('#9fd0ef', 0.78, 0.3, 0.01, 0, 1.97, 0.12);
@@ -665,6 +674,8 @@ export function paintPiece(p: Paint, glow: Builder, id: string, seed: number) {
       return neonHeart(p, lit);
     case 'trophies':
       return trophyShelf(p);
+    case 'myart':
+      return artFrame(p);
   }
 }
 
@@ -771,6 +782,8 @@ export interface FlatScene {
   held?: { item: FlatItem; index: number; ok: boolean } | null;
   /** Decorating: show the grid on the floor. */
   grid?: boolean;
+  /** The drawings in the "Your art" frames, by id (undefined while one is on its way, null if it's missing). */
+  art?: Record<string, string | null | undefined>;
 }
 
 export interface FlatRoom {
@@ -793,12 +806,14 @@ export function makeFlatRoom(glassMaterial: THREE.Material): FlatRoom {
   const shellGroup = new THREE.Group();
   const furniture = new THREE.Group();
   const ghost = new THREE.Group();
-  group.add(shellGroup, furniture, ghost);
+  const pictures = new THREE.Group();
+  group.add(shellGroup, furniture, ghost, pictures);
   const colliders: Collider[] = [];
   const seats: Station[] = [];
   let shellKey = '';
   let itemsKey = '';
   let heldKey = '';
+  let artKey = '';
 
   // The decorating grid: a line every half metre, the doorway's cells tinted.
   const gridTex = (() => {
@@ -888,6 +903,39 @@ export function makeFlatRoom(glassMaterial: THREE.Material): FlatRoom {
     });
   }
 
+  /** The drawings in the "Your art" frames, each a picture on the mount. */
+  const picGeo = new THREE.PlaneGeometry(ART_PIC.w, ART_PIC.h);
+  function buildPictures(items: FlatItem[], art: FlatScene['art']) {
+    for (const o of [...pictures.children]) {
+      pictures.remove(o);
+      const m = (o as THREE.Mesh).material as THREE.MeshLambertMaterial;
+      m.map?.dispose();
+      m.dispose();
+    }
+    for (const it of items) {
+      const img = it.art ? art?.[it.art] : null;
+      const at = placeOf(it);
+      if (!img || !at) continue;
+      const tex = new THREE.Texture();
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const mesh = new THREE.Mesh(picGeo, new THREE.MeshLambertMaterial({ map: tex, emissive: '#ffffff', emissiveMap: tex, emissiveIntensity: 0.1 }));
+      // (Hidden until the picture has loaded, rather than a black square for a moment.)
+      mesh.visible = false;
+      const el = new Image();
+      el.onload = () => {
+        tex.image = el;
+        tex.needsUpdate = true;
+        mesh.visible = true;
+      };
+      el.src = img;
+      const spot = local(at.x, at.z, at.ry, 0, ART_PIC.z);
+      mesh.position.set(spot.x, ART_PIC.y, spot.z);
+      mesh.rotation.y = at.ry;
+      mesh.receiveShadow = true;
+      pictures.add(mesh);
+    }
+  }
+
   function buildHeld(held: FlatScene['held']) {
     dispose(ghost);
     mark.visible = false;
@@ -926,6 +974,14 @@ export function makeFlatRoom(glassMaterial: THREE.Material): FlatRoom {
       if (ik !== itemsKey) {
         itemsKey = ik;
         buildFurniture(layout.items, skip);
+        changed = true;
+      }
+      // The drawings: again whenever a frame moves, or a picture arrives.
+      const framed = layout.items.filter((it, i) => it.art && i !== skip);
+      const ak = JSON.stringify(framed.map((it) => [it.art, it.x, it.z, it.r, scene?.art?.[it.art!]?.length ?? 0]));
+      if (ak !== artKey) {
+        artKey = ak;
+        buildPictures(framed, scene?.art);
         changed = true;
       }
       const hk = JSON.stringify(scene?.held ?? null);

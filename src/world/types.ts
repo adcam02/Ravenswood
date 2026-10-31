@@ -820,7 +820,9 @@ export type JobId =
   /** Sit at one of the casino's slot machines. */
   | 'slots'
   /** The apartment block's lift: choose whose flat to go up to. */
-  | 'flats';
+  | 'flats'
+  /** The night gallery: look at the drawings and vote for a favourite. */
+  | 'gallery';
 
 /** The town's best at each game: who, the score, and when. */
 export interface TownRecord {

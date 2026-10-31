@@ -16,6 +16,7 @@
  *   addTally(who, kind, by)   adds to one of their running counts (the pet pit's wins, say).
  *   topTally(kind, n)         the n names with the most of a count, most first.
  *   changeFlat(who, fn)       changes their flat in the apartment block (its furniture and layout, see flats/).
+ *   changeArt(who, fn)        changes the drawings they have kept from the gallery (gallery/).
  * `who` is { name } (any spelling), { seat } (a seat id) or { player } (the playerId a message came from).
  * On a player's side, useMoney() and useMyPets() in game/progress.ts are their own money and pets.
  */
@@ -26,6 +27,7 @@ import type { BackupCopy, GameState, PayLine, ProfileView, ProgressEvent, Progre
 import { FEATS, PETS, type FeatId, type PetId } from '../world/types';
 import { cleanFlat, emptyFlat, type FlatStore } from '../flats/catalogue';
 import { GAME_JOBS, JOB_AT, type GameJob } from '../jobs/meta';
+import { ART_ID, SAVED_MAX, type SavedArt } from '../gallery/types';
 
 /** What players earn, in dollars: all the amounts in one place. */
 export const PAY = {
@@ -178,6 +180,8 @@ export interface Profile extends ProgressSnapshot {
   devices?: string[];
   /** Their flat in Wren Court, the apartment block: the furniture they've bought and how it's laid out (flats/). */
   flat?: FlatStore;
+  /** Their own drawings from the night's gallery that they've kept (only ids and prompts: the pictures are kept apart, see gallery/host.ts). */
+  art?: SavedArt[];
   created: number;
   updated: number;
 }
@@ -219,6 +223,13 @@ export function cleanProfile(raw: unknown, key: string): Profile {
   const devices = strings(r.devices, DEVICES_KEPT, 64).filter((h) => /^[0-9a-f]{16,64}$/.test(h));
   if (devices.length) p.devices = devices;
   if (r.flat && typeof r.flat === 'object') p.flat = cleanFlat(r.flat);
+  if (Array.isArray(r.art)) {
+    const art = r.art
+      .filter((a) => a && typeof a.id === 'string' && ART_ID.test(a.id))
+      .slice(-SAVED_MAX)
+      .map((a) => ({ id: a.id, prompt: String(a.prompt ?? '').slice(0, 80), at: Number(a.at) || 0 }));
+    if (art.length) p.art = art;
+  }
   p.created = Number(r.created) || Date.now();
   p.updated = Number(r.updated) || p.created;
   return p;
@@ -418,6 +429,17 @@ export function changeFlat(who: Who, fn: (f: FlatStore) => boolean | void): bool
   const f = structuredClone(useProfiles.getState().profiles[nameKey(name)].flat ?? emptyFlat());
   if (fn(f) === false) return false;
   change(name, (p) => void (p.flat = f));
+  return true;
+}
+
+/** Changes the drawings a player has kept (their ids and prompts). `fn` returns false to change nothing. */
+export function changeArt(who: Who, fn: (art: SavedArt[]) => SavedArt[] | false): boolean {
+  const name = nameOf(who);
+  if (!name) return false;
+  ensure(name);
+  const next = fn([...(useProfiles.getState().profiles[nameKey(name)].art ?? [])]);
+  if (next === false) return false;
+  change(name, (p) => void (p.art = next.slice(-SAVED_MAX)));
   return true;
 }
 

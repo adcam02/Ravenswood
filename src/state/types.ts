@@ -2,6 +2,7 @@ import type { Alignment, Script, Team } from '../data';
 import type { AutoNight } from '../night/rules';
 import type { CasinoAction, CasinoView } from '../casino/types';
 import type { FlatAction, FlatView } from '../flats/catalogue';
+import type { ArtPart, GalleryAction, GalleryView } from '../gallery/types';
 import type { BakeKind, ClothKind, DrinkKind, FlowerKind, Item, Look, PetId, Pose, Progress, TownState, Weather } from '../world/types';
 
 export type Phase = 'night' | 'day';
@@ -470,6 +471,8 @@ export interface PrivateState {
   casino?: CasinoView | null;
   /** The apartment block, while they're in it: the lobby's residents, or the flat they're standing in. */
   flat?: FlatView | null;
+  /** The night's drawing and the gallery: tonight's prompt, what's hanging and the voting, their own kept pieces. */
+  gallery?: GalleryView | null;
 }
 
 // ---------------------------------------------------------------- the pet pit
@@ -683,7 +686,9 @@ export type HostMessage =
    * Joining as a name that belongs to another device: `ok` null while the Storyteller is asked, then whether they
    * let this one in.
    */
-  | { t: 'door'; name: string; ok: boolean | null };
+  | { t: 'door'; name: string; ok: boolean | null }
+  /** A picture from the gallery (or a piece of one, `i` of `n`), asked for by id. */
+  | { t: 'art'; p: ArtPart };
 
 export type ClientMessage =
   /** `delta`: this page understands world updates that carry only what changed. */
@@ -735,6 +740,8 @@ export type ClientMessage =
   | { t: 'pit'; a: PitAction }
   /** A bet, a card, a pet from the shop: everything at the casino. */
   | { t: 'casino'; a: CasinoAction }
+  /** The night's drawing and the gallery: sending a drawing, a vote, asking for pictures, keeping a piece. */
+  | { t: 'gallery'; a: GalleryAction }
   /** The copies of books of profiles the Storyteller asked for. */
   | { t: 'backup'; copies: BackupCopy[] }
   /** Buying furniture for your flat, or laying it out. */

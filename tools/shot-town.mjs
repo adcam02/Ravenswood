@@ -20,6 +20,14 @@ while (Date.now() < end) {
 const HATFX = 'fox::trophy,bear::topper,penguin::tiara,frog::centurion,deer::crown,octopus::witch,capybara::mortarboard,kaiju::knight,snail::pumpkin,jellyfish::astronaut';
 const ALL = {
   'overview-day': 'wide&t=0&z=4&dist=70',
+  // From straight above, for finding room for something new.
+  'overview-top': 'x=0&z=0&t=0&dist=78&pitch=1.5',
+  // The night gallery by the post office, empty, with drawings up, and after the voting; and at night.
+  'gallery-empty': 'x=-7&z=17&t=0&dist=9&pitch=0.32&yaw=0.15',
+  'gallery-up': 'x=-7&z=17&t=0&dist=8&pitch=0.3&yaw=0.1&gallery=12',
+  'gallery-revealed': 'x=-7&z=17&t=0&dist=6.5&pitch=0.25&yaw=0&gallery=7&revealed',
+  'gallery-night': 'x=-7&z=17&t=1&dist=9&pitch=0.3&yaw=0.2&gallery=5',
+  'gallery-site': 'x=-5&z=14&t=0&dist=26&pitch=0.7&yaw=0.3&gallery=7',
   // Animals walking with their pets in tow, and standing still with the pets caught up.
   'pets-walk': 'x=0&z=6&t=0&dist=7&pitch=0.42&frames=32&walkers=fox:zapmouse,bear:dragon,otter:spirit,wolf:balldroid',
   'pets-stop': 'x=0&z=6&t=0&dist=7&pitch=0.42&frames=30&stop=12&walkers=raccoon:henchling,panda:cube,deer:arcade,frog:astrodroid&ghost',
@@ -194,6 +202,8 @@ const ALL = {
   'flats-lobby': 'zone=lobby&t=0',
   'flats-empty': 'zone=flat&t=0',
   'flats-demo': 'zone=flat&t=0&furnish=demo&wall=sage&floor=herring',
+  // Drawings from the night gallery hung in "Your art" frames.
+  'flats-art': 'zone=flat&t=0&art&wall=sage&floor=herring',
   'flats-all': 'zone=flat&t=0&furnish=all&wall=night&floor=checker&dist=14',
   // Night in a flat: the bedroom's things built in, the moon in the window, and the hooded figure at the bed.
   'flats-bedroom-night': 'zone=flat&night&t=1&furnish=demo&wall=mint&floor=walnut',

@@ -46,6 +46,7 @@ import {
   pathLamps,
   roadLamps,
   squareLamps,
+  GALLERY,
 } from './layout';
 import {
   IRON,
@@ -1824,6 +1825,16 @@ function blockers(): Blocker[] {
   return b;
 }
 
+/**
+ * Nothing stands between the night gallery's board and the camera of someone looking at it: a tree or a bush that
+ * would steps aside to the east or west (rather than not growing, which would move every one after it).
+ */
+function besideGallery(x: number, z: number): number {
+  const gx = x - GALLERY.x;
+  if (Math.abs(gx) < GALLERY.w / 2 + 0.8 && z > GALLERY.z - 0.5 && z < GALLERY.z + 7) return GALLERY.x + (gx < 0 ? -1 : 1) * (GALLERY.w / 2 + 1);
+  return x;
+}
+
 function free(x: number, z: number, list: Blocker[], margin: number, pathMargin: number): boolean {
   for (const b of list) if (Math.hypot(x - b.x, z - b.z) < b.r + margin) return false;
   if (nearPath(x, z, pathMargin)) return false;
@@ -2028,6 +2039,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   const block = blockers();
   const trees: Blocker[] = [];
   const placeTree = (x: number, z: number, collide: boolean) => {
+    if (collide) x = besideGallery(x, z);
     const p = painter(x, z, r() * Math.PI * 2);
     const kind = r();
     // Trees inside the fence get roots, branches and cones; the forest beyond keeps it simpler.
@@ -2140,7 +2152,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     if (!free(x, z, block, 0.6, 1.0)) continue;
     if (trees.some((t) => Math.hypot(t.x - x, t.z - z) < 1.6)) continue;
     const kind = r();
-    const p = painter(x, z, r() * 6);
+    const p = painter(besideGallery(x, z), z, r() * 6);
     if (kind < 0.16) bush(p, r, r() < 0.5);
     else if (kind < 0.34) flowerPatch(p, r);
     else if (kind < 0.42) rock(p, r, 0.6 + r() * 0.6);

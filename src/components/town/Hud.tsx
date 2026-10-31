@@ -18,10 +18,12 @@ import { CrashNote, Guard } from '../Guard';
 import { Icon } from '../Icon';
 import { BoostChip, MoneyPill } from './Money';
 import { shownName } from '../../state/nicks';
+import { watchGallery } from '../../gallery/client';
 // The minigames and the sheep load the first time they're needed, so the first visit downloads less.
 const JobGame = lazyPart(() => import('../../jobs').then((m) => m.JobGame));
 const SheepGame = lazyPart(() => import('./SheepGame').then((m) => m.SheepGame));
 const BedGames = lazyPart(() => import('./BedGames').then((m) => m.BedGames));
+const DrawPanel = lazyPart(() => import('./Draw').then((m) => m.DrawPanel));
 
 const ITEM_NAMES: Record<Item['k'], [string, string]> = {
   ale: ['🍺', 'an ale'],
@@ -231,7 +233,8 @@ export function ActionPrompt() {
   const prompt = useHud((s) => s.prompt);
   const job = useHud((s) => s.job);
   const bedMenu = useHud((s) => s.bedMenu);
-  if (!prompt || job || bedMenu) return null;
+  const draw = useHud((s) => s.draw);
+  if (!prompt || job || bedMenu || draw) return null;
   return (
     <button className={`action-prompt cosy-panel ${prompt.locked ? 'locked' : ''}`} onClick={() => !prompt.locked && game.interact()} disabled={prompt.locked}>
       {prompt.key && <span className="cosy-key">{prompt.key}</span>}
@@ -466,6 +469,27 @@ export function BedGamesLayer() {
     >
       <Suspense fallback={null}>
         <BedGames />
+      </Suspense>
+    </Guard>
+  );
+}
+
+/** In bed at night: drawing tonight's picture for the gallery. (Also watches for the drawing's moments by day.) */
+export function DrawLayer() {
+  const open = useHud((s) => s.draw);
+  const job = useHud((s) => s.job);
+  useEffect(() => watchGallery(), []);
+  if (!open || job) return null;
+  return (
+    <Guard
+      fallback={(e) => (
+        <div className="job-dock cosy">
+          <CrashNote error={e} close={() => useHud.setState({ draw: false })} />
+        </div>
+      )}
+    >
+      <Suspense fallback={null}>
+        <DrawPanel />
       </Suspense>
     </Guard>
   );

@@ -189,7 +189,9 @@ export function BedLetters() {
   const sheep = useHud((s) => s.sheep);
   const job = useHud((s) => s.job);
   const bedMenu = useHud((s) => s.bedMenu);
+  const draw = useHud((s) => s.draw);
   const visit = useHud((s) => s.visit);
+  const tonightArt = useClient((s) => s.priv?.gallery?.tonight ?? null);
   const awake = useClient((s) => Boolean(s.priv?.wake));
   const tonight = view.letters.filter((l) => l.night === view.day).length;
   const [read, setRead] = useState(readIds);
@@ -201,7 +203,7 @@ export function BedLetters() {
     const t = setInterval(() => setRead(readIds()), 1500);
     return () => clearInterval(t);
   }, []);
-  if (view.mode !== 'player' || view.phase !== 'night' || place !== 'Your bedroom' || sheep === 'playing' || job || bedMenu) return null;
+  if (view.mode !== 'player' || view.phase !== 'night' || place !== 'Your bedroom' || sheep === 'playing' || job || bedMenu || draw) return null;
   const fresh = view.letters.filter((l) => !read.has(l.id)).length;
   return (
     <div className="bed-buttons">
@@ -216,6 +218,11 @@ export function BedLetters() {
       {sheep && !visit && !awake && (
         <button className="cosy-btn" onClick={() => useHud.setState({ bedMenu: true })}>
           🎲 Pass the time
+        </button>
+      )}
+      {sheep && !visit && !awake && tonightArt && (
+        <button className={`cosy-btn ${tonightArt.sent ? '' : 'primary'}`} onClick={() => useHud.setState({ draw: true })}>
+          🎨 {tonightArt.sent ? 'Your drawing' : 'Draw'}
         </button>
       )}
     </div>

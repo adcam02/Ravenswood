@@ -46,6 +46,8 @@ export type Modal =
   | { kind: 'idea' }
   /** Storyteller: the ideas and requests players have posted. */
   | { kind: 'ideas' }
+  /** The night gallery: the drawings hanging there, the vote, and keeping your own. */
+  | { kind: 'gallery' }
   | null;
 
 export type Pick =

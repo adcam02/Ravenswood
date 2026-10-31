@@ -14,6 +14,7 @@ import { casinoFor, receiveCasino, startCasino, useCasino } from '../casino/host
 import { hatKey, isShopHat } from '../casino/shop';
 import { leadersNow } from '../game/leaders';
 import { flatFor, receiveFlats, startFlats, useFlats } from '../flats/host';
+import { galleryFor, receiveGallery, startGallery, useGallery } from '../gallery/host';
 import type { ClientMessage, HostMessage } from '../state/types';
 import { local, receiveItem } from '../game/local';
 import { presence } from '../game/presence';
@@ -132,6 +133,8 @@ class HostLink {
     startCasino(() => useHostNet.getState().online);
     // The apartment block's flats, furnished with it.
     startFlats();
+    // The night's drawings, and the gallery they hang in.
+    startGallery((player, p) => this.sendTo(player, { t: 'art', p }));
     if (peerDisabled()) useHostNet.setState({ status: 'reconnecting', detail: 'Using the backup route only.' });
     else this.openPeer();
     this.openMesh();
@@ -482,6 +485,9 @@ class HostLink {
       case 'flat':
         receiveFlats(pid, msg.a);
         break;
+      case 'gallery':
+        receiveGallery(pid, msg.a);
+        break;
     }
   }
 
@@ -522,6 +528,16 @@ class HostLink {
     if (hash) trustDevice(k.name, hash);
     const link = [...this.links].find(([l, m]) => m.playerId === playerId && l.isOpen())?.[0];
     if (link) this.seat(link, playerId, k.name, k.look);
+  }
+
+  /** A message for one player only, on whichever line they're on. */
+  sendTo(playerId: string, msg: HostMessage): boolean {
+    for (const [link, meta] of this.links) {
+      if (meta.playerId !== playerId || !link.isOpen()) continue;
+      link.send(msg);
+      return true;
+    }
+    return false;
   }
 
   /** Asks everyone here for every copy of the profiles they keep ("Restore from players"). */
@@ -726,7 +742,7 @@ class HostLink {
         meta.sentPublic = pubJson;
         link.send({ t: 'state', s: pub, now: Date.now(), v: __BUILD__ });
       }
-      const priv = { ...toPrivate(g, meta.playerId), profile: profileFor(meta.playerId), casino: casinoFor(meta.playerId), flat: flatFor(meta.playerId) };
+      const priv = { ...toPrivate(g, meta.playerId), profile: profileFor(meta.playerId), casino: casinoFor(meta.playerId), flat: flatFor(meta.playerId), gallery: galleryFor(meta.playerId) };
       const privJson = JSON.stringify(priv);
       if (privJson !== meta.sentPrivate) {
         meta.sentPrivate = privJson;
@@ -748,5 +764,6 @@ useProfiles.subscribe((s, prev) => {
 });
 useCasino.subscribe(() => hostLink.scheduleBroadcast());
 useFlats.subscribe(() => hostLink.scheduleBroadcast());
+useGallery.subscribe(() => hostLink.scheduleBroadcast());
 
 if (debugHooks()) Object.assign(window, { __host: useHost, __hostNet: useHostNet, __netStats: () => hostLink.stats() });

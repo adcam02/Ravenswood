@@ -44,6 +44,7 @@ import { TableCam } from './tablecam';
 import { CHAIR_Y, FELT_Y, PK_TABLE, RL_LOOK, SLOTS, bjSpot } from './town/casinoLayout';
 import type { CasinoView } from '../casino/types';
 import { decor, flatNav, flatNow, useDecor } from '../flats/client';
+import { galleryNow, useArt, wantArt } from '../gallery/client';
 import { useClient } from '../net/client';
 import { emptyLayout, whyNot } from '../flats/catalogue';
 import { shownName } from '../state/nicks';
@@ -368,6 +369,8 @@ export class Engine {
 
   private time = 0;
   private litAt = -1;
+  /** When the gallery's board was last brought up to date. */
+  private galleryAt = -1;
   private yaw = 0;
   /** Where the player has swung the camera round them by holding the right mouse button (and how far up or down). */
   private swing = { yaw: 0, pitch: 0, drag: null as { id: number; x: number; y: number } | null };
@@ -1645,7 +1648,7 @@ export class Engine {
   private interact() {
     if (!this.me || this.view?.paused || this.job || this.bedGame || this.frozen || this.dawn || this.pinned()) return;
     if (this.inBed) {
-      if (useHud.getState().sheep === 'offer' && !useHud.getState().bedMenu) useHud.setState({ sheep: 'playing' });
+      if (useHud.getState().sheep === 'offer' && !useHud.getState().bedMenu && !useHud.getState().draw) useHud.setState({ sheep: 'playing' });
       return;
     }
     const s = this.nearStation;
@@ -1707,6 +1710,8 @@ export class Engine {
       ui.open({ kind: 'jukebox' });
     } else if (s.job === 'leaders') {
       ui.open({ kind: 'leaders' });
+    } else if (s.job === 'gallery') {
+      ui.open({ kind: 'gallery' });
     } else if (s.job === 'ideas') {
       ui.open({ kind: v?.mode === 'st' ? 'ideas' : 'idea' });
     } else if (s.job === 'post') {
@@ -1786,6 +1791,18 @@ export class Engine {
     this.tableCam = new TableCam(this.renderer.domElement, eye, new THREE.Vector3(at.x, kind === 'slots' ? 1.15 : FELT_Y, at.z));
   }
 
+  /** The night gallery's board: what's hanging, with the pictures as they arrive (twice a second is plenty). */
+  private syncGallery(t: number, v: WorldView | null) {
+    if (!v || v.mode === 'preview' || t - this.galleryAt < 0.5) return;
+    this.galleryAt = t;
+    const show = galleryNow(v.mode)?.show;
+    const pieces = show?.pieces ?? [];
+    // Only once we're out in town (the pictures aren't needed before then).
+    if (zoneKind(local.zone) === 'town') wantArt(pieces.map((p) => p.id), v.mode);
+    const imgs = useArt.getState().imgs;
+    this.town.setGallery(show?.prompt ?? '', pieces.map((p) => ({ id: p.id, img: imgs[p.id], name: p.name, place: p.prize ? p.place : undefined })));
+  }
+
   /**
    * Wren Court: the flat on show (as decorated so far, while we're decorating ours), and its name. Leaving our flat
    * puts down whatever's in hand and stops decorating; leaving the lobby closes its list.
@@ -1803,10 +1820,16 @@ export class Engine {
     if (kind !== 'flat') return;
     const draft = shown?.mine ? useDecor.getState().draft : null;
     const held = draft ? useDecor.getState().held : null;
+    const layout = draft ?? shown?.layout ?? emptyLayout();
+    // The drawings in any "Your art" frames (and the one in hand), asked for as they're needed.
+    const artIds = [...layout.items, ...(held ? [held.item] : [])].map((it) => it.art).filter((id): id is string => Boolean(id));
+    if (artIds.length) wantArt(artIds, mode);
+    const imgs = useArt.getState().imgs;
     this.town.setFlat({
-      layout: draft ?? shown?.layout ?? emptyLayout(),
+      layout,
       held: draft && held ? { ...held, ok: !whyNot(draft.items, held.item, held.index) } : null,
       grid: Boolean(draft),
+      art: Object.fromEntries(artIds.map((id) => [id, imgs[id]])),
     });
     // At night it's somebody's bedroom (the letters and the music in bed go by the place's name).
     const night = Boolean(v?.started && v.phase === 'night');
@@ -2000,6 +2023,8 @@ export class Engine {
   private closeBedGame() {
     this.finishBedGame(undefined, true);
     if (useHud.getState().bedMenu) useHud.setState({ bedMenu: false });
+    // (The drawing is kept as it was, to carry on with later.)
+    if (useHud.getState().draw) useHud.setState({ draw: false });
   }
 
   private goTo(key: string) {
@@ -2141,6 +2166,7 @@ export class Engine {
     this.updateOthers(dt, t, v);
     this.syncCasino(v);
     this.syncFlats(v);
+    this.syncGallery(t, v);
     this.updateCamera(dt, t);
     this.fadeOccluders(dt);
     this.town.follow(this.camTarget.x, this.camTarget.z);

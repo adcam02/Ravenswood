@@ -64,8 +64,11 @@ function buy(player: string, id: string) {
 function arrange(player: string, raw: unknown) {
   const seat = gameSeat(player);
   if (!seat || zoneOf(seat.id) !== flatZone(nameKey(seat.name))) return;
+  // A frame can only hold one of their own kept drawings.
+  const kept = new Set((profileOf({ name: seat.name })?.art ?? []).map((a) => a.id));
   changeFlat({ name: seat.name }, (f) => {
     const next = cleanLayout(raw, f.owned, f.finishes);
+    for (const it of next.items) if (it.art && !kept.has(it.art)) delete it.art;
     if (JSON.stringify(next) === JSON.stringify(f.layout)) return false;
     f.layout = next;
   });

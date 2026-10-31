@@ -152,6 +152,11 @@ export const NOTICEBOARD = { x: 3.2, z: -13.6 };
  * front faces the road), with a red pillar box beside it.
  */
 export const POST = { x: -3.1, z: 16.6, ry: Math.PI / 2 };
+/**
+ * The night gallery: an open-air picture board on the grass between the washhouse and the post office, facing the
+ * camera (south), where each night's drawings hang the next day. `w` is the board's width.
+ */
+export const GALLERY = { x: -7.0, z: 16.4, ry: 0, w: 5.0 };
 /** A ring of toadstools out among the trees past the washing lines, for anyone who goes looking. Stand in it. */
 export const FAIRY_RING = { x: -17.8, z: 25.4, r: 0.95 };
 export const POST_COLS = 6;
@@ -577,6 +582,8 @@ export function makeStations(): Station[] {
     const stand = local(POST.x, POST.z, POST.ry, 0, 0.85);
     st.push({ id: 'post', zone: 'town', x: at.x, z: at.z, r: 1.5, job: 'post', stand: { ...stand, ry: POST.ry + Math.PI }, label: 'Write a letter' });
   }
+  // In front of the gallery's board: look at the night's drawings, and vote.
+  st.push({ id: 'gallery', zone: 'town', x: GALLERY.x, z: GALLERY.z + 1.3, r: 1.8, job: 'gallery', stand: { x: GALLERY.x, z: GALLERY.z + 1.3, ry: Math.PI }, label: 'Look at the drawings' });
   st.push({ id: 'ideas', zone: 'town', x: IDEA_BOX.x, z: IDEA_BOX.z + 1.0, r: 1.4, job: 'ideas', stand: { x: IDEA_BOX.x, z: IDEA_BOX.z + 0.9, ry: Math.PI }, label: 'Post an idea for the Storyteller' });
   st.push({ id: 'notice', zone: 'town', x: NOTICEBOARD.x, z: NOTICEBOARD.z + 1.1, r: 1.6, job: 'notice', stand: { x: NOTICEBOARD.x, z: NOTICEBOARD.z + 1.0, ry: Math.PI }, label: 'Read the noticeboard' });
   benches.forEach((b, i) =>
@@ -668,6 +675,7 @@ export function townColliders(extra: Collider[]): Collider[] {
   c.push({ kind: 'box', x: GALLOWS.x, z: GALLOWS.z, hw: 1.5, hd: 1.5, rot: GALLOWS.ry });
   c.push({ kind: 'box', x: NOTICEBOARD.x, z: NOTICEBOARD.z, hw: 1.0, hd: 0.25, rot: 0 });
   c.push(box(POST, 1.3, 0.32));
+  c.push(box(GALLERY, GALLERY.w / 2 + 0.25, 0.22));
   const pillar = local(POST.x, POST.z, POST.ry, 1.75, 0.05);
   c.push({ kind: 'circle', x: pillar.x, z: pillar.z, r: 0.3 });
   for (const sx of [-1, 1]) c.push({ kind: 'circle', x: sx * 2.6, z: GATE_Z, r: 0.35 });
@@ -807,6 +815,7 @@ export function whereIs(zone: string, x: number, z: number): string {
   if (Math.hypot(x, z) < SQUARE_R) return 'in the town square';
   if (pondContains(x, z, -2.5)) return 'by the pond';
   if (near(POST, 3.2)) return 'at the post office';
+  if (near(GALLERY, 3.2)) return 'at the gallery';
   if (near(GALLOWS, 3.5)) return 'by the gallows';
   if (near(WELL, 3)) return 'at the well';
   if (near(NOTICEBOARD, 2.5)) return 'at the noticeboard';

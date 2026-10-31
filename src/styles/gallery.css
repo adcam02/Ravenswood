@@ -1,0 +1,355 @@
+/* The night's drawing (draw-) and the gallery by the post office (gallery-). */
+
+.draw-dock {
+  width: min(820px, calc(100vw - 20px));
+}
+
+.draw-prompt {
+  font-size: 1.25rem;
+}
+
+.draw-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  gap: 12px;
+  align-items: start;
+}
+
+.draw-paper {
+  display: grid;
+  place-items: center;
+  background: var(--cosy-bg-2);
+  border-radius: 14px;
+  padding: 6px;
+}
+
+.draw-canvas {
+  display: block;
+  /* As big as fits: the panel's width, or the screen's height less the panel's header and footer. */
+  width: min(100%, calc((100dvh - 210px) * 4 / 3));
+  aspect-ratio: 4 / 3;
+  height: auto;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 2px 0 rgba(90, 68, 52, 0.25);
+  touch-action: none;
+  cursor: crosshair;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.draw-canvas.tool-fill {
+  cursor: cell;
+}
+
+.draw-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.draw-colours {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.draw-swatch {
+  aspect-ratio: 1;
+  border-radius: 10px;
+  border: 3px solid rgba(90, 68, 52, 0.2);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.08s ease;
+}
+
+.draw-swatch.on {
+  border-color: var(--cosy-accent);
+  transform: scale(1.12);
+  box-shadow: 0 0 0 2px #fff inset;
+}
+
+.draw-row {
+  display: flex;
+  gap: 6px;
+}
+
+.draw-size,
+.draw-tool {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 40px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--cosy-bg-2);
+  color: var(--cosy-ink);
+  font-family: var(--cosy-font);
+  font-size: 1.1rem;
+  cursor: pointer;
+  box-shadow: 0 3px 0 rgba(90, 68, 52, 0.18);
+}
+
+.draw-tool span {
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.draw-tool:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.draw-size span {
+  display: block;
+  border-radius: 50%;
+}
+
+.draw-size.on,
+.draw-tool.on {
+  background: #ffe2c9;
+  box-shadow: 0 0 0 3px var(--cosy-accent) inset;
+}
+
+.draw-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.draw-note {
+  flex: 1;
+  font-size: 0.88rem;
+  color: var(--cosy-ink-soft);
+}
+
+.draw-note.bad {
+  color: var(--cosy-red);
+}
+
+@media (max-width: 640px) {
+  .draw-body {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .draw-canvas {
+    width: min(100%, calc((100dvh - 330px) * 4 / 3));
+  }
+  .draw-colours {
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+  }
+  .draw-swatch {
+    border-radius: 8px;
+    border-width: 2px;
+  }
+  .draw-tools {
+    gap: 6px;
+  }
+  .draw-tools .draw-row {
+    min-width: 0;
+  }
+  /* Sizes, tools and undo side by side in two rows. */
+  .draw-tools {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+  .draw-colours {
+    grid-column: 1 / -1;
+  }
+  .draw-tools .draw-row:last-child {
+    grid-column: 1 / -1;
+  }
+  .draw-size,
+  .draw-tool {
+    min-height: 36px;
+    font-size: 1rem;
+  }
+  .draw-tool span {
+    display: none;
+  }
+  .draw-prompt {
+    font-size: 1.05rem;
+  }
+  .draw-foot {
+    margin-top: 8px;
+  }
+  .draw-note {
+    font-size: 0.78rem;
+  }
+  /* In bed, the buttons wrap rather than run off a narrow screen. */
+  .bed-buttons {
+    flex-wrap: wrap;
+    justify-content: center;
+    white-space: normal;
+    width: calc(100vw - 24px);
+  }
+}
+
+/* ---------------------------------------------------------------- the gallery */
+
+.gallery-modal .modal-body {
+  padding-top: 4px;
+}
+
+.gallery-prompt {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+}
+
+.gallery-prompt strong {
+  font-size: 1.15rem;
+}
+
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.gallery-piece {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 14px;
+  background: #f3e6cf;
+  border: 3px solid #c9a46a;
+  box-shadow: 0 3px 0 rgba(90, 68, 52, 0.2);
+}
+
+.gallery-piece.voted {
+  border-color: var(--cosy-accent);
+  background: #ffe9d6;
+}
+
+.gallery-piece.mine {
+  border-style: dashed;
+}
+
+.gallery-pic {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 6px;
+  background: #fff;
+  object-fit: contain;
+  display: grid;
+  place-items: center;
+  color: var(--cosy-ink-soft);
+  font-size: 0.85rem;
+}
+
+.gallery-pic.big {
+  cursor: zoom-in;
+}
+
+.gallery-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 34px;
+  font-size: 0.9rem;
+}
+
+.gallery-caption .cosy-btn {
+  padding: 0.4em 0.9em;
+  font-size: 0.85rem;
+}
+
+.gallery-ribbon {
+  position: absolute;
+  top: -10px;
+  right: -8px;
+  font-size: 1.9rem;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.2));
+}
+
+.gallery-empty {
+  padding: 18px;
+  text-align: center;
+  color: var(--cosy-ink-soft);
+}
+
+.gallery-st {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 2px dashed var(--cosy-line);
+  font-size: 0.9rem;
+}
+
+.gallery-note {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+}
+
+.gallery-note.bad {
+  color: var(--cosy-red);
+}
+
+.gallery-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: rgba(20, 14, 10, 0.75);
+  cursor: zoom-out;
+}
+
+.gallery-zoom img {
+  width: min(92vw, calc(88vh * 4 / 3));
+  border-radius: 10px;
+  border: 10px solid #c9a46a;
+  background: #fff;
+}
+
+@media (max-width: 520px) {
+  .gallery-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .gallery-caption {
+    flex-wrap: wrap;
+    font-size: 0.8rem;
+  }
+}
+
+/* ---------------------------------------------------------------- choosing a picture for a frame in the flat */
+
+.art-pick {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.art-pick button {
+  padding: 3px;
+  border-radius: 8px;
+  border: 3px solid transparent;
+  background: var(--cosy-bg-2);
+  cursor: pointer;
+}
+
+.art-pick button.on {
+  border-color: var(--cosy-accent);
+}
+
+.art-pick img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: 4px;
+  background: #fff;
+}

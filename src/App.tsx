@@ -100,6 +100,7 @@ import {
   PlaceChip,
   SheepLayer,
   BedGamesLayer,
+  DrawLayer,
   VisitCard,
   VoiceDock,
   WorldFailed,
@@ -336,6 +337,7 @@ function Player({ room }: { room: string }) {
               <JobLayer />
               <SheepLayer />
               <BedGamesLayer />
+              <DrawLayer />
               <BedLetters />
               <VisitCard />
               <PigeonNote />

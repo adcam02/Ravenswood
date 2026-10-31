@@ -54,6 +54,8 @@ interface Hud {
   visit: 'playing' | 'dark' | null;
   /** In bed at night: the "Pass the time" menu of minigames is open. */
   bedMenu: boolean;
+  /** In bed at night: drawing tonight's picture for the gallery. */
+  draw: boolean;
   /** Something eaten or drunk lately: a little quicker on your feet until `until` (Date.now()), `mul` times as fast. */
   boost: { until: number; mul: number; kind: 'drink' | 'food' } | null;
   /** A messenger pigeon has just landed on our shoulder: who sent it and where they are. */
@@ -82,6 +84,7 @@ export const useHud = create<Hud>(() => ({
   drama: false,
   visit: null,
   bedMenu: false,
+  draw: false,
   boost: null,
   pigeon: null,
   dawnReel: null,

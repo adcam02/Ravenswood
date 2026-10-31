@@ -74,9 +74,35 @@ if (zone === 'flat') {
       { id: 'mirror', x: 19, z: 10, r: 3 },
     );
   }
+  // ?art: drawings from the night gallery in "Your art" frames, on the back wall and the left one.
+  const art: Record<string, string> = {};
+  if (q.has('art')) {
+    [
+      { x: 0, z: 0, r: 0 },
+      { x: 0, z: 4, r: 1 },
+      { x: 0, z: 9, r: 1 },
+    ].forEach((at, i) => {
+      const c = document.createElement('canvas');
+      c.width = 480;
+      c.height = 360;
+      const g = c.getContext('2d')!;
+      g.fillStyle = ['#7fd0f0', '#fff', '#ffd23f'][i];
+      g.fillRect(0, 0, 480, 360);
+      g.lineCap = 'round';
+      for (let k = 0; k < 5; k++) {
+        g.strokeStyle = ['#e0403a', '#2f6fd0', '#2f8a46', '#9a5fd0', '#1f1a17'][(i + k) % 5];
+        g.lineWidth = 8 + k * 4;
+        g.beginPath();
+        g.arc(140 + k * 50, 120 + ((k * 37 + i * 50) % 140), 40 + k * 8, 0, Math.PI * 1.4);
+        g.stroke();
+      }
+      art[`art${i}`] = c.toDataURL('image/png');
+      items.push({ id: 'myart', ...at, art: `art${i}` });
+    });
+  }
   const held = q.get('held');
   const spot = held ? freeSpot(items, held) : null;
-  town.setFlat({ layout: { wall: q.get('wall') ?? 'cream', floor: q.get('floor') ?? 'oak', items }, held: spot ? { item: spot, index: -1, ok: true } : null, grid: q.has('grid') || Boolean(held) });
+  town.setFlat({ layout: { wall: q.get('wall') ?? 'cream', floor: q.get('floor') ?? 'oak', items }, held: spot ? { item: spot, index: -1, ok: true } : null, grid: q.has('grid') || Boolean(held), art });
 }
 
 // ?door=tavern-in: that door held wide open (as when someone goes in), and the camera on it unless x, z say otherwise.
@@ -125,6 +151,29 @@ town.setTown(state, now);
 town.setHouses(Array.from({ length: 20 }, (_, i) => (i < 6 ? { name: ['Abbey', 'Colter', 'Steele', 'Jarrod', 'Mika', 'Theo'][i], dead: i === 1 } : null)));
 town.setHomeOwner('Abbey');
 town.setGraves(['Colter', 'Mika']);
+// ?gallery=7 hangs that many made-up drawings in the night gallery (?revealed names them, with the top three).
+if (q.has('gallery')) {
+  const n = num('gallery', 7);
+  const names = ['Abbey', 'Ben', 'Cara', 'Dev', 'Ellie', 'Finn', 'Gus', 'Hana', 'Ivy', 'Jo', 'Kit', 'Lou', 'Max', 'Ned', 'Ola'];
+  const pieces = Array.from({ length: n }, (_, i) => {
+    const c = document.createElement('canvas');
+    c.width = 480;
+    c.height = 360;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#fff';
+    g.fillRect(0, 0, 480, 360);
+    g.lineCap = 'round';
+    for (let k = 0; k < 6; k++) {
+      g.strokeStyle = ['#e0403a', '#2f6fd0', '#7ccf5a', '#ffd23f', '#9a5fd0', '#1f1a17'][(i + k) % 6];
+      g.lineWidth = 6 + ((i * 7 + k * 5) % 20);
+      g.beginPath();
+      g.arc(120 + ((i * 53 + k * 71) % 260), 90 + ((i * 37 + k * 43) % 180), 30 + ((i + k) % 5) * 14, 0, Math.PI * (1 + (k % 3) * 0.5));
+      g.stroke();
+    }
+    return { id: `p${i}`, img: c.toDataURL('image/png'), name: q.has('revealed') ? names[i % names.length] : undefined, place: q.has('revealed') && i < 3 ? i + 1 : undefined };
+  });
+  town.setGallery('A cat in a top hat', pieces);
+}
 if (q.has('meeting')) town.setMeeting({ n: 8, nominee: 2, nominator: 6, hand: 4, active: true, votes: [0, 4, 6] });
 if (q.has('bell')) town.bellRing();
 // ?curtains: every confession booth's curtains drawn (as when someone sits on each side).

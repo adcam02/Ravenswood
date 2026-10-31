@@ -1,3 +1,5 @@
+import { ART_ID } from '../gallery/types';
+
 /**
  * Wren Court, the apartment block: every player has a flat in it, under the name their profile is kept by, which they
  * furnish with things bought with their money. This is the furniture shop's catalogue, the grid a flat is laid out
@@ -11,6 +13,8 @@
  */
 
 export const CELL = 0.5;
+/** The frame that holds one of the owner's own drawings. */
+export const ART_PIECE = 'myart';
 export const COLS = 20;
 export const ROWS = 16;
 /** Half the room's width and depth, in metres (it's centred on 0,0, like every room). */
@@ -106,6 +110,8 @@ export const PIECES: Piece[] = [
   P('portrait', 'Portrait', '👑', 25, 'wall', 2, 1),
   P('neon', 'Neon heart', '💖', 40, 'wall', 2, 1),
   P('trophies', 'Trophy shelf', '🏆', 45, 'wall', 3, 1),
+  // A frame for one of your own drawings from the night gallery (FlatItem.art says which).
+  P('myart', 'Your art', '🎨', 5, 'wall', 2, 1),
 ];
 
 export const SHELVES: { id: Shelf; name: string }[] = [
@@ -171,6 +177,8 @@ export interface FlatItem {
   x: number;
   z: number;
   r: number;
+  /** A "Your art" frame: which of the owner's kept drawings is in it (an id from Profile.art). */
+  art?: string;
 }
 
 export interface FlatLayout {
@@ -283,7 +291,7 @@ export function snapToWall(piece: Piece, cx: number, cz: number): FlatItem {
 export function centreOn(it: FlatItem, cx: number, cz: number): FlatItem {
   const piece = pieceById(it.id);
   if (!piece) return it;
-  if (piece.kind === 'wall') return { ...snapToWall(piece, cx, cz), id: it.id };
+  if (piece.kind === 'wall') return { ...snapToWall(piece, cx, cz), id: it.id, ...(it.art ? { art: it.art } : {}) };
   const [w, d] = it.r % 2 ? [piece.d, piece.w] : [piece.w, piece.d];
   return { ...it, x: Math.max(0, Math.min(COLS - w, cx - Math.floor((w - 1) / 2))), z: Math.max(0, Math.min(ROWS - d, cz - Math.floor((d - 1) / 2))) };
 }
@@ -357,7 +365,9 @@ export function cleanLayout(raw: unknown, owned: Record<string, number>, finishe
   const used: Record<string, number> = {};
   for (const x of Array.isArray(r.items) ? r.items.slice(0, MAX_PLACED * 2) : []) {
     if (items.length >= MAX_PLACED || !x || typeof x !== 'object') continue;
-    const it = { id: String((x as FlatItem).id), x: whole((x as FlatItem).x, COLS), z: whole((x as FlatItem).z, ROWS), r: whole((x as FlatItem).r, 3) };
+    const it: FlatItem = { id: String((x as FlatItem).id), x: whole((x as FlatItem).x, COLS), z: whole((x as FlatItem).z, ROWS), r: whole((x as FlatItem).r, 3) };
+    const art = (x as FlatItem).art;
+    if (it.id === ART_PIECE && typeof art === 'string' && ART_ID.test(art)) it.art = art;
     if ((used[it.id] ?? 0) >= (owned[it.id] ?? 0)) continue;
     if (whyNot(items, it)) continue;
     used[it.id] = (used[it.id] ?? 0) + 1;

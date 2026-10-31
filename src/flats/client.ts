@@ -138,6 +138,11 @@ export const decor = {
     set({ draft: next, held: null, hint: null });
     send(next);
   },
+  /** Which of our kept drawings goes in the "Your art" frame in hand. */
+  setArt(id: string) {
+    const { held } = useDecor.getState();
+    if (held) set({ held: { ...held, item: { ...held.item, art: id } }, hint: null });
+  },
   /** Back into storage. */
   putAway() {
     const { draft, held } = useDecor.getState();

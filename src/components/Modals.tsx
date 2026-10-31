@@ -26,6 +26,7 @@ import { ProfilesModal } from './Profiles';
 import { JukeboxModal } from './Club';
 import { LeadersModal } from './Leaders';
 import { IdeaModal, IdeasModal } from './Ideas';
+import { GalleryModal } from './Gallery';
 import { EndGameSetting, RecapModal } from './GameOver';
 import { useProblems } from '../lib/report';
 import { ReminderToken, Token } from './Token';
@@ -93,6 +94,8 @@ export function Modals() {
       return <IdeaModal />;
     case 'ideas':
       return <IdeasModal />;
+    case 'gallery':
+      return <GalleryModal />;
   }
 }
 

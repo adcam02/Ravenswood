@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FLOORS, PIECES, SHELVES, WALLS, countPlaced, pieceById, whyNot, type Finish, type FlatView, type Shelf } from '../../flats/catalogue';
+import { ART_PIECE, FLOORS, PIECES, SHELVES, WALLS, countPlaced, pieceById, whyNot, type Finish, type FlatView, type Shelf } from '../../flats/catalogue';
 import { decor, flatNav, useDecor, useDirectory, useFlatView } from '../../flats/client';
 import { useHud } from '../../game/hud';
 import { local } from '../../game/local';
@@ -9,6 +9,8 @@ import { hostNow } from '../../casino/client';
 import { nickFor, shownName, useNicks } from '../../state/nicks';
 import { useView } from '../../state/view';
 import { flatOwner } from '../../world/types';
+import { useArtImage } from '../../gallery/client';
+import { useClient } from '../../net/client';
 import '../../styles/flats.css';
 
 /**
@@ -195,6 +197,7 @@ function Holding() {
         <strong>{piece?.name}</strong>
         <span className={`flat-fit ${why ? 'bad' : 'ok'}`}>{hint ?? why ?? 'Fits here'}</span>
       </div>
+      {held.item.id === ART_PIECE && <ArtChoice chosen={held.item.art} />}
       <div className="flat-pad" aria-label="Move it">
         <button className="cosy-btn small" onClick={() => decor.nudge(-1, 0)} aria-label="Left">
           ◀
@@ -226,6 +229,33 @@ function Holding() {
         </button>
       </div>
     </div>
+  );
+}
+
+/** For a "Your art" frame: which of our kept drawings goes in it. */
+function ArtChoice({ chosen }: { chosen?: string }) {
+  const saved = useClient((s) => s.priv?.gallery?.saved);
+  const list = useMemo(() => [...(saved ?? [])].reverse(), [saved]);
+  // The newest goes in to start with.
+  useEffect(() => {
+    if (!chosen && list.length) decor.setArt(list[0].id);
+  }, [chosen, list]);
+  if (!list.length) return <p className="flat-hint">Keep one of your drawings from the night gallery to hang it here.</p>;
+  return (
+    <div className="art-pick" aria-label="Which drawing">
+      {list.map((a) => (
+        <ArtThumb key={a.id} id={a.id} prompt={a.prompt} on={a.id === chosen} />
+      ))}
+    </div>
+  );
+}
+
+function ArtThumb({ id, prompt, on }: { id: string; prompt: string; on: boolean }) {
+  const img = useArtImage(id, 'player');
+  return (
+    <button className={on ? 'on' : ''} title={prompt} onClick={() => decor.setArt(id)}>
+      {img ? <img src={img} alt={prompt} /> : <img alt="" />}
+    </button>
   );
 }
 
