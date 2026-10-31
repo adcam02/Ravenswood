@@ -15,17 +15,17 @@ import type { GraveDesign, GravePlate } from './stools';
 const X = new THREE.Vector3(1, 0, 0);
 
 /** A matrix at `pos`, turned by Euler angles. */
-const at = (pos: Vec3, rot: Vec3 = [0, 0, 0], s = 1) => new THREE.Matrix4().compose(new THREE.Vector3(...pos), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)), new THREE.Vector3(s, s, s));
+export const at = (pos: Vec3, rot: Vec3 = [0, 0, 0], s = 1) => new THREE.Matrix4().compose(new THREE.Vector3(...pos), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)), new THREE.Vector3(s, s, s));
 
 /** The faces of a box of size w, h, d centred at c: a frame on each with +z pointing out (four sides, then the top). */
-function boxFaces(c: Vec3, w: number, h: number, d: number, top = true): THREE.Matrix4[] {
+export function boxFaces(c: Vec3, w: number, h: number, d: number, top = true): THREE.Matrix4[] {
   const f = [at([c[0], c[1], c[2] + d / 2]), at([c[0] + w / 2, c[1], c[2]], [0, Math.PI / 2, 0]), at([c[0], c[1], c[2] - d / 2], [0, Math.PI, 0]), at([c[0] - w / 2, c[1], c[2]], [0, -Math.PI / 2, 0])];
   if (top) f.push(at([c[0], c[1] + h / 2, c[2]], [-Math.PI / 2, 0, 0]));
   return f;
 }
 
 /** Little square pixels from rows of '#' (top row first), centred on the frame's origin, facing its +z. */
-function pixels(b: Builder, rows: string[], color: string, px: number, m: THREE.Matrix4, depth = px * 0.5) {
+export function pixels(b: Builder, rows: string[], color: string, px: number, m: THREE.Matrix4, depth = px * 0.5) {
   const w = Math.max(...rows.map((r) => r.length));
   rows.forEach((row, r) => {
     for (let c = 0; c < row.length; c++) {
@@ -39,7 +39,7 @@ function pixels(b: Builder, rows: string[], color: string, px: number, m: THREE.
 }
 
 /** A tiny pixel font, just the letters wanted. */
-const FONT: Record<string, string[]> = {
+export const FONT: Record<string, string[]> = {
   G: ['###', '#..', '#.#', '#.#', '###'],
   A: ['.#.', '#.#', '###', '#.#', '#.#'],
   M: ['#...#', '##.##', '#.#.#', '#...#', '#...#'],
@@ -63,7 +63,7 @@ function pixelText(b: Builder, text: string, color: string, px: number, m: THREE
 }
 
 /** A heart in the xy plane facing +z, `s` across. */
-function heart(b: Builder, color: string, s: number, m: THREE.Matrix4, depth = 0.01) {
+export function heart(b: Builder, color: string, s: number, m: THREE.Matrix4, depth = 0.01) {
   b.add(G.box(), color, { pos: [0, -0.12 * s, depth / 2], rot: [0, 0, Math.PI / 4], scale: [0.62 * s, 0.62 * s, depth] }, m);
   for (const x of [-1, 1]) b.add(G.cyl(12), color, { pos: [x * 0.22 * s, 0.12 * s, depth / 2], rot: [Math.PI / 2, 0, 0], scale: [0.3 * s, depth, 0.3 * s] }, m);
 }
@@ -79,15 +79,15 @@ function ghostBody(b: Builder, color: string, r: number, y0: number, h: number, 
 }
 
 /** A low slab leaning back in front of a gravestone, for its name when the stone itself has no flat face for it. */
-function plaque(b: Builder, color: string, z: number, w = 0.44, h = 0.2) {
+export function plaque(b: Builder, color: string, z: number, w = 0.44, h = 0.2) {
   b.add(G.box(), color, { pos: [0, 0.1, z], rot: [-0.2, 0, 0], scale: [w, h, 0.05] });
 }
 /** The plate on a plaque(). */
-const plateOf = (color: string, z: number, fg: string, w = 0.44, h = 0.2): GravePlate => ({ y: 0.1, z: z + 0.032, w: w - 0.04, h: h - 0.03, bg: color, fg, tilt: 0.2 });
+export const plateOf = (color: string, z: number, fg: string, w = 0.44, h = 0.2): GravePlate => ({ y: 0.1, z: z + 0.032, w: w - 0.04, h: h - 0.03, bg: color, fg, tilt: 0.2 });
 
 /** A flat shape (in x and y) pushed `depth` deep along z, made once. */
 const flats = new Map<string, THREE.BufferGeometry>();
-function flat(key: string, depth: number, draw: (s: THREE.Shape) => void, segs = 12): THREE.BufferGeometry {
+export function flat(key: string, depth: number, draw: (s: THREE.Shape) => void, segs = 12): THREE.BufferGeometry {
   let g = flats.get(key);
   if (!g) {
     const s = new THREE.Shape();
@@ -149,7 +149,7 @@ function pineappleBody(b: Builder, r: number, h: number) {
 }
 
 /** A big flat-topped tyre or ring standing upright in the xy plane at c. */
-const ring = (b: Builder, color: string, c: Vec3, r: number, tube: number, rot: Vec3 = [0, 0, 0]) => b.add(G.torus(tube, 6, 18), color, { pos: c, rot, scale: r });
+export const ring = (b: Builder, color: string, c: Vec3, r: number, tube: number, rot: Vec3 = [0, 0, 0]) => b.add(G.torus(tube, 6, 18), color, { pos: c, rot, scale: r });
 
 // ---------------------------------------------------------------- the stools
 

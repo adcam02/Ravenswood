@@ -5,6 +5,7 @@ import { G } from './kit';
 import { signBoard, TextSign } from './sign';
 import { arc, bulge, domeSpots, halfDisc, hex, hexTip, rod, up } from './stoolBits';
 import { POP_GRAVE_PAINT, POP_STOOL_PAINT } from './stools2';
+import { GAG_GRAVE_PAINT, GAG_STOOL_PAINT } from './stools3';
 
 /**
  * The stools round the dais and the gravestones in the churchyard: the plain ones and every design sold at the
@@ -434,6 +435,8 @@ const STOOL_PAINT: Record<'log' | StoolId, (b: Builder) => void> = {
     b.add(G.sphere(6, 4), '#d8202a', { pos: [0, 1.48, -0.195], scale: 0.025 });
   },  // The lily pad and the ones from films and games (stools2.ts).
   ...POP_STOOL_PAINT,
+  // The gags (stools3.ts).
+  ...GAG_STOOL_PAINT,
 };
 
 const stoolGeos = new Map<string, THREE.BufferGeometry>();
@@ -637,6 +640,8 @@ const GRAVE_PAINT: Record<'plain' | GraveId, GraveDesign> = {
     plate: { y: 0.98, z: 0.355, w: 0.74, h: 0.13, bg: '#c8c2b4', fg: '#3a3630' },
   },  // The ones from films and games (stools2.ts).
   ...POP_GRAVE_PAINT,
+  // The gags (stools3.ts).
+  ...GAG_GRAVE_PAINT,
 };
 
 const graveGeos = new Map<string, { main: THREE.BufferGeometry; glow: THREE.BufferGeometry | null }>();

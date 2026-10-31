@@ -3,10 +3,11 @@
  * and one for your gravestone in the churchyard when you die (with a line on it, if you like). Bought as 'stool:<id>'
  * and 'grave:<id>' (see casino/shop.ts), chosen in the Shop or Customise, and kept on your look so everyone sees
  * them. The shapes themselves are in town/stools.ts; this is just the names and prices, so it's light to import.
- * The ones from films and games are in stoolShop2.ts, after the rest.
+ * The ones from films and games are in stoolShop2.ts, after the rest, and the gags in stoolShop3.ts after those.
  */
 
 import { POP_GRAVES, POP_STOOLS, type PopGraveId, type PopStoolId } from './stoolShop2';
+import { GAG_GRAVES, GAG_STOOLS, type GagGraveId, type GagStoolId } from './stoolShop3';
 
 export type StoolId =
   | 'milking'
@@ -40,7 +41,8 @@ export type StoolId =
   | 'egg'
   | 'throne'
   | 'lilypad'
-  | PopStoolId;
+  | PopStoolId
+  | GagStoolId;
 
 /** Cheapest first. */
 export const STOOLS: { id: StoolId; name: string; icon: string; price: number }[] = [
@@ -76,9 +78,10 @@ export const STOOLS: { id: StoolId; name: string; icon: string; price: number }[
   { id: 'egg', name: 'Dragon egg', icon: '🥚', price: 130 },
   { id: 'throne', name: 'Throne', icon: '👑', price: 160 },
   ...POP_STOOLS,
+  ...GAG_STOOLS,
 ];
 
-export type GraveId = 'cartoon' | 'skull' | 'catstone' | 'obelisk' | 'celtic' | 'tablet' | 'pyramid' | 'angel' | 'crystal' | 'mausoleum' | PopGraveId;
+export type GraveId = 'cartoon' | 'skull' | 'catstone' | 'obelisk' | 'celtic' | 'tablet' | 'pyramid' | 'angel' | 'crystal' | 'mausoleum' | PopGraveId | GagGraveId;
 
 /** Cheapest first. */
 export const GRAVES: { id: GraveId; name: string; icon: string; price: number }[] = [
@@ -93,6 +96,7 @@ export const GRAVES: { id: GraveId; name: string; icon: string; price: number }[
   { id: 'crystal', name: 'Glowing crystal', icon: '🔮', price: 90 },
   { id: 'mausoleum', name: 'Mausoleum', icon: '🏛️', price: 140 },
   ...POP_GRAVES,
+  ...GAG_GRAVES,
 ];
 
 export const stoolKey = (id: StoolId) => `stool:${id}`;
