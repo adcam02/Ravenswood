@@ -1,3 +1,4 @@
+import { joiner, sendBig } from './big';
 import Peer, { type DataConnection } from 'peerjs';
 import { create } from 'zustand';
 import { setCustomRoles } from '../data';
@@ -194,10 +195,12 @@ class ClientLink {
       this.resendJoin(true);
       this.flushOutbox();
     });
+    const join = joiner();
     conn.on('data', (raw) => {
       if (this.conn !== conn) return;
       this.lastPong = Date.now();
-      this.receive(raw as HostMessage);
+      const msg = join(raw);
+      if (msg) this.receive(msg as HostMessage);
     });
     const lost = () => {
       if (this.conn !== conn) return;
@@ -390,7 +393,8 @@ class ClientLink {
   private deliver(msg: ClientMessage) {
     try {
       if (this.conn?.open) {
-        this.conn.send(msg);
+        const conn = this.conn;
+        sendBig((m) => conn.send(m), msg);
         return true;
       }
       if (this.mesh && this.meshHost) {

@@ -1,3 +1,4 @@
+import { joiner, sendBig } from './big';
 import { debugHooks } from '../lib/util';
 import { steadyInterval } from '../lib/ticker';
 import { noteProblem } from '../lib/report';
@@ -246,9 +247,11 @@ class HostLink {
   }
 
   private acceptPeer(conn: DataConnection) {
+    const join = joiner();
     const link: Link = {
       kind: 'peerjs',
-      send: (msg) => conn.open && conn.send(msg),
+      // (In parts if it's too big for the channel: see net/big.ts.)
+      send: (msg) => conn.open && sendBig((m) => conn.send(m), msg),
       close: () => conn.close(),
       isOpen: () => conn.open,
       alive: () => linkAlive(conn),
@@ -256,7 +259,10 @@ class HostLink {
       route: () => routeOf(conn.peerConnection),
     };
     this.links.set(link, { playerId: null, lastSeen: Date.now(), world: newWorldLink() });
-    conn.on('data', (raw) => this.receive(link, raw as ClientMessage));
+    conn.on('data', (raw) => {
+      const msg = join(raw);
+      if (msg) this.receive(link, msg as ClientMessage);
+    });
     conn.on('close', () => this.drop(link));
     conn.on('error', () => this.drop(link));
   }
@@ -766,4 +772,4 @@ useCasino.subscribe(() => hostLink.scheduleBroadcast());
 useFlats.subscribe(() => hostLink.scheduleBroadcast());
 useGallery.subscribe(() => hostLink.scheduleBroadcast());
 
-if (debugHooks()) Object.assign(window, { __host: useHost, __hostNet: useHostNet, __netStats: () => hostLink.stats() });
+if (debugHooks()) Object.assign(window, { __host: useHost, __hostNet: useHostNet, __netStats: () => hostLink.stats(), __hostLink: hostLink });
