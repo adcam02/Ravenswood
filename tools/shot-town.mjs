@@ -216,6 +216,13 @@ const ALL = {
   'flats-held': 'zone=flat&t=0&furnish=demo&held=piano&wall=blush&floor=pink',
   'club-inside': 'zone=club&t=0&frames=8',
   'club-inside-close': 'zone=club&x=0&z=-1.5&t=0&dist=9&pitch=0.55&frames=8',
+  // The market north-east of the square: from the game's own camera by day and by night, close up from its open side,
+  // and from above; and the tavern's shop corner.
+  'market-day': 'x=12.1&z=-15&t=0',
+  'market-night': 'x=12.1&z=-15&t=1',
+  'market-close': 'x=12.1&z=-15.8&t=0&dist=6&pitch=0.45&yaw=-0.5',
+  'market-top': 'x=11.8&z=-14&t=0&dist=30&pitch=1.45',
+  'tavern-shop': 'zone=tavern&x=4&z=-4.5&t=0&dist=6&pitch=0.4&yaw=0',
   // The idea box by the noticeboard, and the confession booths out among the trees.
   'idea-box': 'x=4.6&z=-13.2&t=0&dist=5&pitch=0.3&yaw=0.2',
   'booth-woods-a': 'x=15.25&z=26.41&t=0&dist=9&pitch=0.5&yaw=-2.62',

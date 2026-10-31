@@ -1,4 +1,4 @@
-import { BEDS, BED_SPOTS, BOOTHS, BOOTH_HD, BOOTH_HW, LINES, LINE_SLOTS, boothSeats, boothSpot, type Collider, type Door, type Spot, type Station, type ZoneKind } from '../types';
+import { BEDS, BED_SPOTS, BOOTHS, BOOTH_HD, BOOTH_HW, LINES, LINE_SLOTS, boothSeats, boothSpot, zoneKind, type Collider, type Door, type Spot, type Station, type ZoneKind } from '../types';
 import { local } from './kit';
 import { BJ_TABLE, BJ_DEALER, CASHIER, CASINO, CASINO_DOOR, CASINO_ROOM, CHAIR_Y, PK_DEALER, PK_TABLE, RL_CROUPIER, RL_TABLE, SHOP, SLOTS, bjSeat, pkSeat, rlSeat, slStool } from './casinoLayout';
 import { BJ_SEATS, PK_SEATS, RL_SEATS } from '../../casino/types';
@@ -157,6 +157,47 @@ export const POST = { x: -3.1, z: 16.6, ry: Math.PI / 2 };
  * camera (south), where each night's drawings hang the next day. `w` is the board's width.
  */
 export const GALLERY = { x: 9.6, z: -9.6, ry: 0, w: 5.0 };
+/**
+ * The market: a cluster of timber stalls round a little stone cross on the grass north-east of the square, between
+ * the gallery and the ring road, facing south-west towards the middle of town. Its main stall is the shop's counter
+ * out of doors (the same shop as the Lucky Raven's).
+ */
+export const MARKET = { x: 11.8, z: -15.2, ry: -0.5 };
+/** Anyone this close to the market's middle counts as at its counter (the host checks it from where players say they are). */
+export const MARKET_R = 7;
+/**
+ * The stalls, in the market's own frame: where each stands and faces, its counter's width and depth, and its awning's
+ * stripe. The first is the main stall, where the shop is. The stall-keeper stands behind the counter.
+ */
+export const MARKET_STALLS = [
+  { lx: 0, lz: -1.9, ry: 0, w: 2.6, d: 1.0, stripe: '#c8423a' },
+  { lx: -3.15, lz: -1.35, ry: 0.42, w: 2.0, d: 0.9, stripe: '#4f8a4a' },
+  { lx: 3.15, lz: -1.35, ry: -0.42, w: 2.0, d: 0.9, stripe: '#3f6a9a' },
+  { lx: -3.75, lz: 1.6, ry: Math.PI / 2, w: 1.8, d: 0.85, stripe: '#d89a2a' },
+  { lx: 3.75, lz: 1.6, ry: -Math.PI / 2, w: 1.8, d: 0.85, stripe: '#8a4f8a' },
+];
+/** The cart and the hay by the market's open side, and the stone cross in its middle (market frame). */
+export const MARKET_CART = { lx: -4.4, lz: 3.7, ry: 0.5 };
+export const MARKET_HAY = { lx: 4.3, lz: 3.4 };
+export const MARKET_CROSS = { lx: 0, lz: 1.1 };
+/** The poles the bunting hangs from, at the open side's corners (market frame). */
+export const MARKET_POLES = [
+  { lx: -4.6, lz: 3.0 },
+  { lx: 4.6, lz: 3.0 },
+];
+/** The tavern's shop corner: a dresser of wares against the back wall, past the end of the bar. */
+export const TAVERN_SHOP = { x: 4.35, z: -5.62, w: 1.7, d: 0.62 };
+
+/**
+ * Whether someone here is at one of the shop's counters, where pets can be bought: anywhere in the Lucky Raven or the
+ * tavern, or at the market.
+ */
+export function atShopCounter(zone: string, x: number, z: number): boolean {
+  const k = zoneKind(zone);
+  if (k === 'casino' || k === 'tavern') return true;
+  return k === 'town' && Math.hypot(x - MARKET.x, z - MARKET.z) < MARKET_R;
+}
+
 /** A ring of toadstools out among the trees past the washing lines, for anyone who goes looking. Stand in it. */
 export const FAIRY_RING = { x: -17.8, z: 25.4, r: 0.95 };
 export const POST_COLS = 6;
@@ -508,6 +549,8 @@ export function makeStations(): Station[] {
   );
   st.push({ id: 'darts', zone: 'tavern', x: 5.4, z: -0.5, r: 1.6, job: 'darts', stand: { x: 5.4, z: -0.5, ry: Math.PI / 2 }, label: 'Throw some darts' });
   st.push({ id: 'leaders', zone: 'tavern', x: LEADERBOARD.x + 1.1, z: LEADERBOARD.z, r: 1.6, job: 'leaders', stand: { x: LEADERBOARD.x + 1.0, z: LEADERBOARD.z, ry: -Math.PI / 2 }, label: 'Read the leaderboard' });
+  // The tavern's shop corner, by the end of the bar.
+  st.push({ id: 'tavern-shop', zone: 'tavern', x: TAVERN_SHOP.x, z: TAVERN_SHOP.z + 1.1, r: 1.5, job: 'shop', stand: { x: TAVERN_SHOP.x, z: TAVERN_SHOP.z + 1.0, ry: Math.PI }, label: 'Visit the shop', sign: '🛍️ Shop' });
   // Bakery.
   st.push({ id: 'oven', zone: 'bakery', x: OVEN.x, z: OVEN.z + 1.7, r: 1.8, job: 'baking', stand: { x: OVEN.x, z: OVEN.z + 1.7, ry: Math.PI }, label: 'Bake something' });
   st.push({ id: 'shelf', zone: 'bakery', x: 3.0, z: -3.3, r: 2.0, job: 'takeBread', stand: { x: 3.0, z: -3.4, ry: Math.PI }, label: 'Take a bake' });
@@ -593,6 +636,13 @@ export function makeStations(): Station[] {
       st.push({ id: `bench-${i}-${k}`, zone: 'town', x: p.x, z: p.z, r: 0.8, job: 'sit', stand: { x: p.x, z: p.z, ry: b.ry }, y: 0.45, label: 'Sit' });
     }),
   );
+  // The market's main stall: the shop again, out of doors.
+  {
+    const m = MARKET_STALLS[0];
+    const at = local(MARKET.x, MARKET.z, MARKET.ry, m.lx, m.lz + m.d / 2 + 0.75);
+    const stand = local(MARKET.x, MARKET.z, MARKET.ry, m.lx, m.lz + m.d / 2 + 0.6);
+    st.push({ id: 'market', zone: 'town', x: at.x, z: at.z, r: 1.6, job: 'shop', stand: { ...stand, ry: MARKET.ry + Math.PI }, label: 'Visit the market', sign: '🛍️ Market' });
+  }
   // The casino: the pet shop's counter, and the seats at the card tables.
   st.push({ id: 'shop', zone: 'casino', x: SHOP.x, z: SHOP.z + 1.2, r: 1.6, job: 'shop', stand: { x: SHOP.x, z: SHOP.z + 1.15, ry: Math.PI }, label: 'Visit the shop' });
   for (let i = 0; i < BJ_SEATS; i++) {
@@ -677,6 +727,17 @@ export function townColliders(extra: Collider[]): Collider[] {
   c.push({ kind: 'box', x: NOTICEBOARD.x, z: NOTICEBOARD.z, hw: 1.0, hd: 0.25, rot: 0 });
   c.push(box(POST, 1.3, 0.32));
   c.push(box(GALLERY, GALLERY.w / 2 + 0.25, 0.22));
+  // The market's stalls (counter and keeper), its cross, cart, hay and bunting poles.
+  const mk = (lx: number, lz: number) => local(MARKET.x, MARKET.z, MARKET.ry, lx, lz);
+  for (const m of MARKET_STALLS) {
+    const back = 0.85;
+    const mid = local(0, 0, m.ry, 0, -back / 2);
+    c.push({ kind: 'box', ...mk(m.lx + mid.x, m.lz + mid.z), hw: m.w / 2 + 0.12, hd: (m.d + back) / 2 + 0.05, rot: MARKET.ry + m.ry });
+  }
+  c.push({ kind: 'circle', ...mk(MARKET_CROSS.lx, MARKET_CROSS.lz), r: 0.6 });
+  c.push({ kind: 'box', ...mk(MARKET_CART.lx, MARKET_CART.lz), hw: 0.75, hd: 1.4, rot: MARKET.ry + MARKET_CART.ry });
+  c.push({ kind: 'circle', ...mk(MARKET_HAY.lx, MARKET_HAY.lz), r: 0.7 });
+  for (const p of MARKET_POLES) c.push({ kind: 'circle', ...mk(p.lx, p.lz), r: 0.12 });
   const pillar = local(POST.x, POST.z, POST.ry, 1.75, 0.05);
   c.push({ kind: 'circle', x: pillar.x, z: pillar.z, r: 0.3 });
   for (const sx of [-1, 1]) c.push({ kind: 'circle', x: sx * 2.6, z: GATE_Z, r: 0.35 });
@@ -697,6 +758,7 @@ export function roomColliders(kind: Exclude<ZoneKind, 'town'>): Collider[] {
     c.push(at(0, -5.5, 8, 0.5));
     c.push(at(6.9, -4.6, 0.9, 1.2));
     c.push(at(6.8, 3.6, 1.0, 0.9));
+    c.push(at(TAVERN_SHOP.x, TAVERN_SHOP.z, TAVERN_SHOP.w / 2 + 0.05, TAVERN_SHOP.d / 2 + 0.05));
     // The trapdoor's lid, propped open against the wall.
     c.push(at(TRAPDOOR.x + TRAPDOOR.w / 2 + 0.12, TRAPDOOR.z, 0.12, TRAPDOOR.d / 2));
   } else if (kind === 'cellar') {
@@ -817,6 +879,7 @@ export function whereIs(zone: string, x: number, z: number): string {
   if (pondContains(x, z, -2.5)) return 'by the pond';
   if (near(POST, 3.2)) return 'at the post office';
   if (near(GALLERY, 3.2)) return 'at the gallery';
+  if (near(MARKET, 5)) return 'at the market';
   if (near(GALLOWS, 3.5)) return 'by the gallows';
   if (near(WELL, 3)) return 'at the well';
   if (near(NOTICEBOARD, 2.5)) return 'at the noticeboard';

@@ -20,7 +20,8 @@ import { GraveShelf, StoolShelf } from './SeatPicks';
  * The Lucky Raven's shop, at the counter by the door: pets, hats and dances, each on its own shelf. Everything is
  * paid for and handed over by the Storyteller's browser (casino/host.ts); this only shows the shelves and sends what
  * you choose. A dance not bought yet opens it from anywhere (from the Dances picker), so hats and dances can be
- * bought away from the casino too; pets only at the counter.
+ * bought away from the casino too; pets only at a counter (the casino's, the tavern's shop corner, or the market's
+ * main stall, which open this same shop).
  */
 export function Shop({ view, tab: wanted, away }: { view: CasinoView | null; tab?: ShopTab; away?: boolean }) {
   const [tab, setTab] = useState<ShopTab>(wanted ?? 'pets');
@@ -115,7 +116,7 @@ function Pets({ away }: { away?: boolean }) {
     <>
       <p className="casino-blurb">
         {away
-          ? 'Pets are bought at the counter in the Lucky Raven, by the town square.'
+          ? 'Pets are bought at a counter: in the Lucky Raven, at the tavern’s shop corner, or at the market.'
           : 'A friend to trot along beside you, yours to keep in every game. Money comes from playing: finishing a game, winning, surviving, achievements, and the tables here.'}
       </p>
       <div className="shop-grid">

@@ -26,7 +26,7 @@ import { AvatarView, type AvatarInfo } from './avatar';
 import { buildAnimal, type Rig } from './animals';
 import { resolve, turnToward } from './collide';
 import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWorld } from './town';
-import { BED, BOUNCER, CLUB, CLUB_NAME, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, FLATS, FLATS_NAME, GRAVEYARD, MEETING_CENTRE, PIT_CORNERS, PIT_RINGS, ROOM_DOOR, SQUARE_R, STOOL_R, TOWER, TRAPDOOR, doorPoint, groundAt, onDanceFloor, roadDistance } from './town/layout';
+import { BED, BOUNCER, CLUB, CLUB_NAME, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, FLATS, FLATS_NAME, GRAVEYARD, MEETING_CENTRE, PIT_CORNERS, PIT_RINGS, ROOM_DOOR, SQUARE_R, STOOL_R, TOWER, TRAPDOOR, atShopCounter, doorPoint, groundAt, onDanceFloor, roadDistance } from './town/layout';
 import { local as localSpot } from './town/kit';
 import { nearPath } from './town/outdoor';
 import { blocksLine } from './town/occlusion';
@@ -580,7 +580,7 @@ export class Engine {
     this.town.setLowDetail(this.quality === 'low');
     this.town.show('town');
     for (const station of this.town.stations) {
-      const text = SIGN_TEXT[station.job];
+      const text = station.sign ?? SIGN_TEXT[station.job];
       if (!text) continue;
       // One sign per kind of thing in a place, not one per bench or tub.
       if (this.signs.some((s) => s.station.job === station.job && s.station.zone === station.zone && Math.hypot(s.station.x - station.x, s.station.z - station.z) < 5)) continue;
@@ -1411,7 +1411,7 @@ export class Engine {
     if (!this.me || this.job || this.inBed) return;
     // A dance from the shop not bought yet: the shop opens on it instead (the Storyteller has them all).
     if (this.view?.mode === 'player' && !danceOwned(anim, useProgress.getState())) {
-      useHud.setState({ dances: false, casino: { kind: 'shop', tab: 'dances', away: zoneKind(local.zone) !== 'casino' } });
+      useHud.setState({ dances: false, casino: { kind: 'shop', tab: 'dances', away: !atShopCounter(local.zone, local.x, local.z) } });
       return;
     }
     if (this.view?.mode === 'player' && !emoteOwned(anim, useProgress.getState())) {
@@ -1923,7 +1923,8 @@ export class Engine {
       if (v?.mode === 'player') casino({ k: TABLE_ACTION[this.tableKind], do: 'leave' });
       if (atTable) useHud.setState({ casino: null });
     } else if (atTable && !this.tableCam) useHud.setState({ casino: null });
-    if (at?.kind === 'shop' && !at.away && zoneKind(local.zone) !== 'casino') useHud.setState({ casino: null });
+    // (The shop opened at a counter closes on walking away from it: out of the casino or the tavern, or off from the market.)
+    if (at?.kind === 'shop' && !at.away && !atShopCounter(local.zone, local.x, local.z)) useHud.setState({ casino: null });
     if (zoneKind(local.zone) === 'casino' && v && v.mode !== 'preview') this.town.setCasino(casinoNow(v.mode), v.mode === 'st' ? 0 : hostNow() - Date.now());
     // From a seat at a card table, everyone else round it gets a plate saying who they are (in place of their name
     // tag, which would sit just above it).

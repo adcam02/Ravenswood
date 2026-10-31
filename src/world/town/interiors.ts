@@ -26,6 +26,7 @@ import {
   SHELF,
   SIDE_DIAL,
   TALLY_BOARD,
+  TAVERN_SHOP,
   TAVERN_TABLES,
   TRAPDOOR,
   TOWER_BENCH,
@@ -384,10 +385,10 @@ function tavern(p: Paint, glow: Builder, r: () => number) {
   p.ico('#2a2530', 0.18, 0.1, 2.3, -hd + 0.12, 1, 0.8);
   p.sphere('#2a2530', 0.08, 0.08, 0.06, 0.25, 2.42, -hd + 0.12);
   p.cone('#e8c35a', 0.03, 0.1, 0.34, 2.41, -hd + 0.12, 4, 0);
-  // A menu board by the door and a coat stand.
-  p.box(WOOD_DARK, 0.8, 1.1, 0.05, 4.2, 1.8, -hd + 0.06);
-  p.box('#2a2a2a', 0.7, 1.0, 0.03, 4.2, 1.8, -hd + 0.09);
-  for (let k = 0; k < 5; k++) p.box('#f6efe0', 0.45 - (k % 2) * 0.1, 0.025, 0.01, 4.2, 2.15 - k * 0.15, -hd + 0.11);
+  // A menu board at the end of the bar (moved along for the shop corner) and a coat stand.
+  p.box(WOOD_DARK, 0.7, 1.0, 0.05, 2.6, 1.85, -hd + 0.06);
+  p.box('#2a2a2a', 0.6, 0.9, 0.03, 2.6, 1.85, -hd + 0.09);
+  for (let k = 0; k < 5; k++) p.box('#f6efe0', 0.4 - (k % 2) * 0.1, 0.025, 0.01, 2.6, 2.15 - k * 0.14, -hd + 0.11);
   p.post(WOOD_DARK, 0.04, 1.8, 6.5, 0, 5.2, 10);
   p.cyl(WOOD_DARK, 0.22, 0.05, 6.5, 0.02, 5.2, 12);
   for (let k = 0; k < 4; k++) {
@@ -399,7 +400,82 @@ function tavern(p: Paint, glow: Builder, r: () => number) {
   hangingLamp(p, glow, -4.6, 2.4, 2.6);
   hangingLamp(p, glow, 3.0, 2.4, 2.4);
   trapdoor(p, glow);
-  return leaderBoard(p);
+  const g = new THREE.Group();
+  g.add(leaderBoard(p), tavernShop(p, glow));
+  return g;
+}
+
+/**
+ * The tavern's shop corner, past the end of the bar: a painted dresser of wares (hats on stands, a plush bear, bolts
+ * of cloth, jars of sweets, a money box), with a sign over the window. It opens the same shop as the casino's counter.
+ */
+function tavernShop(p: Paint, glow: Builder): THREE.Object3D {
+  const { x, z, w, d } = TAVERN_SHOP;
+  const q = p.at(x, 0, z);
+  const PAINT = '#3f6a6a';
+  const hw = w / 2;
+  // The cupboard below, with two panelled doors and brass knobs.
+  q.block(PAINT, w, 0.86, d, 0, 0, 0);
+  q.block(shade(PAINT, -0.25), w - 0.04, 0.08, d - 0.04, 0, 0, 0.01);
+  for (const sx of [-1, 1]) {
+    q.box(shade(PAINT, 0.08), hw - 0.12, 0.6, 0.02, sx * (hw / 2), 0.47, d / 2 + 0.005);
+    q.box(shade(PAINT, -0.1), hw - 0.22, 0.48, 0.02, sx * (hw / 2), 0.47, d / 2 + 0.012);
+    q.sphere('#d8a845', 0.025, 0.025, 0.025, sx * 0.1, 0.5, d / 2 + 0.03, 8, 6);
+  }
+  q.rbox(WOOD_LIGHT, w + 0.08, 0.06, d + 0.06, 0, 0.89, 0.01, 0.02);
+  // The open shelves above: sides, a back, two shelves, and a scalloped crest on top.
+  const top = 1.58;
+  const sd = 0.3;
+  const sz = -d / 2 + sd / 2;
+  for (const sx of [-1, 1]) q.box(PAINT, 0.05, top - 0.92, sd, sx * (hw - 0.025), (0.92 + top) / 2, sz);
+  q.box(shade(PAINT, -0.15), w - 0.08, top - 0.92, 0.03, 0, (0.92 + top) / 2, -d / 2 + 0.02);
+  for (const y of [1.25, top]) q.box(PAINT, w, 0.04, sd + 0.02, 0, y, sz);
+  for (let k = 0; k < 5; k++) q.cyl(PAINT, 0.08, 0.04, -hw + 0.17 + k * ((w - 0.34) / 4), top + 0.02, sz + 0.1, 10, Math.PI / 2);
+  // Wares on the counter top: a hat on a stand, a plush bear, jars of sweets, and the money box.
+  const hat = (hx: number, hy: number, hz: number, c: string) => {
+    q.post(WOOD_DARK, 0.015, 0.14, hx, hy, hz, 6);
+    q.cyl(c, 0.11, 0.015, hx, hy + 0.15, hz, 14);
+    q.cyl(c, 0.065, 0.13, hx, hy + 0.22, hz, 12);
+    q.cyl('#c8423a', 0.067, 0.025, hx, hy + 0.18, hz, 12);
+  };
+  hat(-0.55, 0.92, 0.05, '#2a2530');
+  const bear = q.at(-0.12, 0.92, 0.08);
+  bear.sphere('#b8743f', 0.09, 0.1, 0.08, 0, 0.1, 0, 10, 6);
+  bear.sphere('#b8743f', 0.07, 0.065, 0.065, 0, 0.25, 0, 10, 6);
+  for (const sx of [-1, 1]) {
+    bear.sphere('#b8743f', 0.025, 0.025, 0.02, sx * 0.05, 0.31, 0, 8, 5);
+    bear.sphere('#b8743f', 0.03, 0.03, 0.05, sx * 0.07, 0.03, 0.05, 8, 5);
+  }
+  bear.sphere('#e8c8a0', 0.03, 0.025, 0.02, 0, 0.23, 0.055, 8, 5);
+  bear.box('#c8423a', 0.08, 0.025, 0.02, 0, 0.18, 0.07);
+  for (let k = 0; k < 3; k++) {
+    const jx = 0.22 + k * 0.14;
+    q.glass.cyl('#e8eef2', 0.05, 0.14, jx, 0.99, -0.05, 10);
+    q.cyl(['#f28fb0', '#f6d77a', '#9ad0a0'][k], 0.044, 0.08, jx, 0.97, -0.05, 10);
+    q.cyl(WOOD_DARK, 0.05, 0.02, jx, 1.07, -0.05, 10);
+  }
+  q.box('#7a4a2e', 0.2, 0.1, 0.14, 0.62, 0.97, 0.08);
+  q.box('#d8a845', 0.08, 0.01, 0.02, 0.62, 1.02, 0.08);
+  // On the shelves: folded cloth, another hat, little boxes tied with ribbon, and a lantern.
+  for (let k = 0; k < 3; k++) q.box(['#c8423a', '#3f6a9a', '#e8b83a'][k], 0.3, 0.05, 0.22, -0.55, 1.29 + k * 0.05, sz);
+  hat(-0.1, 1.27, sz, '#5f3a8a');
+  for (let k = 0; k < 2; k++) {
+    const bx = 0.25 + k * 0.24;
+    q.box(['#f6ead2', '#f28fb0'][k], 0.16, 0.12, 0.14, bx, 1.33, sz);
+    q.box('#c8423a', 0.02, 0.125, 0.145, bx, 1.33, sz);
+  }
+  q.box(IRON, 0.12, 0.02, 0.12, 0.65, 1.28, sz);
+  q.glass.box('#ffe7a0', 0.09, 0.14, 0.09, 0.65, 1.36, sz);
+  q.box(IRON, 0.12, 0.02, 0.12, 0.65, 1.44, sz);
+  candle(q, glow, 0.65, 1.6, sz, 0.12);
+  // A basket of bits on the floor beside it.
+  q.taper('#c49a5a', 1.3, 0.16, 0.22, hw + 0.25, 0, 0.1, 10);
+  q.sphere('#f6ead2', 0.12, 0.06, 0.12, hw + 0.25, 0.22, 0.1, 10, 5);
+  // The sign, over the window above it.
+  const sign = new TextSign({ w: 768, h: 192, bg: '#f6ead2', fg: '#3f5f5f', border: '#d8a845', round: true }, ['🛍️ Shop']);
+  const b = signBoard(sign, 1.3, 0.32, { lit: true });
+  b.mesh.position.set(x, 2.82, -ROOMS.tavern.hd + 0.12);
+  return b.mesh;
 }
 
 /**

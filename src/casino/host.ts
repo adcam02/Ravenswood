@@ -29,6 +29,7 @@ import { presence } from '../game/presence';
 import { debugHooks, loadJSON, saveJSON } from '../lib/util';
 import { useHost } from '../state/host';
 import { PETS, type PetId } from '../world/types';
+import { atShopCounter } from '../world/town/layout';
 import { bestHand, bjTotal, dealerStands, isBlackjack, newShoe, randomBelow, sharePot, splitPots, type Card, type Contribution } from './cards';
 import { boughtNote, petName, petPrice, wareOf } from './shop';
 import { isBet, payout } from './roulette';
@@ -162,6 +163,12 @@ function inCasino(seatId: string) {
   return presence.others.get(seatId)?.zone === CASINO_ZONE;
 }
 
+/** Whether this player is at one of the shop's counters: in the casino or the tavern, or at the market. */
+function atCounter(seatId: string) {
+  const p = presence.others.get(seatId);
+  return Boolean(p && atShopCounter(p.zone, p.x, p.z));
+}
+
 const who = (s: Who) => ({ name: s.name });
 const coinsOf = (name: string) => profileOf({ name })?.coins ?? 0;
 const wholeDollars = (v: unknown) => Math.floor(Number(v) || 0);
@@ -171,7 +178,7 @@ const wholeDollars = (v: unknown) => Math.floor(Number(v) || 0);
 function buy(player: string, pet: string) {
   const seat = gameSeat(player);
   if (!seat || !PETS.some((p) => p.id === pet)) return;
-  if (!inCasino(seat.id)) return tell(player, 'The shop is in the casino.');
+  if (!atCounter(seat.id)) return tell(player, 'Pets are sold at the counter: in the casino, the tavern or the market.');
   const p = profileOf({ name: seat.name });
   if (p?.pets.includes(pet as PetId)) return tell(player, `You already have the ${petName(pet).toLowerCase()}.`);
   const price = petPrice(pet);
@@ -1063,14 +1070,17 @@ export function receiveCasino(player: string, raw: unknown) {
 /** What a player sees of the casino: the tables while they're in it (or sitting at one), and nothing otherwise. */
 export function casinoFor(player: string | null): CasinoView | null {
   const seat = player ? useHost.getState().g.seats.find((s) => s.playerId === player) : null;
-  if (player && !(seat && (inCasino(seat.id) || bjIndex(player) >= 0 || pkIndex(player) >= 0 || rlIndex(player) >= 0 || slIndex(player) >= 0))) return null;
   const note = player ? notes.get(player) : undefined;
+  const fresh = note && Date.now() - note.at < NOTE_MS ? note : null;
+  // (At the shop out of the casino, the tables come too only while there's a word from the shop to show.)
+  const shopping = Boolean(seat && fresh && atCounter(seat.id));
+  if (player && !(seat && (shopping || inCasino(seat.id) || bjIndex(player) >= 0 || pkIndex(player) >= 0 || rlIndex(player) >= 0 || slIndex(player) >= 0))) return null;
   return {
     bj: bj.map((s) => (s ? bjView(s, s.player === player) : null)),
     pk: pkView(player),
     rl: rlView(player),
     sl: slView(player),
-    note: note && Date.now() - note.at < NOTE_MS ? note : null,
+    note: fresh,
   };
 }
 

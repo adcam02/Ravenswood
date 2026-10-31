@@ -9,6 +9,7 @@ import {
   FLATS,
   FLATS_NAME,
   IDEA_BOX,
+  MARKET,
   ROAD_LOOP,
   ROAD_NARROW,
   BED_DEPTH,
@@ -74,6 +75,7 @@ import { CASINO } from './casinoLayout';
 import { addSway, type GlowSpot } from './fx';
 import type { DoorSpot } from './doors';
 import { clubFront } from './club';
+import { market } from './market';
 import { confessional } from './interiors';
 
 export interface Outdoor {
@@ -1836,6 +1838,17 @@ function besideGallery(x: number, z: number): number {
   return x;
 }
 
+/** Whether a spot is on the market (or within `margin` of it), in the market's own frame. */
+function inMarket(x: number, z: number, margin: number): boolean {
+  const c = Math.cos(MARKET.ry);
+  const s = Math.sin(MARKET.ry);
+  const dx = x - MARKET.x;
+  const dz = z - MARKET.z;
+  const lx = dx * c - dz * s;
+  const lz = dx * s + dz * c;
+  return Math.abs(lx) < 5.2 + margin && lz > -3.6 - margin && lz < 4.6 + margin;
+}
+
 function free(x: number, z: number, list: Blocker[], margin: number, pathMargin: number): boolean {
   for (const b of list) if (Math.hypot(x - b.x, z - b.z) < b.r + margin) return false;
   if (nearPath(x, z, pathMargin)) return false;
@@ -2000,6 +2013,9 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     colliders.push({ kind: 'circle', ...local(b.x, b.z, b.ry, -1.85, 0.6), r: 0.12 });
   }
   ideaBox(painter(IDEA_BOX.x, IDEA_BOX.z, IDEA_BOX.ry));
+  // The market, north-east of the square (its colliders are with the rest in layout.ts).
+  const stalls = market(painter(MARKET.x, MARKET.z, MARKET.ry), (p, x, y, z) => glowAt(p, x, y, z, 1.5, '#ffc46b'));
+  group.add(stalls.object);
 
   // The casino, north-west between the church and the tavern.
   casinoFront(solo(CASINO.x, CASINO.z, CASINO.ry), rng(777));
@@ -2039,19 +2055,24 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   // Trees, bushes and flowers.
   const block = blockers();
   const trees: Blocker[] = [];
+  // Nothing grows on the market: a tree or a bush there is painted into a scrap builder that's thrown away (rather
+  // than not growing, which would move every one after it).
+  const scrap = new Builder();
+  const where = (x: number, z: number, ry: number, margin: number) => (inMarket(x, z, margin) ? new Paint({ main: scrap, glass: scrap }, frame(x, z, ry)) : painter(x, z, ry));
   const placeTree = (x: number, z: number, collide: boolean) => {
     if (collide) x = besideGallery(x, z);
-    const p = painter(x, z, r() * Math.PI * 2);
+    const gone = collide && inMarket(x, z, 1.6);
+    const p = where(x, z, r() * Math.PI * 2, 1.6);
     const kind = r();
     // Trees inside the fence get roots, branches and cones; the forest beyond keeps it simpler.
     if (kind < 0.42) pineTree(p, r, collide);
     else roundTree(p, r, kind > 0.9, collide);
     if (collide && r() < 0.3) {
       const a = r() * Math.PI * 2;
-      mushroom(painter(x + Math.cos(a) * 0.6, z + Math.sin(a) * 0.6, r() * 6), r);
+      mushroom(where(x + Math.cos(a) * 0.6, z + Math.sin(a) * 0.6, r() * 6, 1.6), r);
     }
     trees.push({ x, z, r: 2 });
-    if (collide) colliders.push({ kind: 'circle', x, z, r: 0.45 });
+    if (collide && !gone) colliders.push({ kind: 'circle', x, z, r: 0.45 });
   };
   // Forest ring outside the fence: a handful of tree shapes drawn many times over, sitting on the hills.
   const forest: { x: number; z: number; ry: number; s: number; v: number }[] = [];
@@ -2153,7 +2174,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     if (!free(x, z, block, 0.6, 1.0)) continue;
     if (trees.some((t) => Math.hypot(t.x - x, t.z - z) < 1.6)) continue;
     const kind = r();
-    const p = painter(besideGallery(x, z), z, r() * 6);
+    const p = where(besideGallery(x, z), z, r() * 6, 0.3);
     if (kind < 0.16) bush(p, r, r() < 0.5);
     else if (kind < 0.34) flowerPatch(p, r);
     else if (kind < 0.42) rock(p, r, 0.6 + r() * 0.6);
@@ -2300,6 +2321,7 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   // Name signs by every cottage, and a wreath for each door.
   const houseSigns: TextSign[] = [];
   const signMaterials: THREE.MeshLambertMaterial[] = [];
+  signMaterials.push(stalls.material);
   const wreaths: THREE.Object3D[] = [];
   const wreathGeo = (() => {
     const b = new Builder();

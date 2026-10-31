@@ -2,8 +2,9 @@ import { useEffect, useRef } from 'react';
 import { local } from '../../game/local';
 import { presence } from '../../game/presence';
 import { useView } from '../../state/view';
-import { BAKERY, CHURCH, CLUB, COTTAGE_NAMES, FLATS, FLATS_NAME, GALLERY, GALLOWS, GRAVEYARD, MEETING_CENTRE, POND, SQUARE_R, STOOL_R, TAVERN, TOWN_R, WASHHOUSE, WELL, houseSlots } from '../../world/town/layout';
+import { BAKERY, CHURCH, CLUB, COTTAGE_NAMES, FLATS, FLATS_NAME, GALLERY, GALLOWS, GRAVEYARD, MARKET, MARKET_STALLS, MEETING_CENTRE, POND, SQUARE_R, STOOL_R, TAVERN, TOWN_R, WASHHOUSE, WELL, houseSlots } from '../../world/town/layout';
 import { CASINO } from '../../world/town/casinoLayout';
+import { local as localPoint } from '../../world/town/kit';
 import { cottageSlot, houseOwner, inBooth, zoneKind, type Look } from '../../world/types';
 
 // Twice the first version's size.
@@ -68,6 +69,8 @@ const PLACES: { name: string; x: number; z: number; size: number }[] = (() => {
     { name: 'Graveyard', x: GRAVEYARD.x - 5.6, z: GRAVEYARD.z, size: 270 },
     { name: 'Pond', x: POND.x, z: POND.z + POND.rz + 2, size: 270 },
     { name: 'Gallery', x: GALLERY.x, z: GALLERY.z + 2.2, size: 270 },
+    // (On the stalls themselves: the gallery's name is just south of it, and the club's to the east.)
+    { name: 'Market', x: MARKET.x, z: MARKET.z + 0.6, size: 0 },
   ];
 })();
 
@@ -146,6 +149,11 @@ export function MiniMap() {
       box(BAKERY.x, BAKERY.z, BAKERY.w, BAKERY.d, '#c4643f', BAKERY.ry);
       box(WASHHOUSE.x, WASHHOUSE.z, WASHHOUSE.w, WASHHOUSE.d, '#4f6f9a');
       box(GALLERY.x, GALLERY.z, GALLERY.w, 0.6, '#3f5f4a');
+      // The market's stalls, each a dab of its awning's colour.
+      for (const m of MARKET_STALLS) {
+        const c = localPoint(MARKET.x, MARKET.z, MARKET.ry, m.lx, m.lz);
+        box(c.x, c.z, m.w, m.d + 0.8, m.stripe, MARKET.ry + m.ry);
+      }
       box(GRAVEYARD.x, GRAVEYARD.z, GRAVEYARD.hw * 2, GRAVEYARD.hd * 2, '#7aa85a');
       box(GALLOWS.x, GALLOWS.z, 2.6, 2.6, '#5a3d2a');
       ctx.fillStyle = '#a99c89';

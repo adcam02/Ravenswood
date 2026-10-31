@@ -43,6 +43,7 @@ import { PATHS, buildOutdoor } from './outdoor';
 import { makeSwingDoors } from './doors';
 import { postFront } from './post';
 import { galleryStand, type GalleryPiece } from './gallery';
+import { marketKeepers } from './market';
 import { addCloudShadow, beamUniforms, makeClouds, makeContactShadows, makeDust, makePuddles, type Footprint, type PuddleSpot } from './looks';
 import { makeCasinoTables, type SeatTable } from './casinoTables';
 import type { FlatScene } from './flats';
@@ -436,6 +437,9 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     bouncer.group.rotation.y = CLUB.ry;
     outdoor.group.add(bouncer.group);
   }
+  // The market's stall-keepers.
+  const keepers = marketKeepers();
+  outdoor.group.add(keepers.group);
   let clubBeat = { bpm: 120, at: 0, colors: [new THREE.Color('#ff6fcf'), new THREE.Color('#5fe8ff')] };
   let clubDancers: { x: number; z: number }[] = [];
   scene.add(outdoor.group);
@@ -1498,6 +1502,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       }
       if (zone === 'town') {
         bouncer.update(dt, t, beat);
+        keepers.update(dt, t);
         // The stools' names fade out from far across town, so they don't clutter the view of everything else.
         const d = Math.hypot(followAt.x - MEETING_CENTRE.x, followAt.z - MEETING_CENTRE.z);
         const fade = Math.max(0, Math.min(1, (34 - d) / 12)).toFixed(2);

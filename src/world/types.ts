@@ -992,6 +992,8 @@ export interface Station {
   /** For a confession booth's side: which booth. */
   booth?: number;
   label: string;
+  /** The sign over it, in place of the usual one for its job (the market's stall is a shop too). */
+  sign?: string;
 }
 
 // ---------------------------------------------------------------- things left around town
