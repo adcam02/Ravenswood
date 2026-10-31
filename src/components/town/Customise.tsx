@@ -11,6 +11,9 @@ import { shownName } from '../../state/nicks';
  * The customiser, from the Customise button on the bar: the same pickers as joining, over the town. While a game is
  * on, the animal and its colour stay as they are (the host keeps them too); the hat and pet can change any time.
  */
+/** The same stool, gravestone and epitaph (what the Seat tab changes). */
+const sameSeat = (a: Look, b: Look) => (a.stool ?? null) === (b.stool ?? null) && (a.grave ?? null) === (b.grave ?? null) && (a.epitaph ?? '') === (b.epitaph ?? '');
+
 export function CustomiseModal() {
   const view = useView();
   const me = view.seats.find((s) => s.isMe);
@@ -40,7 +43,7 @@ export function CustomiseModal() {
   // Our seat has what we asked for: done.
   useEffect(() => {
     if (!sent || !mine || me?.name !== name.trim()) return;
-    if (mine.animal === sent.animal && mine.color === sent.color && (mine.hat ?? null) === (sent.hat ?? null) && (mine.pet ?? null) === (sent.pet ?? null)) ui.close();
+    if (mine.animal === sent.animal && mine.color === sent.color && (mine.hat ?? null) === (sent.hat ?? null) && (mine.pet ?? null) === (sent.pet ?? null) && sameSeat(mine, sent)) ui.close();
   }, [sent, mine, me?.name, name]);
   // No answer for a while (a slow line): close anyway, as the request is sent again until it lands.
   useEffect(() => {

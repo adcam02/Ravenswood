@@ -3,7 +3,7 @@ import type { GameJob } from '../jobs/meta';
 import type { Anim, Item } from '../world/types';
 
 /** The shop's shelves. */
-export type ShopTab = 'pets' | 'hats' | 'dances';
+export type ShopTab = 'pets' | 'hats' | 'dances' | 'seats' | 'graves';
 
 export interface Prompt {
   label: string;

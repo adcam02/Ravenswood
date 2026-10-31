@@ -2132,6 +2132,20 @@
   right: auto;
   left: 0;
 }
+/* A dead player's ghost vote: a ghost while it's unused, a gravestone once it's spent. */
+.mini-ghost {
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  translate: -50% 0;
+  font-size: 12px;
+  font-style: normal;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.6));
+}
+.mini-ghost.spent {
+  font-size: 11px;
+  opacity: 0.9;
+}
 .mini-secret {
   position: absolute;
   top: 12px;

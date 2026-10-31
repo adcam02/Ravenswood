@@ -12,6 +12,7 @@ import { useProgress } from '../../game/progress';
 import { shownName } from '../../state/nicks';
 import { money } from '../../game/profiles';
 import { petPrice, shopPets } from '../../casino/shop';
+import { SeatPicks } from './SeatPicks';
 
 type Step = 'name' | 'animal' | 'mic';
 
@@ -184,11 +185,12 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
   );
 }
 
-export type PickTab = 'animal' | 'hat' | 'pet';
+export type PickTab = 'animal' | 'hat' | 'pet' | 'seat';
 const TABS: { id: PickTab; label: string; icon: string }[] = [
   { id: 'animal', label: 'Animal', icon: '🦊' },
   { id: 'hat', label: 'Hats', icon: '🎩' },
   { id: 'pet', label: 'Pet', icon: '🐾' },
+  { id: 'seat', label: 'Seat', icon: '🪑' },
 ];
 
 /**
@@ -279,7 +281,7 @@ export function LookEditor({
               key={t.id}
               role="tab"
               aria-selected={tab === t.id}
-              className={`dress-tab ${tab === t.id ? 'on' : ''} ${t.id !== 'animal' && look[t.id] ? 'has' : ''}`}
+              className={`dress-tab ${tab === t.id ? 'on' : ''} ${(t.id === 'seat' ? look.stool || look.grave : t.id !== 'animal' && look[t.id]) ? 'has' : ''}`}
               onClick={() => setTab(t.id)}
             >
               <span>{t.icon}</span> {t.label}
@@ -300,6 +302,8 @@ export function LookEditor({
               ))}
             </div>
           </>
+        ) : tab === 'seat' ? (
+          <SeatPicks look={look} setLook={setLook} />
         ) : (
           <DressUp tab={tab} look={look} setLook={setLook} />
         )}
@@ -392,7 +396,7 @@ function useOthersAnimals(): Map<string, { by: string; choosing: boolean }> {
 /** Portraits are drawn one per frame, in order, so the picker stays responsive while they appear. */
 const thumbQueue: (() => void)[] = [];
 let thumbPump = 0;
-function queueThumbnail(job: () => void): () => void {
+export function queueThumbnail(job: () => void): () => void {
   thumbQueue.push(job);
   const pump = () => {
     thumbPump = 0;
@@ -410,14 +414,14 @@ function queueThumbnail(job: () => void): () => void {
 
 /** Thumbnails are kept in the browser between visits, keyed by the build, so a return visit skips 36 renders. */
 const thumbKey = (id: AnimalId, color: string) => `ravenswood:thumb:${__BUILD__}:${id}:${color}`;
-function loadThumb(id: AnimalId, color: string): string | null {
+export function loadThumb(id: AnimalId, color: string): string | null {
   try {
     return localStorage.getItem(thumbKey(id, color));
   } catch {
     return null;
   }
 }
-function saveThumb(id: AnimalId, color: string, url: string) {
+export function saveThumb(id: AnimalId, color: string, url: string) {
   try {
     // Older builds' thumbnails are cleared out the first time a new build stores one.
     if (!localStorage.getItem('ravenswood:thumbs-for') || localStorage.getItem('ravenswood:thumbs-for') !== __BUILD__) {

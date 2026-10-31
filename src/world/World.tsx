@@ -68,6 +68,7 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
       real: s.name,
       look: s.look,
       dead: s.dead,
+      ghostVote: s.ghostVote,
       // Characters float over heads for the Storyteller (the Drunk's Townsfolk, with "(Drunk)"), and for everyone
       // once the grimoire is revealed.
       roleId: view.grimoireRevealed ? s.roleId : mode === 'st' ? heldRole(s) : null,

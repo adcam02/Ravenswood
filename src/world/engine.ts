@@ -160,6 +160,8 @@ export interface WorldSeat {
   star: boolean;
   /** Letters are waiting in their letterbox. */
   mail: boolean;
+  /** Dead and still has their ghost vote (their stool round the dais shows which). */
+  ghostVote?: boolean;
   /** Today they've nominated someone (`by`), or been nominated (`of`): each happens once a day. */
   noms?: { by: boolean; of: boolean };
 }
@@ -795,7 +797,7 @@ export class Engine {
       const here = v.seats.filter((s) => v.townHall!.back.includes(s.id)).length;
       label = `Everyone to the square · ${here} of ${v.seats.length} seated`;
     }
-    this.town.setGraves(v.seats.filter((s) => s.dead).map((s) => s.name));
+    this.town.setGraves(v.seats.filter((s) => s.dead).map((s) => ({ name: s.name, grave: s.look?.grave ?? null, epitaph: s.look?.epitaph ?? '' })));
     this.town.setPost(v.seats.map((s) => s.name), v.seats.map((s) => s.mail));
     this.town.setMeeting({
       n: v.seats.length,
@@ -810,7 +812,9 @@ export class Engine {
       speaker: nom?.speech && nom.speech.kind !== 'discuss' ? seatIndex(nom.speech.seatId) : null,
     });
     // Who sits where round the dais, by the names this viewer calls them.
-    this.town.setStoolNames(v.seats.map((s, i) => ({ name: s.name || `Seat ${i + 1}`, dead: s.dead, me: s.id === v.mySeatId })));
+    this.town.setStoolNames(
+      v.seats.map((s, i) => ({ name: s.name || `Seat ${i + 1}`, dead: s.dead, me: s.id === v.mySeatId, stool: s.look?.stool ?? null, grave: s.look?.grave ?? null, ghostVote: s.ghostVote })),
+    );
 
     // Fish caught since we last looked get a bubble over whoever caught them.
     if (this.lastFish < 0) this.lastFish = v.town.fish.length;

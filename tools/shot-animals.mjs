@@ -49,7 +49,7 @@ for (const v of views) {
   await page.waitForTimeout(600);
   await page.screenshot({ path: `${out}/${name}.png` });
   infos[v] = await page.evaluate(() => window.info);
-  console.log(name, JSON.stringify(infos[v]).slice(0, 400));
+  console.log(name, String(JSON.stringify(infos[v])).slice(0, 400));
 }
 writeFileSync(`${out}/info.json`, JSON.stringify(infos, null, 1));
 if (errors.length) console.log('ERRORS', [...new Set(errors)].join('\n'));

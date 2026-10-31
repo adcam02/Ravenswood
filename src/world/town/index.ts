@@ -43,11 +43,12 @@ import { makeSwingDoors } from './doors';
 import { postFront } from './post';
 import { galleryStand, type GalleryPiece } from './gallery';
 import { addCloudShadow, beamUniforms, makeClouds, makeContactShadows, makeDust, makePuddles, type Footprint, type PuddleSpot } from './looks';
-import { signBoard, TextSign } from './sign';
 import { makeCasinoTables, type SeatTable } from './casinoTables';
 import type { FlatScene } from './flats';
 import type { CasinoView } from '../../casino/types';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+import { ghostGeometry, graveObject, spentStoolGeometry, stoolGeometry, stoolMaterial } from './stools';
+import type { GraveId, StoolId } from '../stoolShop';
 
 /** How the gallows looks at a moment of the hanging. */
 export interface GallowsState {
@@ -96,10 +97,14 @@ export interface TownWorld {
   setTown(state: TownState, now: number): void;
   /** `mine`: the local player's own stool, ringed in gold while the bell calls them to it. */
   setMeeting(m: { n: number; nominee: number | null; nominator?: number | null; hand: number | null; active: boolean; votes: number[]; label?: string; mine?: number | null; speaker?: number | null }): void;
-  /** The name on each stool round the dais, in grimoire order (`me`: the viewer's own). The stools are always out. */
-  setStoolNames(seats: { name: string; dead: boolean; me: boolean }[]): void;
-  /** Gravestones for the dead, by seat name. */
-  setGraves(names: string[]): void;
+  /**
+   * The name on each stool round the dais, in grimoire order (`me`: the viewer's own). The stools are always out.
+   * `stool`: the design its player sits on; a dead player's stool is ghostly while `ghostVote` is unused, and their
+   * gravestone (`grave`, small) once it's spent.
+   */
+  setStoolNames(seats: { name: string; dead: boolean; me: boolean; stool?: StoolId | null; grave?: GraveId | null; ghostVote?: boolean }[]): void;
+  /** Gravestones for the dead, by seat name, each with its design and a line under the name if they chose them. */
+  setGraves(list: (string | { name: string; grave?: GraveId | null; epitaph?: string })[]): void;
   /** The post office's letterboxes: everyone's name in grimoire order, and whose have letters waiting. */
   setPost(names: string[], mail: boolean[]): void;
   /** The night gallery's board: what they were asked to draw, and the pieces in the order they hang. */
@@ -640,27 +645,21 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     return m;
   });
 
-  // A stone for each of the dead, in the churchyard, with their name on it.
+  // A stone for each of the dead, in the churchyard, with their name on it (and a line under it, if they wrote one).
   const stoneGeo = (() => {
     const b = new Builder();
-    b.add(G.box(), '#a8a196', { pos: [0, 0.4, 0], scale: [0.6, 0.8, 0.14] });
-    b.add(G.cyl(20), '#a8a196', { pos: [0, 0.8, 0], rot: [Math.PI / 2, 0, 0], scale: [0.3, 0.14, 0.3] });
-    b.add(G.box(), '#7aa85a', { pos: [0, 0.03, 0.75], scale: [0.7, 0.06, 1.3] });
+    b.add(G.box(), '#7aa85a', { pos: [0, 0.03, 0.6], scale: [0.7, 0.06, 1.0] });
     return b.geometry();
   })();
   const stoneMat = matte();
-  const graves = new Keeper<{ id: string; name: string; i: number }>(outdoor.group, (g) => {
-    const group = new THREE.Group();
-    const stone = new THREE.Mesh(stoneGeo, stoneMat);
-    stone.castShadow = true;
-    // Every stone shares these, so taking one away mustn't free them.
-    stone.userData.shared = true;
-    group.add(stone);
-    const label = new TextSign({ w: 256, h: 128, bg: '#a8a196', fg: '#3a3630', size: 54 }, g.name);
-    const { mesh } = signBoard(label, 0.5, 0.25);
-    group.userData.onDispose = () => label.dispose();
-    mesh.position.set(0, 0.5, 0.075);
-    group.add(mesh);
+  const graves = new Keeper<{ id: string; name: string; i: number; grave: GraveId | null; epitaph: string }>(outdoor.group, (g) => {
+    // The stone its player chose (town/stools.ts), on a mound of grass.
+    const group = graveObject(g.grave, g.name, g.epitaph);
+    const mound = new THREE.Mesh(stoneGeo, stoneMat);
+    mound.receiveShadow = true;
+    // Every grave shares these, so taking one away mustn't free them.
+    mound.userData.shared = true;
+    group.add(mound);
     // Down the middle of the churchyard, oldest nearest the church.
     const col = Math.floor(g.i / 8);
     group.position.set(GRAVEYARD.x + col * 1.3 - 0.65 * Math.min(col, 1), 0, GRAVEYARD.z - 4.4 + (g.i % 8) * 1.25);
@@ -782,16 +781,19 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   document.fonts?.ready.then(() => gallery.redraw()).catch(() => {});
 
   // Meeting stools around the tower, the hand on the cobbles, and a mark by each raised hand.
-  const stoolGeo = (() => {
-    const b = new Builder();
-    // A round log stool: bark round the side, a pale cut top with a ring or two.
-    b.add(G.cyl(24), '#7a5236', { pos: [0, 0.2, 0], scale: [0.4, 0.4, 0.4] });
-    b.add(G.cyl(24), '#c49a6c', { pos: [0, 0.41, 0], scale: [0.4, 0.03, 0.4] });
-    b.add(G.torus(0.18, 8, 24), '#a3794f', { pos: [0, 0.425, 0], rot: [Math.PI / 2, 0, 0], scale: [0.24, 0.24, 0.24] });
-    return b.geometry();
-  })();
-  const stoolMat = matte();
+  // Each stool is the plain log one or the design its player chose (town/stools.ts), all sharing one material.
+  const stoolMat = stoolMaterial;
   const nomineeMat = new THREE.MeshLambertMaterial({ vertexColors: true, emissive: '#d8303a', emissiveIntensity: 0.55 });
+  // A dead player's stool while they still have their ghost vote: see-through and pale blue, a little ghost bobbing
+  // over it. Once the vote's spent it becomes a stone with their gravestone (small) behind it.
+  const ghostStoolMat = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.45, emissive: '#9fc8ff', emissiveIntensity: 0.35, depthWrite: false });
+  const ghostGeo = ghostGeometry();
+  const ghostMat = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.85, emissive: '#cfe0ff', emissiveIntensity: 0.45 });
+  const ghosts: THREE.Mesh[] = [];
+  /** What each stool looks like, by grimoire order (see setStoolNames). */
+  let stoolLooks: { stool: StoolId | null; grave: GraveId | null; ghost: 'vote' | 'spent' | null }[] = [];
+  let stoolLooksKey = '';
+  let nomineeStool: number | null = null;
   const stools: THREE.Mesh[] = [];
   const voteMarks: THREE.Mesh[] = [];
   const markGeo = new THREE.TorusGeometry(0.62, 0.05, 10, 40);
@@ -827,6 +829,35 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       const k = (STOOL_R + 0.62) / Math.max(0.01, Math.hypot(dx, dz));
       tag.obj.position.set(MEETING_CENTRE.x + dx * k, 0.05, MEETING_CENTRE.z + dz * k);
     });
+  // Each stool as its player chose it, ghostly or a gravestone for the dead, red for the nominee.
+  const dressStools = () => {
+    const key = stoolLooks.map((l) => `${l.stool}:${l.grave}:${l.ghost}`).join('|');
+    if (key !== stoolLooksKey) {
+      stoolLooksKey = key;
+      shadowDirty = true;
+    }
+    stools.forEach((s, i) => {
+      const look = i < stoolCount ? stoolLooks[i] : undefined;
+      const geo = look?.ghost === 'spent' ? spentStoolGeometry(look.grave) : stoolGeometry(look?.stool);
+      if (s.geometry !== geo) s.geometry = geo;
+      s.material = i === nomineeStool ? nomineeMat : look?.ghost === 'vote' ? ghostStoolMat : stoolMat;
+      // (A see-through stool casts no shadow.)
+      s.castShadow = look?.ghost !== 'vote';
+      let ghost = ghosts[i];
+      if (look?.ghost === 'vote' && s.visible) {
+        if (!ghost) {
+          ghost = ghosts[i] = new THREE.Mesh(ghostGeo, ghostMat);
+          stoolRing.add(ghost);
+        }
+        // Just behind the stool, over the shoulder of whoever sits on it.
+        const spot = meetingSpot(i, stoolCount);
+        ghost.position.set(spot.x - Math.sin(spot.ry) * 0.5, 1.25, spot.z - Math.cos(spot.ry) * 0.5);
+        ghost.rotation.y = spot.ry;
+        ghost.userData.phase = i * 1.7;
+        ghost.visible = true;
+      } else if (ghost) ghost.visible = false;
+    });
+  };
   // Whoever has the floor before a vote (the accusation, then the defence): a soft beam of light down onto their
   // stool and a pool of light round it. Additive, so black vertices are clear: the beam fades out going up.
   const BEAM_H = 10;
@@ -1280,8 +1311,9 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         shadowDirty = true;
       }
       stoolCount = m.n;
+      nomineeStool = m.active ? m.nominee : null;
       while (stools.length < m.n) {
-        const s = new THREE.Mesh(stoolGeo, stoolMat);
+        const s = new THREE.Mesh(stoolGeometry(null), stoolMat);
         s.castShadow = true;
         s.receiveShadow = true;
         stoolRing.add(s);
@@ -1302,8 +1334,8 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         s.position.set(spot.x, 0, spot.z);
         s.rotation.y = spot.ry;
         voteMarks[i].position.set(spot.x, 0.12, spot.z);
-        s.material = m.active && i === m.nominee ? nomineeMat : stoolMat;
       });
+      dressStools();
       placeStoolTags();
       const speaker = m.speaker ?? null;
       floorSpot.visible = speaker !== null && speaker >= 0 && speaker < m.n;
@@ -1368,15 +1400,19 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       }
       stoolTags.forEach((tag, i) => {
         const s = seats[i];
-        const key = s ? `${s.name}|${s.dead}|${s.me}` : '';
+        const spent = Boolean(s?.dead && s.ghostVote === false);
+        const key = s ? `${s.name}|${s.dead}|${s.me}|${spent}` : '';
         if (key === tag.key) return;
         tag.key = key;
         if (!s) return;
-        tag.el.textContent = s.dead ? `👻 ${s.name}` : s.name;
-        tag.el.title = s.dead ? `${s.name} (dead)` : s.name;
+        // 👻 while a dead player still has their ghost vote, 🪦 once it's spent.
+        tag.el.textContent = s.dead ? `${spent ? '🪦' : '👻'} ${s.name}` : s.name;
+        tag.el.title = s.dead ? `${s.name} (dead, ${spent ? 'ghost vote used' : 'ghost vote still to use'})` : s.name;
         tag.el.classList.toggle('is-dead', s.dead);
         tag.el.classList.toggle('is-me', s.me);
       });
+      stoolLooks = seats.map((s) => ({ stool: s.stool ?? null, grave: s.grave ?? null, ghost: s.dead ? (s.ghostVote === false ? 'spent' : 'vote') : null }));
+      dressStools();
       placeStoolTags();
     },
 
@@ -1388,9 +1424,10 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       gallery.set(title, pieces);
     },
 
-    setGraves(names) {
-      graves.sync(names.map((name, i) => ({ id: `${i}:${name}`, name, i })));
-      const key = names.join('|');
+    setGraves(list) {
+      const all = list.map((x) => (typeof x === 'string' ? { name: x } : x));
+      graves.sync(all.map(({ name, grave = null, epitaph = '' }, i) => ({ id: `${i}:${name}:${grave ?? ''}:${epitaph}`, name, i, grave, epitaph })));
+      const key = all.map((x) => `${x.name}:${x.grave ?? ''}:${x.epitaph ?? ''}`).join('|');
       if (key !== gravesKey) {
         gravesKey = key;
         shadowDirty = true;
@@ -1431,6 +1468,8 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     update(dt, t) {
       nowT = t;
       swingDoors.update(t);
+      // The little ghosts over dead players' stools bob gently.
+      for (const g of ghosts) if (g?.visible) g.position.y = 1.25 + Math.sin(t * 2.2 + g.userData.phase) * 0.06;
       // The booths' curtains slide towards wherever they're wanted.
       curtains.forEach((c, i) => {
         const at = curtainsAt[i];

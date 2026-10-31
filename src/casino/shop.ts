@@ -1,4 +1,5 @@
 import { DANCES, HATS, PETS, type Anim, type HatId, type PetId } from '../world/types';
+import { GRAVES, STOOLS } from '../world/stoolShop';
 
 /**
  * The pet shop's prices. Each pet has a tier; a pet not listed here (a new one) is a fancy one. A game pays
@@ -106,7 +107,7 @@ export const shopHats = () => HATS.filter((h) => h.price).sort((a, b) => a.price
 export const shopDances = () => DANCES.filter((d) => d.price).sort((a, b) => a.price! - b.price!);
 
 /** Something on sale besides pets, by its key ('hat:topper', 'dance:worm'): what it is, its name and its price. */
-export function wareOf(key: string): { kind: 'hat' | 'dance'; id: string; name: string; price: number } | null {
+export function wareOf(key: string): { kind: 'hat' | 'dance' | 'stool' | 'grave'; id: string; name: string; price: number } | null {
   const [kind, id] = key.split(':');
   if (kind === 'hat') {
     const h = HATS.find((x) => x.id === id && x.price);
@@ -116,9 +117,22 @@ export function wareOf(key: string): { kind: 'hat' | 'dance'; id: string; name: 
     const d = DANCES.find((x) => x.anim === id && x.price);
     return d ? { kind, id: d.anim, name: d.label, price: d.price! } : null;
   }
+  // A design for your stool round the dais, or for your gravestone.
+  if (kind === 'stool' || kind === 'grave') {
+    const w = (kind === 'stool' ? STOOLS : GRAVES).find((x) => x.id === id);
+    return w ? { kind, id: w.id, name: w.name, price: w.price } : null;
+  }
   return null;
 }
 export const hatKey = (hat: HatId) => `hat:${hat}`;
 export const danceKey = (anim: Anim) => `dance:${anim}`;
 /** A hat that's bought, not earned. */
 export const isShopHat = (hat: string | null | undefined) => Boolean(hat && HATS.some((h) => h.id === hat && h.price));
+
+/** What the player's told once something's theirs. */
+export function boughtNote(ware: NonNullable<ReturnType<typeof wareOf>>): string {
+  if (ware.kind === 'hat') return `${ware.name}: yours! Wear it from here or from Customise.`;
+  if (ware.kind === 'stool') return `${ware.name}: yours! Sit on it from here or from Customise.`;
+  if (ware.kind === 'grave') return `${ware.name}: yours! Choose it from here or from Customise.`;
+  return `${ware.name}: yours! It’s in your Dances now.`;
+}

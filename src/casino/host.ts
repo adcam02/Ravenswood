@@ -30,7 +30,7 @@ import { debugHooks, loadJSON, saveJSON } from '../lib/util';
 import { useHost } from '../state/host';
 import { PETS, type PetId } from '../world/types';
 import { bestHand, bjTotal, dealerStands, isBlackjack, newShoe, randomBelow, sharePot, splitPots, type Card, type Contribution } from './cards';
-import { petName, petPrice, wareOf } from './shop';
+import { boughtNote, petName, petPrice, wareOf } from './shop';
 import { isBet, payout } from './roulette';
 import { SL, SLOT_STOPS, isSlotBet, linePays, symbolAt } from './slots';
 import { BJ_MAX, BJ_MIN, BJ_SEATS, HIDDEN, PK, PK_SEATS, RL, RL_SEATS, SL_MACHINES, type BjResult, type RlView, type SlMachineView, type BjSeatView, type CasinoAction, type CasinoView, type PkSeatView, type PkStage, type PkView } from './types';
@@ -195,7 +195,7 @@ function buyItem(player: string, key: string) {
   if (p?.items.includes(key)) return tell(player, `You already have ${what}.`);
   if (!debit({ name: seat.name }, ware.price, `for ${what}`)) return tell(player, `That’s ${money(ware.price)}, and you have ${money(p?.coins ?? 0)}.`);
   grantItem({ name: seat.name }, key);
-  tell(player, ware.kind === 'hat' ? `${ware.name}: yours! Wear it from Customise.` : `${ware.name}: yours! It’s in your Dances now.`);
+  tell(player, boughtNote(ware));
 }
 
 // ---------------------------------------------------------------- blackjack

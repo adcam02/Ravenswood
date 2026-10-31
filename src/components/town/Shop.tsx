@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { create } from 'zustand';
 import { casino, hostNow } from '../../casino/client';
-import { danceKey, hatKey, petPrice, shopDances, shopHats, shopPets, wareOf } from '../../casino/shop';
+import { boughtNote, danceKey, hatKey, petPrice, shopDances, shopHats, shopPets, wareOf } from '../../casino/shop';
 import type { CasinoView } from '../../casino/types';
 import { game, useHud, type ShopTab } from '../../game/hud';
 import { money } from '../../game/profiles';
@@ -11,6 +11,7 @@ import { useView } from '../../state/view';
 import { HAT_FX } from '../../world/hatFx';
 import { fixLook, HATS, TROPHY_HAT, type HatId } from '../../world/types';
 import { HatPicture, PetPicture, TryOn, wearLook } from './JoinFlow';
+import { GraveShelf, StoolShelf } from './SeatPicks';
 
 /**
  * The Lucky Raven's shop, at the counter by the door: pets, hats and dances, each on its own shelf. Everything is
@@ -35,6 +36,8 @@ export function Shop({ view, tab: wanted, away }: { view: CasinoView | null; tab
     ['pets', '🐾', 'Pets'],
     ['hats', '🎩', 'Hats'],
     ['dances', '🪩', 'Dances'],
+    ['seats', '🪑', 'Seats'],
+    ['graves', '🪦', 'Graves'],
   ];
   return (
     <div className="notice-layer casino-layer" onClick={close}>
@@ -56,7 +59,17 @@ export function Shop({ view, tab: wanted, away }: { view: CasinoView | null; tab
           ))}
         </div>
         <ShopNote view={view} />
-        {tab === 'pets' ? <Pets away={away} /> : tab === 'hats' ? <Hats /> : <Dances />}
+        {tab === 'pets' ? (
+          <Pets away={away} />
+        ) : tab === 'hats' ? (
+          <Hats />
+        ) : tab === 'seats' ? (
+          <StoolShelf BuyButton={BuyButton} />
+        ) : tab === 'graves' ? (
+          <GraveShelf BuyButton={BuyButton} />
+        ) : (
+          <Dances />
+        )}
         <button className="cosy-btn" onClick={close}>
           Close <span className="cosy-key">Esc</span>
         </button>
@@ -230,7 +243,7 @@ useProgress.subscribe((s, prev) => {
   const ware = s.items.filter((k) => !prev.items.includes(k)).map(wareOf).find(Boolean);
   if (!ware) return;
   tillSound();
-  useFlash.setState({ text: ware.kind === 'hat' ? `${ware.name}: yours! Wear it from here or from Customise.` : `${ware.name}: yours! It’s in your Dances now.`, at: Date.now() }, true);
+  useFlash.setState({ text: boughtNote(ware), at: Date.now() }, true);
 });
 
 /** The latest word for this player: the host's note (in the casino), or something just bought, for a few seconds. */

@@ -147,6 +147,10 @@ const ALL = {
   'bedroom-window': 'zone=house&t=1&night&x=0.5&z=-2&dist=7&yaw=0&pitch=0.3',
   well: 'x=-6.5&z=-13&t=0&dist=10',
   graveyard: 'x=-8&z=-20&t=0&dist=14',
+  // Bought stools round the dais (a ghost's and a spent ghost vote's among them), and every gravestone design.
+  'stools-circle': 'x=0&z=9.3&t=0&stools&dist=11&pitch=0.75',
+  'stools-circle2': 'x=0&z=9.3&t=0&stools=2&dist=11&pitch=0.75',
+  'graves-designs': 'x=-8&z=-21&t=0&stools&dist=9&yaw=0.4',
   'tower-top': 'x=0&z=4&t=0&dist=30&pitch=0.35',
   'tower-north': 'x=0&z=-4&t=0&dist=26&pitch=0.3&yaw=2.6',
   'cottage-close': 'x=25.6&z=13.6&t=0&dist=11&yaw=0.6',

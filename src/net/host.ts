@@ -517,6 +517,9 @@ class HostLink {
     if (look.pet && !profileOf({ name })?.pets.includes(look.pet)) look.pet = null;
     // So are the shop's hats.
     if (isShopHat(look.hat) && !profileOf({ name })?.items.includes(hatKey(look.hat!))) look.hat = null;
+    // And the stools round the dais and the gravestones.
+    if (look.stool && !profileOf({ name })?.items.includes(`stool:${look.stool}`)) look.stool = null;
+    if (look.grave && !profileOf({ name })?.items.includes(`grave:${look.grave}`)) look.grave = null;
     const refused = st.fromPlayer.join(playerId, name, look);
     if (refused) link.send({ t: 'taken', animal: refused.taken, by: refused.by });
   }

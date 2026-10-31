@@ -2,6 +2,7 @@
 // Also ?weather=rain|mist, ?day=0.9 (how far through the day), ?sway=4 (exaggerated wind, to check it moves),
 // ?follow=x,z (where the player is, for the birds and the rain), ?ripple to drop rings on the pond.
 import * as THREE from 'three';
+import { GRAVES, STOOLS } from '../src/world/stoolShop';
 import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import '../src/styles/cosy.css';
 import '../src/styles/casino.css';
@@ -173,6 +174,17 @@ if (q.has('gallery')) {
     return { id: `p${i}`, img: c.toDataURL('image/png'), name: q.has('revealed') ? names[i % names.length] : undefined, place: q.has('revealed') && i < 3 ? i + 1 : undefined };
   });
   town.setGallery('A cat in a top hat', pieces);
+}
+// ?stools: a dozen players round the dais on bought stools, two of them dead (one with a ghost vote left, one
+// spent), and gravestones of every design in the churchyard (?stools=2 for the rest of the stools).
+if (q.has('stools')) {
+  const names = ['Abbey', 'Colter', 'Steele', 'Jarrod', 'Mika', 'Theo', 'Wren', 'Pip', 'Ada', 'Bo', 'Cy', 'Di'];
+  const from = q.get('stools') === '2' ? 12 : 0;
+  town.setMeeting({ n: 12, nominee: null, hand: null, active: false, votes: [] });
+  town.setStoolNames(
+    names.map((name, i) => ({ name, me: i === 0, dead: i === 3 || i === 7, ghostVote: i === 3, stool: STOOLS[(from + i) % STOOLS.length].id, grave: i === 7 ? 'angel' : null })),
+  );
+  town.setGraves([null, ...GRAVES.map((g) => g.id)].map((grave, i) => ({ name: names[i], grave, epitaph: grave === 'tablet' ? 'Was framed by the Spy' : '' })));
 }
 if (q.has('meeting')) town.setMeeting({ n: 8, nominee: 2, nominator: 6, hand: 4, active: true, votes: [0, 4, 6] });
 if (q.has('bell')) town.bellRing();

@@ -3,6 +3,7 @@
  * things players leave around town (drinks on the bar, washing on the line, flowers in the beds).
  * Plain data only, so the game state and network messages can use it without pulling in three.js.
  */
+import { cleanEpitaph, fixGrave, fixStool, type GraveId, type StoolId } from './stoolShop';
 
 // ---------------------------------------------------------------- animals
 
@@ -137,6 +138,11 @@ export interface Look {
   hat?: HatId | null;
   /** A pet that trots along beside them. */
   pet?: PetId | null;
+  /** Their stool's design round the dais, and their gravestone's (bought at the shop, see stoolShop.ts). */
+  stool?: StoolId | null;
+  grave?: GraveId | null;
+  /** A line on their gravestone. */
+  epitaph?: string;
 }
 
 // ---------------------------------------------------------------- pets, bought at the casino (see casino/shop.ts)
@@ -314,6 +320,17 @@ export type HatId =
   | 'centurion'
   | 'topper'
   | 'sharkhat'
+  // The shop's second shelf, sillier.
+  | 'plunger'
+  | 'duck'
+  | 'lampshade'
+  | 'sushi'
+  | 'flowerpot'
+  | 'icecream'
+  | 'frog'
+  | 'bobby'
+  | 'pharaoh'
+  | 'ufo'
   | 'trophy';
 
 /** What a player has done across all their games, kept by the Storyteller under their name. */
@@ -401,6 +418,16 @@ export const HATS: { id: HatId; name: string; icon: string; how: string; unlocke
   { id: 'centurion', name: 'Centurion’s helmet', icon: '🏛️', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('centurion'), price: 85 },
   { id: 'tiara', name: 'Diamond tiara', icon: '💎', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('tiara'), price: 100 },
   { id: 'topper', name: 'Topper and monocle', icon: '🧐', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('topper'), price: 120 },
+  { id: 'plunger', name: 'Sink plunger', icon: '🪠', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('plunger'), price: 15 },
+  { id: 'duck', name: 'Rubber duck', icon: '🐤', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('duck'), price: 18 },
+  { id: 'lampshade', name: 'Party lampshade', icon: '💡', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('lampshade'), price: 22 },
+  { id: 'sushi', name: 'Salmon nigiri', icon: '🍣', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('sushi'), price: 25 },
+  { id: 'flowerpot', name: 'Sunflower pot', icon: '🌻', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('flowerpot'), price: 28 },
+  { id: 'icecream', name: 'Dropped ice cream', icon: '🍦', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('icecream'), price: 32 },
+  { id: 'frog', name: 'Frog cap', icon: '🐸', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('frog'), price: 38 },
+  { id: 'bobby', name: 'Police helmet', icon: '👮', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('bobby'), price: 55 },
+  { id: 'pharaoh', name: 'Pharaoh’s headdress', icon: '🐍', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('pharaoh'), price: 80 },
+  { id: 'ufo', name: 'Flying saucer', icon: '🛸', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('ufo'), price: 110 },
   { id: 'trophy', name: 'Crown of Midas', icon: '✨', how: 'Buy it at the Lucky Raven’s shop, if you can afford it', unlocked: bought('trophy'), price: 500 },
 ];
 
@@ -572,7 +599,15 @@ export type Weather = 'clear' | 'mist' | 'rain';
 export function fixLook(look: Partial<Look> | null | undefined): Look {
   const info = ANIMALS.find((a) => a.id === look?.animal) ?? ANIMALS[0];
   const color = /^#[0-9a-f]{6}$/i.test(look?.color ?? '') ? look!.color! : info.colors[0];
-  return { animal: info.id, color, hat: fixHat(look?.hat), ...fixDressUp(look) };
+  const out: Look = { animal: info.id, color, hat: fixHat(look?.hat), ...fixDressUp(look) };
+  // (Only kept when there's one, so a look without them reads as it always has.)
+  const stool = fixStool(look?.stool);
+  const grave = fixGrave(look?.grave);
+  const epitaph = cleanEpitaph(look?.epitaph);
+  if (stool) out.stool = stool;
+  if (grave) out.grave = grave;
+  if (epitaph) out.epitaph = epitaph;
+  return out;
 }
 
 /** A known hat or none. (Unlocks are checked in the player's own browser; this is a friendly game.) */

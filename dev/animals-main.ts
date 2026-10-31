@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import { animalThumbnail, buildAnimal, petThumbnail, buildPet, buildStoryteller, type Pet, type Rig } from '../src/world/animals';
 import { buildHat } from '../src/world/hats';
 import { buildItem } from '../src/world/items';
+import { GRAVES, STOOLS, type GraveId, type StoolId } from '../src/world/stoolShop';
+import { graveObject, SEAT, spentStoolGeometry, stoolMaterial, stoolObject } from '../src/world/town/stools';
 import { audit, resetAudit } from '../src/world/paper';
 import { ANIMALS, DANCES, EXTRA_COLORS, HATS, PETS, type Anim, type AnimalId, type HatId, type ItemKind, type Look, type PetId } from '../src/world/types';
 
@@ -640,6 +642,75 @@ if (view === 'grid' || view === 'night') {
   const near = q.has('near') ? 0.6 : 1;
   camera.position.set(0, (rows > 1 ? 9 : 5.5) * near, (rows > 1 ? 11.5 : 7.5) * near);
   camera.lookAt(0, 0.5, rows > 1 ? 0 : -1.3);
+} else if (view === 'stools' || view === 'graves') {
+  // Every stool design (the plain log first), or every gravestone: a sheet, one to a cell, from the town camera's
+  // angle. &sit=fox sits that animal on each stool (to check the seat height); &ghost shows the stools ghostly and
+  // &spent as a dead player's stone once their ghost vote is used; &angle=front|side|back; &cols=.
+  const graves = view === 'graves';
+  const spent = q.has('spent');
+  const ids: (string | null)[] = graves || spent ? [null, ...GRAVES.map((g) => g.id)] : [null, ...STOOLS.map((s) => s.id)];
+  const sit = q.get('sit') as AnimalId | null;
+  const objs = ids.map((id) => {
+    const o = graves ? graveObject(id as GraveId, 'Abbey', q.get('epitaph') ?? (id === 'tablet' ? 'Was framed by the Spy' : '')) : spent ? new THREE.Mesh(spentStoolGeometry(id as GraveId), stoolMaterial) : stoolObject(id as StoolId);
+    if (q.has('ghost') && !graves) (o as THREE.Mesh).material = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.4, emissive: '#9fc8ff', emissiveIntensity: 0.35, depthWrite: false });
+    o.traverse((m) => (m.castShadow = true));
+    o.visible = false;
+    scene.add(o);
+    return o;
+  });
+  const sitter = sit ? make(lookOf(sit)) : null;
+  if (sitter) {
+    sitter.root.visible = false;
+    scene.add(sitter.root);
+  }
+  const labels = document.createElement('div');
+  labels.style.cssText = 'position:absolute;left:0;top:0;font:13px sans-serif;color:#123;pointer-events:none';
+  document.body.appendChild(labels);
+  const cam = new THREE.PerspectiveCamera(22, 1, 0.05, 80);
+  const az = { front: 0, side: Math.PI / 2, back: Math.PI } [q.get('angle') ?? ''] ?? 0.55;
+  renderer.setScissorTest(true);
+  sun.shadow.mapSize.set(1024, 1024);
+  Object.assign(sun.shadow.camera, { left: -2, right: 2, top: 2, bottom: -2 });
+  sun.shadow.camera.updateProjectionMatrix();
+  const counts: Record<string, number> = {};
+  (window as unknown as { info: unknown }).info = counts;
+  sheetDraw = () => {
+    const cols = Number(q.get('cols') ?? (graves ? 6 : 8));
+    const rows = Math.ceil(ids.length / cols);
+    const cw = W / cols;
+    const ch = H / rows;
+    cam.aspect = cw / ch;
+    cam.updateProjectionMatrix();
+    renderer.setScissor(0, 0, W, H);
+    renderer.setClearColor('#7a8a98');
+    renderer.clear();
+    ids.forEach((id, i) => {
+      objs[i].visible = true;
+      if (sitter) {
+        sitter.root.visible = true;
+        sitter.root.position.set(0, SEAT, 0);
+        for (let f = 0; f < 12; f++) sitter.update({ anim: 'sit', speed: 0, dt: 0.05, t: 1 });
+      }
+      const h = graves ? 0.75 : sitter ? 0.75 : 0.55;
+      const d = graves ? 4.6 : 4.2;
+      cam.position.set(Math.sin(az) * d, h + d * 0.5, Math.cos(az) * d);
+      cam.lookAt(0, h, 0);
+      const x = (i % cols) * cw;
+      const y = H - (Math.floor(i / cols) + 1) * ch;
+      renderer.setViewport(x, y, cw, ch);
+      renderer.setScissor(x + 1, y + 1, cw - 2, ch - 2);
+      renderer.render(scene, cam);
+      objs[i].visible = false;
+      if (sitter) sitter.root.visible = false;
+      let tris = 0;
+      objs[i].traverse((m) => (tris += (m as THREE.Mesh).isMesh ? ((m as THREE.Mesh).geometry.getAttribute('position')?.count ?? 0) / 3 : 0));
+      counts[id ?? 'plain'] = Math.round(tris);
+      const tag = document.createElement('div');
+      tag.textContent = id ?? 'plain';
+      tag.style.cssText = `position:absolute;left:${x + 4}px;top:${Math.floor(i / cols) * ch + 2}px`;
+      labels.appendChild(tag);
+    });
+  };
 } else if (view === 'ghosts') {
   ['fox', 'kaiju', 'octopus', 'penguin', 'shark'].forEach((id, i) => {
     const r = place(make({ animal: id as AnimalId, color: ANIMALS.find((x) => x.id === id)!.colors[0] }), i * 1.4 - 2.8, 0, i === 2 ? 'wave' : 'idle');

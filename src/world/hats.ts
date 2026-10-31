@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Builder, jitter, placeMatrix, rng, soft, wet, type Place, type Vec3 } from './build';
 import type { HatId } from './types';
 import { bearskin, beerhat, bicorne, birthday, centurion, hardhat, reindeer, sharkhat, tiara, topper, trophy } from './hatShop';
+import { bobby, duck, flowerpot, frog, icecream, lampshade, pharaoh, plunger, sushi, ufo } from './hatShop2';
 
 /**
  * The hats players earn and wear. Each is modelled for a reference head about half a metre across, with its origin at
@@ -2270,6 +2271,16 @@ const MAKERS: Record<HatId, () => BuiltHat> = {
   centurion,
   tiara,
   topper,
+  plunger,
+  duck,
+  lampshade,
+  sushi,
+  flowerpot,
+  icecream,
+  frog,
+  bobby,
+  pharaoh,
+  ufo,
   trophy,
 };
 

@@ -230,3 +230,48 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------------------------------------------------------------- seats for the circle and gravestones */
+/* (More shelves than fit on a phone in one row: they wrap.) */
+.shop-tabs {
+  flex-wrap: wrap;
+  justify-content: center;
+  border-radius: 22px;
+}
+.shop-seat.picked {
+  box-shadow: 0 0 0 2.5px #6aa84a, 0 3px 0 rgba(90, 68, 52, 0.15);
+}
+.epitaph {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+.epitaph label,
+.epitaph-in-picks {
+  display: grid;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--cosy-ink-soft);
+}
+.epitaph input {
+  width: 100%;
+}
+.epitaph-in-picks {
+  margin-top: 10px;
+}
+.seat-picks-head {
+  margin: 10px 0 6px;
+  font-size: 15px;
+}
+.join-pick-note .link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: #b8620a;
+  text-decoration: underline;
+  cursor: pointer;
+}

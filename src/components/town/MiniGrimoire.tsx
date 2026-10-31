@@ -57,6 +57,7 @@ export function MiniGrimoire() {
                 </b>
               )}
               <em>{s.label}</em>
+              <GhostVote dead={s.dead} vote={s.ghostVote} />
               {s.awake && <b className="mini-eye">👁</b>}
               {voted && <b className="mini-paw">✋</b>}
               {s.star && <b className="mini-star" title="Counted the sheep">⭐</b>}
@@ -100,11 +101,22 @@ export function PlayerCircle() {
               style={{ left: `calc(50% + ${Math.cos(a) * PR}px)`, top: `calc(50% + ${Math.sin(a) * PR}px)` }}
             >
               <Token roleId={null} dead={s.dead} deadBadge={false} blank={s.claimed ? 'unknown' : 'empty'} label={false} />
+              <GhostVote dead={s.dead} vote={s.ghostVote} />
               <em>{s.label}</em>
             </span>
           );
         })}
       </span>
     </button>
+  );
+}
+
+/** A dead player's ghost vote at a glance: 👻 while it's still theirs to use, 🪦 once it's spent. */
+function GhostVote({ dead, vote }: { dead: boolean; vote: boolean }) {
+  if (!dead) return null;
+  return (
+    <b className={`mini-ghost ${vote ? '' : 'spent'}`} title={vote ? 'Dead, with their ghost vote still to use' : 'Dead, ghost vote used'}>
+      {vote ? '👻' : '🪦'}
+    </b>
   );
 }

@@ -2990,6 +2990,37 @@ export function hatThumbnail(hat: HatId, size = 96): string {
   }
 }
 
+/**
+ * A picture of anything else (a stool, a gravestone), framed like the hats, a little from above and to one side.
+ * `key` names it in the cache; the object is freed afterwards unless its parts are marked shared.
+ */
+export function objectThumbnail(key: string, make: () => THREE.Object3D, size = 96): string {
+  const k = `obj:${key}:${size}`;
+  const hit = thumbCache.get(k);
+  if (hit) return hit;
+  try {
+    const { renderer, scene, camera } = thumbStage(size);
+    const o = make();
+    o.rotation.y = 0.5;
+    scene.add(o);
+    o.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(o);
+    const c = box.getCenter(new THREE.Vector3());
+    const sz = box.getSize(new THREE.Vector3());
+    const r = Math.max(0.05, Math.max(sz.x, sz.y, sz.z) * 0.6);
+    const dist = r / Math.sin(THREE.MathUtils.degToRad(15));
+    camera.position.set(c.x, c.y + dist * 0.42, c.z + dist * 0.9);
+    camera.lookAt(c);
+    const url = snap(renderer, scene, camera);
+    scene.remove(o);
+    disposeObject(o);
+    if (url) thumbCache.set(k, url);
+    return url;
+  } catch {
+    return '';
+  }
+}
+
 export function animalThumbnail(look: Look, size = 128): string {
   const key = `${look.animal}:${look.color}:${look.hat ?? ''}:${size}`;
   const hit = thumbCache.get(key);
