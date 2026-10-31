@@ -739,7 +739,7 @@ export type Anim =
   | 'orange'
   | 'woah'
   | 'windmill'
-  | 'dab'
+  | 'dabdance'
   | 'vogue'
   | 'cancan';
 
@@ -777,7 +777,7 @@ export const DANCES: { anim: Anim; label: string; icon: string; price?: number }
   { anim: 'cabbage', label: 'Cabbage patch', icon: '🥬', price: 15 },
   { anim: 'cart', label: 'Shopping cart', icon: '🛒', price: 15 },
   { anim: 'hokey', label: 'Hokey pokey', icon: '🔄', price: 15 },
-  { anim: 'dab', label: 'The dab', icon: '💪', price: 20 },
+  { anim: 'dabdance', label: 'The dab (dance)', icon: '💪', price: 20 },
   { anim: 'hustle', label: 'The hustle', icon: '🪩', price: 20 },
   { anim: 'eslide', label: 'Electric slide', icon: '⚡', price: 20 },
   { anim: 'chacha', label: 'Cha-cha slide', icon: '👣', price: 25 },

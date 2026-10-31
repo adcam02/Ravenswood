@@ -2275,7 +2275,7 @@ class AnimalRig implements Rig {
         ears(0.3, 0);
         break;
       }
-      case 'dab': {
+      case 'dabdance': {
         // Dab one way, hold, dab the other: the head ducked into the crook of one elbow, the other arm thrown up straight.
         const { i } = hits(
           [
@@ -3066,7 +3066,7 @@ class AnimalRig implements Rig {
       case 'orange':
       case 'woah':
       case 'windmill':
-      case 'dab':
+      case 'dabdance':
       case 'vogue':
       case 'cancan':
         this.dance(P, A, s.anim, s.t - this.animStart);
