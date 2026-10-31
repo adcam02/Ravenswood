@@ -3,6 +3,8 @@ import { Builder, placeMatrix, type Place, type Vec3 } from '../build';
 import type { GraveId, StoolId } from '../stoolShop';
 import { G } from './kit';
 import { signBoard, TextSign } from './sign';
+import { arc, bulge, domeSpots, halfDisc, hex, hexTip, rod, up } from './stoolBits';
+import { POP_GRAVE_PAINT, POP_STOOL_PAINT } from './stools2';
 
 /**
  * The stools round the dais and the gravestones in the churchyard: the plain ones and every design sold at the
@@ -16,59 +18,6 @@ import { signBoard, TextSign } from './sign';
 
 /** The top of every stool's seat, above the dais. */
 export const SEAT = 0.42;
-
-const up = new THREE.Vector3(0, 1, 0);
-
-/** A round rod from one point to another (a leg, a rope, a spoke). */
-function rod(b: Builder, color: string, from: Vec3, to: Vec3, r: number, sides = 6) {
-  const a = new THREE.Vector3(...from);
-  const d = new THREE.Vector3(...to).sub(a);
-  const len = d.length();
-  const m = new THREE.Matrix4().compose(a.addScaledVector(d, 0.5), new THREE.Quaternion().setFromUnitVectors(up, d.normalize()), new THREE.Vector3(r, len, r));
-  b.add(G.cyl(sides), color, m);
-}
-
-/** A piece of a torus: `arc` radians of a ring of radius 1, tube `tube`, lying in the xy plane from the +x axis. */
-const arcs = new Map<string, THREE.BufferGeometry>();
-function arc(tube: number, angle: number, sides = 6, segs = 10): THREE.BufferGeometry {
-  const k = `${tube}:${angle}:${sides}:${segs}`;
-  let g = arcs.get(k);
-  if (!g) arcs.set(k, (g = new THREE.TorusGeometry(1, tube, sides, segs, angle)));
-  return g;
-}
-
-/** A barrel's bulging side: radius 1 at the middle, `ends` at top and bottom, height 1 centred on 0. */
-const bulges = new Map<number, THREE.BufferGeometry>();
-function bulge(ends: number): THREE.BufferGeometry {
-  let g = bulges.get(ends);
-  if (!g) {
-    const pts = [0, 0.25, 0.5, 0.75, 1].map((t) => new THREE.Vector2(ends + (1 - ends) * Math.sin(t * Math.PI), t - 0.5));
-    pts.unshift(new THREE.Vector2(0, -0.5));
-    pts.push(new THREE.Vector2(0, 0.5));
-    bulges.set(ends, (g = new THREE.LatheGeometry(pts, 14)));
-  }
-  return g;
-}
-
-/** Half a disc (a clam's open shell), the flat side down, thickness along y before it's turned. */
-const halfDisc = new THREE.CylinderGeometry(1, 1, 1, 12, 1, false, -Math.PI / 2, Math.PI);
-
-/** A six-sided prism and point, for crystals (the kit rounds anything over five sides up to fourteen). */
-const hex = new THREE.CylinderGeometry(1, 1, 1, 6);
-const hexTip = new THREE.ConeGeometry(1, 1, 6);
-
-/** Spots scattered over the top of a dome of radii rx, ry, rz sitting at y (the toadstool's, the egg's). */
-function domeSpots(b: Builder, color: string, c: Vec3, r: Vec3, n: number, size: number, seed = 1, minUp = 0.15) {
-  for (let i = 0; i < n; i++) {
-    const a = i * 2.39996 + seed;
-    const h = minUp + (1 - minUp) * (((i * 0.618 + seed * 0.31) % 1) * 0.85);
-    const ring = Math.sqrt(1 - h * h);
-    const n3 = new THREE.Vector3((Math.cos(a) * ring) / r[0], h / r[1], (Math.sin(a) * ring) / r[2]).normalize();
-    const p = new THREE.Vector3(c[0] + Math.cos(a) * ring * r[0], c[1] + h * r[1], c[2] + Math.sin(a) * ring * r[2]);
-    const q = new THREE.Quaternion().setFromUnitVectors(up, n3);
-    b.add(G.sphere(6, 4), color, new THREE.Matrix4().compose(p, q, new THREE.Vector3(size, size * 0.3, size)));
-  }
-}
 
 // ---------------------------------------------------------------- the stools
 
@@ -483,7 +432,8 @@ const STOOL_PAINT: Record<'log' | StoolId, (b: Builder) => void> = {
       b.add(G.cone(4), gold, { pos: [Math.sin(a) * 0.085, 1.54, -0.3 + Math.cos(a) * 0.085], scale: [0.025, 0.07, 0.025] });
     }
     b.add(G.sphere(6, 4), '#d8202a', { pos: [0, 1.48, -0.195], scale: 0.025 });
-  },
+  },  // The lily pad and the ones from films and games (stools2.ts).
+  ...POP_STOOL_PAINT,
 };
 
 const stoolGeos = new Map<string, THREE.BufferGeometry>();
@@ -516,7 +466,7 @@ export interface GravePlate {
   roll?: number;
 }
 
-interface GraveDesign {
+export interface GraveDesign {
   paint(b: Builder, glow: Builder): void;
   plate: GravePlate;
 }
@@ -685,7 +635,8 @@ const GRAVE_PAINT: Record<'plain' | GraveId, GraveDesign> = {
       b.add(G.prism(), c, { pos: [0, 1.06, 0.04], rot: [0, Math.PI / 2, 0], scale: [0.64, 0.24, 0.88] });
     },
     plate: { y: 0.98, z: 0.355, w: 0.74, h: 0.13, bg: '#c8c2b4', fg: '#3a3630' },
-  },
+  },  // The ones from films and games (stools2.ts).
+  ...POP_GRAVE_PAINT,
 };
 
 const graveGeos = new Map<string, { main: THREE.BufferGeometry; glow: THREE.BufferGeometry | null }>();

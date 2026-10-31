@@ -5,6 +5,7 @@ import { animalThumbnail, buildAnimal, petThumbnail, buildPet, buildStoryteller,
 import { buildHat } from '../src/world/hats';
 import { buildItem } from '../src/world/items';
 import { GRAVES, STOOLS, type GraveId, type StoolId } from '../src/world/stoolShop';
+import { POP_GRAVES, POP_STOOLS } from '../src/world/stoolShop2';
 import { graveObject, SEAT, spentStoolGeometry, stoolMaterial, stoolObject } from '../src/world/town/stools';
 import { audit, resetAudit } from '../src/world/paper';
 import { ANIMALS, DANCES, EXTRA_COLORS, HATS, PETS, type Anim, type AnimalId, type HatId, type ItemKind, type Look, type PetId } from '../src/world/types';
@@ -648,7 +649,11 @@ if (view === 'grid' || view === 'night') {
   // &spent as a dead player's stone once their ghost vote is used; &angle=front|side|back; &cols=.
   const graves = view === 'graves';
   const spent = q.has('spent');
-  const ids: (string | null)[] = graves || spent ? [null, ...GRAVES.map((g) => g.id)] : [null, ...STOOLS.map((s) => s.id)];
+  // &from=&to= shows just part of the list (the plain one is 0), &ids=a,b just those, &pop the lily pad and the ones
+  // from films and games.
+  const all: (string | null)[] = graves || spent ? [null, ...GRAVES.map((g) => g.id)] : [null, ...STOOLS.map((s) => s.id)];
+  const pop = graves || spent ? POP_GRAVES.map((g) => g.id) : ['lilypad', ...POP_STOOLS.map((s) => s.id)];
+  const ids: (string | null)[] = q.get('ids')?.split(',') ?? (q.has('pop') ? pop : all.slice(Number(q.get('from') ?? 0), Number(q.get('to') ?? 999)));
   const sit = q.get('sit') as AnimalId | null;
   const objs = ids.map((id) => {
     const o = graves ? graveObject(id as GraveId, 'Abbey', q.get('epitaph') ?? (id === 'tablet' ? 'Was framed by the Spy' : '')) : spent ? new THREE.Mesh(spentStoolGeometry(id as GraveId), stoolMaterial) : stoolObject(id as StoolId);

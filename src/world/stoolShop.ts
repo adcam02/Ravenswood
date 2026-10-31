@@ -3,7 +3,10 @@
  * and one for your gravestone in the churchyard when you die (with a line on it, if you like). Bought as 'stool:<id>'
  * and 'grave:<id>' (see casino/shop.ts), chosen in the Shop or Customise, and kept on your look so everyone sees
  * them. The shapes themselves are in town/stools.ts; this is just the names and prices, so it's light to import.
+ * The ones from films and games are in stoolShop2.ts, after the rest.
  */
+
+import { POP_GRAVES, POP_STOOLS, type PopGraveId, type PopStoolId } from './stoolShop2';
 
 export type StoolId =
   | 'milking'
@@ -35,7 +38,9 @@ export type StoolId =
   | 'gaming'
   | 'cloud'
   | 'egg'
-  | 'throne';
+  | 'throne'
+  | 'lilypad'
+  | PopStoolId;
 
 /** Cheapest first. */
 export const STOOLS: { id: StoolId; name: string; icon: string; price: number }[] = [
@@ -50,6 +55,7 @@ export const STOOLS: { id: StoolId; name: string; icon: string; price: number }[
   { id: 'pouffe', name: 'Knitted pouffe', icon: '🧶', price: 25 },
   { id: 'pumpkin', name: 'Pumpkin', icon: '🎃', price: 25 },
   { id: 'books', name: 'Stack of books', icon: '📚', price: 28 },
+  { id: 'lilypad', name: 'Lily pad', icon: '🪷', price: 28 },
   { id: 'beanbag', name: 'Beanbag', icon: '🫘', price: 30 },
   { id: 'toadstool', name: 'Toadstool', icon: '🍄', price: 30 },
   { id: 'tractor', name: 'Tractor seat', icon: '🚜', price: 32 },
@@ -69,9 +75,10 @@ export const STOOLS: { id: StoolId; name: string; icon: string; price: number }[
   { id: 'cloud', name: 'Fluffy cloud', icon: '☁️', price: 110 },
   { id: 'egg', name: 'Dragon egg', icon: '🥚', price: 130 },
   { id: 'throne', name: 'Throne', icon: '👑', price: 160 },
+  ...POP_STOOLS,
 ];
 
-export type GraveId = 'cartoon' | 'skull' | 'catstone' | 'obelisk' | 'celtic' | 'tablet' | 'pyramid' | 'angel' | 'crystal' | 'mausoleum';
+export type GraveId = 'cartoon' | 'skull' | 'catstone' | 'obelisk' | 'celtic' | 'tablet' | 'pyramid' | 'angel' | 'crystal' | 'mausoleum' | PopGraveId;
 
 /** Cheapest first. */
 export const GRAVES: { id: GraveId; name: string; icon: string; price: number }[] = [
@@ -85,6 +92,7 @@ export const GRAVES: { id: GraveId; name: string; icon: string; price: number }[
   { id: 'angel', name: 'Weeping angel', icon: '👼', price: 75 },
   { id: 'crystal', name: 'Glowing crystal', icon: '🔮', price: 90 },
   { id: 'mausoleum', name: 'Mausoleum', icon: '🏛️', price: 140 },
+  ...POP_GRAVES,
 ];
 
 export const stoolKey = (id: StoolId) => `stool:${id}`;

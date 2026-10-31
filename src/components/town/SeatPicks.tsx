@@ -62,7 +62,7 @@ function useMine() {
   return { me, look: me?.look ?? null, wear };
 }
 
-/** The Seats shelf: thirty stools for the circle round the dais. */
+/** The Seats shelf: the stools for the circle round the dais. */
 export function StoolShelf({ BuyButton }: { BuyButton: Buy }) {
   const items = useMyItems();
   const { look, wear } = useMine();
