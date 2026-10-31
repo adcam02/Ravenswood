@@ -331,6 +331,27 @@ export type HatId =
   | 'bobby'
   | 'pharaoh'
   | 'ufo'
+  // The shop's third shelf: homages and gags.
+  | 'hero'
+  | 'plumber'
+  | 'captain'
+  | 'ogre'
+  | 'buns'
+  | 'duo'
+  | 'parka'
+  | 'cheese'
+  | 'thinking'
+  | 'blocky'
+  | 'ratchef'
+  | 'talking'
+  | 'fries'
+  | 'loo'
+  | 'goose'
+  | 'fruit'
+  | 'ghosthunter'
+  | 'sparky'
+  | 'lavalamp'
+  | 'fishbowl'
   | 'trophy';
 
 /** What a player has done across all their games, kept by the Storyteller under their name. */
@@ -428,6 +449,27 @@ export const HATS: { id: HatId; name: string; icon: string; how: string; unlocke
   { id: 'bobby', name: 'Police helmet', icon: '👮', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('bobby'), price: 55 },
   { id: 'pharaoh', name: 'Pharaoh’s headdress', icon: '🐍', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('pharaoh'), price: 80 },
   { id: 'ufo', name: 'Flying saucer', icon: '🛸', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('ufo'), price: 110 },
+  // The third shelf.
+  { id: 'loo', name: 'Toilet roll', icon: '🧻', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('loo'), price: 15 },
+  { id: 'cheese', name: 'Cheese wedge', icon: '🧀', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('cheese'), price: 20 },
+  { id: 'fries', name: 'Crown of chips', icon: '🍟', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('fries'), price: 22 },
+  { id: 'ogre', name: 'Ogre ears', icon: '👂', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('ogre'), price: 25 },
+  { id: 'plumber', name: 'Plumber’s cap', icon: '⭐', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('plumber'), price: 30 },
+  { id: 'hero', name: 'Hero’s green cap', icon: '🗡️', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('hero'), price: 35 },
+  { id: 'thinking', name: 'Thinking cap', icon: '💡', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('thinking'), price: 42 },
+  { id: 'parka', name: 'Orange parka hood', icon: '🧥', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('parka'), price: 45 },
+  { id: 'blocky', name: 'Blocky pumpkin', icon: '🟧', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('blocky'), price: 48 },
+  { id: 'buns', name: 'Rebel princess buns', icon: '🌌', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('buns'), price: 52 },
+  { id: 'fruit', name: 'Fruit turban', icon: '🍍', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('fruit'), price: 58 },
+  { id: 'goose', name: 'Goose', icon: '🪿', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('goose'), price: 62 },
+  { id: 'captain', name: 'Captain’s tricorn and bandana', icon: '🦜', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('captain'), price: 68 },
+  { id: 'ghosthunter', name: 'Ghost hunter’s goggles', icon: '👻', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('ghosthunter'), price: 72 },
+  { id: 'ratchef', name: 'Little chef under the toque', icon: '🐀', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('ratchef'), price: 78 },
+  { id: 'sparky', name: 'Electric mouse hood', icon: '⚡', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('sparky'), price: 85 },
+  { id: 'talking', name: 'Talking hat', icon: '🗣️', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('talking'), price: 95 },
+  { id: 'lavalamp', name: 'Lava lamp', icon: '🫧', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('lavalamp'), price: 105 },
+  { id: 'fishbowl', name: 'Goldfish bowl', icon: '🐠', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('fishbowl'), price: 125 },
+  { id: 'duo', name: 'Robot DJ helmet', icon: '🎧', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('duo'), price: 150 },
   { id: 'trophy', name: 'Crown of Midas', icon: '✨', how: 'Buy it at the Lucky Raven’s shop, if you can afford it', unlocked: bought('trophy'), price: 500 },
 ];
 
