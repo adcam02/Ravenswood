@@ -11,6 +11,7 @@ import { useClient } from '../../net/client';
  */
 export function BedGames() {
   const paid = useClient((s) => s.priv?.profile?.jobPaid ?? 0);
+  const tops = useClient((s) => s.priv?.profile?.jobTops ?? []);
   const close = () => useHud.setState({ bedMenu: false });
   useKeys((e, down) => {
     if (e.key !== 'Escape') return false;
@@ -28,7 +29,7 @@ export function BedGames() {
           <div className="job-titles">
             <strong>Pass the time</strong>
             <span className="job-hint">
-              {money(PAY.job)} for three stars, {money(PAY.jobTwo)} for two
+              {money(PAY.job)} for three stars (once a day each), {money(PAY.jobTwo)} for two
               {left > 0 ? ` · ${money(left)} more to earn today` : ' · that’s all the pay for today, but play on for fun'}
             </span>
           </div>
@@ -43,6 +44,7 @@ export function BedGames() {
                 <JobIcon job={job} />
               </span>
               <span>{JOB_TITLES[job]}</span>
+              {tops.includes(job) && <em className="bed-game-done" title="Top prize already won today: back tomorrow">★ won today</em>}
             </button>
           ))}
         </div>

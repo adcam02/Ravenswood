@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ComponentType, type ReactNode } from 'react';
+import { money, PAY } from '../game/profiles';
+import { useClient } from '../net/client';
 import { Bartender, DrinkIcon } from './Bartender';
 import { Laundry, ClothArt } from './Laundry';
 import { Fishing, FishArt, type FishResult, type FishTier } from './Fishing';
@@ -179,6 +181,8 @@ export function JobGame<J extends GameJob>({
     return true;
   });
 
+  // Three stars pays the top prize once a day for each game: say so when it's been had today.
+  const topTaken = useClient((s) => (s.priv?.profile?.jobTops ?? []).includes(job));
   const Game = GAMES[job] as ComponentType<GameProps<JobResults[J]>>;
   const result = shown?.summary;
 
@@ -194,6 +198,7 @@ export function JobGame<J extends GameJob>({
             <span className="job-hint" aria-live="polite">
               {hint}
             </span>
+            {topTaken && <span className="job-top-taken">★ Top prize already won today: {money(PAY.jobTwo)} at most until tomorrow</span>}
           </div>
           <button className="cosy-btn small job-stop" onClick={() => !done.current && cancelFn.current()} disabled={Boolean(result)}>
             Stop <span className="cosy-key">Esc</span>

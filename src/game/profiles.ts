@@ -174,6 +174,8 @@ export interface Profile extends ProgressSnapshot {
   news: { id: string; feat: string; at: number }[];
   /** Two- and three-star minigames paid for on one day (the host's calendar), in dollars. */
   jobPay?: { day: string; paid: number };
+  /** The minigames whose top prize (three stars) has been paid on that day: once a day each. */
+  jobTops?: { day: string; jobs: string[] };
   /** What each game paid them for, so calling a game again only pays (or takes back) the difference. */
   games?: Record<string, string[]>;
   /** The devices this name plays on, as hashes (never the devices' own secrets): see admitDevice(). */
@@ -219,6 +221,7 @@ export function cleanProfile(raw: unknown, key: string): Profile {
   p.pay = Array.isArray(r.pay) ? r.pay.filter((l) => l && typeof l.id === 'string' && Number.isFinite(l.amount)).slice(-PAY_KEPT) : [];
   p.news = Array.isArray(r.news) ? r.news.filter((n) => n && typeof n.feat === 'string').slice(-PAY_KEPT) : [];
   if (r.jobPay && typeof r.jobPay.day === 'string') p.jobPay = { day: r.jobPay.day, paid: count(r.jobPay.paid) };
+  if (r.jobTops && typeof r.jobTops.day === 'string') p.jobTops = { day: r.jobTops.day, jobs: strings(r.jobTops.jobs, 40) };
   if (r.games && typeof r.games === 'object') p.games = Object.fromEntries(Object.entries(r.games).slice(-10).map(([g, items]) => [g, strings(items, 8)]));
   const devices = strings(r.devices, DEVICES_KEPT, 64).filter((h) => /^[0-9a-f]{16,64}$/.test(h));
   if (devices.length) p.devices = devices;
@@ -477,11 +480,16 @@ function applyHere(p: Profile, ev: ProgressEvent) {
     // Up to the day's cap (the last of it paid in part, so the cap is reached exactly).
     const day = today();
     const paid = p.jobPay?.day === day ? p.jobPay.paid : 0;
-    const amount = Math.min(ev.stars === 2 ? PAY.jobTwo : PAY.job, PAY.jobDaily - paid);
+    // The top prize once a day for each minigame (by day or from bed alike); three stars again pays as two.
+    const tops = p.jobTops?.day === day ? p.jobTops.jobs : [];
+    const top = ev.stars !== 2 && !tops.includes(ev.job);
+    const amount = Math.min(top ? PAY.job : PAY.jobTwo, PAY.jobDaily - paid);
     if (amount <= 0) return;
     p.jobPay = { day, paid: paid + amount };
+    if (top) p.jobTops = { day, jobs: [...tops, ev.job] };
     const at = JOB_AT[ev.job as GameJob] ?? '';
-    addPay(p, amount, ev.job === 'coin' ? 'for a wish come true' : `for ${ev.stars === 2 ? 'two' : 'three'} stars ${at}`);
+    const again = ev.stars !== 2 && !top ? ' (top prize already won here today: back tomorrow)' : '';
+    addPay(p, amount, ev.job === 'coin' ? `for a wish come true${again}` : `for ${ev.stars === 2 ? 'two' : 'three'} stars ${at}${again}`);
     return;
   }
   const fresh = ev.e === 'merge' ? ev.p.feats.filter((f) => !p.feats.includes(f)) : [];
@@ -516,6 +524,7 @@ export function profileFor(playerId: string): ProfileView | null {
     items: p.items,
     pay: p.pay.filter((l) => now - l.at < NEWS_MS),
     jobPaid: p.jobPay?.day === today() ? p.jobPay.paid : 0,
+    jobTops: p.jobTops?.day === today() ? p.jobTops.jobs : [],
     news: p.news.filter((n) => now - n.at < NEWS_MS),
     book: s.book,
     acks: s.acks[playerId] ?? [],

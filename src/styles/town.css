@@ -3563,3 +3563,17 @@
     padding-right: 2px;
   }
 }
+
+/* A minigame whose top prize is already won today. */
+.job-top-taken {
+  display: block;
+  font-size: 12px;
+  color: #b07a1c;
+  font-weight: 600;
+}
+.bed-game-done {
+  font-style: normal;
+  font-size: 11px;
+  color: #b07a1c;
+  font-weight: 700;
+}

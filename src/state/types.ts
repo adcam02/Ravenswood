@@ -592,6 +592,8 @@ export interface ProfileView extends ProgressSnapshot {
   pay: PayLine[];
   /** What minigames have paid them today, toward the day's cap (PAY.jobDaily). */
   jobPaid?: number;
+  /** The minigames whose top prize they've already had today. */
+  jobTops?: string[];
   /** Achievements given on the Storyteller's side (not earned in the player's own browser), to make a moment of. */
   news: { id: string; feat: string; at: number }[];
   /** Which Storyteller's book of profiles this is. */
