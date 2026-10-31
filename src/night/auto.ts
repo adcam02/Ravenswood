@@ -237,21 +237,27 @@ export function tick() {
         if (!due) continue;
         if (!h.asked[sid]) {
           if (!busy(sid)) sends.push({ key: p.key, seat: sid, ask: q });
-        } else if (g.awake[sid]?.wakeId !== h.asked[sid] && !busy(sid)) reshow.push({ seat: sid, wakeId: h.asked[sid] });
+        } else if (g.awake[sid]?.wakeId !== h.asked[sid] && !busy(sid) && !g.replies.some((r) => r.wakeId === h.asked[sid] && r.seatId === sid))
+          // (Shown again only to someone who hasn't answered yet: an answer sends them back to sleep.)
+          reshow.push({ seat: sid, wakeId: h.asked[sid] });
       }
     }
   }
 
-  // Anyone done with what this sent them goes back to sleep: they've seen it, or it was a question that no longer
-  // stands (its step was skipped, or went idle as they died first). A question still open keeps them awake, so they
-  // can change their answer until the Storyteller settles it.
+  // Anyone done with what this sent them goes back to sleep: they've seen it, they've answered (so they're back to
+  // drawing or a game in bed like everyone else, and nobody can tell who acted by who's still busy; the Storyteller
+  // can ask again), or it was a question that no longer stands (its step was skipped, or went idle as they died).
   const openAsks = new Set(
     plan.filter((p) => p.status !== 'done' && p.status !== 'idle').flatMap((p) => p.holders.filter((h) => !h.idle).flatMap((h) => Object.values(h.asked))),
   );
   const anAsk = (wakeId: string) => Object.values(a.asks).some((m) => Object.values(m).includes(wakeId));
   const moving = new Set([...sends.map((x) => x.seat), ...reshow.map((x) => x.seat)]);
   const toSleep = Object.entries(g.awake)
-    .filter(([sid, w]) => a.wakes.includes(w.wakeId) && !moving.has(sid) && !openAsks.has(w.wakeId) && (w.seen || anAsk(w.wakeId)))
+    .filter(([sid, w]) => {
+      if (!a.wakes.includes(w.wakeId) || moving.has(sid)) return false;
+      const answered = g.replies.some((r) => r.wakeId === w.wakeId && r.seatId === sid);
+      return (!openAsks.has(w.wakeId) || answered) && (w.seen || answered || anAsk(w.wakeId));
+    })
     .map(([sid]) => sid);
 
   // The current step's suggestion, worked out once its answers are in (again if an answer changes, until it's used).
