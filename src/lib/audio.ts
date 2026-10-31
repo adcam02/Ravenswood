@@ -1123,6 +1123,52 @@ export function execSound(name: string) {
       bell(587, 1.2, 0.05);
       blip(c, out, t, 0.25, 'sine', 160, 70, 0.3);
       break;
+    // The newer Slayer moves (see world/exec/slay2.ts).
+    case 'bang':
+      // A cartoon gunshot: a crack and a short boom.
+      hush(c, out, t, 0.3, 'lowpass', 6000, 300, 0.5, 0.7, 0.002);
+      blip(c, out, t, 0.25, 'sine', 180, 45, 0.4);
+      break;
+    case 'saber': {
+      // Snap-hiss, then a low hum that wavers.
+      hush(c, out, t, 0.25, 'bandpass', 3000, 900, 0.15, 2, 0.005);
+      const h = blip(c, out, t + 0.05, 2.6, 'sawtooth', 92, 88, 0.035);
+      const wob = c.createOscillator();
+      const d = c.createGain();
+      wob.frequency.value = 5;
+      d.gain.value = 4;
+      wob.connect(d).connect(h.frequency);
+      wob.start(t);
+      wob.stop(t + 2.7);
+      break;
+    }
+    case 'clash':
+      hush(c, out, t, 0.25, 'bandpass', 2400, 1200, 0.25, 3, 0.002);
+      blip(c, out, t, 0.2, 'sawtooth', 220, 140, 0.06);
+      break;
+    case 'void':
+      // A deep shimmer opening out.
+      blip(c, out, t, 2.2, 'sine', 55, 110, 0.25);
+      for (const f of [659, 880, 1319]) blip(c, out, t + 0.2, 1.8, 'sine', f, f * 1.01, 0.025);
+      hush(c, out, t, 1.5, 'lowpass', 200, 3000, 0.15, 0.7, 0.4);
+      break;
+    case 'musicbox':
+      // A plinky little crank tune, stopping short.
+      [523.3, 523.3, 587.3, 587.3, 659.3, 784, 659.3, 523.3].forEach((f, i) => blip(c, out, t + i * 0.18, 0.16, 'triangle', f, f, 0.05));
+      break;
+    case 'jump':
+      blip(c, out, t, 0.3, 'square', 260, 900, 0.04);
+      break;
+    case 'whistletune':
+      // A lonely whistle across the square: up, down, and a long fall.
+      [
+        [880, 0, 0.35],
+        [1174.7, 0.4, 0.35],
+        [880, 0.8, 0.3],
+        [1046.5, 1.15, 0.25],
+        [784, 1.45, 0.9],
+      ].forEach(([f, at, len]) => blip(c, out, t + at, len, 'sine', f, f * (len > 0.5 ? 0.92 : 1.01), 0.06));
+      break;
     case 'bonng':
       // Every string at once, thrown down hard.
       for (const f of [55, 110, 164.8, 220, 277.2, 330]) bell(f, 3.5, 0.05);

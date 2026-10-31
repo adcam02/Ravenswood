@@ -27,6 +27,23 @@ const HIT: Record<SlayMoveId, number> = {
   wand: 2.9,
   lightning: 3.1,
   grenade: 4.6,
+  // The newer ones (see slay2.ts).
+  car: 3.1,
+  bowling: 3.0,
+  spotter: 3.4,
+  standoff: 3.9,
+  taped: 3.6,
+  domain: 4.6,
+  laser: 3.6,
+  beam: 3.7,
+  capture: 2.9,
+  fireball: 2.7,
+  glove: 2.3,
+  pie: 2.3,
+  banana: 3.0,
+  hammer: 3.0,
+  stomp: 2.5,
+  safe: 3.2,
 };
 const DOWN = 1.5;
 const FIZZLE = 3.3;
@@ -49,24 +66,26 @@ export class SlayStage extends ExecStage {
   /** The claimer as the move has them this frame (in the world, like the target's pose). */
   actor: ExecPose;
   readonly hit: number;
-  private actorRoot: THREE.Object3D | null = null;
+  protected actorRoot: THREE.Object3D | null = null;
   private aBuild: Build | null = null;
   private actorTinted = false;
   /** Where each stands at the start (in the stage's frame, on the dais) and which way they face. */
-  private A = new THREE.Vector3();
-  private B = new THREE.Vector3();
+  protected A = new THREE.Vector3();
+  protected B = new THREE.Vector3();
   /** From the claimer towards the target, flat. */
-  private fwd = new THREE.Vector3();
-  private dirA = new THREE.Vector3();
-  private dirT = new THREE.Vector3();
+  protected fwd = new THREE.Vector3();
+  protected dirA = new THREE.Vector3();
+  protected dirT = new THREE.Vector3();
   private ready = false;
   // The claimer this frame.
-  private aAt = new THREE.Vector3();
-  private aTurn = new THREE.Quaternion();
-  private aStretch = new THREE.Vector3(1, 1, 1);
-  private aAnim: Anim = 'idle';
+  protected aAt = new THREE.Vector3();
+  protected aTurn = new THREE.Quaternion();
+  protected aStretch = new THREE.Vector3(1, 1, 1);
+  protected aAnim: Anim = 'idle';
   /** The move has the claimer doing something of its own after it lands (dizzy, frazzled), not just pleased or not. */
-  private aBusy = false;
+  protected aBusy = false;
+  /** Whether the claimer can be seen (not while they're a little ball of light, say). */
+  protected aVisible = true;
   // Each move's kit.
   private bow: Crossbow | null = null;
   private balls: THREE.Group[] = [];
@@ -107,7 +126,7 @@ export class SlayStage extends ExecStage {
       quat: this.group.quaternion.clone().multiply(this.aTurn),
       scale: this.aStretch.clone(),
       anim: this.aAnim,
-      visible: true,
+      visible: this.aVisible,
       tag: true,
       ghost: false,
     };
@@ -122,13 +141,13 @@ export class SlayStage extends ExecStage {
     return this.move === 'lightning' || this.move === 'grenade';
   }
 
-  private aSize(): Build {
+  protected aSize(): Build {
     if (!this.aBuild && this.actorRoot) this.aBuild = measureAnimal(this.actorRoot);
     return this.aBuild ?? someone();
   }
 
   /** Where each stands: far enough apart for whoever they are, facing each other and a little towards us. */
-  private setup() {
+  protected setup() {
     if (this.ready && (this.aBuild || !this.actorRoot)) return;
     this.ready = true;
     const a = this.aSize().box;
@@ -145,7 +164,7 @@ export class SlayStage extends ExecStage {
   // ---------------------------------------------------------------- the two of them
 
   /** The claimer's paw, out in front at chest height (in the stage's frame), wherever they've got to. */
-  private paw(up = 0.5, out = 1): THREE.Vector3 {
+  protected paw(up = 0.5, out = 1): THREE.Vector3 {
     const b = this.aSize();
     return this.aAt
       .clone()
@@ -155,18 +174,18 @@ export class SlayStage extends ExecStage {
   }
 
   /** A spot on the target's body (by fractions of their height), wherever their pose has taken them. */
-  private onTarget(up: number, front = 0.3): THREE.Vector3 {
+  protected onTarget(up: number, front = 0.3): THREE.Vector3 {
     const b = this.size();
     const local = new THREE.Vector3(0, b.box.max.y * up, b.box.max.z * front).multiply(this.stretch).applyQuaternion(this.turn);
     return this.at.clone().add(local);
   }
 
-  private tall(): number {
+  protected tall(): number {
     return this.size().box.max.y;
   }
 
   /** Points `o` (its +z) from `from` at `to`, both in the stage's frame, and turns it `roll` about that. */
-  private aim(o: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3, roll = 0) {
+  protected aim(o: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3, roll = 0) {
     const d = to.clone().sub(from);
     o.position.copy(from);
     o.quaternion.setFromAxisAngle(Y, Math.atan2(d.x, d.z)).multiply(tmpQ.setFromAxisAngle(X, -Math.atan2(d.y, Math.hypot(d.x, d.z))));
@@ -174,7 +193,7 @@ export class SlayStage extends ExecStage {
   }
 
   /** Over they go, stiff as a board, towards `away` (in the stage's frame), `u` seconds after the hit. */
-  private topple(u: number, away: THREE.Vector3, from = 0.12, len = 0.45) {
+  protected topple(u: number, away: THREE.Vector3, from = 0.12, len = 0.45) {
     const body = this.size().box;
     const fall = u > from ? Math.min(1, ((u - from) / len) ** 2) : 0;
     const land = from + len;
@@ -192,7 +211,7 @@ export class SlayStage extends ExecStage {
     this.setExtraVec('soulFrom', base.clone().addScaledVector(away, body.max.y * 0.5));
   }
 
-  private daze(which: 'a' | 't', t: number, at: THREE.Vector3 | null, r = 0.22) {
+  protected daze(which: 'a' | 't', t: number, at: THREE.Vector3 | null, r = 0.22) {
     let d = which === 'a' ? this.dizzyA : this.dizzyT;
     if (!d) {
       d = new Dizzy(4);
@@ -205,10 +224,10 @@ export class SlayStage extends ExecStage {
   }
 
   /** A sign that pops up over a spot with a little overshoot, and goes again. */
-  private sign(name: string, text: string, t: number, from: number, to: number, at: THREE.Vector3, w = 0.9, h = 0.42) {
+  protected sign(name: string, text: string, t: number, from: number, to: number, at: THREE.Vector3, w = 0.9, h = 0.42, colours?: { bg: string; fg: string; border?: string }) {
     let s = this.signs.get(name);
     if (!s) {
-      s = wordSign(text, w, h);
+      s = wordSign(text, w, h, colours);
       this.group.add(s.group);
       this.signs.set(name, s);
       this.disposers.push(s.dispose);
@@ -220,21 +239,21 @@ export class SlayStage extends ExecStage {
     s.group.quaternion.copy(this.face(this.cam));
   }
 
-  private tintActor(color: string, k: number) {
+  protected tintActor(color: string, k: number) {
     if (!this.actorRoot) return;
     tintAnimal(this.actorRoot, new THREE.Color(color), k);
     this.actorTinted = true;
   }
 
   /** A prop of the move's own, popped in and out with the rest (and a size bigger than life, to read from afar). */
-  private prop<T extends THREE.Object3D>(o: T, size = this.kit()): T {
+  protected prop<T extends THREE.Object3D>(o: T, size = this.kit()): T {
     o.userData.size = size;
     this.props.add(o);
     return o;
   }
 
   /** How big the kit is drawn: a size up from life, more for a bigger claimer. */
-  private kit(): number {
+  protected kit(): number {
     return THREE.MathUtils.clamp(this.aSize().box.max.y * 1.2, 1.25, 1.9);
   }
 
@@ -254,6 +273,7 @@ export class SlayStage extends ExecStage {
     this.aStretch.set(1, 1, 1);
     this.aAnim = 'idle';
     this.aBusy = false;
+    this.aVisible = true;
     this.at.copy(this.B);
     this.turn.copy(this.face(this.dirT));
     // Both of them in the shot, and whatever's overhead.
@@ -294,6 +314,8 @@ export class SlayStage extends ExecStage {
       case 'grenade':
         this.grenade(t, kill);
         break;
+      default:
+        anim = this.newer(t, kill) ?? anim;
     }
     // Pleased with themselves, or not.
     if (u > 0.6 && !this.aBusy) this.aAnim = kill ? 'cheer' : 'cry';
@@ -303,6 +325,8 @@ export class SlayStage extends ExecStage {
   /** How the one chosen goes down, by move. */
   private downs(t: number, u: number): Anim {
     const away = this.fwd.clone();
+    const own = this.downsNewer(t, u);
+    if (own) return own;
     switch (this.move) {
       case 'mallet': {
         // Squashed flat as a pancake.
@@ -375,6 +399,7 @@ export class SlayStage extends ExecStage {
 
   /** Nothing happens: a flinch at most, and they laugh it off. */
   private shrugs(t: number, u: number) {
+    this.shrugsNewer(t, u);
     if (this.move === 'pan') {
       // A duck just in time.
       const d = span(u, -0.3, -0.1) * (1 - span(u, 0.25, 0.5));
@@ -389,6 +414,17 @@ export class SlayStage extends ExecStage {
       this.stretch.set(1.04, 0.9, 1.04);
     }
   }
+
+  /** The newer moves (slay2.ts): the move itself (and the one chosen's look, if it isn't the usual)... */
+  protected newer(_t: number, _kill: boolean): Anim | void {}
+
+  /** ...how the one chosen goes down (nothing for the usual jolt and topple)... */
+  protected downsNewer(_t: number, _u: number): Anim | null {
+    return null;
+  }
+
+  /** ...and their flinch when nothing happens. */
+  protected shrugsNewer(_t: number, _u: number) {}
 
   // ---------------------------------------------------------------- the moves
 

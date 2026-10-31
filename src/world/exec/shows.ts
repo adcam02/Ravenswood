@@ -15,5 +15,5 @@ export function makeStage(method: Exclude<ExecMethod, 'hang'>, survives: boolean
   return (MORE_METHODS as readonly string[]).includes(method) ? new MoreStage(method, survives, spot, sound) : new ExecStage(method, survives, spot, sound);
 }
 
-/** A Slayer claim played out in the square (see slay.ts), fetched with the executions. */
-export { SlayStage } from './slay';
+/** A Slayer claim played out in the square, fetched with the executions: the first nine moves in slay.ts, the rest in slay2.ts. */
+export { SlayShow as SlayStage } from './slay2';
