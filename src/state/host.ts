@@ -18,6 +18,7 @@ import { isSlayMove, ownsSlay } from '../game/slayMoves';
 import { pitPublic } from '../game/pitRules';
 import {
   ANIMALS,
+  BEDS,
   BED_SPOTS,
   COUNTER_SPOTS,
   emptyTown,
@@ -792,7 +793,7 @@ export function townAction(by: string, a: TownAction): Item | null {
       }
       case 'plant': {
         if (!['tulip', 'daisy', 'sunflower', 'rose'].includes(a.kind) || !COLOR.test(a.color)) return;
-        const bed = Math.max(0, Math.min(3, Math.floor(Number(a.bed) || 0)));
+        const bed = Math.max(0, Math.min(BEDS - 1, Math.floor(Number(a.bed) || 0)));
         const inBed = t.flowers.filter((f) => f.bed === bed);
         // A full bed loses its oldest flower to make room.
         if (inBed.length >= BED_SPOTS) t.flowers = t.flowers.filter((f) => f !== inBed[0]);

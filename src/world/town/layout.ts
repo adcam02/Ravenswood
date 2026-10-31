@@ -156,7 +156,7 @@ export const POST = { x: -3.1, z: 16.6, ry: Math.PI / 2 };
  * The night gallery: an open-air picture board on the grass between the washhouse and the post office, facing the
  * camera (south), where each night's drawings hang the next day. `w` is the board's width.
  */
-export const GALLERY = { x: -7.0, z: 16.4, ry: 0, w: 5.0 };
+export const GALLERY = { x: 9.6, z: -9.6, ry: 0, w: 5.0 };
 /** A ring of toadstools out among the trees past the washing lines, for anyone who goes looking. Stand in it. */
 export const FAIRY_RING = { x: -17.8, z: 25.4, r: 0.95 };
 export const POST_COLS = 6;
@@ -215,8 +215,9 @@ export const BED_LEN = 4.8;
 export const BED_DEPTH = 1.5;
 export const BED_H = 0.35;
 
+// (The fourth bed, at 45 degrees by the idea box, made way for the night gallery.)
 export const beds = Array.from({ length: BEDS }, (_, i) => {
-  const a = ((45 + i * 90) * Math.PI) / 180;
+  const a = ((135 + i * 90) * Math.PI) / 180;
   const r = 14;
   const x = r * Math.sin(a);
   const z = -r * Math.cos(a);

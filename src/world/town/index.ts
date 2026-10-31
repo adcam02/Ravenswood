@@ -27,6 +27,7 @@ import {
   DAIS,
   meetingSpot,
   bedSpot,
+  beds,
   counterSpot,
   houseSlots,
   makeDoors,
@@ -636,6 +637,8 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   });
   const flowerMat = matte();
   const flowers = new Keeper<TownState['flowers'][number]>(outdoor.group, (f) => {
+    // (A flower from before there were three beds goes in the last one.)
+    f = { ...f, bed: Math.min(beds.length - 1, f.bed) };
     const m = new THREE.Mesh(flowerGeometry(f.kind, f.color, f.spot * 31 + f.bed * 7), flowerMat);
     m.castShadow = true;
     const s = bedSpot(f.bed, Math.min(BED_SPOTS - 1, f.spot));

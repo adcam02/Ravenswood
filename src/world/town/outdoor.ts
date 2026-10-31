@@ -1816,6 +1816,7 @@ function blockers(): Blocker[] {
   }
   add(FLATS.x, FLATS.z, 7.5);
   for (const bd of beds) add(bd.x, bd.z, 4);
+  add(GALLERY.x, GALLERY.z, 4.5);
   add(WELL.x, WELL.z, 3);
   add(WOODPILE.x, WOODPILE.z, 2.5);
   add(NOTICEBOARD.x, NOTICEBOARD.z, 2.5);
