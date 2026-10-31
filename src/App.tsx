@@ -84,7 +84,6 @@ import { Landing } from './components/Landing';
 import { JoinFlow } from './components/town/JoinFlow';
 import { DoorPrompt, RestorePrompt } from './components/ProfilePrompts';
 import { FlatsPanels } from './components/town/Flats';
-import { HideSeekLayer } from './components/town/HideSeek';
 import {
   ActionPrompt,
   Announce,
@@ -233,7 +232,6 @@ function Storyteller() {
               <JobLayer />
               <NoticeBoard />
               <PitPanel />
-              <HideSeekLayer />
               <CasinoPanels />
               <FlatsPanels />
             </>
@@ -349,7 +347,6 @@ function Player({ room }: { room: string }) {
               <SlayReel />
               <DayClock />
               <PitPanel />
-              <HideSeekLayer />
               <ProgressWatcher />
               <NoticeBoard />
               <CasinoPanels />

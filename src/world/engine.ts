@@ -36,8 +36,7 @@ import { earn, hatBoost, notePerfect, noteTopJob, tally, useProgress } from '../
 import { setHatFxLow } from './hatFx';
 import { crowned } from '../game/leaders';
 import { PitShow, pitFightFor } from './pitfight';
-import { HideShow } from './hideSeek';
-import type { HideRound, PitState } from '../state/types';
+import type { PitState } from '../state/types';
 
 /** Hats are a player's own: the Storyteller doesn't collect them. */
 const isPlayerView = (v: WorldView | null) => v?.mode === 'player';
@@ -212,8 +211,6 @@ export interface WorldView {
   pigeonNotes: { id: string; name: string; where: string; at: number }[];
   /** The pet pit in the tavern's cellar (this browser's clock). */
   pit?: PitState | null;
-  /** Town-wide hide and seek's round (this browser's clock). */
-  hide?: HideRound | null;
   /** The song on at the club, since when (this browser's clock), and who put it on. */
   club: { song: string; at: number; by: string };
   /** This morning's replay of the night's deaths (this browser's clock). */
@@ -546,8 +543,6 @@ export class Engine {
   private booth: Station | null = null;
   /** The pet fights in the cellar's rings, and which fight we last went to our corner for. */
   private pitShow: PitShow;
-  /** Hide and seek: hiders turned into props, the seekers held blindfolded, taunts. */
-  private hideShow: HideShow;
   private pitCorner = '';
   /** Since when (on the clock) we've been in the booth with someone on the other side, for the achievement. */
   private boothWith: number | null = null;
@@ -581,12 +576,6 @@ export class Engine {
 
     this.town = createTown(this.scene, this.renderer);
     this.pitShow = new PitShow(this.town.groups.cellar);
-    this.hideShow = new HideShow(this.scene, {
-      place: (zone, x, z, ry) => this.place(zone, x, z, ry, true),
-      emote: (anim) => this.startEmote(anim),
-      stop: () => this.stopEverything(),
-      ground: groundY,
-    });
     this.town.groups.town.add(this.fireworks.points);
     this.town.setLowDetail(this.quality === 'low');
     this.town.show('town');
@@ -746,7 +735,6 @@ export class Engine {
     this.me?.dispose();
     this.fireworks.dispose();
     this.pitShow.dispose();
-    this.hideShow.dispose();
     this.renderer.dispose();
     // Hand the graphics memory back now rather than whenever the page tidies up (a player's page builds the
     // town twice: once behind the join screens and again once they're in).
@@ -2229,7 +2217,6 @@ export class Engine {
     if (v) this.runClub(v);
     this.updateOthers(dt, t, v);
     this.updatePreview(dt, t);
-    this.hideShow.update(dt, t, v?.hide, v?.mode ?? 'preview', v?.mySeatId ?? null, local, this.me, this.others);
     this.syncCasino(v);
     this.syncFlats(v);
     this.syncGallery(t, v);
@@ -2308,7 +2295,7 @@ export class Engine {
     let iz = 0;
     const pinned = this.pinned();
     if (pinned) this.moveTarget = null;
-    if (!v.paused && !this.job && !this.frozen && !this.dawn && !this.inBed && !pinned && !this.entering && !this.hideShow.held) {
+    if (!v.paused && !this.job && !this.frozen && !this.dawn && !this.inBed && !pinned && !this.entering) {
       if (this.keys.has('w') || this.keys.has('arrowup')) iz -= 1;
       if (this.keys.has('s') || this.keys.has('arrowdown')) iz += 1;
       if (this.keys.has('a') || this.keys.has('arrowleft')) ix -= 1;
@@ -2326,7 +2313,7 @@ export class Engine {
       dx = ix * cos + iz * sin;
       dz = -ix * sin + iz * cos;
     }
-    if (!(ix || iz) && this.moveTarget && !this.frozen && !this.dawn && !this.entering && !this.hideShow.held) {
+    if (!(ix || iz) && this.moveTarget && !this.frozen && !this.dawn && !this.entering) {
       const tx = this.moveTarget.x - local.x;
       const tz = this.moveTarget.z - local.z;
       const d = Math.hypot(tx, tz);

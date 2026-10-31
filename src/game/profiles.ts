@@ -462,27 +462,6 @@ export function changeArt(who: Who, fn: (art: SavedArt[]) => SavedArt[] | false)
   return true;
 }
 
-/**
- * Pays a party game's prize (hide and seek) out of the day's minigame allowance (PAY.jobDaily), so an evening of
- * games between games can't pay more than the minigames would. Returns what was paid (less, or 0, near the cap).
- */
-export function creditDaily(who: Who, amount: number, why: string): number {
-  const name = nameOf(who);
-  const n = Math.round(amount);
-  if (!name || !(n > 0)) return 0;
-  ensure(name);
-  const day = today();
-  const p = useProfiles.getState().profiles[nameKey(name)];
-  const paid = p.jobPay?.day === day ? p.jobPay.paid : 0;
-  const pay = Math.min(n, PAY.jobDaily - paid);
-  if (pay <= 0) return 0;
-  change(name, (x) => {
-    x.jobPay = { day, paid: paid + pay };
-    addPay(x, pay, why);
-  });
-  return pay;
-}
-
 /** Everyone with a profile, by the key it's kept under: who has a flat in the apartment block. */
 export function residents(): { key: string; name: string }[] {
   return Object.entries(useProfiles.getState().profiles).map(([key, p]) => ({ key, name: p.name }));

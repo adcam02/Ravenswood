@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { local } from '../../game/local';
 import { presence } from '../../game/presence';
-import { hideLocal } from '../../world/hideSeek';
 import { useView } from '../../state/view';
 import { BAKERY, CHURCH, CLUB, COTTAGE_NAMES, FLATS, FLATS_NAME, GALLERY, GALLOWS, GRAVEYARD, MEETING_CENTRE, POND, SQUARE_R, STOOL_R, TAVERN, TOWN_R, WASHHOUSE, WELL, houseSlots } from '../../world/town/layout';
 import { CASINO } from '../../world/town/casinoLayout';
@@ -245,8 +244,7 @@ export function MiniMap() {
       const myKey = mode === 'st' ? 'st' : mySeat.current;
       const people: { zone: string; x: number; z: number; m: Marker }[] = [];
       for (const [key, p] of presence.others) {
-        // (Nor anyone hiding from us in hide and seek.)
-        if (key === myKey || hideLocal.concealed.has(key)) continue;
+        if (key === myKey) continue;
         const seat = seats.current.find((s) => s.id === key);
         if (key !== 'st' && !seat) continue;
         const hidden = mode !== 'st' && inBooth(p.zone, p.x, p.z);

@@ -11,7 +11,6 @@ import { admitDevice, backupCopy, nameKey, profileFor, profileOf, receiveProgres
 import { backups, currentOffer, useBackups } from '../game/backup';
 import { hashDevice, knocks } from '../game/devices';
 import { pit } from '../game/pit';
-import { hideSeek } from '../game/hideSeek';
 import { casinoFor, receiveCasino, startCasino, useCasino } from '../casino/host';
 import { hatKey, isShopHat } from '../casino/shop';
 import { leadersNow } from '../game/leaders';
@@ -150,8 +149,6 @@ class HostLink {
         if (++this.ticks % 10 === 0) st.checkDayTimer();
         // The pet pit's rounds keep time a little more finely.
         if (this.ticks % 2 === 0) pit.tick();
-        // Hide and seek's stages and taunts, a couple of times a second.
-        if (this.ticks % 5 === 2) hideSeek.tick();
       } catch (e) {
         console.error(e);
       }
@@ -482,9 +479,6 @@ class HostLink {
         break;
       case 'pit':
         pit.fromPlayer(pid, msg.a);
-        break;
-      case 'hide':
-        hideSeek.fromPlayer(pid, msg.a);
         break;
       case 'casino':
         receiveCasino(pid, msg.a);

@@ -374,8 +374,6 @@ export interface GameState {
   startedAt?: number;
   /** The pet fights in the tavern's cellar: challenges, the fight in the ring, the board of wins. */
   pit?: PitState;
-  /** Town-wide hide and seek, played between games: the round on (if any), and who's sitting it out. */
-  hide?: HideSeekState;
   /** The game-over question the Storyteller has answered (or that ending the game settled), so it isn't asked again. */
   winDismissed?: string | null;
   awake: Record<string, AwakeState>;
@@ -436,8 +434,6 @@ export interface PublicState {
   deaths?: DeathRecord[];
   /** The pet pit, without anyone's secret pick. */
   pit?: PitState;
-  /** Town-wide hide and seek. */
-  hide?: HideSeekState;
   /** This morning's replay of the night's deaths. */
   dawn?: DawnReel | null;
   /** The tavern's leaderboard (from everyone's profile, which only the Storyteller has). */
@@ -498,87 +494,6 @@ export interface PrivateState {
   /** The night's drawing and the gallery: tonight's prompt, what's hanging and the voting, their own kept pieces. */
   gallery?: GalleryView | null;
 }
-
-// ---------------------------------------------------------------- hide and seek
-
-/** What a hider can turn into (and then can't move). */
-export type HidePropKind = 'barrel' | 'bush' | 'crate';
-
-export interface HidePlayer {
-  seat: string;
-  name: string;
-  /** Hiders who are found become seekers too. */
-  role: 'seeker' | 'hider';
-  /** Picked to seek at the start (the rest who seek were found). */
-  first?: boolean;
-  /** Turned into a prop where they stood. */
-  prop?: { kind: HidePropKind; zone: string; x: number; z: number; ry: number } | null;
-  /** How many this seeker has found. */
-  finds: number;
-  /** When they were found (host clock), and by whom (a seat id; null: they went home, which is out of bounds). */
-  foundAt?: number;
-  foundBy?: string | null;
-  /** Their last taunt of their own (host clock), for the wait between them. */
-  tauntAt?: number;
-}
-
-/** A hider's squeak, where they were when it went off. `forced`: the last minute's, which nobody can keep quiet. */
-export interface HideTaunt {
-  id: string;
-  seat: string;
-  at: number;
-  zone: string;
-  x: number;
-  z: number;
-  forced?: boolean;
-}
-
-export interface HideRound {
-  id: string;
-  /** Gathering (everyone's in unless they say not), hiding (the seekers blindfolded), seeking, then the result. */
-  stage: 'gather' | 'hiding' | 'seeking' | 'over';
-  /** When this stage ends (host clock). */
-  until: number;
-  /** When the seeking began (host clock), for the last minute's taunts. */
-  seekAt?: number;
-  /** Who started it (a name). */
-  by: string;
-  players: HidePlayer[];
-  /** Who found whom, newest last. */
-  feed: { by: string | null; who: string; at: number }[];
-  /** Taunts lately, newest last. */
-  taunts: HideTaunt[];
-  result?: {
-    why: 'time' | 'found' | 'off' | 'few';
-    /** Hiders never found (time ran out). */
-    survivors: string[];
-    /** The last hider found, when everyone was. */
-    last: string | null;
-    /** The seeker who found the most, and how many. */
-    best: string | null;
-    bestFinds: number;
-    /** What each seat won. */
-    prizes: Record<string, number>;
-  };
-}
-
-export interface HideSeekState {
-  round: HideRound | null;
-  /** The Storyteller lets it be played while a game of Clocktower is on. */
-  allowed?: boolean;
-  /** Seats sitting rounds out, until they say they're in again. */
-  out: string[];
-  /** Who sought first last time, so it isn't the same again. */
-  lastSeekers?: string[];
-}
-
-/** Something a player does in hide and seek. */
-export type HideAction =
-  | { k: 'start' }
-  | { k: 'out'; out: boolean }
-  | { k: 'tag' }
-  | { k: 'taunt' }
-  | { k: 'prop'; kind: HidePropKind };
 
 // ---------------------------------------------------------------- the pet pit
 
@@ -847,8 +762,6 @@ export type ClientMessage =
   | { t: 'progress'; events: ProgressEvent[] }
   /** Challenging someone in the pet pit, answering, or picking a move. */
   | { t: 'pit'; a: PitAction }
-  /** Hide and seek: starting a round, sitting out, tagging, taunting, turning into a prop. */
-  | { t: 'hide'; a: HideAction }
   /** A bet, a card, a pet from the shop: everything at the casino. */
   | { t: 'casino'; a: CasinoAction }
   /** The night's drawing and the gallery: sending a drawing, a vote, asking for pictures, keeping a piece. */
