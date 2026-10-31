@@ -260,6 +260,18 @@
   pointer-events: auto;
   flex: none;
 }
+/* A Slayer show: the same bars, thinner, and how it went underneath. */
+.slay-reel .dawn-bar {
+  height: max(52px, 10vh);
+}
+.slay-then {
+  display: block;
+  margin-top: 2px;
+  font-style: normal;
+  font-weight: 700;
+  color: #ffd27a;
+  animation: dawn-line-in 0.6s ease-out both;
+}
 body.dawn-on .minimap,
 body.dawn-on .action-prompt {
   opacity: 0;

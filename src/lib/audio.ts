@@ -1108,6 +1108,21 @@ export function execSound(name: string) {
     case 'plop':
       blip(c, out, t, 0.12, 'sine', 500, 200, 0.1);
       break;
+    // The Slayer's moves (see world/exec/slay.ts).
+    case 'twang':
+      blip(c, out, t, 0.35, 'triangle', 330, 300, 0.12);
+      blip(c, out, t, 0.2, 'sawtooth', 660, 600, 0.03);
+      hush(c, out, t, 0.25, 'bandpass', 1200, 4000, 0.12, 2);
+      break;
+    case 'whoosh':
+      hush(c, out, t, 0.35, 'bandpass', 500, 2500, 0.2, 1.5, 0.12);
+      break;
+    case 'bong':
+      // A frying pan, rung like a bell.
+      bell(392, 1.6, 0.09);
+      bell(587, 1.2, 0.05);
+      blip(c, out, t, 0.25, 'sine', 160, 70, 0.3);
+      break;
     case 'bonng':
       // Every string at once, thrown down hard.
       for (const f of [55, 110, 164.8, 220, 277.2, 330]) bell(f, 3.5, 0.05);

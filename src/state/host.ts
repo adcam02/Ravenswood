@@ -13,7 +13,8 @@ import { loadJSON, roomCode, saveJSON, shuffle, uid } from '../lib/util';
 import { drawMethod, isExecMethod, VOTE_MS } from '../game/execution';
 import { SONGS } from '../lib/disco';
 import { ui } from './ui';
-import { debit } from '../game/profiles';
+import { debit, profileOf } from '../game/profiles';
+import { isSlayMove, ownsSlay } from '../game/slayMoves';
 import { pitPublic } from '../game/pitRules';
 import {
   ANIMALS,
@@ -1499,6 +1500,7 @@ export const st = {
       const shot = g.slayer.find((s) => s.id === id);
       if (!shot || shot.result !== 'pending') return;
       shot.result = kill && shot.real ? 'dies' : 'nothing';
+      shot.settled = Date.now();
       const target = seatOf(g, shot.target);
       if (shot.result === 'dies' && target) {
         // (A Zombuul that has already "died" is shown dead already; this is the death that counts.)
@@ -1630,14 +1632,16 @@ export const st = {
      * so the wait for the outcome is the same whoever made it: for the real Slayer they decide (the Slayer might be
      * drunk or poisoned, or the target might register as the Demon); for anyone else, nothing happens.
      */
-    slay(playerId: string, targetId: string) {
+    slay(playerId: string, targetId: string, move?: string) {
       const g = hostGame();
       const s = g.seats.find((x) => x.playerId === playerId);
       const target = seatOf(g, targetId);
       if (!s || s.dead || !target || target.id === s.id || !slayerOpen(g) || g.slayer.some((x) => x.by === s.id)) return;
       const id = uid();
       const real = s.roleId === 'slayer';
-      update((g) => void g.slayer.push({ id, by: s.id, target: target.id, at: Date.now(), result: 'pending', real, day: g.day }));
+      // The way they do it is only for show: a move they haven't bought is the crossbow.
+      const how = isSlayMove(move) && ownsSlay(move, profileOf({ player: playerId })?.items) ? move : 'crossbow';
+      update((g) => void g.slayer.push({ id, by: s.id, target: target.id, at: Date.now(), result: 'pending', real, day: g.day, move: how }));
     },
     /**
      * A letter posted in someone's letterbox. By day only, to another seat, a few a day each, and kept short; it

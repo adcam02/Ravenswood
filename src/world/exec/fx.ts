@@ -18,7 +18,7 @@ export function hash(i: number, salt = 0): number {
   return h - Math.floor(h);
 }
 
-export type BurstKind = 'poof' | 'smoke' | 'soot' | 'dust' | 'fire' | 'steam' | 'sparks' | 'sparkle' | 'flash' | 'feathers' | 'hay';
+export type BurstKind = 'poof' | 'smoke' | 'soot' | 'dust' | 'fire' | 'steam' | 'sparks' | 'sparkle' | 'flash' | 'feathers' | 'hay' | 'splash' | 'confetti';
 
 interface BurstLook {
   color: string;
@@ -48,6 +48,9 @@ const LOOKS: Record<BurstKind, BurstLook> = {
   flash: { color: '#fffbe8', glow: true, n: 1, size: 0.3, spread: 0, rise: 0, life: 0.16, grow: 2.5 },
   feathers: { color: '#eef0f6', n: 14, size: 0.16, spread: 1.3, rise: 0.9, life: 2.2, fall: 0.5, grow: 1, flutter: true },
   hay: { color: '#e8c860', n: 16, size: 0.14, spread: 1.2, rise: 0.8, life: 1.4, fall: 1.4, grow: 1, flutter: true },
+  // (The Slayer's water balloons and the grenade that's only a party popper.)
+  splash: { color: '#8acff4', n: 18, size: 0.07, spread: 1.2, rise: 1.2, life: 0.9, fall: 5, grow: 0.8 },
+  confetti: { color: '#ff7ab8', n: 18, size: 0.06, spread: 1.3, rise: 1.2, life: 1.8, fall: 0.6, grow: 1, flutter: true },
 };
 
 interface Burst {

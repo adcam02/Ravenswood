@@ -1,5 +1,6 @@
 import { DANCES, HATS, PETS, type Anim, type HatId, type PetId } from '../world/types';
 import { GRAVES, STOOLS } from '../world/stoolShop';
+import { SLAY_MOVES } from '../game/slayMoves';
 
 /**
  * The pet shop's prices. Each pet has a tier; a pet not listed here (a new one) is a fancy one. A game pays
@@ -105,9 +106,11 @@ export const shopPets = () => [...PETS].sort((a, b) => petPrice(a.id) - petPrice
 /** The hats on sale (cheapest first, the trophy last) and the dances. Prices are in HATS and DANCES (world/types.ts). */
 export const shopHats = () => HATS.filter((h) => h.price).sort((a, b) => a.price! - b.price!);
 export const shopDances = () => DANCES.filter((d) => d.price).sort((a, b) => a.price! - b.price!);
+/** The Slayer moves on sale, cheapest first (the crossbow is everyone's already). */
+export const shopSlayMoves = () => SLAY_MOVES.filter((m) => m.price).sort((a, b) => a.price! - b.price!);
 
 /** Something on sale besides pets, by its key ('hat:topper', 'dance:worm'): what it is, its name and its price. */
-export function wareOf(key: string): { kind: 'hat' | 'dance' | 'stool' | 'grave'; id: string; name: string; price: number } | null {
+export function wareOf(key: string): { kind: 'hat' | 'dance' | 'stool' | 'grave' | 'slay'; id: string; name: string; price: number } | null {
   const [kind, id] = key.split(':');
   if (kind === 'hat') {
     const h = HATS.find((x) => x.id === id && x.price);
@@ -122,6 +125,10 @@ export function wareOf(key: string): { kind: 'hat' | 'dance' | 'stool' | 'grave'
     const w = (kind === 'stool' ? STOOLS : GRAVES).find((x) => x.id === id);
     return w ? { kind, id: w.id, name: w.name, price: w.price } : null;
   }
+  if (kind === 'slay') {
+    const m = SLAY_MOVES.find((x) => x.id === id && x.price);
+    return m ? { kind, id: m.id, name: m.name, price: m.price! } : null;
+  }
   return null;
 }
 export const hatKey = (hat: HatId) => `hat:${hat}`;
@@ -134,5 +141,6 @@ export function boughtNote(ware: NonNullable<ReturnType<typeof wareOf>>): string
   if (ware.kind === 'hat') return `${ware.name}: yours! Wear it from here or from Customise.`;
   if (ware.kind === 'stool') return `${ware.name}: yours! Sit on it from here or from Customise.`;
   if (ware.kind === 'grave') return `${ware.name}: yours! Choose it from here or from Customise.`;
+  if (ware.kind === 'slay') return `${ware.name}: yours! Choose it in the Slayer box when you claim.`;
   return `${ware.name}: yours! It’s in your Dances now.`;
 }

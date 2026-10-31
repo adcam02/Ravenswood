@@ -12,6 +12,8 @@ import { doorChime, drumroll, execSound, gavel, gulpSound, munchSound, pigeonSou
 import { clubMusic, songById } from '../lib/disco';
 import { execMethod, showStartAt } from '../game/execution';
 import type { ExecStage, ExecPose } from './exec/stage';
+import type { SlayStage } from './exec/slay';
+import { isSlayMove, slayMove, type SlayMoveId } from '../game/slayMoves';
 import { SOUL } from './exec/soul';
 import type { NightVisit, VictimPose } from './visit';
 import { lazyModule } from '../lib/lazy';
@@ -95,6 +97,10 @@ const TAG_FAR = 26;
  * someone who survives it, the rope snaps `snap` seconds after the drop, and it's over at `spared`.
  */
 const SHOW = { lower: 0.9, drop: 1.6, puff: 3.3, rise: 0.6, end: 3.3 + SOUL.rise + SOUL.pop + 0.5, spared: 4.3, snap: 0.18 };
+/** A Slayer claim answered this long ago (host clock) is too late to watch: a latecomer just hears how it went. */
+const SLAY_LATE_MS = 9000;
+/** The Slayer show starts this long after the Storyteller answers, so everyone's in place (and it's the same moment for all). */
+const SLAY_LEAD_MS = 1500;
 /** Still no method this long after the vote should have closed, something went astray: the show is called off. */
 const SHOW_WAIT_S = 20;
 /**
@@ -193,7 +199,7 @@ export interface WorldView {
   /** Storyteller: the latest wake sent, so the ghost can drift to the bedside. */
   lastWake: { id: string; to: string[] } | null;
   /** Slayer claims this game: who, at whom, and what came of it. */
-  slayer: { id: string; by: string; target: string; result: string }[];
+  slayer: { id: string; by: string; target: string; result: string; move?: string; settled?: number }[];
   /** The game is over, and which team won. */
   ended: { winner: 'good' | 'evil'; at: number } | null;
   /** Hooded-figure visits tonight: the player's own (if they've been killed), or all of them for the Storyteller. */
@@ -470,6 +476,32 @@ export class Engine {
     pose: ExecPose | null;
     drum: boolean;
   } | null = null;
+  /**
+   * A Slayer claim playing out on the dais (see exec/slay.ts): who did it to whom, how, whether they die, and when it
+   * starts on our clock. If it's us, where we were, to be put back afterwards. Claims answered close together wait
+   * their turn in `slayQueue`.
+   */
+  private slay: {
+    id: string;
+    by: string;
+    target: string;
+    move: SlayMoveId;
+    kill: boolean;
+    start: number;
+    /** When to give up waiting for its props to arrive (on our clock). */
+    giveUp: number;
+    stage: SlayStage | null;
+    pose: ExecPose | null;
+    actor: ExecPose | null;
+    alive: boolean;
+    mine: boolean;
+    back: { zone: ZoneId; x: number; z: number; ry: number; stool: boolean } | null;
+    names: { by: string; target: string };
+    landed: boolean;
+  } | null = null;
+  private slayQueue: { id: string; by: string; target: string; move: SlayMoveId; kill: boolean; settled: number }[] = [];
+  /** Tests can hold a Slayer show at a moment, in seconds. */
+  slayFreeze: number | null = null;
   /** The Storyteller hovering higher than usual, over someone's bed. */
   private hoverY = 0;
   /** The ground under us, eased, for walking up and down steps. */
@@ -835,8 +867,14 @@ export class Engine {
       if (first) continue;
       const avatarOf = (id: string) => (id === v.mySeatId ? this.me : this.others.get(id));
       const target = v.seats.find((s) => s.id === shot.target)?.name || 'someone';
-      if (was === undefined) avatarOf(shot.by)?.bubble(`🗡 I’m the Slayer! I choose ${target}!`, 4500);
-      else if (shot.result === 'nothing') avatarOf(shot.target)?.bubble('…nothing happens', 3500);
+      if (was === undefined && shot.result === 'pending') avatarOf(shot.by)?.bubble(`🗡 I’m the Slayer! I choose ${target}!`, 4500);
+      // Answered: everyone in town watches it in the square (and the one chosen says so then, if nothing happens).
+      if (shot.result === 'pending') continue;
+      const involved = v.mode === 'player' && (shot.by === v.mySeatId || shot.target === v.mySeatId);
+      if (shot.settled && Date.now() - shot.settled < SLAY_LATE_MS && (local.zone === 'town' || involved)) {
+        this.slayQueue.push({ id: shot.id, by: shot.by, target: shot.target, move: isSlayMove(shot.move) ? shot.move : 'crossbow', kill: shot.result === 'dies', settled: shot.settled });
+        execShows.want();
+      } else if (shot.result === 'nothing') avatarOf(shot.target)?.bubble('…nothing happens', 3500);
     }
 
     this.syncMe(v);
@@ -926,7 +964,7 @@ export class Engine {
       name: s?.name ?? 'Someone',
       look: s?.look ?? null,
       // The condemned stay themselves until the puff at the end of the hanging.
-      ghost: Boolean(s?.dead) && !(this.show?.alive && this.show.seatId === key),
+      ghost: Boolean(s?.dead) && !(this.show?.alive && this.show.seatId === key) && !(this.slay?.alive && this.slay.target === key),
       storyteller: false,
       isMe: key === v.mySeatId,
       role: role ? { name: really ? `${role.name} (${really.name})` : role.name, icon: iconUrl(role, s?.evil ? 'evil' : 'good'), evil: Boolean(s?.evil) } : null,
@@ -2057,7 +2095,7 @@ export class Engine {
     const v = this.view;
     const i = this.meetingIndex();
     // Not while they're on the gallows: they get their stool back once the show is over.
-    if (!v || i < 0 || !this.me || this.show?.mine) return;
+    if (!v || i < 0 || !this.me || this.show?.mine || this.slay?.mine) return;
     this.stopEverything();
     if (local.zone === 'town' && Math.hypot(local.x, local.z) < this.town.meetingRadius * 1.4) this.sitOnStool();
     else {
@@ -2076,7 +2114,7 @@ export class Engine {
   private sitOnStool() {
     const v = this.view;
     const i = this.meetingIndex();
-    if (!v || i < 0 || this.show?.mine || local.zone !== 'town') return;
+    if (!v || i < 0 || this.show?.mine || this.slay?.mine || local.zone !== 'town') return;
     const spot = this.town.meetingSpot(i, v.seats.length);
     local.x = spot.x;
     local.z = spot.z;
@@ -2158,12 +2196,13 @@ export class Engine {
     }
 
     this.runShow(t);
+    this.runSlay(t, v);
     this.runVisit(t, v);
     this.runDawn(t, v);
     this.runPigeons(t, v);
     this.runPit(dt, t, v);
     // Unlock popups wait while something everyone should watch is on screen.
-    const drama = Boolean(this.show || this.visit || this.dawn);
+    const drama = Boolean(this.show || this.visit || this.dawn || this.slay);
     if (drama !== useHud.getState().drama) useHud.setState({ drama });
     if (this.me && v) this.moveMe(dt, t, v);
     if (v) this.runClub(v);
@@ -2357,7 +2396,7 @@ export class Engine {
     me.ground = myGround;
     let myY = this.seated ? this.seated.y || myGround : this.hoverY + myGround;
     let dangle: { swing: number; scale: number; hidden: boolean } | null = null;
-    const staged = this.show?.mine ? this.stagePose() : null;
+    const staged = this.show?.mine ? this.stagePose() : this.slayPose(v.mySeatId);
     if (staged) {
       local.x = staged.pos.x;
       local.z = staged.pos.z;
@@ -2379,7 +2418,7 @@ export class Engine {
     // (Nobody is drawn while the dawn reel shows last night's deaths, but the stand-in in bed.)
     me.setVisible(!this.dawn);
     // (A prestige hat's glow would only get in the way of the show.)
-    me.setHatFxShown(!this.show?.mine);
+    me.setHatFxShown(!this.show?.mine && !this.inSlay(v.mySeatId));
     me.update(dt, t, anim, local.speaking, false);
     me.rig.root.rotation.z = (dangle?.swing ?? 0) + (this.visit?.mine && this.victimPose ? this.victimPose.shake : 0);
     if (this.visit?.mine && this.victimPose) me.rig.root.position.y += this.victimPose.dy;
@@ -2802,6 +2841,129 @@ export class Engine {
     if (age > (show.mine ? end : end + 0.8)) this.endShow();
   }
 
+  // ---------------------------------------------------------------- the Slayer
+
+  /**
+   * A Slayer claim answered: everyone in town stops to watch on the dais (anyone on a meeting stool stays sat), and
+   * the two of them are brought there, to be put back where they were afterwards.
+   */
+  private beginSlay(next: (typeof this.slayQueue)[number], t: number) {
+    const v = this.view;
+    const mine = v?.mode === 'player' && (next.by === v.mySeatId || next.target === v.mySeatId);
+    if (!v || (local.zone !== 'town' && !mine)) return;
+    const name = (id: string) => v.seats.find((s) => s.id === id)?.name || 'Someone';
+    // Starts at the same moment on every screen (unless it had to wait for another).
+    const lead = (next.settled + SLAY_LEAD_MS - Date.now()) / 1000;
+    this.slay = {
+      ...next,
+      start: t + Math.max(0.6, lead),
+      giveUp: t + 15,
+      stage: null,
+      pose: null,
+      actor: null,
+      // (Only the one about to die is kept alive for it: someone already dead stays a ghost when nothing happens.)
+      alive: next.kill,
+      mine,
+      back: null,
+      names: { by: name(next.by), target: name(next.target) },
+      landed: false,
+    };
+    if (mine || this.seated?.y !== STOOL_Y) this.stopEverything();
+    if (mine) {
+      this.slay.back = { zone: local.zone, x: local.x, z: local.z, ry: local.ry, stool: this.seated?.y === STOOL_Y || useHud.getState().meetingSeated };
+      this.stopEverything();
+      // From indoors, out to the square for it (the show puts us exactly in place once it begins).
+      // (Held still once there: the fade lets go of us just after it calls back.)
+      if (local.zone !== 'town') this.place('town', MEETING_CENTRE.x, MEETING_CENTRE.z, 0, true, () => setTimeout(() => this.slay?.mine && (this.frozen = true)));
+      else this.frozen = true;
+    }
+    // (The one chosen is still themselves until it lands.)
+    for (const id of [next.by, next.target]) {
+      if (id === v.mySeatId) this.me?.setInfo(this.infoFor(id, v));
+      else this.others.get(id)?.setInfo(this.infoFor(id, v));
+    }
+    const m = slayMove(next.move);
+    useHud.setState({ drama: true, slayReel: { line: `${shownName(this.slay.names.by)} claims to be the Slayer and ${m.verb} ${shownName(this.slay.names.target)}…`, then: null, key: next.id } });
+  }
+
+  /** The Slayer's show, a frame of it: the stage goes up once its props have arrived, and comes down at the end. */
+  private runSlay(t: number, v: WorldView | null) {
+    if (!this.slay) {
+      if (this.show || !this.slayQueue.length) return;
+      const next = this.slayQueue.shift()!;
+      if (Date.now() - next.settled > SLAY_LATE_MS + 20000) return;
+      this.beginSlay(next, t);
+      if (!this.slay) return;
+    }
+    const s = this.slay;
+    if (!v || v.ended || (local.zone !== 'town' && !(s.mine && t < s.start))) return this.endSlay();
+    if (!s.stage) {
+      const shows = execShows.now();
+      if (!shows) {
+        // Its props are still on their way (a slow line): a beat behind everyone else, or not at all.
+        execShows.want();
+        s.start = Math.max(s.start, t + 0.1);
+        if (t > s.giveUp) this.endSlay();
+        return;
+      }
+      s.stage = new shows.SlayStage(s.move, s.kill, { x: MEETING_CENTRE.x, z: MEETING_CENTRE.z, ry: 0, y: DAIS.top }, execSound);
+      this.town.groups.town.add(s.stage.group);
+    }
+    const age = this.slayFreeze ?? t - s.start;
+    const avatar = (id: string) => (id === v.mySeatId ? this.me : this.others.get(id));
+    const target = avatar(s.target);
+    const actor = avatar(s.by);
+    // (Held at its first moment, with both in place, until it starts.)
+    s.pose = s.stage.update(Math.max(0, age), target?.shown ? target.rig : null, this.camera, actor?.shown ? actor.rig : null);
+    s.actor = s.stage.actor;
+    if (s.alive && s.pose.ghost) {
+      s.alive = false;
+      target?.setInfo(this.infoFor(s.target, v));
+    }
+    if (age >= s.stage.hit && !s.landed) {
+      s.landed = true;
+      const reel = useHud.getState().slayReel;
+      if (reel?.key === s.id) useHud.setState({ slayReel: { ...reel, then: s.kill ? `${shownName(s.names.target)} dies!` : '…and nothing happens.' } });
+      if (!s.kill) setTimeout(() => this.slay === s && target?.bubble('…nothing happens', 3000), 500);
+    }
+    if (age > (s.mine ? s.stage.end : s.stage.end + 0.8)) this.endSlay();
+  }
+
+  /** Where the Slayer's show has someone this frame (the claimer or the one chosen), if it's them and it's on. */
+  private slayPose(key: string | null | undefined): ExecPose | null {
+    const s = this.slay;
+    if (!s?.stage || !key || local.zone !== 'town') return null;
+    return key === s.target ? s.pose : key === s.by ? s.actor : null;
+  }
+
+  private inSlay(key: string | null | undefined): boolean {
+    return Boolean(key && this.slay && (this.slay.by === key || this.slay.target === key));
+  }
+
+  /** Over: the stage comes down, the caption goes, and if it was us, back where we were (as a ghost, perhaps). */
+  private endSlay() {
+    const s = this.slay;
+    if (!s) return;
+    this.slay = null;
+    s.stage?.dispose();
+    if (useHud.getState().slayReel?.key === s.id) useHud.setState({ slayReel: null });
+    const v = this.view;
+    for (const id of [s.by, s.target]) {
+      const av = v && id === v.mySeatId ? this.me : this.others.get(id);
+      if (!av) continue;
+      av.rig.root.rotation.set(0, av.rig.root.rotation.y, 0);
+      av.rig.root.scale.setScalar(1);
+      if (v) av.setInfo(this.infoFor(id, v));
+      if (av !== this.me) av.placed = false;
+    }
+    if (s.mine) {
+      this.frozen = false;
+      const b = s.back;
+      if (v && b?.stool && (v.townHall || v.nomination) && this.meetingIndex() >= 0) this.takeMeetingSeat();
+      else if (b) this.place(b.zone, b.x, b.z, b.ry, b.zone !== 'town');
+    }
+  }
+
   /** From now on they're drawn as the ghost they are (until now they've been kept as they were). */
   private becomeGhost(show: NonNullable<Engine['show']>) {
     show.alive = false;
@@ -3068,6 +3230,7 @@ export class Engine {
     const away = new Set(this.pitShow.inRing);
     // (The condemned's pet keeps out of the way of the show too.)
     if (this.show) away.add(this.show.seatId);
+    if (this.slay) away.add(this.slay.by).add(this.slay.target);
     for (const [key, av] of this.others) av.setPetAway(away.has(key));
     this.me?.setPetAway(Boolean(v?.mySeatId && away.has(v.mySeatId)));
     if (!v || v.mode !== 'player' || !v.mySeatId) return;
@@ -3256,7 +3419,7 @@ export class Engine {
       const sitting = p.anim === 'sit' || p.anim === 'sleep';
       let anim: Anim = nom && nom.status !== 'done' && nom.votes.includes(key) ? 'hand' : p.anim;
       let dangle: { swing: number; scale: number; hidden: boolean } | null = null;
-      const staged = this.show?.seatId === key && local.zone === 'town' ? this.stagePose() : null;
+      const staged = (this.show?.seatId === key && local.zone === 'town' ? this.stagePose() : null) ?? this.slayPose(key);
       if (staged) {
         av.setTarget(staged.pos.x, staged.pos.z, av.ry, staged.pos.y);
         av.snap();
@@ -3281,7 +3444,7 @@ export class Engine {
       // Nobody but the Storyteller sees who is sitting in a confession booth.
       const hidden = inBooth(p.zone, p.x, p.z) && v.mode !== 'st';
       // A prestige hat's glow would give away who's in the booth, and gets in the way of an execution.
-      av.setHatFxShown(!hidden && this.show?.seatId !== key);
+      av.setHatFxShown(!hidden && this.show?.seatId !== key && !this.inSlay(key));
       av.setTagShown(!dangle?.hidden && !hidden && !this.tablemates.has(key) && (v.mode === 'st' || key === 'st' || far < TAG_FAR || p.speaking || Boolean(p.shout)));
       av.setVoiceState(Boolean(p.muted), Boolean(p.shout));
       av.update(dt, t, anim, p.speaking, true);
@@ -3391,6 +3554,11 @@ export class Engine {
     } else if (this.show?.stage && shows && this.showAge(t) >= 0 && zoneKind(local.zone) === 'town') {
       // The other ways: from nearly in front, between the posts, framed to take in the props.
       const shot = shows.execCamera(this.show.stage.framing(), this.camera.aspect, t);
+      wantPos.copy(shot.pos);
+      wantLook.copy(shot.look);
+    } else if (this.slay?.stage && shows && !this.show && zoneKind(local.zone) === 'town') {
+      // A Slayer claim: the same shot as the executions, on the two of them.
+      const shot = shows.execCamera(this.slay.stage.framing(), this.camera.aspect, t);
       wantPos.copy(shot.pos);
       wantLook.copy(shot.look);
     } else if (this.show && zoneKind(local.zone) === 'town') {

@@ -3,7 +3,7 @@ import type { GameJob } from '../jobs/meta';
 import type { Anim, Item } from '../world/types';
 
 /** The shop's shelves. */
-export type ShopTab = 'pets' | 'hats' | 'dances' | 'seats' | 'graves';
+export type ShopTab = 'pets' | 'hats' | 'dances' | 'seats' | 'graves' | 'slay';
 
 export interface Prompt {
   label: string;
@@ -62,6 +62,8 @@ interface Hud {
   pigeon: { name: string; where: string; key: number } | null;
   /** Dawn: the night's deaths being shown to everyone, which one this is and its caption. */
   dawnReel: { line: string; n: number; of: number; key: string } | null;
+  /** A Slayer claim playing out in the square: its caption, and then how it went. */
+  slayReel: { line: string; then: string | null; key: string } | null;
 }
 
 export const useHud = create<Hud>(() => ({
@@ -88,6 +90,7 @@ export const useHud = create<Hud>(() => ({
   boost: null,
   pigeon: null,
   dawnReel: null,
+  slayReel: null,
 }));
 
 /** Commands from the on-screen buttons to the 3D world. The world fills these in when it starts. */

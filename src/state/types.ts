@@ -232,6 +232,10 @@ export interface SlayerShot {
   real?: boolean;
   /** The day it happened on. */
   day?: number;
+  /** How the claimer does it in the square (a Slayer move, see game/slayMoves.ts): the crossbow unless they chose another. */
+  move?: string;
+  /** When the Storyteller answered (host clock): the show in the square starts a moment after. */
+  settled?: number;
 }
 
 /** A death this game, for the recap at the end. */
@@ -716,7 +720,7 @@ export type ClientMessage =
   /** Hand whatever is in your paw to someone (a seat id, or 'st'). */
   | { t: 'give'; to: string; item: Item }
   /** Claim to be the Slayer and choose this seat. */
-  | { t: 'slay'; seatId: string }
+  | { t: 'slay'; seatId: string; move?: string }
   /** The one holding the talking stick before a vote is done speaking: it passes on. */
   | { t: 'speechDone' }
   /** Ask the Storyteller to start a nomination of this seat, or take back a request still waiting. */

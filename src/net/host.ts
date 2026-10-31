@@ -429,7 +429,7 @@ class HostLink {
         p.vote(pid, Boolean(msg.up));
         break;
       case 'slay':
-        p.slay(pid, String(msg.seatId));
+        p.slay(pid, String(msg.seatId), typeof msg.move === 'string' ? msg.move : undefined);
         break;
       case 'nominate': {
         const why = p.nominate(pid, String(msg.seatId ?? ''));

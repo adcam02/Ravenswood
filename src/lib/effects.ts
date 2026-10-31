@@ -9,6 +9,7 @@ import { notify } from './notify';
 import { joinNames } from './util';
 import { JOB_TITLES, SCORE_LABEL, type GameJob } from '../jobs/meta';
 import { shownName } from '../state/nicks';
+import { local } from '../game/local';
 
 /** Sounds, banners and notices that follow from changes in the game. */
 export function useEffects(view: View | null) {
@@ -81,6 +82,9 @@ export function useEffects(view: View | null) {
         ui.banner(`${by?.label ?? 'Someone'} claims to be the Slayer`, `and chooses ${target}. The Storyteller decides…`);
       }
       if (shot.result !== 'pending' && before?.result !== shot.result) {
+        // In the square it plays out for everyone to watch, with its own caption (see the engine's Slayer show).
+        const involved = view.seats.some((x) => x.isMe && (x.id === shot.by || x.id === shot.target));
+        if (shot.settled && Date.now() - shot.settled < 9000 && (local.zone === 'town' || involved)) continue;
         if (shot.result === 'dies') ui.banner(`${target} dies`, `Slain by ${by?.label ?? 'the Slayer'}`);
         else ui.toast(`${by?.label ?? 'Someone'} chose ${target}. Nothing happens.`, 'info');
       }

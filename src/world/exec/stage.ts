@@ -97,6 +97,9 @@ export interface ExecFrame {
 
 type Sound = (name: string) => void;
 
+/** What a stage plays: a way to be executed, or a Slayer's move (slay.ts). */
+export type StageMethod = Exclude<ExecMethod, 'hang'> | 'slay';
+
 const UP = new THREE.Vector3(0, 1, 0);
 const tmpQ = new THREE.Quaternion();
 
@@ -254,10 +257,12 @@ export class ExecStage {
   protected extra: Record<string, number> = {};
 
   constructor(
-    readonly method: Exclude<ExecMethod, 'hang'>,
+    readonly method: StageMethod,
     readonly survives: boolean,
     spot: { x: number; z: number; ry: number; y: number },
     protected sound: Sound = () => {},
+    /** Its own timings, for a show that isn't an execution (a Slayer's, see slay.ts). */
+    times?: { soul: number; spared: number },
   ) {
     this.P = spot.y;
     this.group.position.set(spot.x, 0, spot.z);
@@ -272,7 +277,7 @@ export class ExecStage {
     this.fx.matrix.copy(this.group.matrix).invert();
     this.fx.add(this.bursts.group);
     this.group.add(this.props, this.fx);
-    const t = TIMES[method];
+    const t = times ?? TIMES[method as Exclude<ExecMethod, 'hang'>];
     this.soulAt = survives ? Infinity : t.soul;
     this.end = survives ? t.spared : t.soul + SOUL.rise + SOUL.pop + 0.6;
     this.frame = { look: this.world(new THREE.Vector3(0, this.P + 0.8, 0)), radius: 2.8, shake: 0 };

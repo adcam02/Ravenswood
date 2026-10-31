@@ -38,3 +38,32 @@ export function DawnReel() {
     </div>
   );
 }
+
+/**
+ * A Slayer claim playing out in the square (see the engine's Slayer show): letterboxed like the dawn reel, with what's
+ * happening along the bottom, and then how it went.
+ */
+export function SlayReel() {
+  const reel = useHud((s) => s.slayReel);
+  const on = Boolean(reel);
+  useEffect(() => {
+    document.body.classList.toggle('dawn-on', on);
+    return () => document.body.classList.remove('dawn-on');
+  }, [on]);
+  if (!reel) return null;
+  return (
+    <div className="dawn-reel slay-reel" role="status" aria-live="polite">
+      <div className="dawn-bar top" aria-hidden="true" />
+      <div className="dawn-bar bottom">
+        <p className="dawn-line">
+          {reel.line}
+          {reel.then && (
+            <span key={reel.then} className="slay-then">
+              {reel.then}
+            </span>
+          )}
+        </p>
+      </div>
+    </div>
+  );
+}

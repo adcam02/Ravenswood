@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { getRole } from '../data';
 import { player } from '../net/client';
-import { earn } from '../game/progress';
+import { earn, useMyItems } from '../game/progress';
+import { ownsSlay, SLAY_MOVES, slayMove, type SlayMoveId } from '../game/slayMoves';
+import { useHud } from '../game/hud';
 import { seatName, slayerOpen, st, useHost } from '../state/host';
 import { ui, useUI } from '../state/ui';
 import { useView, type View } from '../state/view';
@@ -21,6 +23,11 @@ export function SlayerModal() {
   const me = view.seats.find((s) => s.isMe);
   const { show, used } = slayerButton(view);
   const [target, setTarget] = useState<string | null>(null);
+  // How they'll do it in the square: the crossbow, or a move they've bought in the Shop.
+  const items = useMyItems();
+  const moves = SLAY_MOVES.filter((m) => ownsSlay(m.id, items));
+  const [move, setMove] = useState<SlayMoveId>('crossbow');
+  const how = moves.some((m) => m.id === move) ? move : 'crossbow';
   // Dead players too: the Slayer can choose anyone, and a Zombuul that has "died" is still the Demon.
   const choices = view.seats.filter((s) => !s.isMe && (s.claimed || s.name));
   const chosen = view.seats.find((s) => s.id === target);
@@ -44,18 +51,44 @@ export function SlayerModal() {
               </button>
             ))}
           </div>
+          <h3 className="slayer-ask slayer-how">How?</h3>
+          <div className="ask-seats slayer-moves">
+            {moves.map((m) => (
+              <button key={m.id} className={`ask-seat slayer-move ${how === m.id ? 'on' : ''}`} onClick={() => setMove(m.id)} title={m.blurb}>
+                <span className="slayer-move-icon" aria-hidden="true">
+                  {m.icon}
+                </span>
+                {m.name}
+              </button>
+            ))}
+          </div>
+          {moves.length < SLAY_MOVES.length && (
+            <p className="slayer-more">
+              More moves in the{' '}
+              <button
+                className="linkish"
+                onClick={() => {
+                  ui.close();
+                  useHud.setState({ casino: { kind: 'shop', tab: 'slay', away: true } });
+                }}
+              >
+                Shop
+              </button>
+              .
+            </p>
+          )}
           <div className="slayer-go">
             <button
               className="btn big blood"
               disabled={!chosen}
               onClick={() => {
                 if (!chosen) return;
-                player.slay(chosen.id);
+                player.slay(chosen.id, how);
                 earn('slayer');
                 ui.close();
               }}
             >
-              <Icon name="dagger" /> {chosen ? `Slay ${chosen.label}` : 'Choose a player'}
+              <Icon name="dagger" /> {chosen ? `Slay ${chosen.label} ${slayMove(how).icon}` : 'Choose a player'}
             </button>
           </div>
         </>

@@ -2343,6 +2343,31 @@
   font-size: 20px;
   font-weight: 400;
 }
+.slayer-how {
+  margin-top: 18px;
+}
+.slayer-move {
+  font-size: 15px;
+  padding: 6px 12px 7px 8px;
+}
+.slayer-move-icon {
+  font-size: 20px;
+}
+.slayer-more {
+  margin: 10px 0 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.slayer-more .linkish {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--brass-hi);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
 .slayer-go {
   display: flex;
   justify-content: center;

@@ -121,6 +121,18 @@
 .shop-dance-icon {
   font-size: 52px;
 }
+/* Slayer moves: what each one does, and the ones already yours. */
+.shop-slay-note {
+  max-width: 24ch;
+  font-size: 11.5px;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--cosy-ink-soft);
+}
+.shop-owned {
+  font-weight: 700;
+  color: #3f7a3a;
+}
 
 /* ---------------------------------------------------------------- the Dances picker: ones still to buy */
 .dance-choice.locked {

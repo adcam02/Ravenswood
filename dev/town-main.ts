@@ -10,12 +10,13 @@ import { createTown } from '../src/world/town';
 import { swayUniforms } from '../src/world/town/fx';
 import { ANIMALS, BOOTHS, animalInfo, emptyTown, type AnimalId, type HatId, type PetId, type Weather, type ZoneKind } from '../src/world/types';
 import { buildAnimal } from '../src/world/animals';
-import { BED, groundAt } from '../src/world/town/layout';
+import { BED, DAIS, MEETING_CENTRE, groundAt } from '../src/world/town/layout';
 import { NightVisit, bendVictim } from '../src/world/visit';
 import { PigeonFlight } from '../src/world/pigeon';
 import { AvatarView } from '../src/world/avatar';
 import type { ExecStage } from '../src/world/exec/stage';
-import { EXEC_CAM, execCamera, makeStage } from '../src/world/exec/shows';
+import { EXEC_CAM, execCamera, makeStage, SlayStage } from '../src/world/exec/shows';
+import type { SlayMoveId } from '../src/game/slayMoves';
 import type { ExecMethod } from '../src/state/types';
 import { CHAIR_Y, FELT_Y, PK_TABLE, RL_LOOK, SLOTS, bjSeat, bjSpot, pkSeat, rlSeat, slStool } from '../src/world/town/casinoLayout';
 import { PIECES, freeSpot, type FlatItem } from '../src/flats/catalogue';
@@ -412,6 +413,57 @@ function execClear() {
 }
 (window as unknown as { execClear: typeof execClear }).execClear = execClear;
 if (q.has('exec')) execAt({ exec: q.get('exec')!, et: num('et', 2), animal: q.get('animal') ?? undefined, spared: q.has('spared'), hat: q.get('hat') ?? undefined, ry: num('ry', 0), edist: q.has('edist') ? num('edist', 8.5) : undefined });
+// ?slay=crossbow&et=2.6: a Slayer claim held at et seconds in, on the dais: a bear (&actor=) doing it to a fox
+// (&animal=); &spared when nothing happens. window.slayAt({...}) shows another without building the town again.
+let slay: { stage: SlayStage; rigs: ReturnType<typeof buildAnimal>[] } | null = null;
+function slayAt(o: { slay: string; et: number; animal?: string; actor?: string; spared?: boolean; hat?: string }) {
+  slay?.stage.dispose();
+  slay?.rigs.forEach((r) => (r.root.removeFromParent(), r.dispose()));
+  const rig = (animal: string, hat?: string) => {
+    const r = buildAnimal({ animal: animal as never, color: ANIMALS.find((a) => a.id === animal)?.colors[0] ?? '#e2793a', hat: (hat as never) ?? null });
+    town.groups.town.add(r.root);
+    return r;
+  };
+  const target = rig(o.animal ?? 'fox');
+  const actor = rig(o.actor ?? 'bear', o.hat);
+  const stage = new SlayStage(o.slay as SlayMoveId, !o.spared, { x: MEETING_CENTRE.x, z: MEETING_CENTRE.z, ry: 0, y: DAIS.top });
+  slay = { stage, rigs: [target, actor] };
+  town.groups.town.add(stage.group);
+  let ghost = false;
+  const put = (r: typeof target, p: { pos: THREE.Vector3; quat: THREE.Quaternion; scale: THREE.Vector3; anim: never; visible: boolean }, x: number) => {
+    r.update({ anim: p.anim, speed: 0, dt: 1 / 30, t: x });
+    r.root.position.copy(p.pos);
+    r.root.quaternion.copy(p.quat);
+    r.root.scale.copy(p.scale);
+    r.root.visible = p.visible;
+    r.root.updateMatrixWorld(true);
+  };
+  for (let x = 0; ; x = Math.min(o.et, x + 1 / 30)) {
+    const pose = stage.update(x, target, camera, actor);
+    if (pose.ghost !== ghost) {
+      ghost = pose.ghost;
+      target.setGhost(ghost);
+    }
+    put(target, pose as never, x);
+    put(actor, stage.actor as never, x);
+    if (x >= o.et) break;
+  }
+  const shot = execCamera(stage.framing(), innerWidth / innerHeight, o.et);
+  camera.position.copy(shot.pos);
+  camera.lookAt(shot.look);
+}
+(window as unknown as { slayAt: typeof slayAt }).slayAt = slayAt;
+// window.slayClear(): takes it down, and says what's left in memory and in the town (as execClear).
+(window as unknown as { slayClear: () => unknown }).slayClear = () => {
+  slay?.stage.dispose();
+  slay?.rigs.forEach((r) => (r.root.removeFromParent(), r.dispose()));
+  slay = null;
+  renderer.render(scene, camera);
+  let objects = 0;
+  scene.traverse(() => objects++);
+  return { geometries: renderer.info.memory.geometries, textures: renderer.info.memory.textures, objects };
+};
+if (q.has('slay')) slayAt({ slay: q.get('slay')!, et: num('et', 2), animal: q.get('animal') ?? undefined, actor: q.get('actor') ?? undefined, spared: q.has('spared'), hat: q.get('hat') ?? undefined });
 // ?walkers=fox:zapmouse,bear:dragon: animals walking towards the camera past the focus, each with its pet in
 // tow (?stop=12 has them stand still for the last 12 frames, the pets catching up; ?ghost makes the second a ghost).
 // A third part puts a hat on: fox::trophy (no pet), bear:dragon:crown.

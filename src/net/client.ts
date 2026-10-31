@@ -439,7 +439,7 @@ export const player = {
   rename: (name: string) => clientLink.send({ t: 'rename', name }),
   vote: (up: boolean) => clientLink.send({ t: 'vote', up }),
   /** Claim to be the Slayer and choose this seat. */
-  slay: (seatId: string) => clientLink.send({ t: 'slay', seatId }),
+  slay: (seatId: string, move?: string) => clientLink.send({ t: 'slay', seatId, move }),
   /** Ask the Storyteller to start a nomination of this seat (or take back one still waiting). */
   nominate: (seatId: string) => clientLink.send({ t: 'nominate', seatId }),
   withdrawNomination: (id: string) => clientLink.send({ t: 'withdrawNomination', id }),
