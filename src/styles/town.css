@@ -606,12 +606,21 @@
   right: 0;
   bottom: calc(100% + 8px);
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 2px;
-  width: 260px;
+  width: min(420px, calc(100vw - 24px));
+  /* Thirty-odd dances: a scrolling grid, kept clear of the top of the window. */
+  max-height: min(430px, calc(100vh - 180px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 6px;
   border-radius: 16px;
   animation: dance-pop 0.16s ease-out;
+}
+@media (max-width: 520px) {
+  .dance-pick {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 @keyframes dance-pop {
   from {
@@ -642,6 +651,23 @@
 }
 .dance-name {
   flex: 1;
+  min-width: 0;
+  line-height: 1.15;
+}
+/* Three across: the name over its price, so a long one still fits. */
+.dance-pick .dance-choice {
+  gap: 6px;
+  padding: 5px 6px;
+  font-size: 13px;
+}
+.dance-pick .dance-choice.locked {
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+.dance-pick .dance-choice.locked .dance-price {
+  flex-basis: 100%;
+  padding-left: 30px;
+  font-size: 11px;
 }
 .dance-choice .cosy-key {
   opacity: 0.7;

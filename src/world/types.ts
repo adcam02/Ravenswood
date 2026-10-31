@@ -163,7 +163,10 @@ export type PetId =
   | 'teddy' | 'porg' | 'snowman' | 'crab' | 'luckyfin' | 'rooster' | 'raccoon'
   // A fifth set (pets5.ts).
   | 'eggprobe' | 'nursebot' | 'hedgehog' | 'chomper' | 'fairy' | 'moogle' | 'cactus' | 'bean'
-  | 'turret' | 'catbus' | 'faceless' | 'hearth' | 'niffler' | 'platypus' | 'dug';
+  | 'turret' | 'catbus' | 'faceless' | 'hearth' | 'niffler' | 'platypus' | 'dug'
+  // A sixth set: classic gags and more pop-culture nods (pets6.ts).
+  | 'redpup' | 'mutt' | 'brainmouse' | 'donkey' | 'bootcat' | 'goober' | 'babyshark' | 'sock' | 'rubberchicken'
+  | 'petrock' | 'fishghost' | 'ufo' | 'toaster' | 'furbo' | 'potdancer' | 'grincat' | 'bombpal' | 'nessie' | 'spud' | 'keycat';
 
 export const PETS: { id: PetId; name: string; icon: string }[] = [
   { id: 'chick', name: 'Chick', icon: '🐤' },
@@ -243,6 +246,26 @@ export const PETS: { id: PetId; name: string; icon: string }[] = [
   { id: 'niffler', name: 'Shiny snatcher', icon: '🪙' },
   { id: 'platypus', name: 'Agent platypus', icon: '🕵️' },
   { id: 'dug', name: 'Squirrel! dog', icon: '🦮' },
+  { id: 'redpup', name: 'Big red pup', icon: '🐕' },
+  { id: 'mutt', name: 'Mystery hound', icon: '🔍' },
+  { id: 'brainmouse', name: 'Lab mouse', icon: '🧠' },
+  { id: 'donkey', name: 'Chatty donkey', icon: '🫏' },
+  { id: 'bootcat', name: 'Booted cat', icon: '👢' },
+  { id: 'goober', name: 'Greedy ghost', icon: '🟢' },
+  { id: 'babyshark', name: 'Baby shark', icon: '🦈' },
+  { id: 'sock', name: 'Sock puppet', icon: '🧦' },
+  { id: 'rubberchicken', name: 'Rubber chicken', icon: '🐔' },
+  { id: 'petrock', name: 'Pet rock', icon: '🪨' },
+  { id: 'fishghost', name: 'Goldfish ghost', icon: '🐟' },
+  { id: 'ufo', name: 'Tiny saucer', icon: '🛸' },
+  { id: 'toaster', name: 'Flying toaster', icon: '🍞' },
+  { id: 'furbo', name: 'Chatterbox', icon: '🦉' },
+  { id: 'potdancer', name: 'Dancing flower', icon: '🌻' },
+  { id: 'grincat', name: 'Grinning cat', icon: '😸' },
+  { id: 'bombpal', name: 'Wind-up bomb', icon: '💣' },
+  { id: 'nessie', name: 'Loch monster', icon: '🦕' },
+  { id: 'spud', name: 'Mister Spud', icon: '🥔' },
+  { id: 'keycat', name: 'Keyboard cat', icon: '🎹' },
 ];
 
 const pickFrom = <T extends string>(list: { id: T }[], v: unknown): T | null => (list.some((x) => x.id === v) ? (v as T) : null);
@@ -694,7 +717,28 @@ export type Anim =
   | 'runningman'
   | 'ymca'
   | 'carlton'
-  | 'worm';
+  | 'worm'
+  /** More dances bought at the shop. */
+  | 'dougie'
+  | 'renegade'
+  | 'ladies'
+  | 'hustle'
+  | 'chacha'
+  | 'charleston'
+  | 'cabbage'
+  | 'cart'
+  | 'twist'
+  | 'eslide'
+  | 'pointer'
+  | 'riverdance'
+  | 'hokey'
+  | 'defaultdance'
+  | 'orange'
+  | 'woah'
+  | 'windmill'
+  | 'dab'
+  | 'vogue'
+  | 'cancan';
 
 export const EMOTES: { anim: Anim; label: string; key: string }[] = [
   { anim: 'wave', label: 'Wave', key: '1' },
@@ -726,6 +770,26 @@ export const DANCES: { anim: Anim; label: string; icon: string; price?: number }
   { anim: 'ymca', label: 'Y.M.C.A.', icon: '🙆', price: 25 },
   { anim: 'carlton', label: 'The Carlton', icon: '🕺', price: 30 },
   { anim: 'worm', label: 'The worm', icon: '🪱', price: 40 },
+  { anim: 'dougie', label: 'The Dougie', icon: '💇', price: 15 },
+  { anim: 'cabbage', label: 'Cabbage patch', icon: '🥬', price: 15 },
+  { anim: 'cart', label: 'Shopping cart', icon: '🛒', price: 15 },
+  { anim: 'hokey', label: 'Hokey pokey', icon: '🔄', price: 15 },
+  { anim: 'dab', label: 'The dab', icon: '💪', price: 20 },
+  { anim: 'hustle', label: 'The hustle', icon: '🪩', price: 20 },
+  { anim: 'eslide', label: 'Electric slide', icon: '⚡', price: 20 },
+  { anim: 'chacha', label: 'Cha-cha slide', icon: '👣', price: 25 },
+  { anim: 'ladies', label: 'Put a ring on it', icon: '💍', price: 25 },
+  { anim: 'woah', label: 'The woah', icon: '😮', price: 25 },
+  { anim: 'pointer', label: 'Saturday night', icon: '👆', price: 25 },
+  { anim: 'twist', label: 'Diner twist', icon: '✌️', price: 30 },
+  { anim: 'charleston', label: 'Charleston', icon: '🎷', price: 30 },
+  { anim: 'vogue', label: 'Vogue', icon: '🖼️', price: 30 },
+  { anim: 'cancan', label: 'Cancan', icon: '🦵', price: 30 },
+  { anim: 'riverdance', label: 'Riverdance', icon: '☘️', price: 35 },
+  { anim: 'renegade', label: 'Renegade', icon: '📱', price: 35 },
+  { anim: 'defaultdance', label: 'The default', icon: '🎮', price: 40 },
+  { anim: 'orange', label: 'Orange justice', icon: '🍊', price: 40 },
+  { anim: 'windmill', label: 'Windmill', icon: '🌀', price: 50 },
 ];
 
 /** Whether a player may do this dance: a free one, or one they've bought. */
