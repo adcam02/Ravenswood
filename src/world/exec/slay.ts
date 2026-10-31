@@ -427,7 +427,8 @@ export class SlayStage extends ExecStage {
         this.aim(B.bolt, tip.clone().addScaledVector(way, -0.45), tip);
       } else {
         const way = this.onTarget(0.55, -0.6).sub(chest).normalize();
-        this.aim(B.bolt, chest.clone().addScaledVector(way, -0.36), chest);
+        // (Its tip just in, the rest sticking out.)
+        this.aim(B.bolt, chest.clone().addScaledVector(way, -(0.45 * this.kit() - 0.1)), chest);
       }
       this.sfx('thunk', this.hit, t);
       return;
