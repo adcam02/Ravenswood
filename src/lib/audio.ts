@@ -1662,3 +1662,70 @@ export function munchSound() {
     src.start(at);
   }
 }
+
+// ---------------------------------------------------------------- hide and seek
+
+/**
+ * Hide and seek: a hider's taunt (a rubber squeak or a duck's quack, by `variant`), someone found, the hiding and
+ * seeking starting, and the end. `volume` falls off with distance for a taunt.
+ */
+export function hideSound(name: 'squeak' | 'quack' | 'found' | 'hide' | 'seek' | 'end', volume = 1) {
+  const c = audio();
+  if (!c || volume <= 0.01) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.value = volume;
+  out.connect(c.destination);
+  const tone = (type: OscillatorType, from: number, to: number, at: number, len: number, vol: number) => {
+    const osc = c.createOscillator();
+    const g = c.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(from, t + at);
+    osc.frequency.exponentialRampToValueAtTime(to, t + at + len);
+    g.gain.setValueAtTime(0.0001, t + at);
+    g.gain.exponentialRampToValueAtTime(vol, t + at + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + at + len);
+    osc.connect(g).connect(out);
+    osc.start(t + at);
+    osc.stop(t + at + len + 0.02);
+  };
+  if (name === 'squeak') {
+    // A rubber toy squeezed twice: up and back down.
+    tone('square', 1500, 2600, 0, 0.12, 0.05);
+    tone('sine', 1700, 2900, 0, 0.12, 0.12);
+    tone('square', 2400, 1300, 0.2, 0.16, 0.05);
+    tone('sine', 2700, 1500, 0.2, 0.16, 0.12);
+  } else if (name === 'quack') {
+    // Two nasal quacks: a buzzy note through a narrow filter, dropping.
+    for (const at of [0, 0.26]) {
+      const osc = c.createOscillator();
+      const f = c.createBiquadFilter();
+      const g = c.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(420, t + at);
+      osc.frequency.exponentialRampToValueAtTime(260, t + at + 0.18);
+      f.type = 'bandpass';
+      f.frequency.value = 1100;
+      f.Q.value = 3;
+      g.gain.setValueAtTime(0.0001, t + at);
+      g.gain.exponentialRampToValueAtTime(0.35, t + at + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + at + 0.2);
+      osc.connect(f).connect(g).connect(out);
+      osc.start(t + at);
+      osc.stop(t + at + 0.22);
+    }
+  } else if (name === 'found') {
+    // Gotcha: a quick boing up.
+    tone('triangle', 330, 990, 0, 0.18, 0.18);
+    tone('sine', 660, 1320, 0.12, 0.2, 0.1);
+  } else if (name === 'hide') {
+    // Ready, steady: three soft taps.
+    [0, 0.18, 0.36].forEach((at, i) => tone('triangle', 520 + i * 90, 520 + i * 90, at, 0.14, 0.12));
+  } else if (name === 'seek') {
+    // Coming, ready or not: a bright whistle up.
+    tone('sine', 900, 1800, 0, 0.3, 0.14);
+    tone('sine', 1800, 1500, 0.32, 0.25, 0.12);
+  } else if (name === 'end') {
+    [523.3, 659.3, 784, 1046.5].forEach((f, i) => tone('triangle', f, f, i * 0.12, i === 3 ? 0.7 : 0.18, 0.12));
+  }
+}

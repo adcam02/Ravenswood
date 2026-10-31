@@ -1,0 +1,254 @@
+/* ---------------------------------------------------------------- town-wide hide and seek */
+
+.hs-top {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  z-index: 17;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: min(440px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.hs-top > * {
+  pointer-events: auto;
+}
+.mode-st .hs-top {
+  top: 124px;
+}
+.hs-card {
+  width: 100%;
+  padding: 9px 14px 10px;
+  border-radius: 18px;
+  text-align: center;
+}
+.hs-title {
+  font-size: 19px;
+  font-weight: 600;
+}
+.hs-sub {
+  margin-top: 3px;
+  font-size: 13.5px;
+  line-height: 1.3;
+  color: var(--cosy-ink-soft);
+}
+.hs-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.hs-note {
+  font-weight: 600;
+}
+.hs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 15px;
+}
+.hs-stage {
+  font-weight: 600;
+}
+.hs-time {
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.hs-hurry .hs-time {
+  color: var(--cosy-red);
+  animation: hs-pulse 1s ease-in-out infinite;
+}
+@keyframes hs-pulse {
+  50% {
+    transform: scale(1.12);
+  }
+}
+.hs-left b {
+  font-size: 18px;
+}
+.hs-you {
+  margin-top: 5px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 500;
+  background: rgba(111, 176, 224, 0.2);
+}
+.hs-you.seeker {
+  background: rgba(255, 154, 98, 0.22);
+}
+.hs-feed {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  color: var(--cosy-ink-soft);
+}
+.hs-feed li:first-child {
+  color: var(--cosy-ink);
+  font-weight: 500;
+}
+.hs-stop {
+  margin-top: 6px;
+}
+.hs-dim {
+  opacity: 0.65;
+  font-weight: 400;
+}
+
+/* The buttons, above the emote bar and the "press E" prompt. */
+.hs-actions {
+  position: absolute;
+  bottom: 158px;
+  left: 50%;
+  z-index: 15;
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  width: min(520px, calc(100vw - 32px));
+}
+.hs-props {
+  display: flex;
+  gap: 6px;
+}
+.hs-btn {
+  font-size: 16px;
+}
+.hs-tag {
+  font-size: 19px;
+  padding-inline: 22px;
+  opacity: 0.7;
+}
+.hs-tag.ready {
+  opacity: 1;
+  background: var(--cosy-accent);
+  color: var(--cosy-accent-ink);
+  animation: hs-pulse 0.7s ease-in-out infinite;
+}
+
+/* The seekers' blindfold while the others hide. */
+.hs-blind {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: radial-gradient(circle at 50% 45%, #1d1b26 0%, #050407 70%);
+  color: #f4efe2;
+  font-family: var(--cosy-font);
+  text-align: center;
+  padding: 16px;
+}
+.hs-blind-eyes {
+  font-size: 64px;
+  animation: hs-peek 3s ease-in-out infinite;
+}
+@keyframes hs-peek {
+  0%,
+  80%,
+  100% {
+    transform: none;
+  }
+  88% {
+    transform: rotate(-8deg) scale(1.05);
+  }
+}
+.hs-blind-count {
+  font-size: 96px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.hs-blind-text {
+  font-size: 18px;
+  opacity: 0.8;
+}
+
+/* The result. */
+.hs-end-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 90px 16px 16px;
+  pointer-events: none;
+}
+.hs-end {
+  pointer-events: auto;
+  width: min(380px, 100%);
+  padding: 14px 18px 16px;
+  text-align: center;
+  animation: hs-pop 0.4s cubic-bezier(0.3, 1.5, 0.6, 1);
+}
+@keyframes hs-pop {
+  from {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+}
+.hs-end-title {
+  font-size: 22px;
+  font-weight: 600;
+}
+.hs-awards {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  text-align: left;
+}
+.hs-award {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 14px;
+  background: rgba(242, 193, 78, 0.18);
+}
+.hs-award-icon {
+  font-size: 26px;
+}
+.hs-award small {
+  display: block;
+  font-size: 12px;
+  color: var(--cosy-ink-soft);
+}
+.hs-award b {
+  font-weight: 600;
+}
+.hs-prize {
+  margin-top: 10px;
+  font-weight: 600;
+  color: #3f8d43;
+}
+
+/* Starting a round. */
+.hs-start {
+  position: absolute;
+  left: 16px;
+  bottom: 104px;
+  z-index: 14;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.hs-allow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+}

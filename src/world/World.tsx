@@ -50,6 +50,7 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
       pigeons: [],
       pigeonNotes: [],
       pit: null,
+      hide: null,
       club: { song: '', at: 0, by: '' },
       dawn: null,
     };
@@ -95,6 +96,7 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
     pigeons: view.pigeons,
     pigeonNotes: view.pigeonNotes,
     pit: view.pit,
+    hide: view.hide,
     club: view.club,
     dawn: view.dawn,
   };

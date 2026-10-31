@@ -3,12 +3,13 @@ import { defaultAlignment, getRole, type Alignment, type Script } from '../data'
 import { useClient } from '../net/client';
 import { useHostNet } from '../net/host';
 import { isTraveller, seatAlignment, useHost, visitFor } from './host';
-import type { AwakeState, DawnReel, DayTimer, DeathRecord, Execution, GameEnd, LetterIn, Nomination, NominationRequest, Phase, Reminder, SlayerShot, TownHall, Visit, VoteRecord, PitState } from './types';
+import type { AwakeState, DawnReel, DayTimer, DeathRecord, Execution, GameEnd, LetterIn, Nomination, NominationRequest, Phase, Reminder, SlayerShot, TownHall, Visit, VoteRecord, PitState, HideRound } from './types';
 import type { Look, TownState, Weather } from '../world/types';
 import { nickFor, useNicks } from './nicks';
 import { SONGS } from '../lib/disco';
 import { useUI } from './ui';
 import { pitPublic } from '../game/pitRules';
+import { hideHere } from '../game/hideRules';
 
 export type Mode = 'st' | 'player';
 export const ModeContext = createContext<Mode>('player');
@@ -85,6 +86,11 @@ export interface View {
   pigeonNotes: { id: string; name: string; where: string; at: number }[];
   /** The pet pit in the tavern's cellar (times in this browser's clock), or null before it's opened. */
   pit: PitState | null;
+  /** Town-wide hide and seek's round (times in this browser's clock), and whether this player is sitting rounds out. */
+  hide: HideRound | null;
+  hideOut: boolean;
+  /** Storyteller: hide and seek may go on while a game is played. */
+  hideAllowed: boolean;
   /** The song on at the club, since when (in this browser's clock), and who put it on ('' for nobody yet). */
   club: { song: string; at: number; by: string };
   /** This morning's replay of the night's deaths (in this browser's clock). */
@@ -171,6 +177,9 @@ export function useStorytellerView(): View {
       pigeons: (g.pigeons ?? []).filter((p) => Date.now() - p.at < 60000).map(({ id, to, at }) => ({ id, to, at })),
       pigeonNotes: [],
       pit: pitHere(g.pit && pitPublic(g.pit), 0),
+      hide: g.hide?.round ?? null,
+      hideOut: false,
+      hideAllowed: Boolean(g.hide?.allowed),
       club: clubOf(g.town, 0),
       dawn: g.dawn ?? null,
     }),
@@ -245,6 +254,9 @@ export function usePlayerView(): View | null {
       pigeons: (Array.isArray(pub.pigeons) ? pub.pigeons : []).map((p) => ({ ...p, at: p.at - (clockOffset ?? 0) })),
       pigeonNotes: (Array.isArray(priv?.pigeons) ? priv.pigeons : []).map((p) => ({ ...p, at: p.at - (clockOffset ?? 0) })),
       pit: pitHere(pub.pit, clockOffset ?? 0),
+      hide: hideHere(pub.hide?.round, clockOffset ?? 0),
+      hideOut: Boolean(priv?.seatId && pub.hide?.out?.includes(priv.seatId)),
+      hideAllowed: Boolean(pub.hide?.allowed),
       club: clubOf(pub.town, clockOffset ?? 0),
       dawn: pub.dawn ? { ...pub.dawn, at: pub.dawn.at - (clockOffset ?? 0) } : null,
     };
