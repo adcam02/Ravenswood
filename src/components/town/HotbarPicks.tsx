@@ -62,7 +62,7 @@ export function HotbarPicks() {
   const cur = slots[sel] ? hotChoice(slots[sel]) : null;
 
   return (
-    <>
+    <div className="hotbar-picks">
       <p className="join-pick-note">
         Your emote bar along the bottom of the screen. Tap a slot, then tap what goes in it, or drag them about. Changes are kept as you make them.
       </p>
@@ -141,6 +141,6 @@ export function HotbarPicks() {
         </p>
       )}
       {preview && <p className="hotbar-playing">Showing: {hotChoice(preview)?.label}</p>}
-    </>
+    </div>
   );
 }

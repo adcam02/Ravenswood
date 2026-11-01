@@ -154,3 +154,19 @@
     width: min(300px, calc(100vw - 24px));
   }
 }
+
+/* The Customise Emotes tab: everything in one column that scrolls inside the panel, not past it. */
+.hotbar-picks {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 4px;
+}
+.hotbar-picks .join-items {
+  flex: none;
+  overflow: visible;
+}
