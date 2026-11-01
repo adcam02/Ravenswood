@@ -63,8 +63,13 @@ export const NOM_MOVES: NomMove[] = [
   { id: 'confetti', name: 'Confetti cannon', icon: '🎉', price: 80, shout: 'Congratulations!', reply: 'For me?!', react: 'pearls', blurb: 'A cannon of confetti and streamers: congratulations, you’re nominated!' },
 ];
 
-/** How long the show runs (the talking stick waits for it), in milliseconds. */
-export const NOM_SHOW_MS = 5600;
+/**
+ * Every screen starts the show this long after the nomination does (by the host's clock, each screen allowing for
+ * its own clock's difference), so it has reached them all first: then they all play it in step.
+ */
+export const NOM_LEAD_MS = 600;
+/** How long from the nomination to the end of the show (the lead and nomShow.ts's NOM.end): the talking stick waits. */
+export const NOM_SHOW_MS = NOM_LEAD_MS + 5300 + 100;
 
 export const nomKey = (id: NomMoveId) => `nom:${id}`;
 export const nomMove = (id: string | null | undefined): NomMove => NOM_MOVES.find((m) => m.id === id) ?? NOM_MOVES[0];

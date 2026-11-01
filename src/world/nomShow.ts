@@ -11,7 +11,7 @@ import type { Anim } from './types';
  * and the props come and go round them. Lazy loaded (engine.ts asks for it when a nomination starts).
  */
 
-/** When the nominator lets go, when it lands, and when it's over (seconds from the start). */
+/** When the nominator lets go, when it lands, and when it's over (seconds from the start; see NOM_SHOW_MS too). */
 export const NOM = { throw: 1.55, hit: 2.65, end: 5.3 };
 
 /** Where someone is for the show: their eyes, which way they face (flat), and how tall they are. */
@@ -483,10 +483,13 @@ export class NomShow {
   private once(key: string, at: number, age: number, f: () => void) {
     if (age >= at && !this.done.has(key)) {
       this.done.add(key);
-      // (Only if it's just happened: a show joined late doesn't play every sound at once.)
-      if (age - at < 0.4) f();
+      // Only if it came due since the last frame and not long ago: a screen that stuttered still hears it as it
+      // sees it, and one that joined late doesn't play every sound at once.
+      if (this.lastAge < at && age - at < 1.2) f();
     }
   }
+  /** The moment of the last frame. */
+  private lastAge = -1;
 
   private show(name: string, on: boolean) {
     const o = this.kit[name];
@@ -756,6 +759,7 @@ export class NomShow {
     if (thump) f.pos.add(new THREE.Vector3(Math.sin(age * 90) * 0.025, Math.cos(age * 77) * 0.02, 0).multiplyScalar(thump));
     f.by = byPose;
     f.target = toPose;
+    this.lastAge = age;
     return f;
   }
 

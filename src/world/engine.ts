@@ -15,7 +15,7 @@ import { execMethod, showStartAt } from '../game/execution';
 import type { ExecStage, ExecPose } from './exec/stage';
 import type { SlayStage } from './exec/slay';
 import { isSlayMove, slayMove, type SlayMoveId } from '../game/slayMoves';
-import type { NomMoveId } from '../game/nomMoves';
+import { NOM_LEAD_MS, type NomMoveId } from '../game/nomMoves';
 import type { NomEnd, NomFrame, NomPose, NomShow } from './nomShow';
 import { SOUL } from './exec/soul';
 import type { NightVisit, VictimPose } from './visit';
@@ -122,8 +122,6 @@ const nightVisits = lazyModule(() => import('./visit'));
 const nomShows = lazyModule(() => import('./nomShow'));
 /** A nomination's show plays only as it starts: not for anyone joining (or coming back) more than this long after. */
 const NOM_LATE_MS = 3500;
-/** And it starts this long after the nomination does, on every screen, so the state has reached everyone. */
-const NOM_LEAD_MS = 400;
 /** Even with nothing changing, the shadow map is redrawn this often, just in case. */
 const SHADOW_SAFETY_S = 10;
 /** Out in town, at least this long between redraws of the shadow map for things changing (see frame). */
@@ -526,10 +524,12 @@ export class Engine {
    * A nomination's little show at the meeting (see nomShow.ts): who nominated whom (`by` null for the Storyteller),
    * how, and when it starts (Date.now()). `seen` is the last nomination noticed, so it never plays twice.
    */
-  private nom: { pair: string; by: string | null; target: string; move: NomMoveId; start: number; show: NomShow | null; frame: NomFrame | null } | null = null;
+  private nom: { pair: string; by: string | null; target: string; move: NomMoveId; start: number; show: NomShow | null; frame: NomFrame | null; phase: number } | null = null;
   private nomSeen: { pair: string; at: number } | null = null;
   /** Tests can hold a nomination's show at a moment, in seconds. */
   nomFreeze: number | null = null;
+  /** When each nomination show's moments (and sounds) happened on this screen (Date.now()), for checking they agree. */
+  nomTimes: { pair: string; what: string; at: number }[] = [];
   /** The Storyteller hovering higher than usual, over someone's bed. */
   private hoverY = 0;
   /** The ground under us, eased, for walking up and down steps. */
@@ -823,6 +823,7 @@ export class Engine {
       if (!this.nomSeen || this.nomSeen.pair !== pair || Math.abs(this.nomSeen.at - nom.at) > 3000) {
         this.nomSeen = { pair, at: nom.at };
         if (Date.now() - nom.at < NOM_LATE_MS && !v.ended) this.beginNom(v, nom, pair);
+        else this.noteNom(pair, 'late');
       }
     }
     const handOn = nom && (nom.status === 'running' || nom.status === 'paused' || nom.status === 'done') ? (nom.step === 0 ? nom.nomineeId : nom.order[nom.step - 1]) : null;
@@ -2980,8 +2981,10 @@ export class Engine {
   private beginNom(v: WorldView, nom: Nomination, pair: string) {
     this.endNom();
     if (local.zone !== 'town' || this.show || this.slay || this.dawn) return;
-    this.nom = { pair, by: nom.nominatorId, target: nom.nomineeId, move: nom.move ?? 'plane', start: nom.at! + NOM_LEAD_MS, show: null, frame: null };
+    this.nom = { pair, by: nom.nominatorId, target: nom.nomineeId, move: nom.move ?? 'plane', start: nom.at! + NOM_LEAD_MS, show: null, frame: null, phase: -1 };
     nomShows.want();
+    this.noteNom(pair, 'seen');
+    this.noteNom(pair, 'plan', this.nom.start);
     const name = (id: string | null) => (id ? shownName(v.seats.find((s) => s.id === id)?.name || 'Someone') : 'The Storyteller');
     useHud.setState({ nomReel: { line: `${name(nom.nominatorId)} nominates ${name(nom.nomineeId)}!`, key: pair } });
   }
@@ -3003,8 +3006,18 @@ export class Engine {
     }
     if (age > mod.NOM.end) return this.endNom();
     if (!n.show) {
-      n.show = new mod.NomShow(n.move, nomSound);
+      n.show = new mod.NomShow(n.move, (name) => {
+        this.noteNom(n.pair, `sound:${name}`);
+        nomSound(name);
+      });
       this.town.groups.town.add(n.show.group);
+      // (Everyone's name tags and the meeting's labels stay out of the picture meanwhile.)
+      this.labels.domElement.style.visibility = 'hidden';
+    }
+    const phase = age < 0 ? -1 : age < mod.NOM.throw ? 0 : age < mod.NOM.hit ? 1 : 2;
+    if (phase !== n.phase) {
+      n.phase = phase;
+      if (phase >= 0) this.noteNom(n.pair, ['start', 'fly', 'close'][phase]);
     }
     n.frame = n.show.update(Math.max(0, age), this.nomEnd(v, n.by, n.target), this.nomEnd(v, n.target, n.by), this.camera, this.camera.aspect);
   }
@@ -3048,10 +3061,17 @@ export class Engine {
   }
 
   /** Over: the props go, the two of them are put straight, and the caption goes. */
+  private noteNom(pair: string, what: string, at = Date.now()) {
+    this.nomTimes.push({ pair, what, at });
+    if (this.nomTimes.length > 60) this.nomTimes.shift();
+  }
+
   private endNom() {
     const n = this.nom;
     if (!n) return;
     this.nom = null;
+    this.noteNom(n.pair, 'end');
+    this.labels.domElement.style.visibility = '';
     n.show?.dispose();
     const v = this.view;
     for (const id of [n.by ?? 'st', n.target]) {
