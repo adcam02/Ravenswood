@@ -159,10 +159,9 @@ class HostLink {
         // So do the pie-eating contest's, and everyone's bites.
         if (this.ticks % 2 === 1) pie.tick();
         // Domains open and close, and the golden donkey goes into hiding.
-        if (this.ticks % 10 === 5) {
-          tickDomains();
-          tickDonkey();
-        }
+        // Domains often (who's inside decides who hears whom), the golden donkey about once a second.
+        if (this.ticks % 3 === 0) tickDomains();
+        if (this.ticks % 10 === 5) tickDonkey();
       } catch (e) {
         console.error(e);
       }

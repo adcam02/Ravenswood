@@ -9,7 +9,7 @@
 import { uid } from '../lib/util';
 import { useHost } from '../state/host';
 import type { GameState } from '../state/types';
-import { BOOTHS, DOMAIN_HAT, DOMAIN_R, owns, type DomainState } from '../world/types';
+import { BOOTHS, DOMAIN_HAT, DOMAIN_MAX, DOMAIN_R, owns, type DomainState } from '../world/types';
 import { MEETING_CENTRE, MEETING_R } from '../world/town/layout';
 import { presence } from './presence';
 import { profileOf } from './profiles';
@@ -61,10 +61,9 @@ export function domainFromPlayer(playerId: string, open: boolean): string | null
   if (Math.hypot(p.x - MEETING_CENTRE.x, p.z - MEETING_CENTRE.z) < MEETING_R * 0.45) return 'Not in the middle of the square';
   if (BOOTHS.some((b) => b.zone === 'town' && Math.hypot(b.x - p.x, b.z - p.z) < DOMAIN_R + 2)) return 'Too close to a confession booth';
   if ((g.domains ?? []).some((d) => Math.hypot(d.x - p.x, d.z - p.z) < DOMAIN_R * 2 + 0.5)) return 'Too close to another Domain';
-  // Its middle a little to the owner's right, so they stand on one side of the grille and their guest on the other.
+  // Centred on its owner.
   const now = Date.now();
-  const side = DOMAIN_R * 0.42;
-  const d: DomainState = { id: uid(), owner: seat.id, guest: null, x: p.x + Math.cos(p.ry) * side * -1, z: p.z + Math.sin(p.ry) * side, ry: p.ry, at: now, until: now + DOMAIN_MS };
+  const d: DomainState = { id: uid(), owner: seat.id, members: [seat.id], x: p.x, z: p.z, ry: p.ry, at: now, until: now + DOMAIN_MS };
   update((g) => {
     g.domains = [...(g.domains ?? []), d];
     g.domainDay = { ...(g.domainDay ?? {}), [seat.id]: g.day };
@@ -102,18 +101,18 @@ export function tickDomains() {
       changed = true;
       continue;
     }
-    let guest = d.guest;
-    if (guest && !inside(d, guest, 0.35)) guest = null;
-    if (!guest) {
-      for (const s of g.seats) {
-        if (s.id !== d.owner && s.playerId && inside(d, s.id)) {
-          guest = s.id;
-          break;
-        }
-      }
+    // Those still inside stay in (a little slack at the edge so nobody flickers in and out); then anyone who has
+    // stepped in joins, while there's room. Nobody can be in two Domains.
+    const others = list.filter((x) => x.id !== d.id).flatMap((x) => x.members);
+    const members = (d.members ?? [d.owner]).filter((id) => id === d.owner || inside(d, id, 0.4));
+    if (!members.includes(d.owner)) members.unshift(d.owner);
+    for (const s of g.seats) {
+      if (members.length >= DOMAIN_MAX) break;
+      if (s.playerId && !members.includes(s.id) && !others.includes(s.id) && inside(d, s.id)) members.push(s.id);
     }
-    if (guest !== d.guest) changed = true;
-    next.push(guest === d.guest ? d : { ...d, guest });
+    const same = members.length === (d.members ?? []).length && members.every((id, i) => d.members[i] === id);
+    if (!same) changed = true;
+    next.push(same ? d : { ...d, members });
   }
   if (changed) {
     update((g) => {

@@ -143,6 +143,7 @@ import {
   danceOwned,
   DOMAIN_HAT,
   DOMAIN_R,
+  DOMAIN_MAX,
   setDomains,
   type DomainState,
   houseOwner,
@@ -1642,11 +1643,11 @@ export class Engine {
 
   // ---------------------------------------------------------------- Domains and the golden donkey
 
-  /** Domains keep anyone but their owner and guest out, once they have a guest: their edges are walls to the rest. */
+  /** A full Domain (three inside) keeps everyone else out: its edge is a wall to the rest until someone leaves. */
   private domainWalls(v: WorldView | null): Collider[] {
     const me = v?.mySeatId;
     if (!v || v.mode !== 'player' || zoneKind(local.zone) !== 'town') return [];
-    return v.domains.filter((d) => d.guest && d.owner !== me && d.guest !== me).map((d) => ({ kind: 'circle' as const, x: d.x, z: d.z, r: DOMAIN_R - BODY + 0.05 }));
+    return v.domains.filter((d) => d.members.length >= DOMAIN_MAX && !d.members.includes(me ?? '')).map((d) => ({ kind: 'circle' as const, x: d.x, z: d.z, r: DOMAIN_R - BODY + 0.05 }));
   }
 
   /**
@@ -1663,7 +1664,7 @@ export class Engine {
     if (!v || v.mode !== 'player' || zoneKind(local.zone) !== 'town') return;
     const me = v.mySeatId;
     for (const d of list) {
-      if (!d.guest || d.owner === me || d.guest === me) continue;
+      if (d.members.length < DOMAIN_MAX || d.members.includes(me ?? '')) continue;
       const dx = local.x - d.x;
       const dz = local.z - d.z;
       const r = Math.hypot(dx, dz);
@@ -1677,7 +1678,7 @@ export class Engine {
       this.moveTarget = null;
       if (this.shutOut !== d.id) {
         this.shutOut = d.id;
-        this.me?.bubble('Someone else is in that Domain', 2200);
+        this.me?.bubble('That Domain is full (three inside)', 2200);
       }
     }
   }
@@ -4128,9 +4129,9 @@ export class Engine {
     let hearing = 0;
     this.gains = {};
     for (const [key, p] of presence.others) {
-      const gain = earshot(local, p, key === 'st', ctx, key);
+      const gain = earshot(local, p, key === 'st', ctx, key, myKey);
       // And the other way round: who can hear us (not the same when one of us shouts, or the Storyteller speaks to everyone).
-      const heard = earshot(p, local, v.mode === 'st', ctx, myKey);
+      const heard = earshot(p, local, v.mode === 'st', ctx, myKey, key);
       this.gains[key] = { gain, heard };
       const av = this.others.get(key);
       const near = heard > 0.02;
@@ -4141,7 +4142,7 @@ export class Engine {
       // rather than to the whole town: far less bandwidth with a big group.
       const inRange = p.zone === local.zone && (zoneKind(p.zone) !== 'town' || Math.hypot(p.x - local.x, p.z - local.z) < VOICE_CONNECT_R);
       if (!(gain > 0 || heard > 0 || inRange || key === 'st' || v.mode === 'st')) continue;
-      list.push({ voiceId: p.voiceId, gain, key });
+      list.push({ voiceId: p.voiceId, gain, key, heard });
     }
     if (hearing !== this.hearing) {
       this.hearing = hearing;

@@ -1,4 +1,4 @@
-import { boothAt, zoneKind, type PoseState } from '../world/types';
+import { domainOfSeat, realBoothAt, zoneKind, type PoseState } from '../world/types';
 
 /** Full volume this close, in metres. */
 const NEAR = 2;
@@ -28,8 +28,14 @@ const atMeeting = (p: PoseState, r: number) => p.zone === 'town' && Math.hypot(p
  * How loudly `me` hears `other`, from 0 to 1. Walls are absolute: different places never hear each other. `otherKey`
  * (their seat id, 'st' for the Storyteller) matters while someone has the floor at a meeting.
  */
-export function earshot(me: PoseState, other: PoseState, otherIsStoryteller: boolean, ctx: EarshotContext, otherKey?: string | null): number {
+export function earshot(me: PoseState, other: PoseState, otherIsStoryteller: boolean, ctx: EarshotContext, otherKey?: string | null, meKey?: string | null): number {
   if (otherIsStoryteller && ctx.announce) return 1;
+  // A Domain: the (up to three) people inside hear each other clearly and nobody else, and nobody else hears them.
+  // It goes by who the host counts as inside, not by where each page last saw them, so every page agrees.
+  const dm = domainOfSeat(meKey);
+  const dOther = domainOfSeat(otherKey);
+  if (dm !== dOther) return 0;
+  if (dm >= 0) return 1;
   // The talking stick (the accusation, then the defence): whoever holds it is heard clearly by everyone at the
   // meeting (like the Storyteller speaking to the town), and every other player is muted to everyone. Never the
   // Storyteller.
@@ -40,8 +46,8 @@ export function earshot(me: PoseState, other: PoseState, otherIsStoryteller: boo
   }
   if (me.zone !== other.zone) return 0;
   // A confession booth: the two inside hear each other clearly, and nobody else, either way.
-  const booth = boothAt(me.zone, me.x, me.z);
-  if (booth !== boothAt(other.zone, other.x, other.z)) return 0;
+  const booth = realBoothAt(me.zone, me.x, me.z);
+  if (booth !== realBoothAt(other.zone, other.x, other.z)) return 0;
   if (booth >= 0) return 1;
   const d = Math.hypot(me.x - other.x, me.z - other.z);
   if (zoneKind(me.zone) !== 'town') {

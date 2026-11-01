@@ -175,10 +175,8 @@ export class DomainFx {
     const ring = new THREE.Mesh(this.ring, ringMat);
     ring.scale.setScalar(DOMAIN_R);
     ring.position.y = 0.04;
-    const grille = new THREE.Mesh(this.grille, this.grilleMat);
-    grille.castShadow = true;
     for (const m of [dome, floor, ring]) m.castShadow = m.receiveShadow = false;
-    group.add(floor, ring, grille, dome);
+    group.add(floor, ring, dome);
     this.scene.add(group);
     return { group, uniforms, born: t, dying: null, mats: [domeMat, floorMat, ringMat] };
   }

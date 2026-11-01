@@ -100,6 +100,11 @@ export interface Listener {
   gain: number;
   /** Who it is (a seat id, or 'st'), for their own volume. */
   key: string;
+  /**
+   * 0 to 1: how well they hear us. Nothing at all and our voice isn't sent to them, so walls, booths and Domains hold
+   * even where a page can't turn a voice down (iPhones ignore an audio element's volume).
+   */
+  heard?: number;
 }
 
 /** Sets how loud one person is for us (1 is as they come). */
@@ -326,7 +331,9 @@ class Voice {
       const link = this.links.get(voiceId);
       if (link) {
         link.audio.volume = Math.max(0, Math.min(1, gain * master));
-        this.setSending(link, true);
+        // (And muted outright when they shouldn't be heard at all, for browsers that ignore the volume.)
+        link.audio.muted = gain <= 0.001;
+        this.setSending(link, (l.heard ?? 1) > 0.001);
         continue;
       }
       // One side calls, so two browsers never call each other at once.

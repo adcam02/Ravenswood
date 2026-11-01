@@ -913,16 +913,27 @@ export function boothAt(zone: ZoneId, x: number, z: number): number {
   const d = domainAt(zone, x, z);
   return d >= 0 ? BOOTHS.length + d : -1;
 }
+/** Which real confession booth this spot is inside (not counting Domains, whose voices go by who's in them), or -1. */
+export function realBoothAt(zone: ZoneId, x: number, z: number): number {
+  for (let i = 0; i < BOOTHS.length; i++) {
+    const b = BOOTHS[i];
+    if (b.zone !== zone) continue;
+    const { lx, lz } = boothLocal(b, x, z);
+    if (Math.abs(lx) < BOOTH_HW && Math.abs(lz) < BOOTH_HD) return i;
+  }
+  return -1;
+}
 
 /**
  * A Domain: a portable confession booth under a starry dome, opened out in town by whoever wears the Domain
- * Expansioner (see game/domain.ts). Its owner and one guest inside hear only each other, and nobody outside hears
+ * Expansioner (see game/domain.ts). Up to three inside (its owner and whoever walks in) hear only each other, and nobody outside hears
  * them. `at` and `until` are when it opened and when it closes by itself (host clock), `ry` the way its owner faced.
  */
 export interface DomainState {
   id: string;
   owner: string;
-  guest: string | null;
+  /** Who's inside (seat ids, the owner first), at most DOMAIN_MAX: they hear only each other, and nobody else hears them. */
+  members: string[];
   x: number;
   z: number;
   ry: number;
@@ -930,11 +941,18 @@ export interface DomainState {
   until: number;
 }
 /** How far a Domain reaches from its middle (metres). */
-export const DOMAIN_R = 1.7;
+export const DOMAIN_R = 2.6;
+/** How many can be inside a Domain at once (its owner included). */
+export const DOMAIN_MAX = 3;
 /** The Domains open right now, as this page last heard (set by whoever draws the town, read by boothAt). */
-let openDomains: { x: number; z: number }[] = [];
-export function setDomains(list: { x: number; z: number }[]) {
+let openDomains: { x: number; z: number; members?: string[] }[] = [];
+export function setDomains(list: { x: number; z: number; members?: string[] }[]) {
   openDomains = list;
+}
+/** Which open Domain this seat is one of the people inside, or -1 (the Storyteller, 'st', never is). */
+export function domainOfSeat(key: string | null | undefined): number {
+  if (!key) return -1;
+  return openDomains.findIndex((d) => d.members?.includes(key));
 }
 /** Which open Domain this spot is inside, or -1. They're only ever out in town. */
 export function domainAt(zone: ZoneId, x: number, z: number): number {

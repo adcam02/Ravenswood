@@ -204,7 +204,7 @@ function Hats() {
               <span className="shop-trophy-note">For showing off: it comes with a golden glow and gold sparkles all round you, and puts a little crown by your name.</span>
             ) : h.id === DOMAIN_HAT ? (
               <span className="shop-trophy-note">
-                Domain Expansion: once a day, out in town, open a starry dome where you stand. You and one other inside hear only each other, for up to three minutes, and nobody sees who you are.
+                Domain Expansion: once a day, out in town, open a starry dome where you stand. Up to three can be inside: they hear only each other, nobody outside hears them, for up to three minutes, and nobody sees who they are.
               </span>
             ) : (
               HAT_FX[h.id] && <span className="shop-fx-note">✨ Comes with {HAT_FX[h.id]}</span>

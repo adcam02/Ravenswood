@@ -22,11 +22,11 @@ export function DomainButton() {
   if (v.mode !== 'player' || job || (!mine && (me?.look?.hat !== DOMAIN_HAT || v.phase !== 'day' || zoneKind(local.zone) !== 'town'))) return null;
   const left = mine ? Math.max(0, Math.ceil((mine.until - Date.now()) / 1000)) : 0;
   return (
-    <button className={`domain-btn cosy-panel ${mine ? 'open' : ''}`} onClick={() => game.domain()} title={mine ? 'Close your Domain (X)' : 'Open a Domain here: a private booth for you and one other, once a day (X)'}>
+    <button className={`domain-btn cosy-panel ${mine ? 'open' : ''}`} onClick={() => game.domain()} title={mine ? 'Close your Domain (X)' : 'Open a Domain here: a private space for up to three, once a day (X)'}>
       <span className="domain-icon">🌌</span>
       <span className="domain-words">
         <b>{mine ? 'Close Domain' : 'Domain Expansion'}</b>
-        <small>{mine ? `${mine.guest ? 'Someone’s in with you' : 'Waiting for a guest'} · ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : 'Once a day, by day'}</small>
+        <small>{mine ? `${mine.members.length > 1 ? `${mine.members.length} inside` : 'Waiting for company'} · ${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}` : 'Once a day, by day'}</small>
       </span>
       <span className="cosy-key">X</span>
     </button>
