@@ -16,8 +16,8 @@ const FRAME_MS = Math.max(LOW ? 1000 / 12 : 1000 / 40, 1000 / (Number(params.get
 export const LINEUP_SECONDS = 14;
 /** Metres between winners in a row, and between rows (each row behind on a step up). */
 const GAP = 1.35;
-const ROW = 1.25;
-const STEP = 0.32;
+const ROW = 1.05;
+const STEP = 0.8;
 
 const TEAM = {
   good: { name: 'Good', sky: ['#060b1f', '#12306b', '#3b6fc4'], stage: '#1d2742', rim: ['#7cc4ff', '#ffe08a'], spot: '#cfe6ff' },
@@ -64,13 +64,16 @@ interface Winner {
 }
 
 /** Where each winner stands: rows of at most `per`, the front row first, each row behind a step up. */
-function layout(n: number, per: number): { x: number; y: number; z: number }[] {
+function layout(n: number, per: number, gap: number): { x: number; y: number; z: number; row: number }[] {
   const rows = Math.ceil(n / per);
-  const out: { x: number; y: number; z: number }[] = [];
+  const out: { x: number; y: number; z: number; row: number }[] = [];
   for (let r = 0; r < rows; r++) {
     // (The front row takes the remainder when they don't divide evenly, so the back rows are full.)
     const count = r === 0 ? n - per * (rows - 1) : per;
-    for (let i = 0; i < count; i++) out.push({ x: (i - (count - 1) / 2) * GAP, y: r * STEP, z: -r * ROW });
+    // (Rows of the same evenness would stand right behind each other: every other one goes half a place across.)
+    const front = n - per * (rows - 1);
+    const shift = rows > 1 && front % 2 === per % 2 ? (r % 2 ? gap / 4 : -gap / 4) : 0;
+    for (let i = 0; i < count; i++) out.push({ x: (i - (count - 1) / 2) * gap + shift, y: r * STEP, z: -r * ROW, row: r });
   }
   return out;
 }
@@ -130,12 +133,14 @@ export function VictoryLineup({ winner, seats, reason, onDone }: { winner: 'good
     // Who stands where: as many to a row as the screen is wide for.
     const per = () => {
       const aspect = el.clientWidth / Math.max(1, el.clientHeight);
-      return aspect < 0.75 ? 3 : aspect < 1.25 ? 4 : 6;
+      return aspect < 0.6 ? 2 : aspect < 0.75 ? 3 : aspect < 1.25 ? 4 : 6;
     };
     const perRow = Math.min(cast.length, per());
-    const spots = layout(cast.length, perRow);
+    // (Closer together on a narrow screen.)
+    const gap = el.clientWidth < el.clientHeight ? 1.08 : GAP;
+    const spots = layout(cast.length, perRow, gap);
     const rows = Math.ceil(cast.length / perRow);
-    const width = (perRow - 1) * GAP + 1.6;
+    const width = (perRow - 1) * gap + (rows > 1 ? gap / 2 : 0) + 1.3;
 
     // The stage: a round dais, gold-edged, with a step up for each row behind.
     const owned: { dispose(): void }[] = [sky];
@@ -156,7 +161,18 @@ export function VictoryLineup({ winner, seats, reason, onDone }: { winner: 'good
       owned.push(geo, ring.geometry);
     };
     disc(radius, 0, -(rows - 1) * ROW * 0.5);
-    for (let r = 1; r < rows; r++) disc(radius - 0.3 * r, r * STEP, -(rows - 1) * ROW * 0.5 - r * 0.45);
+    // Steps up for the rows behind, like a team photo's benches, gold along the front edge.
+    for (let r = 1; r < rows; r++) {
+      const geo = new THREE.BoxGeometry(width + 0.6, r * STEP, ROW);
+      const m = new THREE.Mesh(geo, stageMat);
+      m.position.set(0, (r * STEP) / 2, -r * ROW);
+      m.receiveShadow = m.castShadow = true;
+      const edgeGeo = new THREE.BoxGeometry(width + 0.62, 0.04, 0.04);
+      const edge = new THREE.Mesh(edgeGeo, goldMat);
+      edge.position.set(0, r * STEP, -r * ROW + ROW / 2);
+      scene.add(m, edge);
+      owned.push(geo, edgeGeo);
+    }
 
     // A pool of light on the stage under each of them, and a soft beam coming down.
     const poolGeo = new THREE.CircleGeometry(0.55, 32);
@@ -211,8 +227,9 @@ export function VictoryLineup({ winner, seats, reason, onDone }: { winner: 'good
     // Framed so the whole team fits under the title, coming in from further out and round to one side.
     const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 80);
     const tanH = Math.tan(THREE.MathUtils.degToRad(15));
-    const tall = 2 + (rows - 1) * STEP + Math.max(...people.map((w) => w.rig.headHeight)) * 0.6;
-    const mid = { y: tall * 0.42, z: -(rows - 1) * ROW * 0.5 };
+    const head = Math.max(...people.map((w) => w.rig.headHeight));
+    const tall = (rows - 1) * STEP + head + 0.5;
+    const mid = { y: ((rows - 1) * STEP + head) / 2, z: -(rows - 1) * ROW * 0.5 };
     let dist = 6;
     const fit = () => {
       const w = el.clientWidth || window.innerWidth;
@@ -221,7 +238,7 @@ export function VictoryLineup({ winner, seats, reason, onDone }: { winner: 'good
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       // (Only about the middle 60% of the height is free: the title is over the top, the names along the bottom.)
-      dist = Math.max(tall / 0.6 / 2 / tanH, (width + 0.4) / 2 / (tanH * camera.aspect)) + (rows - 1) * ROW * 0.5;
+      dist = Math.max(tall / 0.62 / 2 / tanH, width / 2 / (tanH * camera.aspect)) + (rows - 1) * ROW * 0.5;
       const k = key.shadow.camera;
       k.left = k.bottom = -radius - 1;
       k.right = k.top = radius + 1;
@@ -238,21 +255,23 @@ export function VictoryLineup({ winner, seats, reason, onDone }: { winner: 'good
     };
 
     let raf = 0;
-    const t0 = performance.now();
-    let last = t0;
+    let last = performance.now();
+    let t = 0;
     let ending = false;
     const tick = (now: number) => {
       raf = requestAnimationFrame(tick);
       if (now - last < FRAME_MS) return;
       const dt = Math.min((now - last) / 1000, 0.1);
       last = now;
-      const t = (now - t0) / 1000;
+      // (Its own clock, so a struggling machine sees the whole show, just slower, rather than skipping it.)
+      t += dt;
       // The camera swings in over the first few seconds, then drifts.
       const inK = 1 - Math.pow(1 - Math.min(1, t / 3), 3);
       const d = dist * (1.55 - 0.55 * inK);
       const yaw = 0.42 * (1 - inK) + Math.sin(t * 0.25) * 0.05 * inK;
-      camera.position.set(Math.sin(yaw) * d, mid.y + d * 0.16 + (1 - inK) * 1.2, mid.z + Math.cos(yaw) * d);
-      camera.lookAt(0, mid.y + d * tanH * 0.18, mid.z);
+      camera.position.set(Math.sin(yaw) * d, mid.y + d * 0.12 + (1 - inK) * 1.2, mid.z + Math.cos(yaw) * d);
+      // (The team sits a little below the middle of the picture, under the title.)
+      camera.lookAt(0, mid.y + d * tanH * 0.2, mid.z);
       for (const l of rims) l.intensity = 2.4 + Math.sin(t * 3 + l.position.x) * 0.5;
       fireworks.update(dt);
       people.forEach((w, i) => {
@@ -295,8 +314,10 @@ export function VictoryLineup({ winner, seats, reason, onDone }: { winner: 'good
           w.aura.rotation.y += dt * 3;
         }
         const p = spots[i];
-        place(tags.current[i], p.x, p.y - 0.12, p.z + 0.55);
-        place(shouts.current[i], p.x, p.y + w.rig.headHeight + 0.3, p.z);
+        // (A name plate at the feet for the front row; over the head for the rows behind, where the feet are hidden.)
+        const over = p.row > 0;
+        place(tags.current[i], p.x, over ? p.y + w.rig.headHeight + 0.3 : p.y - 0.12, over ? p.z : p.z + 0.55);
+        place(shouts.current[i], p.x, p.y + w.rig.headHeight + (over ? 0.85 : 0.3), p.z);
         const bubble = shouts.current[i];
         if (bubble) {
           const c = into % 6;
