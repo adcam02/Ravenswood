@@ -1,18 +1,40 @@
 import * as THREE from 'three';
 import { Builder, rng, soft } from './build';
 import { BED, ROOM_DOOR } from './town/layout';
+import { FLAT_HD } from '../flats/catalogue';
 
 /**
  * The hooded figure's visit to someone killed in the night. It's drawn only on the screen of the one it visits (and
  * the Storyteller's, if they're at that bedside): in at the bedroom door, a glide to the bedside, the deed (one of
- * ten ways), and gone in a puff of smoke. Storybook spooky rather than gory: a jolt, a flash, a little wisp.
+ * twenty ways), and gone in a puff of smoke. Storybook spooky rather than gory: a jolt, a flash, a little wisp.
  *
  * Everything runs off `t`, seconds since it began, so it can be stopped at any moment to look at.
  */
 
 /** When each part happens, in seconds. */
 export const VISIT = { glide: 2.6, ready: 3.2, strike: 3.7, after: 4.8, vanish: 6.0, dark: 6.8, end: 11.5 };
-export const VISIT_NAMES = ['dagger', 'pillow', 'poison', 'scythe', 'mallet', 'jack', 'lightning', 'ravens', 'snuffer', 'trapdoor'] as const;
+export const VISIT_NAMES = [
+  'dagger',
+  'pillow',
+  'poison',
+  'scythe',
+  'mallet',
+  'jack',
+  'lightning',
+  'ravens',
+  'snuffer',
+  'trapdoor',
+  'shark',
+  'curtain',
+  'balloon',
+  'claws',
+  'telly',
+  'gremlins',
+  'anvil',
+  'vampire',
+  'mummy',
+  'jungle',
+] as const;
 
 /** How the one in bed moves while it happens: a jolt, a shake, a lift. */
 export interface VictimPose {
@@ -550,6 +572,32 @@ abstract class Deed implements Act {
   /** The sleeper's top, as they lie, squashed or not. */
   protected top(squash = 1) {
     return FLOOR + (this.s.box.max.y - FLOOR) * squash;
+  }
+
+  /** How big the sleeper is across, along and up, for props made to fit. */
+  protected size() {
+    const b = this.s.box;
+    return { w: b.max.x - b.min.x, d: b.max.z - b.min.z, h: b.max.y - FLOOR };
+  }
+
+  /** Taken away out of sight, then back up through the covers as a ghost once the figure has gone. */
+  protected ghostUp(t: number, pose: VictimPose) {
+    const rise = span(t, VISIT.vanish + 0.3, VISIT.dark + 1.0);
+    if (rise > 0) {
+      pose.dy = lerp(-1.3, 0, rise) + 0.05 * Math.sin(t * 4) * (1 - rise);
+      pose.squash = 1;
+    }
+    pose.hidden = pose.dy < -0.35;
+  }
+
+  /** The figure's arms waving like a conductor's, `k` of the way up (0 hanging, 1 raised). */
+  protected conduct(t: number, k: number, tempo = 7): Arms {
+    return {
+      la: -0.25 - k * (1.55 + 0.35 * Math.sin(t * tempo)),
+      ra: -0.25 - k * (1.55 + 0.35 * Math.sin(t * tempo + 2)),
+      laz: k * (0.5 + 0.2 * Math.sin(t * tempo * 0.5)),
+      raz: -k * (0.5 + 0.2 * Math.cos(t * tempo * 0.5)),
+    };
   }
 }
 
@@ -1386,4 +1434,1291 @@ class Trapdoor extends Deed {
   }
 }
 
-const ACTS: (new (s: Stage) => Act)[] = [Mallet, JackInTheBox, Lightning, Ravens, Snuffer, Trapdoor];
+// ---------------------------------------------------------------- the third lot: homages, all bloodless
+
+/** A flash over the whole room, seen from inside, for a moment (as the lightning has). */
+function roomFlash(color: string) {
+  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0, depthWrite: false, depthTest: false, blending: THREE.AdditiveBlending, side: THREE.BackSide });
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(30, 16, 10), mat);
+  mesh.frustumCulled = false;
+  mesh.renderOrder = 10;
+  mesh.visible = false;
+  return { mesh, mat };
+}
+
+/** Paints a plain geometry one colour, for meshes on the figure's vertex-coloured material. */
+function tinted<G extends THREE.BufferGeometry>(geo: G, color: THREE.ColorRepresentation): G {
+  const c = new THREE.Color(color);
+  const n = geo.getAttribute('position').count;
+  const col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) col.set([c.r, c.g, c.b], i * 3);
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return geo;
+}
+
+/** A little bat: a body and two wings that flap (`flap` sets them, -1 to 1). */
+function bat(material: THREE.Material) {
+  const root = new THREE.Group();
+  root.add(
+    parts(material, (b) => {
+      b.add(new THREE.SphereGeometry(1, 10, 8), '#2a2233', { scale: [0.05, 0.05, 0.07] });
+      for (const sx of [-1, 1]) {
+        b.add(new THREE.ConeGeometry(0.018, 0.05, 5), '#2a2233', { pos: [sx * 0.025, 0.05, 0.03] });
+        b.add(new THREE.SphereGeometry(0.009, 6, 5), '#ff5a6a', { pos: [sx * 0.018, 0.015, 0.06] });
+      }
+    }),
+  );
+  const wings = [1, -1].map((side) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(side * 0.04, 0.01, 0);
+    pivot.add(
+      parts(material, (b) => {
+        b.add(new THREE.BoxGeometry(0.14, 0.008, 0.09), '#3a2f48', { pos: [side * 0.07, 0, 0] });
+        for (const z of [-0.03, 0.03]) b.add(new THREE.ConeGeometry(0.02, 0.05, 4), '#3a2f48', { pos: [side * 0.1, 0, z - 0.04], rot: [Math.PI / 2, 0, 0], scale: [1, 1, 0.2] });
+      }),
+    );
+    root.add(pivot);
+    return pivot;
+  });
+  return {
+    root,
+    flap: (k: number) => {
+      wings[0].rotation.z = k * 0.9;
+      wings[1].rotation.z = -k * 0.9;
+    },
+  };
+}
+
+/**
+ * The shark: the figure conducts, and a fin rises through the covers and circles the sleeper, quicker and quicker to
+ * a low two-note tune. It dives; then the whole shark bursts up out of the quilt, jaws wide, CHOMP, and arcs back down
+ * under the covers with them in its mouth. Once the figure has gone they float back up through the quilt, a ghost.
+ */
+class Shark extends Deed {
+  private fin: THREE.Mesh;
+  private shark = new THREE.Group();
+  private jaw = new THREE.Group();
+
+  constructor(s: Stage) {
+    super(s);
+    const m = s.material;
+    const GREY = '#7f93a6';
+    const BELLY = '#eef1f2';
+    const finShape = new THREE.Shape();
+    finShape.moveTo(-0.17, 0);
+    finShape.quadraticCurveTo(-0.02, 0.12, 0.09, 0.4);
+    finShape.quadraticCurveTo(0.08, 0.16, 0.16, 0);
+    finShape.lineTo(-0.17, 0);
+    const finGeo = new THREE.ExtrudeGeometry(finShape, { depth: 0.04, bevelEnabled: false }).translate(0, 0, -0.02);
+    // (Leading edge forwards, along +z.)
+    this.fin = parts(m, (b) => b.add(finGeo, GREY, { rot: [0, Math.PI / 2, 0] }));
+    this.fin.visible = false;
+    // The shark lies along +z, nose first, its lower jaw hinged under the snout.
+    this.shark.add(
+      parts(m, (b) => {
+        b.add(new THREE.SphereGeometry(1, 18, 12), GREY, { scale: [0.27, 0.27, 0.78] });
+        b.add(new THREE.SphereGeometry(1, 16, 10), BELLY, { pos: [0, -0.1, 0.05], scale: [0.22, 0.17, 0.66] });
+        b.add(new THREE.ConeGeometry(0.13, 0.5, 10), GREY, { pos: [0, 0, -0.88], rot: [-Math.PI / 2, 0, 0] });
+        for (const sy of [1, -1]) b.add(new THREE.ConeGeometry(0.09, 0.36, 4), GREY, { pos: [0, sy * 0.17, -1.12], rot: [sy * 0.75, 0, 0], scale: [0.25, 1, 1] });
+        b.add(finGeo, GREY, { pos: [0, 0.22, -0.12], rot: [0, Math.PI / 2, 0], scale: [1.1, 0.95, 1] });
+        for (const sx of [-1, 1]) {
+          b.add(new THREE.ConeGeometry(0.08, 0.34, 4), GREY, { pos: [sx * 0.27, -0.1, 0.12], rot: [0.9, 0, sx * 1.2], scale: [1, 1, 0.25] });
+          b.add(new THREE.SphereGeometry(0.035, 8, 6), '#15151c', { pos: [sx * 0.17, 0.07, 0.52] });
+          b.add(new THREE.SphereGeometry(0.012, 6, 4), '#ffffff', { pos: [sx * 0.19, 0.085, 0.54] });
+          for (let g = 0; g < 3; g++) b.add(new THREE.BoxGeometry(0.01, 0.12, 0.012), '#5f7286', { pos: [sx * 0.24, 0, 0.28 - g * 0.06] });
+        }
+        // The roof of the mouth and the top teeth.
+        b.add(new THREE.SphereGeometry(1, 12, 8), '#7a2a3a', { pos: [0, -0.1, 0.5], scale: [0.16, 0.05, 0.22] });
+        for (let k = 0; k < 7; k++) {
+          const a = (k / 6 - 0.5) * 2.2;
+          b.add(new THREE.ConeGeometry(0.022, 0.06, 4), '#ffffff', { pos: [Math.sin(a) * 0.15, -0.13, 0.5 + Math.cos(a) * 0.2], rot: [Math.PI, 0, 0] });
+        }
+      }),
+    );
+    this.jaw.position.set(0, -0.12, 0.3);
+    this.jaw.add(
+      parts(m, (b) => {
+        b.add(new THREE.SphereGeometry(1, 14, 8), BELLY, { pos: [0, -0.02, 0.2], scale: [0.19, 0.06, 0.3] });
+        b.add(new THREE.SphereGeometry(1, 12, 8), '#9a3a4a', { pos: [0, 0.015, 0.18], scale: [0.14, 0.03, 0.22] });
+        for (let k = 0; k < 6; k++) {
+          const a = (k / 5 - 0.5) * 2.0;
+          b.add(new THREE.ConeGeometry(0.02, 0.055, 4), '#ffffff', { pos: [Math.sin(a) * 0.13, 0.04, 0.2 + Math.cos(a) * 0.17] });
+        }
+      }),
+    );
+    this.shark.add(this.jaw);
+    this.shark.visible = false;
+    s.room.add(this.fin, this.shark);
+  }
+
+  update(t: number, pose: VictimPose, shown: boolean): Arms {
+    const s = this.s;
+    const { w, d } = this.size();
+    // The fin: up through the quilt, round and round the sleeper, quicker each time, and down again.
+    const rx = clamp(w / 2 + 0.28, 0.45, BED.w / 2 - 0.12);
+    const rz = clamp(d / 2 + 0.2, 0.55, BED.d / 2 - 0.15);
+    const u = Math.max(0, t - 2.45);
+    const a = 2.0 * u + 1.6 * u * u;
+    const up = span(t, 2.45, 2.75) * (1 - span(t, 3.4, 3.58));
+    const cz = clamp(s.chest.z, BED.z - BED.d / 2 + rz + 0.1, BED.z + BED.d / 2 - rz - 0.1);
+    this.fin.visible = shown && up > 0.02;
+    this.fin.position.set(BED.x + Math.cos(a) * rx, COVERS - 0.42 + 0.44 * up, cz + Math.sin(a) * rz);
+    // (Facing along the circle as it goes round.)
+    this.fin.rotation.set(0, Math.atan2(-Math.sin(a) * rx, Math.cos(a) * rz), Math.sin(t * 9) * 0.06);
+    if (up > 0.5) s.once(`wake${Math.floor(t / 0.07)}`, () => s.bits.emit(new THREE.Vector3(this.fin.position.x, COVERS + 0.04, this.fin.position.z), t, 1, { color: '#e8f4ff', speed: 0.4, up: 0.6, size: 0.04, grow: 1.8, life: 0.6, opacity: 0.7 }));
+    if (t > 2.45) s.once('dundun', () => s.cue('dundun'));
+    // The breach: up out of the covers beside them, jaws wide, over the top, and down the other side.
+    const sz = clamp(Math.max(w, this.size().h * 1.4) / 0.75, 1, 1.9);
+    const b = clamp((t - 3.58) / 0.85, 0, 1);
+    const from = new THREE.Vector3(clamp(s.chest.x + 0.5, BED.x - BED.w / 2 + 0.2, BED.x + BED.w / 2 - 0.15), COVERS - 0.75 * sz, s.chest.z + 0.05);
+    const to = new THREE.Vector3(clamp(s.chest.x - 0.55, BED.x - BED.w / 2 + 0.15, BED.x + BED.w / 2 - 0.2), COVERS - 0.9 * sz, s.chest.z - 0.05);
+    const H = this.top() - COVERS + 0.95 * sz;
+    const at = (k: number) => from.clone().lerp(to, k).add(new THREE.Vector3(0, Math.sin(Math.PI * k) * H, 0));
+    const p = at(b);
+    const ahead = at(Math.min(1, b + 0.02)).sub(at(Math.max(0, b - 0.02)));
+    this.shark.visible = shown && b > 0 && b < 1;
+    this.shark.position.copy(p);
+    // (Nose along the way it's going, belly down, rolled a touch towards the camera so the teeth show.)
+    const fwd = ahead.normalize();
+    const side = new THREE.Vector3(0.25, 0, 1).normalize();
+    const upv = new THREE.Vector3().crossVectors(fwd, side).normalize();
+    const X = new THREE.Vector3().crossVectors(upv, fwd).normalize();
+    this.shark.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(X, upv, fwd));
+    this.shark.scale.setScalar(sz);
+    const snap = 0.36;
+    this.jaw.rotation.x = 0.75 * span(b, 0.05, 0.25) * (1 - span(b, snap - 0.04, snap)) + 0.05 * Math.sin(t * 20) * (b > snap ? 1 : 0);
+    if (b > 0.04) s.once('burst', () => {
+      s.cue('splash');
+      s.bits.emit(new THREE.Vector3(from.x, COVERS + 0.05, from.z), t, 22, { color: '#e8f4ff', speed: 2.2, up: 1.2, size: 0.05, grow: 1.6, life: 0.7, opacity: 0.8 });
+    });
+    if (b >= snap) s.once('chomp', () => s.cue('chomp'));
+    if (b > 0.9) s.once('dive', () => {
+      s.cue('splash');
+      s.bits.emit(new THREE.Vector3(to.x, COVERS + 0.05, to.z), t, 18, { color: '#e8f4ff', speed: 1.8, up: 1.0, size: 0.05, grow: 1.6, life: 0.7, opacity: 0.8 });
+    });
+    // The sleeper: trembling as the fin goes round, then gone in one gulp, and back up later as a ghost.
+    if (t > 2.9 && b < snap) pose.shake = 0.03 * Math.sin(t * 50) * span(t, 2.9, 3.5);
+    if (b >= snap) pose.dy = -2;
+    this.ghostUp(t, pose);
+    // Conducting the tune, quicker as it goes.
+    const k = span(t, 2.3, 2.7) * (1 - span(t, 3.6, 3.9));
+    return this.conduct(t, k, 5 + u * 4);
+  }
+}
+
+/**
+ * The shower curtain: a rail on two poles rises out of the floor at the foot of the bed and a curtain swishes shut
+ * across it. Behind it, a hooded silhouette raises a scrubbing brush and brings it down, again and again, to
+ * screeching violins; the curtain is yanked back and the sleeper lies there scrubbed squeaky clean, bubbles rising.
+ */
+class Curtain extends Deed {
+  private rail = new THREE.Group();
+  private panels: THREE.Mesh[] = [];
+  private brush: THREE.Mesh;
+  // (Unlit and pale, so the figure shows as a dark shape behind it.)
+  private curtainMat = new THREE.MeshBasicMaterial({ color: '#b9cdd6', transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false });
+  private n = 16;
+  private x0 = BED.x - BED.w / 2 - 0.85;
+  private x1 = BED.x + BED.w / 2 + 0.3;
+  private z = BED.z + BED.d / 2 + 0.3;
+
+  constructor(s: Stage) {
+    super(s);
+    const m = s.material;
+    const len = this.x1 - this.x0;
+    this.rail.add(
+      parts(m, (b) => {
+        b.add(new THREE.CylinderGeometry(0.02, 0.02, len + 0.1, 8), '#c8ccd4', { pos: [len / 2, 2.35, 0], rot: [0, 0, Math.PI / 2] });
+        for (const x of [0, len]) {
+          b.add(new THREE.CylinderGeometry(0.022, 0.022, 2.35, 8), '#c8ccd4', { pos: [x, 1.175, 0] });
+          b.add(new THREE.CylinderGeometry(0.12, 0.14, 0.04, 14), '#a8acb4', { pos: [x, 0.02, 0] });
+          b.add(new THREE.SphereGeometry(0.04, 8, 6), '#e2e6ec', { pos: [x, 2.37, 0] });
+        }
+      }),
+    );
+    this.rail.position.set(this.x0, 0, this.z);
+    // A wavy curtain of narrow panels, each with a ring at the top and a pale blue stripe near the hem.
+    const panel = new THREE.PlaneGeometry(1, 1);
+    for (let i = 0; i < this.n; i++) {
+      const p = new THREE.Mesh(panel, this.curtainMat);
+      const ring = parts(m, (b) => {
+        b.add(new THREE.TorusGeometry(0.035, 0.008, 5, 10), '#d8dce4', { pos: [0, 0.5, 0] });
+        b.add(new THREE.BoxGeometry(1, 0.05, 0.004), '#8fc4dc', { pos: [0, -0.4, 0.003] });
+      });
+      ring.scale.set(1, 1, 1);
+      p.add(ring);
+      this.panels.push(p);
+      this.rail.add(p);
+    }
+    this.brush = parts(m, (b) => {
+      b.add(new THREE.CylinderGeometry(0.022, 0.025, 0.42, 8), '#c98a4a', { pos: [0, -0.15, 0] });
+      b.add(new THREE.BoxGeometry(0.2, 0.06, 0.11), '#8a5a34', { pos: [0, -0.38, 0] });
+      for (let k = 0; k < 10; k++) b.add(new THREE.BoxGeometry(0.014, 0.06, 0.014), '#f2d36a', { pos: [-0.08 + (k % 5) * 0.04, -0.43, (k < 5 ? -1 : 1) * 0.03] });
+    });
+    s.right.hand.add(this.brush);
+    s.room.add(this.rail);
+  }
+
+  update(t: number, pose: VictimPose, shown: boolean): Arms {
+    const s = this.s;
+    const V = VISIT;
+    const len = this.x1 - this.x0;
+    // The rail up out of the floor and back down at the end.
+    const there = span(t, 2.2, 2.6) * (1 - span(t, V.after + 0.6, V.vanish - 0.1));
+    this.rail.visible = shown && there > 0.01;
+    this.rail.scale.set(1, Math.max(0.01, there), 1);
+    if (t > 2.2) s.once('rail', () => s.bits.emit(new THREE.Vector3(this.x0 + len / 2, 0.1, this.z), t, 12, { color: '#2a2036', speed: 1.2, size: 0.12, grow: 2, life: 0.8 }));
+    // Drawn shut from the near end (the figure's), then yanked back open.
+    const shut = span(t, 2.8, 3.05) * (1 - span(t, 4.3, 4.42));
+    if (t > 2.8) s.once('swish1', () => s.cue('swish'));
+    if (t > 4.3) s.once('swish2', () => s.cue('swish'));
+    const spread = lerp(0.18, len, shut);
+    const pw = (spread / this.n) * 1.25;
+    this.panels.forEach((p, i) => {
+      const fold = i % 2 ? 1 : -1;
+      p.position.set((i + 0.5) * (spread / this.n), 1.3, fold * 0.035 * (1.3 - shut));
+      p.rotation.set(0, fold * lerp(1.1, 0.35, shut) + Math.sin(t * 3 + i) * 0.04, 0);
+      p.scale.set(pw, 2.0, 1);
+      (p.children[0] as THREE.Object3D).scale.set(1, 1 / 2.0, 1);
+      (p.children[0] as THREE.Object3D).position.y = 0.5 - 0.5 / 2.0;
+    });
+    // The brush: raised and brought down four times behind the curtain, each to a shriek of violins.
+    this.brush.visible = shown && t > 2.9 && t < V.after + 0.2;
+    const hits = [3.3, 3.55, 3.8, 4.05];
+    let phase = 0;
+    for (const h of hits) {
+      if (t > h - 0.22 && t <= h) phase = Math.sin(((t - (h - 0.22)) / 0.22) * Math.PI * 0.5);
+      if (t > h && t < h + 0.03) phase = 1;
+    }
+    hits.forEach((h, i) => {
+      if (t >= h) s.once(`stab${i}`, () => {
+        s.cue('screech');
+        s.bits.emit(s.chest, t, 6, { color: '#e8f8ff', speed: 0.9, up: 1.4, size: 0.05, grow: 2, life: 1.2, opacity: 0.6 });
+      });
+    });
+    const hitAt = s.chest.clone().add(new THREE.Vector3(0, 0.18, 0));
+    const raised = this.ahead(t, -0.2, 2.6, 0.3);
+    const [ra, raz] = this.reach(t, -1, raised.clone().lerp(hitAt, phase));
+    const busy = span(t, 2.95, 3.15) * (1 - span(t, 4.15, 4.4));
+    if (this.brush.visible) this.brush.rotation.set(-0.4 - 0.8 * phase, 0, 0);
+    // The sleeper: a jolt at each blow, then scrubbed clean, bubbles drifting up and a sparkle or two.
+    const last = hits.filter((h) => t >= h).pop();
+    if (last !== undefined && t < 4.6) {
+      const w = t - last;
+      pose.dy = 0.08 * Math.exp(-w * 10) * Math.abs(Math.sin(w * 30));
+      pose.shake = 0.07 * Math.exp(-w * 6) * Math.sin(w * 45);
+    }
+    if (t > 4.4 && t < V.vanish + 0.8) {
+      s.once(`bubble${Math.floor(t / 0.16)}`, () => {
+        const at = new THREE.Vector3(s.chest.x + (Math.random() - 0.5) * 0.5, this.top() + 0.05, s.chest.z + (Math.random() - 0.5) * 0.6);
+        s.bits.emit(at, t, 1, { color: Math.random() < 0.5 ? '#dff4ff' : '#ffffff', speed: 0.2, up: 2.5, size: 0.035, grow: 1.8, life: 1.6, opacity: 0.55 });
+      });
+    }
+    if (t > 4.45) s.once('squeak', () => {
+      s.cue('squeaky');
+      s.bits.emit(s.head, t, 10, { color: '#ffffff', speed: 1.2, up: 0.5, size: 0.02, life: 0.5 });
+    });
+    return { la: -0.25, laz: 0, ra: lerp(-0.25, ra, busy), raz: raz * busy };
+  }
+
+  dispose() {
+    this.curtainMat.dispose();
+  }
+}
+
+/**
+ * The red balloon: the figure holds it on a string, and with a giggle from nowhere lets it float out over the bed and
+ * bob down to the sleeper's face. A long pin; POP; red scraps everywhere. The sleeper jumps out of their skin and then
+ * floats, limp and turning slowly, up off the bed like a balloon themselves, before flopping back down.
+ */
+class Balloon extends Deed {
+  private balloon: THREE.Mesh;
+  private string: THREE.Mesh[] = [];
+  private pin: THREE.Mesh;
+  private grip = new THREE.Vector3();
+
+  constructor(s: Stage) {
+    super(s);
+    const m = s.material;
+    this.balloon = parts(m, (b) => {
+      b.add(new THREE.SphereGeometry(1, 20, 14), '#d8283a', { scale: [0.21, 0.25, 0.21] });
+      b.add(new THREE.SphereGeometry(1, 10, 8), '#ff8a94', { pos: [-0.07, 0.09, 0.15], scale: [0.04, 0.06, 0.02] });
+      b.add(new THREE.ConeGeometry(0.03, 0.05, 8), '#b81c2c', { pos: [0, -0.26, 0], rot: [Math.PI, 0, 0] });
+    });
+    const seg = tinted(new THREE.CylinderGeometry(0.005, 0.005, 1, 4), '#f2ece0');
+    for (let i = 0; i < 8; i++) {
+      const piece = new THREE.Mesh(seg, m);
+      this.string.push(piece);
+      s.room.add(piece);
+    }
+    this.pin = parts(m, (b) => {
+      b.add(new THREE.CylinderGeometry(0.006, 0.003, 0.34, 6), '#d8dde6', { pos: [0, -0.17, 0] });
+      b.add(new THREE.SphereGeometry(0.025, 8, 6), '#3f7fc4', { pos: [0, 0.01, 0] });
+    });
+    s.left.hand.add(this.pin);
+    s.room.add(this.balloon);
+  }
+
+  update(t: number, pose: VictimPose, shown: boolean): Arms {
+    const s = this.s;
+    const V = VISIT;
+    const popAt = V.strike;
+    // The string's end, in the figure's right hand (from where the hand was a moment ago).
+    s.right.hand.getWorldPosition(this.grip);
+    s.room.worldToLocal(this.grip);
+    const held = this.ahead(t, -0.25, 2.35, 0.25);
+    const over = s.head.clone().add(new THREE.Vector3(0.05, 0.95, 0.1));
+    const face = s.head.clone().add(new THREE.Vector3(0, 0.42, 0.08));
+    const bob = new THREE.Vector3(Math.sin(t * 1.7) * 0.05, Math.sin(t * 2.3) * 0.06, Math.cos(t * 1.3) * 0.04);
+    const at = held.lerp(over, span(t, 2.55, 3.25)).lerp(face, span(t, 3.3, 3.6)).add(bob);
+    const popped = t >= popAt;
+    this.balloon.visible = shown && !popped;
+    this.balloon.position.copy(at);
+    this.balloon.rotation.set(Math.sin(t * 1.4) * 0.15, t * 0.5, Math.sin(t * 1.9) * 0.12);
+    // The string: hanging from the knot to the hand with a little slack.
+    const knot = at.clone().add(new THREE.Vector3(0, -0.28, 0));
+    const pts: THREE.Vector3[] = [];
+    for (let i = 0; i <= this.string.length; i++) {
+      const k = i / this.string.length;
+      pts.push(knot.clone().lerp(this.grip, k).add(new THREE.Vector3(Math.sin(t * 3 + k * 4) * 0.02, -Math.sin(Math.PI * k) * 0.18, 0)));
+    }
+    this.string.forEach((piece, i) => {
+      piece.visible = shown && !popped;
+      between(piece, pts[i], pts[i + 1]);
+    });
+    if (t > 2.75) s.once('giggle', () => s.cue('giggle'));
+    if (t > 3.3) s.once('rub', () => s.cue('squeak'));
+    // The pin, in the other hand, out at the balloon.
+    this.pin.visible = shown && t > 3.0 && t < V.after;
+    this.pin.rotation.set(-1.2 * span(t, 3.25, 3.6), 0, 0);
+    if (popped) s.once('pop', () => {
+      s.cue('burst');
+      s.bits.emit(at, t, 26, { color: '#d8283a', speed: 2.4, up: 0.3, size: 0.03, life: 0.9 });
+      s.bits.emit(at, t, 8, { color: '#ffffff', speed: 1.6, size: 0.05, grow: 2, life: 0.4 });
+    });
+    if (t > popAt + 0.5) s.once('float', () => s.cue('float'));
+    // The sleeper: a start, then up off the bed, floating and turning, and down with a flop.
+    if (popped) {
+      const u = t - popAt;
+      const rise = span(u, 0.25, 0.9);
+      const fall = clamp((t - (V.after + 0.1)) / 0.32, 0, 1);
+      pose.dy = (0.5 * rise + 0.05 * Math.sin(t * 2.6) * rise) * (1 - fall * fall);
+      if (u < 0.25) {
+        pose.dy = 0.35 * Math.sin((Math.PI * u) / 0.25);
+        pose.squash = 1 + 0.3 * Math.sin((Math.PI * u) / 0.25);
+      }
+      pose.spin = 0.9 * Math.sin(u * 1.6) * rise * (1 - fall);
+      pose.shake = 0.12 * Math.sin(t * 1.9) * rise * (1 - fall);
+      if (fall >= 1) {
+        const w = t - (V.after + 0.42);
+        pose.squash = 1 - 0.2 * Math.exp(-w * 6) * Math.cos(w * 16);
+        pose.dy = 0.06 * Math.abs(Math.sin(w * 10)) * Math.exp(-w * 5);
+        s.once('flop', () => s.cue('fwump'));
+      }
+    }
+    const [ra, raz] = this.reach(t, -1, at.clone().add(new THREE.Vector3(0, -0.6, 0)).lerp(this.ahead(t, -0.3, 1.0, 0.3), 0.5));
+    const [la, laz] = this.reach(t, 1, at);
+    const jab = span(t, 3.2, 3.62) * (1 - span(t, V.after, V.after + 0.4));
+    return { la: lerp(-0.25, la, jab), laz: laz * jab, ra: popped ? lerp(ra, -0.25, span(t, popAt, popAt + 0.5)) : ra, raz: popped ? raz * (1 - span(t, popAt, popAt + 0.5)) : raz };
+  }
+}
+
+/**
+ * The claw glove: a red and green striped sleeve and a glove with four long blades. A slow wiggle of the blades, then
+ * a long screech down the headboard leaving four scratches and a shower of sparks, and one swipe over the pillow that
+ * bursts it into a blizzard of feathers. The sleeper jolts and shivers under the falling down.
+ */
+class Claws extends Deed {
+  private marks: THREE.Mesh[] = [];
+  private blades: THREE.Group;
+  private board = { x: BED.x - 0.35, z: BED.z - BED.d / 2 + 0.075 };
+
+  constructor(s: Stage) {
+    super(s);
+    const m = s.material;
+    // The stripes round the forearm, and the glove over the bony hand.
+    s.right.pivot.add(
+      parts(m, (b) => {
+        for (let k = 0; k < 5; k++) b.add(new THREE.CylinderGeometry(0.098 + k * 0.004, 0.1 + k * 0.004, 0.06, 12, 1, true), k % 2 ? '#2f6b3a' : '#b8322c', { pos: [0, -0.3 - k * 0.06, 0] });
+      }),
+    );
+    this.blades = new THREE.Group();
+    this.blades.add(
+      parts(m, (b) => {
+        b.add(new THREE.BoxGeometry(0.13, 0.12, 0.08), '#6a4026', { pos: [0, 0.03, 0] });
+        b.add(new THREE.BoxGeometry(0.14, 0.03, 0.09), '#4a2c1a', { pos: [0, 0.09, 0] });
+        for (let k = 0; k < 4; k++) {
+          const x = -0.045 + k * 0.03;
+          b.add(new THREE.BoxGeometry(0.018, 0.06, 0.02), '#6a4026', { pos: [x, -0.04, 0.01] });
+          b.add(new THREE.BoxGeometry(0.008, 0.34, 0.022), '#d8dde6', { pos: [x * 1.3, -0.24, 0.01], rot: [0, 0, x * 1.2] });
+          b.add(new THREE.ConeGeometry(0.011, 0.05, 4), '#ffffff', { pos: [x * 1.55, -0.43, 0.01], rot: [Math.PI, 0, 0], scale: [0.7, 1, 1] });
+        }
+      }),
+    );
+    s.right.hand.add(this.blades);
+    const markGeo = new THREE.BoxGeometry(0.014, 1, 0.01);
+    for (let k = 0; k < 4; k++) {
+      const mark = new THREE.Mesh(markGeo, new THREE.MeshBasicMaterial({ color: '#2a1a10' }));
+      mark.visible = false;
+      this.marks.push(mark);
+      s.room.add(mark);
+    }
+  }
+
+  update(t: number, pose: VictimPose, shown: boolean): Arms {
+    const s = this.s;
+    const V = VISIT;
+    this.blades.visible = shown;
+    // The blades wiggled one after another, for show.
+    this.blades.rotation.z = span(t, 2.3, 2.5) * (1 - span(t, 2.85, 2.95)) * 0.25 * Math.sin(t * 22);
+    // Down the headboard: from high to low, leaving four scratches behind.
+    const scr = span(t, 2.95, 3.35);
+    const topY = 1.2;
+    const lowY = Math.max(BED.top + 0.25, 0.8);
+    const y = lerp(topY, lowY, scr);
+    const onBoard = new THREE.Vector3(this.board.x, y + 0.35, this.board.z + 0.05);
+    this.marks.forEach((mark, k) => {
+      const len = Math.max(0.001, (topY - y) * (0.85 + k * 0.05));
+      mark.visible = shown && scr > 0 && t < V.vanish + 0.6;
+      mark.position.set(this.board.x - 0.07 + k * 0.045 + 0.02 * scr, topY - len / 2 - k * 0.02, this.board.z);
+      mark.scale.set(1, len, 1);
+      mark.rotation.z = 0.1;
+    });
+    if (scr > 0 && scr < 1) {
+      s.once('scratch', () => s.cue('scratch'));
+      s.once(`spark${Math.floor(t / 0.05)}`, () => s.bits.emit(new THREE.Vector3(this.board.x, y, this.board.z + 0.06), t, 3, { color: Math.random() < 0.5 ? '#fff2a0' : '#ffffff', speed: 1.4, up: 0.3, size: 0.018, life: 0.35 }));
+    }
+    // The swipe over the pillow, across and down.
+    const sw = span(t, 3.5, 3.72);
+    const from = s.head.clone().add(new THREE.Vector3(-0.35, 0.65, 0.05));
+    const to = s.head.clone().add(new THREE.Vector3(0.45, 0.25, 0.2));
+    const swipe = from.lerp(to, sw);
+    const [ra0, raz0] = this.reach(t, -1, scr > 0 && t < 3.42 ? onBoard : swipe);
+    const busy = span(t, 2.75, 2.95) * (1 - span(t, V.after, V.after + 0.4));
+    const wave = span(t, 2.2, 2.4) * (1 - span(t, 2.7, 2.9));
+    const ra = lerp(-0.25, ra0, busy) - 1.0 * wave;
+    const raz = raz0 * busy;
+    if (sw > 0.85) s.once('rip', () => {
+      s.cue('rip');
+      const pillow = new THREE.Vector3(BED.x, BED.top + 0.12, BED.z - BED.d / 2 + 0.4);
+      s.bits.emit(pillow, t, 30, { color: '#ffffff', speed: 1.8, up: 1.2, size: 0.035, grow: 1.3, life: 1.6, opacity: 0.9 });
+    });
+    // Down drifting over the bed for a while after.
+    if (t > 3.8 && t < V.vanish + 0.5) {
+      s.once(`down${Math.floor(t / 0.09)}`, () => {
+        const at = new THREE.Vector3(BED.x + (Math.random() - 0.5) * BED.w, 1.7 + Math.random() * 0.4, s.chest.z + (Math.random() - 0.5) * 1.6);
+        s.bits.emit(at, t, 1, { color: '#fbf8f2', speed: 0.35, size: 0.03, life: 2.4, opacity: 0.9, fall: true });
+      });
+    }
+    // The sleeper: a jolt at the swipe, then shivering.
+    const u = t - 3.7;
+    if (u > 0) {
+      pose.dy = 0.14 * Math.exp(-u * 7) * Math.abs(Math.sin(u * 22));
+      pose.shake = 0.05 * Math.sin(u * 48) * (0.4 + 0.6 * Math.exp(-u * 1.2)) * (1 - span(t, V.vanish, V.dark));
+      pose.squash = 1 - 0.06 * span(u, 0.1, 0.5);
+    }
+    return { la: -0.25, laz: 0, ra, raz };
+  }
+
+  dispose() {
+    for (const m of this.marks) (m.material as THREE.Material).dispose();
+  }
+}
+
+/**
+ * The telly: an old wooden television crackles into being on the floor by the bed, all static. Something climbs out
+ * of the screen: a girl in a white nightie with long black hair over her face, crawling jerkily across the floor, up
+ * onto the bed and over the sleeper, who wakes to find her nose to nose. A shriek, a flicker, and she's gone; the
+ * screen shrinks to a dot.
+ */
+class Telly extends Deed {
+  private tv = new THREE.Group();
+  private screen: THREE.Mesh;
+  private noise: THREE.DataTexture;
+  private screenMat: THREE.MeshBasicMaterial;
+  private girl = new THREE.Group();
+  private arms: THREE.Mesh[] = [];
+  /** On the floor beyond the figure, turned to the room, where the camera sees it. */
+  private spot = new THREE.Vector3(BED.x - BED.w / 2 - 1.1, 0, BED.z - 0.2);
+  private yaw = Math.atan2(1, 0.75);
+
+  constructor(s: Stage) {
+    super(s);
+    const m = s.material;
+    this.tv.add(
+      parts(m, (b) => {
+        b.add(new THREE.BoxGeometry(0.66, 0.5, 0.46), '#7a5236', { pos: [0, 0.37, 0] });
+        b.add(new THREE.BoxGeometry(0.5, 0.36, 0.02), '#3a2a1e', { pos: [-0.04, 0.38, 0.23] });
+        for (const x of [0.25]) for (const y of [0.45, 0.32]) b.add(new THREE.CylinderGeometry(0.025, 0.025, 0.03, 10), '#c9a24f', { pos: [x, y, 0.235], rot: [Math.PI / 2, 0, 0] });
+        for (const sx of [-1, 1]) {
+          b.add(new THREE.CylinderGeometry(0.006, 0.006, 0.42, 5), '#c8ccd4', { pos: [sx * 0.12, 0.78, -0.05], rot: [0, 0, -sx * 0.5] });
+          b.add(new THREE.BoxGeometry(0.04, 0.12, 0.04), '#4a3020', { pos: [sx * 0.26, 0.06, sx * 0.15] });
+        }
+      }),
+    );
+    const N = 48;
+    this.noise = new THREE.DataTexture(new Uint8Array(N * 36 * 4), N, 36);
+    this.noise.magFilter = THREE.NearestFilter;
+    this.screenMat = new THREE.MeshBasicMaterial({ map: this.noise });
+    this.screen = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.32), this.screenMat);
+    this.screen.position.set(-0.04, 0.38, 0.242);
+    this.tv.add(this.screen);
+    this.tv.position.copy(this.spot);
+    this.tv.rotation.y = this.yaw;
+    this.tv.visible = false;
+    // The girl, on all fours facing +z: a white nightie, pale arms, and long black hair hanging over her face.
+    this.girl.add(
+      parts(m, (b) => {
+        b.add(new THREE.SphereGeometry(1, 14, 10), '#c9c6bc', { pos: [0, 0.22, 0], scale: [0.13, 0.11, 0.27] });
+        b.add(new THREE.ConeGeometry(0.17, 0.3, 12, 1, true), '#bdb9ae', { pos: [0, 0.12, -0.18], rot: [-1.3, 0, 0] });
+        b.add(new THREE.SphereGeometry(0.1, 12, 10), '#cfd6d2', { pos: [0, 0.31, 0.28] });
+        b.add(new THREE.SphereGeometry(1, 14, 10), '#111015', { pos: [0, 0.34, 0.27], scale: [0.115, 0.1, 0.12] });
+        for (let k = 0; k < 9; k++) {
+          const x = -0.08 + k * 0.02;
+          b.add(new THREE.BoxGeometry(0.03, 0.3, 0.02), '#15131a', { pos: [x, 0.17, 0.36 + Math.abs(x) * -0.3], rot: [-0.25, 0, x * 0.6] });
+        }
+        for (const sx of [-1, 1]) b.add(new THREE.CylinderGeometry(0.03, 0.025, 0.24, 6), '#cfd6d2', { pos: [sx * 0.08, 0.06, -0.24], rot: [1.2, 0, 0] });
+      }),
+    );
+    const armGeo = tinted(new THREE.CylinderGeometry(0.022, 0.018, 1, 6), '#cfd6d2');
+    for (let i = 0; i < 2; i++) {
+      const arm = new THREE.Mesh(armGeo, m);
+      this.arms.push(arm);
+      this.girl.add(arm);
+    }
+    this.girl.visible = false;
+    s.room.add(this.tv, this.girl);
+  }
+
+  update(t: number, pose: VictimPose, shown: boolean): Arms {
+    const s = this.s;
+    const V = VISIT;
+    // The set: in with a puff, static until she's gone, then off to a dot and away.
+    const there = span(t, 2.35, 2.6) * (1 - span(t, V.vanish - 0.3, V.vanish + 0.1));
+    this.tv.visible = shown && there > 0.01;
+    this.tv.scale.setScalar(there);
+    if (t > 2.35) s.once('tv', () => {
+      s.bits.emit(this.spot.clone().setY(0.4), t, 12, { color: '#2a2036', speed: 1.1, size: 0.12, grow: 2, life: 0.8 });
+      s.cue('static');
+    });
+    const off = span(t, 4.85, 5.1);
+    this.screen.scale.set(Math.max(0.03, 1 - off), Math.max(0.03, 1 - off * 1.05), 1);
+    const data = this.noise.image.data as Uint8Array;
+    if (this.tv.visible) {
+      for (let i = 0; i < data.length; i += 4) {
+        const v = off > 0.9 ? 255 : Math.random() * 255 * (0.55 + 0.45 * Math.sin(t * 30 + i * 0.0007));
+        data[i] = data[i + 1] = data[i + 2] = v;
+        data[i + 3] = 255;
+      }
+      this.noise.needsUpdate = true;
+    }
+    // Her path: out of the screen, across the floor, up the side of the bed and over the sleeper to their face.
+    const front = new THREE.Vector3(Math.sin(this.yaw), 0, Math.cos(this.yaw));
+    const inScreen = this.spot.clone().addScaledVector(front, 0.1).setY(0.25);
+    const onFloor = this.spot.clone().addScaledVector(front, 0.55).add(new THREE.Vector3(0.15, 0, 0));
+    const onBed = new THREE.Vector3(BED.x - BED.w / 2 + 0.2, COVERS, clamp(s.chest.z + 0.45, BED.z - BED.d / 2 + 0.5, BED.z + BED.d / 2 - 0.3));
+    const atFace = new THREE.Vector3(s.head.x, this.top() + 0.02, Math.min(s.head.z + 0.42, s.chest.z + 0.1));
+    const keys: [number, THREE.Vector3][] = [
+      [2.9, inScreen],
+      [3.12, onFloor],
+      [3.38, onBed],
+      [3.66, atFace],
+    ];
+    let p = keys[0][1].clone();
+    let dir = front.clone();
+    for (let i = 1; i < keys.length; i++) {
+      const [a, pa] = keys[i - 1];
+      const [b, pb] = keys[i];
+      if (t >= a) {
+        // (Jerky, in fits and starts, as if frames were missing.)
+        const k = clamp((t - a) / (b - a), 0, 1);
+        const jerk = Math.floor(k * 9) / 9;
+        p = pa.clone().lerp(pb, jerk);
+        dir = pb.clone().sub(pa).setY(0).normalize();
+      }
+    }
+    if (t > 3.12 && t < 3.38) p.y = lerp(0, COVERS, span(t, 3.22, 3.36));
+    const out = span(t, 2.9, 3.05);
+    const flick = t > 4.35 && t < 4.75 ? Math.sin(t * 90) > 0 : true;
+    this.girl.visible = shown && t > 2.9 && t < 4.75 && flick;
+    this.girl.position.copy(p);
+    this.girl.rotation.set(0, Math.atan2(dir.x, dir.z), 0);
+    // Rearing up at the face.
+    const rear = span(t, 3.62, 3.75);
+    this.girl.rotation.x = -0.55 * rear;
+    this.girl.scale.setScalar(1.15 * out);
+    // The arms: hand over hand while she crawls, reaching out at the end.
+    const crawling = t > 3.0 && t < 3.66;
+    this.arms.forEach((arm, i) => {
+      const sx = i ? 1 : -1;
+      const step = crawling ? Math.sin(t * 18 + i * Math.PI) * 0.07 : 0;
+      const shoulder = new THREE.Vector3(sx * 0.09, 0.27, 0.2);
+      const hand = new THREE.Vector3(sx * 0.13, 0.0, 0.4 + step).lerp(new THREE.Vector3(sx * 0.1, 0.32, 0.52), rear);
+      between(arm, shoulder, hand);
+    });
+    if (t > 3.05) s.once('crawl', () => s.cue('creak'));
+    if (t > 3.7) s.once('shriek', () => s.cue('shriek'));
+    if (t > 4.35) s.once('gone', () => s.cue('static'));
+    if (t > 4.75) s.once('puff', () => s.bits.emit(atFace.clone().setY(atFace.y + 0.2), t, 14, { color: '#d8dcd8', speed: 1.0, size: 0.08, grow: 2, life: 0.7, opacity: 0.6 }));
+    // The sleeper: a jolt nose to nose, then shivering, a little shrunk.
+    const u = t - 3.72;
+    if (u > 0) {
+      pose.dy = 0.25 * Math.exp(-u * 6) * Math.abs(Math.sin(u * 14));
+      pose.shake = 0.06 * Math.sin(u * 55) * (0.3 + 0.7 * Math.exp(-u * 1.5)) * (1 - span(t, V.vanish, V.dark));
+      pose.squash = 1 - 0.12 * span(u, 0.2, 0.8);
+    }
+    // The figure points the way: at the set, then at the bed.
+    const [ra, raz] = this.reach(t, -1, t < 3.3 ? this.spot.clone().setY(0.6) : s.chest);
+    const point = span(t, 2.6, 2.85) * (1 - span(t, 3.9, 4.2));
+    return { la: -0.25, laz: 0, ra: lerp(-0.25, ra, point), raz: raz * point };
+  }
+
+  dispose() {
+    this.noise.dispose();
+    this.screenMat.dispose();
+  }
+}
+
+/**
+ * The gremlins: the figure holds out a little crate, and when the lid pops a swarm of green imps with huge ears
+ * tumbles out over the bed, bouncing on the sleeper and chattering. A camera flash: they shriek and vanish in puffs
+ * of green smoke, and the sleeper is left trampled flat.
+ */
+class Gremlins extends Deed {
+  private crate = new THREE.Group();
+  private lid = new THREE.Group();
+  private imps: THREE.Group[] = [];
+  private camera: THREE.Mesh;
+  private flash = roomFlash('#fffbe6');
+  private n = 7;
+  private homes: THREE.Vector3[] = [];
+
+  constructor(s: Stage) {
+    super(s);
+    const m = s.material;
+    this.crate.add(
+      parts(m, (b) => {
+        b.add(new THREE.BoxGeometry(0.34, 0.26, 0.3), '#a0703f', { pos: [0, 0.13, 0] });
+        for (const y of [0.04, 0.22]) b.add(new THREE.BoxGeometry(0.35, 0.04, 0.31), '#7a5236', { pos: [0, y, 0] });
+        for (let k = 0; k < 3; k++) b.add(new THREE.CylinderGeometry(0.018, 0.018, 0.01, 8), '#1d1a24', { pos: [-0.1 + k * 0.1, 0.13, 0.152], rot: [Math.PI / 2, 0, 0] });
+      }),
+    );
+    this.lid.position.set(0, 0.26, -0.15);
+    this.lid.add(parts(m, (b) => b.add(new THREE.BoxGeometry(0.36, 0.03, 0.32), '#8a5a34', { pos: [0, 0.015, 0.15] })));
+    this.crate.add(this.lid);
+    const impGeo = (() => {
+      const b = new Builder();
+      b.add(new THREE.SphereGeometry(1, 12, 9), '#5e9e4a', { pos: [0, 0.09, 0], scale: [0.085, 0.08, 0.075] });
+      b.add(new THREE.SphereGeometry(1, 10, 8), '#a8c87a', { pos: [0, 0.08, 0.04], scale: [0.06, 0.06, 0.04] });
+      b.add(new THREE.SphereGeometry(0.075, 12, 10), '#5e9e4a', { pos: [0, 0.2, 0.02] });
+      for (const sx of [-1, 1]) {
+        b.add(new THREE.ConeGeometry(0.045, 0.17, 6), '#5e9e4a', { pos: [sx * 0.13, 0.23, 0], rot: [0, 0, -sx * 1.35], scale: [1, 1, 0.35] });
+        b.add(new THREE.ConeGeometry(0.03, 0.12, 6), '#e89aa8', { pos: [sx * 0.125, 0.23, 0.01], rot: [0, 0, -sx * 1.35], scale: [1, 1, 0.3] });
+        b.add(new THREE.SphereGeometry(0.02, 8, 6), '#ff3a3a', { pos: [sx * 0.03, 0.22, 0.08] });
+        b.add(new THREE.SphereGeometry(0.008, 6, 4), '#ffffff', { pos: [sx * 0.032, 0.228, 0.097] });
+        b.add(new THREE.SphereGeometry(0.022, 6, 5), '#4a8a3a', { pos: [sx * 0.05, 0.01, 0.03], scale: [1, 0.5, 1.4] });
+        b.add(new THREE.CylinderGeometry(0.012, 0.012, 0.08, 5), '#5e9e4a', { pos: [sx * 0.085, 0.1, 0.03], rot: [0.6, 0, sx * 0.5] });
+      }
+      b.add(new THREE.BoxGeometry(0.07, 0.014, 0.01), '#ffffff', { pos: [0, 0.175, 0.09] });
+      return b.geometry();
+    })();
+    const r = rng(11);
+    for (let i = 0; i < this.n; i++) {
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(impGeo, m));
+      g.visible = false;
+      this.imps.push(g);
+      s.room.add(g);
+      this.homes.push(new THREE.Vector3(r() - 0.5, 0, r() - 0.5));
+    }
+    this.camera = parts(m, (b) => {
+      b.add(new THREE.BoxGeometry(0.16, 0.1, 0.08), '#2a2a30', { pos: [0, -0.06, 0.04] });
+      b.add(new THREE.CylinderGeometry(0.035, 0.035, 0.05, 10), '#55515c', { pos: [0, -0.06, 0.1], rot: [Math.PI / 2, 0, 0] });
+      b.add(new THREE.SphereGeometry(0.045, 10, 8), '#f6f1e0', { pos: [0, 0.03, 0.06], scale: [1, 1, 0.5] });
+    });
+    s.right.hand.add(this.camera);
+    s.room.add(this.crate, this.flash.mesh);
+  }
+
+  update(t: number, pose: VictimPose, shown: boolean): Arms {
+    const s = this.s;
+    const V = VISIT;
+    const box = s.box;
+    // The crate: held out, set down on the edge of the bed, and gone at the end.
+    const held = this.ahead(t, 0, 0.95, 0.45);
+    const down = new THREE.Vector3(BED.x - BED.w / 2 + 0.22, COVERS, clamp(s.chest.z + 0.45, BED.z - BED.d / 2 + 0.4, BED.z + BED.d / 2 - 0.25));
+    const set = span(t, 2.55, 2.85);
+    this.crate.position.copy(held.lerp(down, set));
+    this.crate.rotation.y = s.figure.rotation.y;
+    const there = 1 - span(t, V.vanish - 0.6, V.vanish - 0.3);
+    this.crate.visible = shown && there > 0.01;
+    this.crate.scale.setScalar(Math.max(0.01, there));
+    const open = span(t, 2.95, 3.05);
+    this.lid.rotation.x = -2.0 * open - (t < 2.95 ? Math.abs(Math.sin(t * 40)) * 0.15 * span(t, 2.7, 2.9) : 0);
+    if (t > 2.95) s.once('lid', () => s.cue('pop'));
+    // The imps: out of the crate one after another, onto and round the sleeper, bouncing about, until the flash.
+    const flashAt = 4.5;
+    this.imps.forEach((g, i) => {
+      const t0 = 3.0 + i * 0.07;
+      const gone = t > flashAt + 0.05 + i * 0.03;
+      g.visible = shown && t > t0 && !gone;
+      if (!g.visible) {
+        if (gone) s.once(`poof${i}`, () => s.bits.emit(g.position.clone().setY(g.position.y + 0.12), t, 8, { color: '#7fbf5a', speed: 0.9, size: 0.06, grow: 2.2, life: 0.6, opacity: 0.8 }));
+        return;
+      }
+      const h = this.homes[i];
+      const wander = new THREE.Vector3(Math.sin(t * 2.3 + i) * 0.08, 0, Math.cos(t * 1.9 + i * 2) * 0.08);
+      const spot = new THREE.Vector3(lerp(box.min.x - 0.12, box.max.x + 0.12, h.x + 0.5), 0, lerp(box.min.z, box.max.z, h.z + 0.5)).add(wander);
+      spot.x = clamp(spot.x, BED.x - BED.w / 2 + 0.1, BED.x + BED.w / 2 - 0.1);
+      const onThem = spot.x > box.min.x && spot.x < box.max.x;
+      const surface = onThem ? this.top(pose.squash ?? 1) - 0.03 : COVERS;
+      const k = clamp((t - t0) / 0.35, 0, 1);
+      const p = down.clone().setY(COVERS + 0.2).lerp(spot.setY(surface), k);
+      p.y += Math.sin(Math.PI * k) * 0.35;
+      if (k >= 1) p.y += Math.abs(Math.sin(t * 9 + i * 1.3)) * 0.14;
+      g.position.copy(p);
+      g.rotation.set(0, Math.sin(t * 3 + i) * 1.2 + i, Math.sin(t * 9 + i) * 0.15);
+      // (Scared stiff and stretched for a moment by the flash.)
+      const fright = t > flashAt ? 1 + 0.3 * span(t, flashAt, flashAt + 0.04) : 1;
+      g.scale.set(1.15, 1.15 * fright, 1.15);
+    });
+    if (t > 3.1) s.once('chitter1', () => s.cue('chitter'));
+    if (t > 3.75) s.once('chitter2', () => s.cue('chitter'));
+    if (t > 4.15) s.once('chitter3', () => s.cue('chitter'));
+    // The camera: up to the eye, and the flash.
+    this.camera.visible = shown && t > 4.05 && t < V.after + 0.3;
+    const u = t - flashAt;
+    const f = u >= 0 && shown ? Math.exp(-u * 5) : 0;
+    this.flash.mesh.visible = f > 0.01;
+    this.flash.mesh.position.copy(s.chest);
+    this.flash.mat.opacity = 0.6 * f;
+    if (u >= 0) s.once('flash', () => {
+      s.cue('flashbulb');
+      s.bits.emit(this.ahead(t, -0.2, 1.5, 0.5), t, 10, { color: '#ffffff', speed: 1.5, size: 0.03, life: 0.3 });
+    });
+    if (u > 0.05) s.once('shriek', () => s.cue('eek'));
+    // The sleeper: bounced on (squashed a little each landing), then left flat and twitching.
+    if (t > 3.3 && t < flashAt) {
+      pose.squash = 1 - 0.12 * Math.abs(Math.sin(t * 13)) * span(t, 3.3, 3.5);
+      pose.shake = 0.04 * Math.sin(t * 31);
+    } else if (t >= flashAt) {
+      const w = t - flashAt;
+      pose.squash = 0.82 + 0.06 * Math.exp(-w * 4) * Math.cos(w * 20);
+      pose.shake = 0.03 * Math.sin(w * 40) * Math.exp(-w * 1.2);
+    }
+    const [ra, raz] = this.reach(t, -1, this.ahead(t, -0.1, 1.55, 0.5));
+    const raise = span(t, 4.0, 4.25) * (1 - span(t, V.after, V.after + 0.3));
+    const carry = (1 - set) * span(t, 2.3, 2.5) + set * (1 - span(t, 2.85, 3.0));
+    const both = this.both(t, this.crate.position.clone().add(new THREE.Vector3(0, 0.15, 0)));
+    return {
+      la: lerp(-0.25, both.la, carry),
+      laz: both.laz * carry,
+      ra: lerp(lerp(-0.25, both.ra, carry), ra, raise),
+      raz: lerp(both.raz * carry, raz, raise),
+    };
+  }
+
+  dispose() {
+    this.flash.mat.dispose();
+  }
+}
+
+/**
+ * The anvil: the figure points at the ceiling. A whistle, falling; a shadow spreads over the sleeper; and a great
+ * black anvil drops out of nowhere, CLANG, flattening them in a cloud of dust. It sits there a while. When it goes
+ * with the figure, they pop back up like a concertina.
+ */
+class Anvil extends Deed {
+  private anvil: THREE.Mesh;
+  private shadow: THREE.Mesh;
+  private shadowMat = new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0, depthWrite: false });
+  private flat = 0.22;
+
+  constructor(s: Stage) {
+    super(s);
+    const m = s.material;
+    // Lying across the bed (its length along x), the horn towards the figure.
+    this.anvil = parts(m, (b) => {
+      const DARK = '#3e4048';
+      b.add(new THREE.BoxGeometry(0.46, 0.08, 0.3), DARK, { pos: [0, 0.04, 0] });
+      b.add(new THREE.BoxGeometry(0.34, 0.06, 0.24), DARK, { pos: [0, 0.11, 0] });
+      b.add(new THREE.BoxGeometry(0.2, 0.12, 0.16), DARK, { pos: [0, 0.2, 0] });
+      b.add(new THREE.BoxGeometry(0.5, 0.1, 0.26), DARK, { pos: [0.04, 0.31, 0] });
+      b.add(new THREE.BoxGeometry(0.5, 0.012, 0.26), '#6a6e78', { pos: [0.04, 0.362, 0] });
+      b.add(new THREE.ConeGeometry(0.11, 0.3, 10), DARK, { pos: [-0.35, 0.31, 0], rot: [0, 0, Math.PI / 2], scale: [1, 1, 0.9] });
+      b.add(new THREE.BoxGeometry(0.06, 0.08, 0.27), '#55585f', { pos: [0.3, 0.31, 0] });
+      b.add(new THREE.BoxGeometry(0.2, 0.015, 0.02), '#8a8e98', { pos: [0.05, 0.335, 0.131] });
+    });
+    this.anvil.visible = false;
+    this.shadow = new THREE.Mesh(new THREE.CircleGeometry(1, 24), this.shadowMat);
+    this.shadow.rotation.x = -Math.PI / 2;
+    this.shadow.visible = false;
+    s.room.add(this.anvil, this.shadow);
+  }
+
+  update(t: number, pose: VictimPose, shown: boolean): Arms {
+    const s = this.s;
+    const V = VISIT;
+    const { w, d } = this.size();
+    const sz = clamp(Math.max(w / 0.55, d / 0.9), 1, 2.2);
+    const land = V.strike;
+    const fallFrom = 3.1;
+    // Falling from up out of sight, quicker and quicker.
+    const k = clamp((t - fallFrom) / (land - fallFrom), 0, 1);
+    const rest = this.top(this.flat);
+    const y = t < land ? lerp(rest + 3.6, rest, k * k) : rest + 0.05 * Math.exp(-(t - land) * 12) * Math.abs(Math.sin((t - land) * 30));
+    const gone = span(t, V.vanish - 0.5, V.vanish - 0.2);
+    this.anvil.visible = shown && t > fallFrom && gone < 0.99;
+    this.anvil.position.set(s.chest.x, y, s.chest.z);
+    this.anvil.scale.setScalar(sz * (1 - gone));
+    this.anvil.rotation.set(t < land ? 0.15 * (1 - k) : 0, 0.15, t < land ? Math.sin(t * 7) * 0.1 * (1 - k) : 0);
+    // Its shadow, spreading as it comes.
+    this.shadow.visible = shown && t > fallFrom - 0.1 && t < land + 0.05;
+    this.shadow.position.set(s.chest.x, this.top() + 0.02, s.chest.z);
+    this.shadow.scale.set(0.35 * sz * (0.4 + 0.6 * k), 0.2 * sz * (0.4 + 0.6 * k), 1);
+    this.shadowMat.opacity = 0.15 + 0.35 * k;
+    if (t > fallFrom - 0.05) s.once('whistle', () => s.cue('drop'));
+    if (t > fallFrom) s.once('plaster', () => s.bits.emit(new THREE.Vector3(s.chest.x, 3.0, s.chest.z), t, 10, { color: '#e8e2d6', speed: 0.9, size: 0.03, life: 1.0, fall: true }));
+    if (t >= land) s.once('clang', () => {
+      s.cue('clang');
+      s.bits.emit(new THREE.Vector3(s.chest.x, COVERS + 0.05, s.chest.z), t, 24, { color: '#d8d0c0', speed: 2.0, up: 0.2, size: 0.07, grow: 2.2, life: 0.9, opacity: 0.75 });
+    });
+    if (t >= land + 0.35) s.once('tweet', () => s.cue('tweet'));
+    // The sleeper: flat as a pancake from the clang until the anvil goes, then up like a concertina.
+    if (t >= land) {
+      const back = V.vanish - 0.25;
+      if (t < back) pose.squash = this.flat + 0.06 * Math.exp(-(t - land) * 10) * Math.sin((t - land) * 45);
+      else {
+        const w2 = t - back;
+        pose.squash = 1 - (1 - this.flat) * Math.exp(-w2 * 3.5) * Math.cos(w2 * 16);
+        pose.dy = 0.18 * Math.max(0, Math.sin(w2 * 9)) * Math.exp(-w2 * 3);
+        s.once('boing', () => s.cue('boing'));
+      }
+    }
+    // Pointing up at the ceiling, then a look down at the work.
+    const point = span(t, 2.55, 2.85) * (1 - span(t, land + 0.2, land + 0.6));
+    const [ra, raz] = this.reach(t, -1, this.ahead(t, -0.1, 3.4, 0.6));
+    s.body.rotation.x -= 0.25 * point;
+    return { la: -0.25, laz: 0, ra: lerp(-0.25, ra, point), raz: raz * point };
+  }
+
+  dispose() {
+    this.shadowMat.dispose();
+  }
+}
+
+/**
+ * The vampire: the figure beckons at the window, and a flurry of bats flies in and gathers into a vampire, cape
+ * wrapped round him. He drifts over the bed, throws his cape wide (red inside), stoops to the sleeper's neck: a nip,
+ * a long slurp, and they wilt. He swells a little, laughs, and bursts into bats that flutter back out of the window.
+ */
+class Vampire extends Deed {
+  private vamp = new THREE.Group();
+  private wings: THREE.Group[] = [];
+  private bats: ReturnType<typeof bat>[] = [];
+  private window = new THREE.Vector3(0, 2.0, -FLAT_HD + 0.3);
+
+  constructor(s: Stage) {
+    super(s);
+    const m = s.material;
+    const PALE = '#dfe3ea';
+    const BLACK = '#17141c';
+    this.vamp.add(
+      parts(m, (b) => {
+        // A long black coat, floating (no feet), a white shirt front and a red bow.
+        b.add(new THREE.CylinderGeometry(0.16, 0.27, 1.05, 14), BLACK, { pos: [0, 0.82, 0] });
+        b.add(new THREE.ConeGeometry(0.1, 0.36, 3), '#f4f1ea', { pos: [0, 1.18, 0.13], rot: [Math.PI + 0.12, 0, 0], scale: [1, 1, 0.35] });
+        b.add(new THREE.SphereGeometry(1, 8, 6), '#b8202c', { pos: [0, 1.3, 0.15], scale: [0.05, 0.025, 0.02] });
+        b.add(new THREE.SphereGeometry(1, 14, 10), BLACK, { pos: [0, 1.35, 0], scale: [0.22, 0.09, 0.15] });
+        // The head: pale, a black widow's peak, pointed ears, red eyes and two little fangs.
+        b.add(new THREE.SphereGeometry(1, 16, 12), PALE, { pos: [0, 1.55, 0.01], scale: [0.13, 0.155, 0.13] });
+        b.add(new THREE.SphereGeometry(1, 16, 12), BLACK, { pos: [0, 1.6, -0.02], scale: [0.138, 0.13, 0.14] });
+        b.add(new THREE.ConeGeometry(0.05, 0.08, 4), BLACK, { pos: [0, 1.63, 0.105], rot: [Math.PI - 0.3, 0, 0], scale: [1, 1, 0.4] });
+        for (const sx of [-1, 1]) {
+          b.add(new THREE.ConeGeometry(0.03, 0.09, 5), PALE, { pos: [sx * 0.13, 1.57, -0.01], rot: [0, 0, -sx * 1.2], scale: [1, 1, 0.4] });
+          b.add(new THREE.SphereGeometry(0.018, 8, 6), '#ff2a3a', { pos: [sx * 0.045, 1.56, 0.115] });
+          b.add(new THREE.BoxGeometry(0.06, 0.012, 0.01), BLACK, { pos: [sx * 0.05, 1.6, 0.12], rot: [0, 0, sx * 0.35] });
+          b.add(new THREE.ConeGeometry(0.008, 0.03, 4), '#ffffff', { pos: [sx * 0.022, 1.475, 0.118], rot: [Math.PI, 0, 0] });
+          // The tall collar.
+          b.add(new THREE.ConeGeometry(0.1, 0.32, 3), BLACK, { pos: [sx * 0.15, 1.55, -0.07], rot: [0, 0, -sx * 0.35], scale: [1, 1, 0.2] });
+          b.add(new THREE.ConeGeometry(0.08, 0.28, 3), '#b8202c', { pos: [sx * 0.14, 1.54, -0.05], rot: [0, 0, -sx * 0.35], scale: [1, 1, 0.15] });
+        }
+        b.add(new THREE.BoxGeometry(0.06, 0.008, 0.01), '#5a2a30', { pos: [0, 1.49, 0.122] });
+      }),
+    );
+    // The cape's two halves, hinged at the shoulders: black outside, red lining.
+    for (const side of [1, -1]) {
+      const pivot = new THREE.Group();
+      pivot.position.set(side * 0.17, 1.38, -0.02);
+      pivot.add(
+        parts(m, (b) => {
+          b.add(new THREE.BoxGeometry(0.42, 1.15, 0.015), BLACK, { pos: [side * 0.18, -0.55, -0.01] });
+          b.add(new THREE.BoxGeometry(0.4, 1.12, 0.012), '#a81c28', { pos: [side * 0.18, -0.55, 0.004] });
+          for (let k = 0; k < 3; k++) b.add(new THREE.ConeGeometry(0.07, 0.12, 3), BLACK, { pos: [side * (0.05 + k * 0.13), -1.15, -0.005], rot: [Math.PI, 0, 0], scale: [1, 1, 0.15] });
+        }),
+      );
+      this.wings.push(pivot);
+      this.vamp.add(pivot);
+    }
+    this.vamp.visible = false;
+    for (let i = 0; i < 8; i++) {
+      const b = bat(m);
+      b.root.visible = false;
+      this.bats.push(b);
+      s.room.add(b.root);
+    }
+    s.room.add(this.vamp);
+  }
+
+  update(t: number, pose: VictimPose, shown: boolean): Arms {
+    const s = this.s;
+    // In: a flutter of bats from the window that gather into him; out: the same, the other way.
+    const formAt = 2.55;
+    const burstAt = 4.6;
+    // Where he stands (his feet, floating): by the window as he forms, then over the head of the bed behind the
+    // pillow, facing the room; then stooped over the sleeper's neck, and up again.
+    const win = this.window.clone().setY(0.55);
+    const hover = new THREE.Vector3(s.head.x + 0.32, COVERS - 0.15, Math.max(BED.z - BED.d / 2 + 0.12, s.head.z - 0.45));
+    const face = 0.3;
+    const toNeck = Math.atan2(s.head.x - hover.x, s.head.z - hover.z);
+    const across = span(t, 2.7, 3.3);
+    const down = span(t, 3.45, 3.68) * (1 - span(t, 4.25, 4.5));
+    const lean = 0.4 * down;
+    const yaw = lerp(lerp(Math.atan2(hover.x - win.x, hover.z - win.z), face, span(t, 3.1, 3.4)), toNeck, down);
+    const neck = s.head.clone().add(new THREE.Vector3(0.1, 0.16, 0.08));
+    const stoop = neck
+      .clone()
+      .sub(new THREE.Vector3(0, 1.55 * Math.cos(0.4), 0))
+      .sub(new THREE.Vector3(Math.sin(toNeck), 0, Math.cos(toNeck)).multiplyScalar(1.55 * Math.sin(0.4)));
+    const where = win.clone().lerp(hover, across).add(new THREE.Vector3(0, Math.sin(Math.PI * across) * 0.35, 0)).lerp(stoop, down);
+    where.y += Math.sin(t * 2.2) * 0.04;
+    const here = t >= formAt && t < burstAt;
+    this.vamp.visible = shown && here;
+    this.vamp.position.copy(where);
+    this.vamp.rotation.set(0, yaw, 0);
+    this.vamp.rotateX(lean);
+    const swell = 1 + 0.12 * span(t, 3.85, 4.4);
+    this.vamp.scale.setScalar(swell * span(t, formAt, formAt + 0.15));
+    const spread = span(t, 3.2, 3.45);
+    this.wings.forEach((w, i) => {
+      const side = i ? -1 : 1;
+      w.rotation.set(0, side * lerp(1.1, -0.1, spread), side * 0.55 * spread + Math.sin(t * 3 + i) * 0.04);
+    });
+    // The bats.
+    const centre = where.clone().add(new THREE.Vector3(0, 1.1, 0));
+    const outTo = this.window.clone().add(new THREE.Vector3(0, 0.3, -0.6));
+    this.bats.forEach((b, i) => {
+      const a = (i / this.bats.length) * Math.PI * 2 + t * 6;
+      const ring = new THREE.Vector3(Math.cos(a) * 0.35, Math.sin(a * 1.3 + i) * 0.2, Math.sin(a) * 0.35);
+      let p: THREE.Vector3 | null = null;
+      if (t > 2.1 && t < formAt) {
+        const k = span(t, 2.1 + i * 0.03, formAt);
+        p = this.window.clone().add(new THREE.Vector3(0, 0.2, -0.5)).lerp(centre, k).add(ring.multiplyScalar(1 - k * 0.6));
+      } else if (t >= burstAt && t < burstAt + 1.2) {
+        const k = span(t, burstAt, burstAt + 1.1 - i * 0.03);
+        p = centre.clone().add(ring.multiplyScalar(0.5 + k)).lerp(outTo, k * k);
+      }
+      b.root.visible = shown && p !== null;
+      if (!p) return;
+      b.root.position.copy(p);
+      b.root.rotation.set(0, a + Math.PI / 2, 0.3 * Math.sin(t * 9 + i));
+      b.flap(Math.sin(t * 30 + i * 1.7));
+      b.root.scale.setScalar(1.4);
+    });
+    if (t > 2.1) s.once('in', () => s.cue('flutter'));
+    if (t > formAt) s.once('form', () => s.bits.emit(centre, t, 14, { color: '#2a2036', speed: 1.0, size: 0.12, grow: 2.2, life: 0.8 }));
+    if (t > 3.2) s.once('cape', () => s.cue('whoosh'));
+    if (t > 3.7) s.once('bite', () => s.cue('bite'));
+    if (t > 3.85) s.once('slurp', () => s.cue('slurp'));
+    if (t > 4.4) s.once('laugh', () => s.cue('laugh'));
+    if (t >= burstAt) s.once('out', () => {
+      s.cue('flutter');
+      s.bits.emit(centre, t, 18, { color: '#2a2036', speed: 1.4, size: 0.14, grow: 2.4, life: 0.9 });
+    });
+    // The sleeper: a start at the nip, then wilting as he drinks.
+    const u = t - 3.72;
+    if (u > 0) {
+      pose.dy = 0.1 * Math.exp(-u * 8) * Math.abs(Math.sin(u * 20));
+      pose.squash = 1 - 0.28 * span(u, 0.15, 0.75);
+      pose.shake = 0.02 * Math.sin(u * 40) * Math.exp(-u * 1.5);
+    }
+    // The figure beckons at the window, then folds its hands.
+    const beck = span(t, 1.6, 1.9) * (1 - span(t, 2.6, 2.9));
+    const [ra, raz] = this.reach(t, -1, this.window);
+    const curl = Math.sin(t * 9) * 0.3 * beck;
+    return { la: -0.55, laz: -0.3, ra: lerp(-0.55, ra + curl, beck), raz: lerp(0.3, raz, beck) };
+  }
+}
+
+/**
+ * The mummy: the figure hurls a roll of bandage, which whirls round and round the sleeper from their toes to their
+ * ears, wrapping them up tight. A low groan from inside, two stiff hops, and they lie there bound like a parcel
+ * until the wrappings crumble away after the figure has gone.
+ */
+class Mummy extends Deed {
+  private roll: THREE.Mesh;
+  private bands: THREE.Mesh[] = [];
+  private strip: THREE.Mesh;
+  private n = 11;
+  private wrapFrom = 3.0;
+  private wrapTo = 4.15;
+
+  constructor(s: Stage) {
+    super(s);
+    const m = s.material;
+    this.roll = parts(m, (b) => {
+      b.add(new THREE.CylinderGeometry(0.075, 0.075, 0.14, 14), '#efe8d6');
+      b.add(new THREE.CylinderGeometry(0.025, 0.025, 0.145, 8), '#c8bc9e');
+    });
+    const band = new THREE.TorusGeometry(1, 0.05, 5, 28);
+    for (let i = 0; i < this.n; i++) {
+      const mesh = parts(m, (b) => b.add(band, i % 3 === 1 ? '#d8ccaa' : '#ebe3cc'));
+      mesh.visible = false;
+      this.bands.push(mesh);
+      s.room.add(mesh);
+    }
+    this.strip = parts(m, (b) => b.add(new THREE.BoxGeometry(0.1, 1, 0.008), '#ebe3cc'));
+    s.room.add(this.roll, this.strip);
+  }
+
+  update(t: number, pose: VictimPose, shown: boolean): Arms {
+    const s = this.s;
+    const V = VISIT;
+    const box = s.box;
+    const dy = pose.dy;
+    // (Hugging them: centred low, so the lower half of each band is down in the mattress.)
+    const rx = (box.max.x - box.min.x) / 2 + 0.04;
+    // (Measured by their middle, not an ear or a tail that sticks up.)
+    const ry = clamp((box.max.y - COVERS) * 0.5, 0.14, 0.32);
+    const cy = COVERS + ry * 0.45;
+    const cx = (box.min.x + box.max.x) / 2;
+    const z0 = box.max.z + 0.02;
+    const z1 = box.min.z + 0.02;
+    const w = clamp((t - this.wrapFrom) / (this.wrapTo - this.wrapFrom), 0, 1);
+    const loops = this.n - 0.5;
+    const a = w * Math.PI * 2 * loops;
+    // The roll: in the figure's hands, flung, then whirling round them along their length.
+    const held = this.ahead(t, 0, 1.05, 0.45);
+    const orbit = new THREE.Vector3(cx + Math.cos(a) * rx * 1.15, cy + Math.sin(a) * ry * 1.15, lerp(z0, z1, w));
+    const fling = span(t, 2.75, this.wrapFrom);
+    const rollAt = t < this.wrapFrom ? held.lerp(orbit, fling) : orbit;
+    const loose = t > this.wrapTo ? span(t, this.wrapTo, this.wrapTo + 0.35) : 0;
+    rollAt.add(new THREE.Vector3(-0.3 * loose, 0.5 * loose, 0));
+    this.roll.visible = shown && t < this.wrapTo + 0.4;
+    this.roll.position.copy(rollAt);
+    this.roll.rotation.set(t * 12, 0, Math.PI / 2);
+    this.roll.scale.setScalar(1 - 0.5 * w);
+    // The bands: each one there once the roll has been round, slightly askew, rising and falling with them.
+    const fade = span(t, V.vanish + 0.3, V.vanish + 0.8);
+    this.bands.forEach((b, i) => {
+      const at = (i + 0.5) / this.n;
+      b.visible = shown && w >= at && fade < 0.99;
+      b.position.set(cx, cy + dy, lerp(z0, z1, at));
+      b.rotation.set(i % 2 ? 0.18 : -0.14, (i % 3) * 0.06, 0);
+      const sq = pose.squash ?? 1;
+      b.scale.set(rx * (1 + (1 - sq) * 0.6) * (1 - fade), ry * sq * (1 - fade), 2.4);
+    });
+    if (fade > 0) s.once('crumble', () => s.bits.emit(new THREE.Vector3(cx, cy, (z0 + z1) / 2), t, 20, { color: '#e8e0c8', speed: 1.2, up: 0.4, size: 0.06, grow: 2, life: 1.0, opacity: 0.8 }));
+    // The strip from the last band to the roll.
+    const lastZ = lerp(z0, z1, Math.max(0, Math.floor(w * this.n) - 0.5) / this.n);
+    const anchor = new THREE.Vector3(cx, cy + ry, w > 0 ? lastZ : z0);
+    this.strip.visible = shown && w > 0 && t < this.wrapTo + 0.4;
+    if (this.strip.visible) between(this.strip, anchor, rollAt);
+    for (let k = 0; k < this.n; k++) if (w * this.n > k + 0.3) s.once(`wrap${k}`, () => s.cue('wrap'));
+    // The sleeper: shaking as they're wound, then a groan and two stiff hops, and lying stiff after.
+    if (w > 0 && w < 1) pose.shake = 0.03 * Math.sin(t * 40);
+    const hop = (h: number) => (t > h && t < h + 0.3 ? 0.16 * Math.sin((Math.PI * (t - h)) / 0.3) : 0);
+    if (t > this.wrapTo) {
+      pose.dy = hop(4.35) + hop(4.75);
+      pose.squash = 1.04;
+      s.once('groan', () => s.cue('groan'));
+    }
+    // Arms: holding the roll, flinging it, then winding the air like a reel.
+    const both = this.both(t, held);
+    const holding = 1 - span(t, 2.8, this.wrapFrom);
+    const wind = span(t, this.wrapFrom - 0.1, this.wrapFrom + 0.2) * (1 - span(t, this.wrapTo, this.wrapTo + 0.3));
+    return {
+      la: lerp(-0.25, both.la, holding * span(t, 2.2, 2.5)) - wind * (1.2 + 0.4 * Math.sin(t * 14)),
+      ra: lerp(-0.25, both.ra, holding * span(t, 2.2, 2.5)) - wind * (1.2 + 0.4 * Math.sin(t * 14 + Math.PI)),
+      laz: both.laz * holding + wind * 0.3,
+      raz: both.raz * holding - wind * 0.3,
+    };
+  }
+}
+
+/**
+ * The jungle game: a carved wooden board game appears on the end of the bed and opens, drums beating somewhere far
+ * off. The figure rolls the dice; the board glows green, and vines burst out of it, snake over the covers and coil
+ * round the sleeper, and drag them down into the game. The lid slams. Later their ghost drifts back up out of the bed.
+ */
+class Jungle extends Deed {
+  private game = new THREE.Group();
+  private lid = new THREE.Group();
+  private glow: THREE.Mesh;
+  private glowMat = new THREE.MeshBasicMaterial({ color: '#6aff8a', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+  private dice: THREE.Mesh[] = [];
+  private vines: THREE.Mesh[][] = [];
+  private leaves: THREE.Mesh[] = [];
+  private segs = 12;
+
+  constructor(s: Stage) {
+    super(s);
+    const m = s.material;
+    this.game.add(
+      parts(m, (b) => {
+        b.add(new THREE.BoxGeometry(0.72, 0.07, 0.5), '#5a3a22', { pos: [0, 0.035, 0] });
+        b.add(new THREE.BoxGeometry(0.66, 0.012, 0.44), '#3f6a3a', { pos: [0, 0.075, 0] });
+        // A spiral of squares round the middle, and a dark crystal well in the centre.
+        for (let k = 0; k < 14; k++) {
+          const a = k * 0.75;
+          const r = 0.06 + k * 0.012;
+          b.add(new THREE.BoxGeometry(0.035, 0.008, 0.035), k % 2 ? '#e8d48a' : '#c9a24f', { pos: [Math.cos(a) * r * 1.3, 0.083, Math.sin(a) * r], rot: [0, a, 0] });
+        }
+        b.add(new THREE.CylinderGeometry(0.06, 0.07, 0.01, 12), '#1d2a20', { pos: [0, 0.085, 0] });
+      }),
+    );
+    this.lid.position.set(-0.36, 0.07, 0);
+    this.lid.add(
+      parts(m, (b) => {
+        b.add(new THREE.BoxGeometry(0.72, 0.05, 0.5), '#6b4528', { pos: [0.36, 0.025, 0] });
+        b.add(new THREE.BoxGeometry(0.5, 0.01, 0.34), '#8a5a34', { pos: [0.36, 0.055, 0] });
+        for (const sz of [-1, 1]) b.add(new THREE.ConeGeometry(0.04, 0.12, 4), '#3f6a3a', { pos: [0.36 + sz * 0.15, 0.06, 0], rot: [Math.PI / 2, 0, sz * 0.8], scale: [1, 1, 0.3] });
+      }),
+    );
+    this.game.add(this.lid);
+    this.glow = new THREE.Mesh(new THREE.SphereGeometry(0.3, 14, 10), this.glowMat);
+    this.glow.scale.set(1.2, 0.4, 1);
+    this.glow.position.y = 0.1;
+    this.game.add(this.glow);
+    this.game.visible = false;
+    for (let i = 0; i < 2; i++) {
+      const die = parts(m, (b) => {
+        b.add(new THREE.BoxGeometry(0.07, 0.07, 0.07), '#f6f1e6');
+        for (const [x, y, z] of [
+          [0, 0.036, 0],
+          [0.036, 0.015, 0.015],
+          [0.036, -0.015, -0.015],
+          [0, 0, 0.036],
+        ])
+          b.add(new THREE.SphereGeometry(0.008, 6, 4), '#1d1a24', { pos: [x, y, z] });
+      });
+      die.visible = false;
+      this.dice.push(die);
+      s.room.add(die);
+    }
+    const seg = tinted(new THREE.CylinderGeometry(0.028, 0.034, 1, 7), '#3f7a33');
+    const leafGeo = parts(m, (b) => b.add(new THREE.SphereGeometry(1, 8, 5), '#4f9a3a', { scale: [0.06, 0.012, 0.035] })).geometry;
+    for (let v = 0; v < 4; v++) {
+      const chain: THREE.Mesh[] = [];
+      for (let i = 0; i < this.segs; i++) {
+        const piece = new THREE.Mesh(seg, m);
+        piece.visible = false;
+        chain.push(piece);
+        s.room.add(piece);
+      }
+      this.vines.push(chain);
+      for (let j = 0; j < 3; j++) {
+        const leaf = new THREE.Mesh(leafGeo, m);
+        leaf.visible = false;
+        this.leaves.push(leaf);
+        s.room.add(leaf);
+      }
+    }
+    s.room.add(this.game);
+  }
+
+  update(t: number, pose: VictimPose, shown: boolean): Arms {
+    const s = this.s;
+    const V = VISIT;
+    const box = s.box;
+    // On the end of the bed, by their feet.
+    const at = new THREE.Vector3(BED.x, COVERS, BED.z + BED.d / 2 - 0.34);
+    // The game: there with a puff, opened, glowing to the drums, shut with a slam, and gone.
+    const there = span(t, 2.3, 2.5) * (1 - span(t, V.vanish - 0.4, V.vanish - 0.1));
+    this.game.visible = shown && there > 0.01;
+    this.game.position.copy(at);
+    this.game.scale.setScalar(Math.max(0.01, there) * 1.15);
+    this.game.rotation.y = 0.12;
+    if (t > 2.3) s.once('appear', () => s.bits.emit(at.clone().setY(at.y + 0.1), t, 12, { color: '#2a2036', speed: 1.0, size: 0.1, grow: 2, life: 0.7 }));
+    const open = span(t, 2.7, 2.95) * (1 - span(t, 4.65, 4.75));
+    this.lid.rotation.z = 2.4 * open;
+    if (t > 2.55) s.once('drums', () => s.cue('drums'));
+    if (t > 4.7) s.once('slam', () => s.cue('slam'));
+    const beat = Math.pow(Math.abs(Math.sin(t * (4 + (t - 2.5) * 3))), 6);
+    const lit = open * (0.25 + 0.35 * beat + 0.6 * span(t, 3.4, 3.5) * (1 - span(t, 4.3, 4.65)));
+    this.glowMat.opacity = lit;
+    this.glow.visible = lit > 0.02;
+    // The dice: tossed from the hand onto the board, tumbling, and settling.
+    const hand = this.ahead(t, -0.25, 1.15, 0.5);
+    this.dice.forEach((die, i) => {
+      const k = clamp((t - 2.95 - i * 0.05) / 0.4, 0, 1);
+      const land = at.clone().add(new THREE.Vector3(-0.1 + i * 0.16, 0.12, 0.05 - i * 0.08));
+      const p = hand.clone().lerp(land, k).add(new THREE.Vector3(0, Math.sin(Math.PI * k) * 0.35, 0));
+      if (k >= 1) p.y += 0.03 * Math.abs(Math.sin((t - 3.35) * 20)) * Math.exp(-(t - 3.35) * 8);
+      die.visible = shown && t > 2.95 && open > 0.5 && t < 4.6;
+      die.position.copy(p);
+      die.rotation.set(k * 9 + i, k * 7, k * 5 + i * 2);
+    });
+    if (t > 3.3) s.once('dice', () => s.cue('dice'));
+    // The vines: out of the middle of the board, over the covers and round the sleeper; drawn back down with them.
+    const pull = span(t, 4.0, 4.5);
+    const r = rng(5);
+    this.vines.forEach((chain, v) => {
+      const grow = span(t, 3.45 + v * 0.06, 3.9 + v * 0.06) * (1 - span(t, 4.4, 4.65));
+      const side = v % 2 ? 1 : -1;
+      const target = new THREE.Vector3(
+        lerp(box.min.x, box.max.x, v % 2 ? 0.85 : 0.15),
+        this.top() + 0.04 - pull * 0.6,
+        lerp(box.max.z, box.min.z, 0.25 + v * 0.17),
+      );
+      const start = at.clone().setY(at.y + 0.08);
+      const ctrl = start.clone().lerp(target, 0.5).add(new THREE.Vector3(side * 0.35, 0.45 + r() * 0.2, 0));
+      const pts: THREE.Vector3[] = [];
+      for (let i = 0; i <= this.segs; i++) {
+        const k = (i / this.segs) * grow;
+        const a = start.clone().lerp(ctrl, k);
+        const b = ctrl.clone().lerp(target, k);
+        const p = a.lerp(b, k);
+        // A coil round them at the far end.
+        const coil = span(k, 0.7, 1);
+        p.add(new THREE.Vector3(Math.cos(k * 18 + v) * 0.12 * coil, Math.sin(k * 18 + v) * 0.06 * coil + Math.sin(t * 6 + i) * 0.015, 0));
+        pts.push(p);
+      }
+      chain.forEach((piece, i) => {
+        piece.visible = shown && grow > 0.02;
+        if (piece.visible) between(piece, pts[i], pts[i + 1], 1 - i / (this.segs * 1.4));
+      });
+      for (let j = 0; j < 3; j++) {
+        const leaf = this.leaves[v * 3 + j];
+        const p = pts[3 + j * 3];
+        leaf.visible = shown && grow > 0.3 + j * 0.2;
+        leaf.position.copy(p).add(new THREE.Vector3(0, 0.03, 0));
+        leaf.rotation.set(0.3, v + j * 2.1 + Math.sin(t * 4) * 0.2, 0.4);
+      }
+    });
+    if (t > 3.45) s.once('vines', () => {
+      s.cue('vines');
+      s.bits.emit(at.clone().setY(at.y + 0.15), t, 16, { color: '#8aff9a', speed: 1.4, up: 1, size: 0.03, life: 0.6 });
+    });
+    if (t > 4.0) s.once('suck', () => s.cue('suck'));
+    // The sleeper: struggling in the vines, then dragged down out of sight; back up as a ghost later.
+    if (t > 3.85 && t < 4.0) pose.shake = 0.05 * Math.sin(t * 50);
+    if (t >= 4.0) {
+      pose.dy = -1.6 * pull * pull;
+      pose.squash = 1 - 0.3 * pull;
+      pose.shake = 0.05 * Math.sin(t * 50) * (1 - pull);
+    }
+    this.ghostUp(t, pose);
+    // The figure: dice in hand, a shake and a throw, then arms raised to the drums.
+    const [ra, raz] = this.reach(t, -1, t < 3.0 ? hand.clone().add(new THREE.Vector3(0, 0.08 * Math.sin(t * 30), 0)) : at);
+    const toss = span(t, 2.6, 2.8) * (1 - span(t, 3.05, 3.3));
+    const drums = this.conduct(t, span(t, 3.3, 3.6) * (1 - span(t, 4.6, 4.9)), 11);
+    return { la: drums.la, laz: drums.laz, ra: lerp(drums.ra, ra, toss), raz: lerp(drums.raz, raz, toss) };
+  }
+
+  dispose() {
+    this.glowMat.dispose();
+  }
+}
+
+const ACTS: (new (s: Stage) => Act)[] = [Mallet, JackInTheBox, Lightning, Ravens, Snuffer, Trapdoor, Shark, Curtain, Balloon, Claws, Telly, Gremlins, Anvil, Vampire, Mummy, Jungle];

@@ -265,7 +265,8 @@ export function ropeSnap() {
 
 /**
  * The night visit's sounds: a door creaking open, a rush of cloak, the moment itself, a gasp, and a puff; and the
- * newer ways' own (a bonk and a boing, a music box and a pop, thunder, ravens, a snuffing, a lever and a long drop).
+ * newer ways' own (a bonk and a boing, a music box and a pop, thunder, ravens, a snuffing, a lever and a long drop,
+ * and the third lot's: two low notes, shrieking violins, a balloon, claws, static, imps, an anvil, bats, drums).
  */
 export function visitSound(name: string) {
   const c = audio();
@@ -442,6 +443,127 @@ export function visitSound(name: string) {
   } else if (name === 'slam') {
     rush(c, out, t, 0.14, 520, 300, 0.3);
     tone(c, out, t, 0.22, 150, 60, 0.3, 'sine');
+  } else if (name === 'dundun') {
+    // Two low notes, over and over, closer and closer together.
+    let at = t;
+    for (let i = 0; i < 14; i++) {
+      const gap = Math.max(0.09, 0.5 * 0.84 ** i);
+      tone(c, out, at, 0.22, 82.4, 80, 0.2, 'sawtooth');
+      tone(c, out, at, 0.22, 41.2, 40, 0.18, 'sine');
+      tone(c, out, at + gap * 0.45, 0.22, 87.3, 85, 0.2, 'sawtooth');
+      at += gap;
+    }
+  } else if (name === 'splash') {
+    rush(c, out, t, 0.6, 2400, 500, 0.22, 'bandpass', 0.6);
+    tone(c, out, t, 0.25, 300, 90, 0.15, 'sine');
+  } else if (name === 'chomp') {
+    // A big CHOMP: a clack of teeth and a thump.
+    rush(c, out, t, 0.05, 2500, 1500, 0.3);
+    tone(c, out, t, 0.25, 180, 60, 0.35, 'sine');
+    rush(c, out, t + 0.12, 0.05, 2200, 1400, 0.2);
+  } else if (name === 'swish') {
+    // Curtain rings racing along a rail.
+    rush(c, out, t, 0.35, 900, 2600, 0.1, 'bandpass', 0.8);
+    for (let i = 0; i < 8; i++) tone(c, out, t + i * 0.03, 0.05, 3200 + i * 90, 3000, 0.015, 'triangle');
+  } else if (name === 'screech') {
+    // The violins: shrill, sawing stabs.
+    for (let k = 0; k < 3; k++) tone(c, out, t, 0.3, 1900 + k * 140, 2050 + k * 140, 0.045, 'sawtooth', 9, 25, 0.6);
+  } else if (name === 'squeaky') {
+    // Squeaky clean: a rubbed-glass squeak and a sparkle.
+    tone(c, out, t, 0.22, 1400, 2600, 0.05, 'sine', 30, 120);
+    [2093, 2637, 3136].forEach((f, i) => tone(c, out, t + 0.25 + i * 0.07, 0.35, f, f, 0.03, 'sine'));
+  } else if (name === 'giggle') {
+    // A child's giggle from nowhere: quick rising hee-hee-hees.
+    for (let i = 0; i < 6; i++) tone(c, out, t + i * 0.11, 0.08, 1100 + (i % 2) * 180, 1350 + (i % 2) * 180, 0.04, 'triangle', 25, 30);
+  } else if (name === 'squeak') {
+    // A finger rubbed on a balloon.
+    tone(c, out, t, 0.4, 500, 900, 0.05, 'square', 35, 60);
+  } else if (name === 'burst') {
+    // The balloon: BANG.
+    rush(c, out, t, 0.12, 4000, 1200, 0.45, 'highpass');
+    tone(c, out, t, 0.12, 200, 60, 0.3, 'sine');
+  } else if (name === 'float') {
+    // A slow, dreamy rise.
+    tone(c, out, t, 1.2, 330, 660, 0.04, 'sine', 5, 8);
+    tone(c, out, t + 0.1, 1.1, 495, 990, 0.025, 'triangle', 5, 8);
+  } else if (name === 'scratch') {
+    // Metal dragged down wood: a long screech with a judder.
+    tone(c, out, t, 0.45, 2300, 1500, 0.05, 'sawtooth', 40, 180, 0.7);
+    rush(c, out, t, 0.45, 5000, 3000, 0.05, 'highpass');
+  } else if (name === 'rip') {
+    rush(c, out, t, 0.3, 1200, 4000, 0.22, 'bandpass', 0.7);
+    rush(c, out, t + 0.05, 0.9, 3000, 1500, 0.05, 'bandpass', 0.6);
+  } else if (name === 'static') {
+    rush(c, out, t, 1.1, 6000, 5000, 0.08, 'highpass');
+    tone(c, out, t, 1.1, 60, 60, 0.03, 'square');
+  } else if (name === 'shriek') {
+    // A drawn-out wail, wobbling, and a crackle.
+    tone(c, out, t, 0.9, 900, 700, 0.06, 'sawtooth', 7, 40, 0.5);
+    rush(c, out, t, 0.6, 5000, 3000, 0.06, 'highpass');
+  } else if (name === 'chitter') {
+    // Little imps chattering and cackling.
+    for (let i = 0; i < 10; i++) {
+      const f = 700 + Math.random() * 600;
+      tone(c, out, t + i * 0.06 + Math.random() * 0.03, 0.06, f, f * 1.3, 0.04, 'square');
+    }
+  } else if (name === 'flashbulb') {
+    // The flash: a pop, and the whine of it charging up again.
+    rush(c, out, t, 0.06, 3000, 2000, 0.3);
+    tone(c, out, t + 0.05, 0.9, 1500, 5000, 0.02, 'sine');
+  } else if (name === 'clang') {
+    // An anvil: CLANG, ringing.
+    rush(c, out, t, 0.05, 3000, 1500, 0.35);
+    tone(c, out, t, 0.3, 120, 50, 0.35, 'sine');
+    [523, 1187, 1903, 2731].forEach((f, i) => tone(c, out, t, 1.6 - i * 0.25, f, f * 0.99, 0.06 - i * 0.01, 'sine'));
+  } else if (name === 'flutter') {
+    for (let i = 0; i < 14; i++) rush(c, out, t + i * 0.05 + Math.random() * 0.02, 0.05, 900 + Math.random() * 400, 700, 0.06, 'bandpass', 1);
+    for (let i = 0; i < 3; i++) tone(c, out, t + 0.1 + i * 0.2, 0.05, 5200, 4800, 0.015, 'sine');
+  } else if (name === 'bite') {
+    rush(c, out, t, 0.04, 2600, 1800, 0.25);
+    tone(c, out, t, 0.12, 400, 200, 0.1, 'triangle');
+  } else if (name === 'slurp') {
+    // A long slurp through a straw.
+    rush(c, out, t, 0.7, 600, 1600, 0.12, 'bandpass', 4);
+    tone(c, out, t, 0.7, 180, 320, 0.04, 'sawtooth', 18, 40);
+  } else if (name === 'laugh') {
+    // A deep villain's laugh: mwa-ha-ha.
+    [0, 0.22, 0.4, 0.58].forEach((d, i) => {
+      const f = c.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 700;
+      f.Q.value = 1.5;
+      f.connect(out);
+      tone(c, f, t + d, i ? 0.15 : 0.22, 150 - i * 6, 120 - i * 6, 0.22, 'sawtooth', 6, 10);
+    });
+  } else if (name === 'wrap') {
+    // Bandage whipping round: a zip.
+    rush(c, out, t, 0.12, 800, 3200, 0.06, 'bandpass', 1.5);
+  } else if (name === 'groan') {
+    // A muffled, rising groan from inside the wrappings.
+    const f = c.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = 500;
+    f.connect(out);
+    tone(c, f, t, 1.0, 110, 150, 0.2, 'sawtooth', 5, 6, 0.6);
+  } else if (name === 'drums') {
+    // Jungle drums, far off, quickening.
+    let at = t;
+    for (let i = 0; i < 16; i++) {
+      const loud = i % 4 === 0 ? 0.32 : 0.2;
+      tone(c, out, at, 0.18, 150, 70, loud, 'sine');
+      rush(c, out, at, 0.04, 900, 500, loud * 0.3, 'bandpass');
+      at += Math.max(0.09, 0.26 * 0.93 ** i);
+    }
+  } else if (name === 'dice') {
+    for (let i = 0; i < 6; i++) rush(c, out, t + i * 0.07 + Math.random() * 0.02, 0.025, 2500, 2000, 0.12 * 0.8 ** i, 'bandpass', 3);
+  } else if (name === 'vines') {
+    // Creaking, rustling growth.
+    rush(c, out, t, 0.8, 300, 1500, 0.12, 'bandpass', 0.8);
+    tone(c, out, t, 0.7, 90, 140, 0.05, 'sawtooth', 12, 15);
+  } else if (name === 'suck') {
+    // Dragged down and in: a falling, swallowing whoosh.
+    rush(c, out, t, 0.7, 2500, 150, 0.2, 'bandpass', 1.2);
+    tone(c, out, t, 0.6, 400, 70, 0.12, 'sine');
   }
 }
 

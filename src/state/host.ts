@@ -518,7 +518,7 @@ export function toPrivate(g: GameState, playerId: string): PrivateState {
 }
 
 /** How many ways the hooded figure has of doing it (VISIT_NAMES in the town's night visits). */
-export const VISIT_KINDS = 10;
+export const VISIT_KINDS = 20;
 
 /**
  * Killed tonight: the hooded figure's visit to their bedroom. The game's night kills take the ways in turn, in an

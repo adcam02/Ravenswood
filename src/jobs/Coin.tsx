@@ -1,8 +1,6 @@
 import { memo, useRef, useState } from 'react';
-import { pickOne, useFrame, useLater, useMain, type GameProps } from './shared';
+import { RippleRings, clamp, isLeft, isMain, isRight, pickOne, stepRipples, useFrame, useKeys, useLater, usePops, type GameProps, type Ripple } from './shared';
 import { sfx } from './sfx';
-
-const WELL = { x: 160, y: 118, rx: 54, ry: 19 };
 
 export const FORTUNES = [
   'The raven remembers who fed it.',
@@ -31,234 +29,491 @@ export function CoinArt({ size = 44 }: { size?: number }) {
   );
 }
 
-interface Toss {
-  x0: number;
-  y0: number;
-  x1: number;
-  y1: number;
+/*
+ * The well from above and a little in front, so the water is a wide oval and the far wall shows inside the rim.
+ * Everything is placed on that flat oval (x across, y further away up the screen); a coin in the air is drawn
+ * `h` above where it would land.
+ */
+const HAND = { x: 160, y: 186 };
+const RIM = { x: 160, y: 96, rx: 120, ry: 54 };
+const WATER = { x: 160, y: 100, rx: 97, ry: 38 };
+/** How far a drag throws, for each unit dragged. */
+const GAIN = 1.35;
+const COINS = 5;
+/** Coin by coin: the wish ring shrinks and moves quicker, and the wind gets up (the most it can blow a coin aside). */
+const RING_R = [15, 13.5, 12, 11, 10];
+const RING_SPEED = [0.75, 0.95, 1.15, 1.35, 1.55];
+const WIND_MAX = [8, 18, 28, 38, 46];
+/** Points: in the water, on a lily pad, through the wish ring (and each ring in a row is worth two more than the last). */
+const PTS = { water: 1, pad: 2, ring: 3 };
+/** Points for one, two and three stars. Three takes four rings, or three in a row and a pad or two. */
+const STARS_AT = [3, 9, 18];
+
+type Phase = 'aim' | 'fly' | 'wait' | 'done';
+type Landing = 'ring' | 'pad' | 'water' | 'rim' | 'over' | 'short';
+
+interface Flight {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
   u: number;
-  inWell: boolean;
-  /** 0..1 once it's falling into the dark. */
-  fell: number;
-  /** 0..1 for the bounce off the rim. */
-  bounce: number;
-  fortune: string;
+  dur: number;
+  peak: number;
+  /** Sideways drift by the end, from the wind. */
+  drift: number;
+  bounces: number;
 }
 
-const Well = memo(function Well() {
+/** Where a coin went: resting on a pad (riding it about, `x` and `y` from its middle), or a glint under the water. */
+interface Rest {
+  x: number;
+  y: number;
+  pad: number | null;
+}
+
+const inOval = (x: number, y: number, o: { x: number; y: number; rx: number; ry: number }) => ((x - o.x) / o.rx) ** 2 + ((y - o.y) / o.ry) ** 2 <= 1;
+/** Smaller further away. */
+const depth = (y: number) => 0.62 + 0.38 * clamp((y - 50) / 136, 0, 1);
+
+const windFor = (i: number) => WIND_MAX[i] * (0.45 + Math.random() * 0.55) * (Math.random() < 0.5 ? -1 : 1);
+
+const padAt = (i: number, t: number) => ({
+  x: WATER.x + [-56, 6, 58][i] + 12 * Math.sin(0.27 * t + i * 2.1),
+  y: WATER.y + [-9, 15, -3][i] + 4 * Math.sin(0.35 * t + i * 1.3),
+});
+
+const ringAt = (phase: number) => ({
+  x: WATER.x + 66 * Math.sin(phase),
+  y: WATER.y + 2 + 15 * Math.sin(phase * 1.7 + 0.8),
+});
+
+const Scenery = memo(function Scenery() {
+  const stones = Array.from({ length: 22 }, (_, i) => (i / 22) * Math.PI * 2);
   return (
     <g>
-      <rect x="-200" y="-100" width="720" height="400" fill="url(#well-sky)" />
-      <rect x="-200" y="80" width="720" height="150" fill="#7fb35a" />
-      <path d="M-200 80 h720 v6 q-60 8 -160 2 q-100 -6 -160 4 q-60 8 -160 2 q-100 -6 -160 4 q-40 4 -80 0 z" fill="#9ccb6e" />
-      {[-170, -110, -50, 30, 70, 250, 292, 360, 420, 480].map((x, i) => (
-        <g key={x}>
-          <circle cx={x} cy={62 + (i % 2) * 6} r={16 + (i % 3) * 4} fill="#5f9a46" />
-          <rect x={x - 3} y={70 + (i % 2) * 6} width="6" height="16" fill="#6b4528" />
-        </g>
-      ))}
-      {[40, 90, 240, 280, 120, 200].map((x, i) => (
+      <rect x="-200" y="-100" width="720" height="400" fill="#7fb35a" />
+      <path d="M-200 168 q80 -8 160 0 q80 8 160 0 q80 -8 160 0 q80 8 240 0 v100 h-720 z" fill="#8cc066" />
+      {[18, 62, 250, 300, 8, 312].map((x, i) => (
         <g key={x} transform={`translate(${x} ${150 + (i % 3) * 14})`}>
           <circle r="3.5" fill={['#e8505b', '#fffaf0', '#f6c936'][i % 3]} />
-          <line x1="0" y1="3" x2="0" y2="10" stroke="#4f8a3a" strokeWidth="1.5" />
+          <line x1="0" y1="3" x2="0" y2="9" stroke="#4f8a3a" strokeWidth="1.5" />
         </g>
       ))}
-      {/* the well */}
-      <rect x="112" y="40" width="7" height="80" fill="#6b4528" />
-      <rect x="201" y="40" width="7" height="80" fill="#6b4528" />
-      <path d="M100 44 l60 -26 l60 26 z" fill="#8a4a2a" />
-      <path d="M104 44 l56 -22 l56 22 l-6 0 l-50 -18 l-50 18 z" fill="#b05a32" />
-      <rect x="112" y="60" width="96" height="5" fill="#8a5a34" />
-      <line x1="160" y1="65" x2="160" y2="92" stroke="#d9c3a0" strokeWidth="1.5" />
-      <path d="M152 92 h16 l-2 12 h-12 z" fill="#8a5a34" stroke="#5a3a22" strokeWidth="1" />
-      <rect x={WELL.x - WELL.rx} y={WELL.y} width={WELL.rx * 2} height="58" fill="#a99c89" />
-      {[0, 1, 2].map((row) => (
-        <g key={row} stroke="#7d7264" strokeWidth="1.5">
-          <line x1={WELL.x - WELL.rx} y1={WELL.y + 16 + row * 16} x2={WELL.x + WELL.rx} y2={WELL.y + 16 + row * 16} />
-          {[0, 1, 2, 3, 4].map((i) => (
-            <line
-              key={i}
-              x1={WELL.x - WELL.rx + 12 + i * 22 + (row % 2) * 11}
-              y1={WELL.y + row * 16 + 2}
-              x2={WELL.x - WELL.rx + 12 + i * 22 + (row % 2) * 11}
-              y2={WELL.y + 16 + row * 16}
-            />
-          ))}
-        </g>
+      {/* the posts and the beam, the crank, and the bucket tied up out of the way */}
+      <rect x="24" y="8" width="9" height="104" fill="#6b4528" />
+      <rect x="287" y="8" width="9" height="104" fill="#6b4528" />
+      <rect x="16" y="2" width="288" height="10" rx="3" fill="#8a5a34" />
+      <rect x="16" y="10" width="288" height="3" fill="#5a3a22" opacity="0.5" />
+      <path d="M296 7 h10 v10" stroke="#5a3a22" strokeWidth="3" fill="none" strokeLinecap="round" />
+      <line x1="230" y1="12" x2="230" y2="24" stroke="#d9c3a0" strokeWidth="1.5" />
+      <path d="M223 24 h14 l-2 10 h-10 z" fill="#8a5a34" stroke="#5a3a22" strokeWidth="1" />
+      {/* the rim: stones round the top, the far wall going down inside, and the water */}
+      <ellipse cx={RIM.x} cy={RIM.y + 5} rx={RIM.rx + 2} ry={RIM.ry + 2} fill="#5f7a44" opacity="0.6" />
+      <ellipse cx={RIM.x} cy={RIM.y} rx={RIM.rx} ry={RIM.ry} fill="#b9ad99" stroke="#7d7264" strokeWidth="2" />
+      {stones.map((a) => (
+        <line
+          key={a}
+          x1={RIM.x + Math.cos(a) * 100}
+          y1={RIM.y + Math.sin(a) * 42}
+          x2={RIM.x + Math.cos(a) * RIM.rx}
+          y2={RIM.y + Math.sin(a) * RIM.ry}
+          stroke="#8d8270"
+          strokeWidth="1.5"
+        />
       ))}
-      <ellipse cx={WELL.x} cy={WELL.y + 58} rx={WELL.rx} ry="12" fill="#8f8474" />
-      <ellipse cx={WELL.x} cy={WELL.y} rx={WELL.rx} ry={WELL.ry} fill="#bfb3a0" stroke="#7d7264" strokeWidth="2" />
-      <ellipse cx={WELL.x} cy={WELL.y} rx={WELL.rx - 8} ry={WELL.ry - 6} fill="url(#well-dark)" />
-      <ellipse cx={WELL.x - 10} cy={WELL.y + 2} rx="9" ry="2.5" fill="#6fa0c0" opacity="0.5" />
+      <ellipse cx={RIM.x} cy={RIM.y} rx="100" ry="42" fill="#5d5448" />
+      <path d={`M${RIM.x - 100} ${RIM.y} a100 42 0 0 1 200 0`} fill="none" stroke="#4a4238" strokeWidth="5" strokeDasharray="14 3" opacity="0.6" />
+      <ellipse cx={WATER.x} cy={WATER.y} rx={WATER.rx} ry={WATER.ry} fill="url(#well-water)" />
+      <ellipse cx={WATER.x - 30} cy={WATER.y - 12} rx="26" ry="5" fill="#cfe9f2" opacity="0.18" />
     </g>
   );
 });
 
-/** A coin for the well: the coin drifts over the mouth of the well, press to toss it in. */
-export function Coin({ finish, setHint }: GameProps<{ wish: boolean; stars: number; fortune: string }>) {
+function Pad({ x, y, dip }: { x: number; y: number; dip: number }) {
+  return (
+    <g transform={`translate(${x} ${y + dip}) scale(${depth(y)})`}>
+      <ellipse rx="14" ry="5.6" fill="#3f8a3a" />
+      <ellipse rx="12.5" ry="4.6" fill="#5fae4c" />
+      <path d="M0 0 L11 -3.5 L12 -1 z" fill="#2f5f50" />
+      <path d="M-6 -1 q4 -2 9 -1" stroke="#9fdc7a" strokeWidth="1" fill="none" />
+    </g>
+  );
+}
+
+function CoinShape({ x, y, s, spin = 1 }: { x: number; y: number; s: number; spin?: number }) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(${s * Math.max(0.15, Math.abs(spin))} ${s})`}>
+      <circle r="6" fill="#e3b94f" stroke="#b8891a" strokeWidth="1.3" />
+      <circle r="3.6" fill="none" stroke="#b8891a" strokeWidth="0.9" />
+    </g>
+  );
+}
+
+/**
+ * The wishing well: five coins, flicked in by dragging up from anywhere and letting go (or aimed with the arrows,
+ * with Space held to choose how hard). A splash in the water scores a little, settling on a lily pad more, and best
+ * of all is dropping through the lit wish ring as it drifts about, worth more for every one in a row. Coin by coin
+ * the ring shrinks and quickens and the wind gets up; a coin that lands on the stones hops on, sometimes in, and
+ * sometimes off the far lip back into the water.
+ */
+export function Coin({ finish, setHint }: GameProps<{ wish: boolean; stars: number; fortune: string; points: number }>) {
   const [, redraw] = useState(0);
-  const [over, setOver] = useState(false);
+  const phase = useRef<Phase>('aim');
   const time = useRef(0);
-  const toss = useRef<Toss | null>(null);
-  const sparkle = useRef(0);
+  const ring = useRef(0);
+  const k = useRef(0);
+  const points = useRef(0);
+  const streak = useRef(0);
+  const best = useRef(0);
+  const rings = useRef(0);
+  const wind = useRef(windFor(0));
+  const flight = useRef<Flight | null>(null);
+  const coin = useRef({ x: HAND.x, y: HAND.y, h: 0, spin: 1 });
+  const rests = useRef<Rest[]>([]);
+  const ripples = useRef<Ripple[]>([]);
+  const dips = useRef([0, 0, 0]);
+  const flash = useRef(0);
+  const drag = useRef<{ id: number; x0: number; y0: number; x: number; y: number } | null>(null);
+  const keys = useRef({ aim: 0, left: false, right: false, charging: false, charge: 0, held: 0, used: false });
+  const svg = useRef<SVGSVGElement>(null);
   const { later } = useLater();
+  const { pop, pops } = usePops();
 
-  const markerAt = (t: number) => ({
-    x: 160 + 104 * Math.sin(1.2 * t + 1.2),
-    y: WELL.y + 10 * Math.sin(2.5 * t),
+  /** A pointer's place in the scene's own units. */
+  const toScene = (e: { clientX: number; clientY: number }) => {
+    const m = svg.current?.getScreenCTM();
+    if (!m) return { x: 0, y: 0 };
+    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
+    return { x: p.x, y: p.y };
+  };
+
+  /** Throws the coin at a spot on the water (before the wind and a little wobble have their say). */
+  const toss = (tx: number, ty: number) => {
+    if (phase.current !== 'aim') return;
+    const dist = Math.hypot(tx - HAND.x, ty - HAND.y);
+    const wobble = dist * 0.014;
+    const to = { x: tx + (Math.random() - 0.5) * 2 * wobble, y: ty + (Math.random() - 0.5) * 2 * wobble };
+    const dur = 0.5 + dist / 320;
+    flight.current = { from: { ...HAND }, to, u: 0, dur, peak: 26 + dist * 0.36, drift: wind.current * (dur / 0.95), bounces: 0 };
+    phase.current = 'fly';
+    sfx.swish();
+    setHint('…');
+  };
+
+  /** Where a dragged throw goes: along the drag, further. */
+  const aimOf = (d: { x0: number; y0: number; x: number; y: number }) => ({ x: HAND.x + (d.x - d.x0) * GAIN, y: HAND.y + (d.y - d.y0) * GAIN });
+
+  /** The keys' throw: along the aim, as far as the charge says. */
+  const keyAim = () => {
+    const kk = keys.current;
+    const dist = 22 + kk.charge * 150;
+    return { x: HAND.x + Math.sin(kk.aim) * dist, y: HAND.y - Math.cos(kk.aim) * dist };
+  };
+
+  useKeys((e, down) => {
+    const kk = keys.current;
+    if (isLeft(e) || isRight(e)) {
+      if (isLeft(e)) kk.left = down;
+      else kk.right = down;
+      kk.used = true;
+      return true;
+    }
+    if (!isMain(e)) return false;
+    if (down && !e.repeat && phase.current === 'aim' && !kk.charging) {
+      kk.charging = true;
+      kk.used = true;
+      kk.charge = 0;
+      kk.held = 0;
+    } else if (!down && kk.charging) {
+      kk.charging = false;
+      const at = keyAim();
+      toss(at.x, at.y);
+    }
+    return true;
   });
 
-  const main = useMain({
-    enabled: !over,
-    onPress: () => {
-      if (toss.current) return;
-      const m = markerAt(time.current);
-      const x1 = m.x + (Math.random() - 0.5) * 14;
-      const y1 = m.y + (Math.random() - 0.5) * 8;
-      const inWell = ((x1 - WELL.x) / (WELL.rx - 6)) ** 2 + ((y1 - WELL.y) / (WELL.ry - 3)) ** 2 <= 1;
-      toss.current = {
-        x0: 160,
-        y0: 198,
-        x1,
-        y1,
-        u: 0,
-        inWell,
-        fell: 0,
-        bounce: 0,
-        fortune: pickOne(FORTUNES),
-      };
-      sfx.swish();
-      setHint('…');
-    },
-  });
+  /** On to the next coin, or the end. */
+  const next = () => {
+    if (k.current + 1 >= COINS) {
+      phase.current = 'done';
+      setHint(`${points.current} points.`);
+      later(end, 1100);
+      return;
+    }
+    // (A moment to see where it went before the next is in hand.)
+    phase.current = 'wait';
+    later(() => {
+      k.current += 1;
+      wind.current = windFor(k.current);
+      coin.current = { x: HAND.x, y: HAND.y, h: 0, spin: 1 };
+      phase.current = 'aim';
+      setHint(`Coin ${k.current + 1} of ${COINS}. ${streak.current ? `${streak.current} in a row: keep it going!` : 'The glowing ring scores most.'}`);
+    }, 650);
+  };
+
+  /** Where the coin came down (going `vx`, `vy`): what it hit, and so how it scores. */
+  const land = (x: number, y: number, vx: number, vy: number) => {
+    const f = flight.current!;
+    const r = ringAt(ring.current);
+    const rr = RING_R[k.current];
+    let what: Landing;
+    let pad = -1;
+    if (inOval(x, y, WATER)) {
+      if (inOval(x, y, { x: r.x, y: r.y, rx: rr + 3, ry: rr * 0.42 + 1.5 })) what = 'ring';
+      else {
+        pad = [0, 1, 2].find((i) => {
+          const p = padAt(i, time.current);
+          return inOval(x, y, { x: p.x, y: p.y, rx: 14 * depth(p.y) + 2, ry: 5.6 * depth(p.y) + 1 });
+        }) ?? -1;
+        what = pad >= 0 ? 'pad' : 'water';
+      }
+    } else if (inOval(x, y, RIM) && f.bounces < 2) {
+      // Off the stones: on over a near stone, or back off the far lip when it's going outwards already.
+      const nx = (x - RIM.x) / RIM.rx ** 2;
+      const ny = (y - RIM.y) / RIM.ry ** 2;
+      const n = Math.hypot(nx, ny) || 1;
+      const out = (vx * nx + vy * ny) / n;
+      let bx = vx;
+      let by = vy;
+      if (out > 0) {
+        bx -= (2 * out * nx) / n;
+        by -= (2 * out * ny) / n;
+      }
+      const a = (Math.random() - 0.5) * 0.8;
+      const hop = (out > 0 ? 0.4 : 0.3) * 0.38;
+      const to = { x: x + (bx * Math.cos(a) - by * Math.sin(a)) * hop, y: y + (bx * Math.sin(a) + by * Math.cos(a)) * hop };
+      flight.current = { from: { x, y }, to, u: 0, dur: 0.38, peak: 11, drift: 0, bounces: f.bounces + 1 };
+      sfx.clink();
+      return;
+    } else what = inOval(x, y, RIM) ? 'rim' : y < RIM.y ? 'over' : 'short';
+    flight.current = null;
+    let got = 0;
+    if (what === 'ring') {
+      streak.current += 1;
+      rings.current += 1;
+      best.current = Math.max(best.current, streak.current);
+      got = PTS.ring + (streak.current - 1) * 2;
+      flash.current = 1;
+      sfx.wellSplash();
+      sfx.shimmer();
+      pop(streak.current > 1 ? `${streak.current} in a row! +${got}` : `Wish ring! +${got}`, 3);
+      rests.current.push({ x, y, pad: null });
+    } else {
+      streak.current = 0;
+      if (what === 'pad') {
+        got = PTS.pad;
+        dips.current[pad] = 1;
+        sfx.plop();
+        pop(`Lily pad +${got}`, 2);
+        const p = padAt(pad, time.current);
+        rests.current.push({ x: x - p.x, y: y - p.y, pad });
+      } else if (what === 'water') {
+        got = PTS.water;
+        sfx.wellSplash();
+        pop(`Splash +${got}`, 1);
+        rests.current.push({ x, y, pad: null });
+      } else {
+        sfx.miss();
+        pop(what === 'over' ? 'Over!' : what === 'short' ? 'Short!' : 'On the rim', 0);
+      }
+    }
+    if (what === 'ring' || what === 'water') {
+      ripples.current.push({ id: Math.random(), x, y, t: 0, big: what === 'ring' ? 1.1 : 0.7 });
+      ripples.current.push({ id: Math.random(), x, y, t: -0.2, big: 0.5 });
+    }
+    points.current += got;
+    next();
+  };
+
+  const end = () => {
+    const p = points.current;
+    const stars = p >= STARS_AT[2] ? 3 : p >= STARS_AT[1] ? 2 : p >= STARS_AT[0] ? 1 : 0;
+    const wish = stars > 0;
+    const fortune = wish ? pickOne(FORTUNES) : 'Clink. Not this time.';
+    const title = rings.current === COINS ? 'Every wish at once!' : stars === 3 ? 'A wish!' : stars === 0 ? 'Clink.' : undefined;
+    const how = rings.current ? `${rings.current} through the ring${best.current > 1 ? `, ${best.current} in a row` : ''}. ` : '';
+    finish(
+      { wish, stars, fortune, points: p },
+      {
+        stars,
+        title,
+        line: wish ? `${p} points. ${how}${fortune}` : `${p} point${p === 1 ? '' : 's'}. Not this time. The well keeps its secrets.`,
+        art: <CoinArt size={64} />,
+      },
+    );
+  };
 
   useFrame((dt) => {
     time.current += dt;
-    const c = toss.current;
-    if (c) {
-      if (c.u < 1) {
-        c.u = Math.min(1, c.u + dt / 0.62);
-        if (c.u >= 1) {
-          if (c.inWell) {
-            later(() => {
-              sfx.wellSplash();
-              sparkle.current = 1;
-            }, 420);
-            later(() => {
-              setOver(true);
-              setHint('The well has heard you.');
-              finish(
-                { wish: true, stars: 3, fortune: c.fortune },
-                {
-                  stars: 3,
-                  title: 'A wish!',
-                  line: c.fortune,
-                  art: <CoinArt size={64} />,
-                },
-              );
-            }, 1300);
-          } else {
-            sfx.clink();
-            later(() => {
-              setOver(true);
-              setHint('Clink.');
-              finish(
-                { wish: false, stars: 0, fortune: 'Clink. Not this time.' },
-                {
-                  stars: 0,
-                  title: 'Clink.',
-                  line: 'Not this time. The well keeps its secrets.',
-                  art: <CoinArt size={64} />,
-                },
-              );
-            }, 1000);
-          }
-        }
-      } else if (c.inWell) c.fell = Math.min(1, c.fell + dt / 0.5);
-      else c.bounce = Math.min(1, c.bounce + dt / 0.45);
+    ring.current += dt * RING_SPEED[k.current];
+    ripples.current = stepRipples(ripples.current, dt);
+    flash.current = Math.max(0, flash.current - dt / 1.1);
+    dips.current = dips.current.map((d) => Math.max(0, d - dt / 0.6));
+    const kk = keys.current;
+    if (kk.left) kk.aim = Math.max(-0.75, kk.aim - dt * 0.9);
+    if (kk.right) kk.aim = Math.min(0.75, kk.aim + dt * 0.9);
+    if (kk.charging) {
+      // Up and down again until it's let go.
+      kk.held += dt;
+      kk.charge = 0.5 - 0.5 * Math.cos((kk.held * Math.PI * 2) / 1.7);
     }
-    sparkle.current = Math.max(0, sparkle.current - dt / 1.2);
+    const f = flight.current;
+    if (f) {
+      f.u = Math.min(1, f.u + dt / f.dur);
+      const u = f.u;
+      const x = f.from.x + (f.to.x - f.from.x) * u + f.drift * u * u;
+      const y = f.from.y + (f.to.y - f.from.y) * u;
+      coin.current = { x, y, h: Math.sin(u * Math.PI) * f.peak, spin: Math.cos(u * Math.PI * (f.bounces ? 3 : 7)) };
+      if (u >= 1) land(x, y, (f.to.x - f.from.x + 2 * f.drift) / f.dur, (f.to.y - f.from.y) / f.dur);
+    }
     redraw((n) => (n + 1) % 1e6);
-  }, !over);
+  });
 
-  const m = markerAt(time.current);
-  const c = toss.current;
-  let coin = { x: 160, y: 198, s: 1, o: 1, spin: 1 };
-  if (c) {
-    if (c.u < 1)
-      coin = {
-        x: c.x0 + (c.x1 - c.x0) * c.u,
-        y: c.y0 + (c.y1 - c.y0) * c.u - Math.sin(c.u * Math.PI) * 76,
-        s: 1.5 - c.u * 0.5,
-        o: 1,
-        spin: Math.cos(c.u * Math.PI * 5),
-      };
-    else if (c.inWell)
-      coin = {
-        x: c.x1,
-        y: c.y1 + c.fell * 14,
-        s: 1 - c.fell * 0.5,
-        o: 1 - c.fell,
-        spin: Math.cos(c.fell * Math.PI * 3),
-      };
-    else {
-      const b = c.bounce;
-      const side = c.x1 < WELL.x ? -1 : 1;
-      coin = {
-        x: c.x1 + side * b * 24,
-        y: c.y1 - Math.sin(b * Math.PI) * 18 + b * 40,
-        s: 1,
-        o: 1,
-        spin: Math.cos(b * Math.PI * 2),
-      };
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.button !== 0 || phase.current !== 'aim' || drag.current) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    const p = toScene(e);
+    drag.current = { id: e.pointerId, x0: p.x, y0: p.y, x: p.x, y: p.y };
+  };
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    const p = toScene(e);
+    d.x = p.x;
+    d.y = p.y;
+  };
+  const onPointerUp = (e: React.PointerEvent) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    drag.current = null;
+    // A tap, or a drag downwards, throws nothing.
+    if (d.y0 - d.y < 8) {
+      if (phase.current === 'aim') setHint('Drag up towards the well and let go to flick the coin.');
+      return;
     }
+    const at = aimOf(d);
+    toss(at.x, at.y);
+  };
+
+  const t = time.current;
+  const r = ringAt(ring.current);
+  const rr = RING_R[k.current];
+  const rs = depth(r.y);
+  const c = coin.current;
+  const d = drag.current;
+  const kk = keys.current;
+  const aiming = phase.current === 'aim';
+  // The arrow while aiming: along the drag (or the keys' aim), half as long as the throw.
+  let arrow: { x: number; y: number } | null = null;
+  if (aiming && d && d.y0 - d.y > 2) {
+    const at = aimOf(d);
+    arrow = { x: (HAND.x + at.x) / 2, y: (HAND.y + at.y) / 2 };
+  } else if (aiming && kk.used) {
+    const at = kk.charging ? keyAim() : { x: HAND.x + Math.sin(kk.aim) * 60, y: HAND.y - Math.cos(kk.aim) * 60 };
+    arrow = { x: (HAND.x + at.x) / 2, y: (HAND.y + at.y) / 2 };
   }
-  const sp = sparkle.current;
+  const w = wind.current;
+  const gust = Math.round(Math.abs(w) / 12);
+  const sway = Math.sin(t * 9) * 0.15;
+  const flag = clamp(w / 46, -1, 1);
+  const spent = k.current + (aiming ? 0 : 1);
 
   return (
-    <div className="job-scene job-well" {...main}>
-      <svg viewBox="0 0 320 200" preserveAspectRatio="xMidYMid meet" className="job-svg">
+    <div className="job-scene job-well" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={() => (drag.current = null)}>
+      <svg ref={svg} viewBox="0 0 320 200" preserveAspectRatio="xMidYMid meet" className="job-svg">
         <defs>
-          <linearGradient id="well-sky" x1="0" y1="0" x2="0" y2="200" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stopColor="#a9ddf0" />
-            <stop offset="1" stopColor="#d7eef7" />
-          </linearGradient>
-          <radialGradient id="well-dark" cx="0.5" cy="0.5" r="0.5">
-            <stop offset="0" stopColor="#0a1620" />
-            <stop offset="0.7" stopColor="#1a2c38" />
-            <stop offset="1" stopColor="#3a4e5c" />
+          <radialGradient id="well-water" cx="0.5" cy="0.45" r="0.55">
+            <stop offset="0" stopColor="#2c6a78" />
+            <stop offset="0.75" stopColor="#1d4a58" />
+            <stop offset="1" stopColor="#123440" />
+          </radialGradient>
+          <radialGradient id="well-glow" cx="0.5" cy="0.5" r="0.5">
+            <stop offset="0" stopColor="#fff2b0" stopOpacity="0.55" />
+            <stop offset="1" stopColor="#ffd75a" stopOpacity="0" />
           </radialGradient>
         </defs>
-        <Well />
-        {sp > 0 && (
-          <g className="job-wish" opacity={sp}>
-            {[0, 1, 2, 3, 4].map((i) => (
-              <text key={i} x={WELL.x - 30 + i * 15} y={WELL.y - 6 - (1 - sp) * (30 + i * 8)} textAnchor="middle" fontSize={10 + (i % 2) * 4} fill="#ffe28a">
+        <Scenery />
+        {/* coins gone before: glints under the water */}
+        {rests.current.map((s, i) =>
+          s.pad === null ? <ellipse key={i} cx={s.x} cy={s.y + 3} rx={3.4 * depth(s.y)} ry={1.4 * depth(s.y)} fill="#e3b94f" opacity="0.4" /> : null,
+        )}
+        <RippleRings list={ripples.current} color="#cfeaf2" />
+        {[0, 1, 2].map((i) => {
+          const p = padAt(i, t);
+          const dip = dips.current[i] * 2.5 * Math.sin(dips.current[i] * 10);
+          return (
+            <g key={i}>
+              <Pad x={p.x} y={p.y} dip={dip} />
+              {rests.current.map((s, j) => (s.pad === i ? <CoinShape key={j} x={p.x + s.x} y={p.y + s.y + dip - 1} s={depth(p.y) * 0.75} /> : null))}
+            </g>
+          );
+        })}
+        {/* the wish ring, glowing as it drifts */}
+        <g transform={`translate(${r.x} ${r.y})`}>
+          <ellipse rx={(rr + 9) * rs} ry={(rr * 0.42 + 5) * rs} fill="url(#well-glow)" opacity={0.7 + 0.3 * Math.sin(t * 5)} />
+          <ellipse rx={rr * rs} ry={rr * 0.42 * rs} fill="none" stroke="#ffe28a" strokeWidth={2.6 + flash.current * 3} />
+          <ellipse rx={rr * rs} ry={rr * 0.42 * rs} fill="none" stroke="#fffbe6" strokeWidth="0.9" strokeDasharray="3 4" strokeDashoffset={t * 12} />
+          {flash.current > 0 &&
+            [0, 1, 2, 3, 4, 5].map((i) => (
+              <text key={i} x={Math.cos(i * 1.05) * (rr + 6)} y={-6 - (1 - flash.current) * (18 + i * 4)} textAnchor="middle" fontSize={7 + (i % 2) * 4} fill="#ffe28a" opacity={flash.current}>
                 ✦
               </text>
             ))}
-          </g>
-        )}
-        {/* the coin */}
-        <g transform={`translate(${coin.x} ${coin.y}) scale(${coin.s * Math.max(0.12, Math.abs(coin.spin))} ${coin.s})`} opacity={coin.o}>
-          <circle r="8" fill="#e3b94f" stroke="#b8891a" strokeWidth="1.5" />
-          <circle r="5" fill="none" stroke="#b8891a" strokeWidth="1" />
         </g>
-        {/* the mark */}
-        {!c && (
-          <g transform={`translate(${m.x} ${m.y})`} className="job-sight">
-            <circle r="11" fill="none" stroke="#fff" strokeWidth="2.5" />
-            <circle r="11" fill="none" stroke="#e3b94f" strokeWidth="2.5" strokeDasharray="6 8" />
-            <circle r="2" fill="#fff" />
+        {/* the wind: a pennant off the beam, and leaves blowing past */}
+        <path
+          d={`M160 12 q${flag * 9} ${2 + sway * 4} ${flag * 22 + (flag >= 0 ? 4 : -4)} ${4 + (1 - Math.abs(flag)) * 10} l${-flag * 20} ${4 - (1 - Math.abs(flag)) * 2} z`}
+          fill="#d8504a"
+        />
+        {gust > 0 &&
+          [0, 1, 2].map((i) => {
+            const along = (t * Math.abs(w) * 2.2 + i * 130) % 380;
+            const x = w > 0 ? -30 + along : 350 - along;
+            const y = 30 + i * 52 + Math.sin(t * 3 + i) * 6;
+            return <ellipse key={i} cx={x} cy={y} rx="3.5" ry="1.8" fill="#9ccb6e" opacity="0.8" transform={`rotate(${t * 200 + i * 60} ${x} ${y})`} />;
+          })}
+        <g transform="translate(8 30)">
+          <rect width="58" height="18" rx="9" fill="#fff8ea" opacity="0.92" />
+          <text x="29" y="12.5" textAnchor="middle" className="job-svg-label" fill="#3a5a6a" fontSize="9">
+            {gust === 0 ? 'still' : `wind ${(w < 0 ? '◂' : '▸').repeat(Math.min(3, gust))}`}
+          </text>
+        </g>
+        {/* the score, the streak, and the coins left */}
+        <g transform="translate(254 30)">
+          <rect width="58" height="18" rx="9" fill="#fff8ea" opacity="0.92" />
+          <text x="29" y="12.5" textAnchor="middle" className="job-svg-label" fill="#7a5a10" fontSize="9" fontWeight="700">
+            {points.current} pts{streak.current > 1 ? ` ×${streak.current}` : ''}
+          </text>
+        </g>
+        {Array.from({ length: COINS }, (_, i) => (
+          <circle key={i} cx={263 + i * 9} cy={56} r="3.4" fill={i < spent ? '#c9c2b4' : '#e3b94f'} stroke="#b8891a" strokeWidth="0.8" opacity={i < spent ? 0.45 : 1} />
+        ))}
+        {arrow && (
+          <g>
+            <line x1={HAND.x} y1={HAND.y} x2={arrow.x} y2={arrow.y} stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeDasharray="5 5" opacity="0.85" />
+            <circle cx={arrow.x} cy={arrow.y} r="3" fill="#fff" />
           </g>
         )}
-        <text x="160" y="190" textAnchor="middle" className="job-svg-label" fill="#1f3d12" fontSize="11">
-          {c ? (c.inWell && c.u >= 1 ? 'plip…' : '') : 'press when the ring is over the well'}
-        </text>
+        {kk.charging && (
+          <g transform="translate(190 160)">
+            <rect width="44" height="8" rx="4" fill="#10303a" opacity="0.6" />
+            <rect width={44 * kk.charge} height="8" rx="4" fill="#f2c14e" />
+          </g>
+        )}
+        {/* the coin: up in the air with its shadow below, or in the hand */}
+        {(aiming || flight.current) && (
+          <g>
+            {c.h > 0 && <ellipse cx={c.x} cy={c.y} rx={5 * depth(c.y)} ry={2 * depth(c.y)} fill="#000" opacity={0.2} />}
+            <CoinShape x={c.x} y={c.y - c.h - (aiming ? 4 : 0)} s={depth(c.y) * (1.25 + c.h / 90)} spin={c.spin} />
+          </g>
+        )}
       </svg>
-      {!c && (
+      {pops}
+      {aiming && k.current === 0 && !kk.used && !d && (
         <div className="job-tip">
-          <span className="cosy-key">Space</span> to toss the coin
+          Drag up and let go, or <span className="cosy-key">←</span>
+          <span className="cosy-key">→</span>
+          <span className="cosy-key">Space</span>
         </div>
       )}
     </div>

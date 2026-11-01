@@ -24,8 +24,8 @@ export interface JobResults {
   /** clean splits out of 5 */
   firewood: { logs: number; stars: number };
   skimming: { bounces: number; stars: number };
-  /** landed in the well → a one-line fortune */
-  coin: { wish: boolean; stars: number; fortune: string };
+  /** five coins: `points` from splashes, lily pads and the wish ring; any star and the well tells a fortune */
+  coin: { wish: boolean; stars: number; fortune: string; points: number };
   /** accuracy 0..100 from `ms`, the average miss in milliseconds, at `bpm` beats a minute */
   clock: { accuracy: number; ms: number; bpm: number; stars: number };
 }
@@ -44,7 +44,8 @@ export const SCORE_OF: {
   wine: (r) => r.fill,
   firewood: (r) => r.logs,
   skimming: (r) => r.bounces,
-  coin: (r) => (r.wish ? 1 : 0),
+  // (Older records counted a wish as 1.)
+  coin: (r) => r.points ?? (r.wish ? 1 : 0),
   clock: (r) => r.accuracy,
 };
 
@@ -62,7 +63,7 @@ export const SCORE_LABEL: Record<GameJob, (score: number) => string> = {
   wine: (s) => `${s}% full`,
   firewood: (s) => `${s} of 5 logs`,
   skimming: (s) => `${s} skip${s === 1 ? '' : 's'}`,
-  coin: (s) => (s ? 'a wish' : 'no wish'),
+  coin: (s) => `${s} wish point${s === 1 ? '' : 's'}`,
   clock: (s) => `${s}% in time`,
 };
 

@@ -34,7 +34,7 @@ const FIRST_HINT: Record<GameJob, string> = {
   wine: 'Hold to pour when the chalice is under the jug. Fill it to the line.',
   firewood: 'Press when the mark is on the centre line.',
   skimming: 'Press to lock the angle. Low and flat is best.',
-  coin: 'Press to toss when the ring is over the well.',
+  coin: 'Five coins. Drag up and let go to flick each one in; the glowing ring scores most.',
   clock: 'Tap on every tick, as the pendulum passes the red mark.',
 };
 
