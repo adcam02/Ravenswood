@@ -240,11 +240,11 @@ function ArtChoice({ chosen }: { chosen?: string }) {
   useEffect(() => {
     if (!chosen && list.length) decor.setArt(list[0].id);
   }, [chosen, list]);
-  if (!list.length) return <p className="flat-hint">Keep one of your drawings from the night gallery to hang it here.</p>;
+  if (!list.length) return <p className="flat-hint">Keep a drawing from the night gallery (yours or anyone’s) to hang it here.</p>;
   return (
     <div className="art-pick" aria-label="Which drawing">
       {list.map((a) => (
-        <ArtThumb key={a.id} id={a.id} prompt={a.prompt} on={a.id === chosen} />
+        <ArtThumb key={a.id} id={a.id} prompt={a.by ? `${a.prompt}, by ${a.by}` : a.prompt} on={a.id === chosen} />
       ))}
     </div>
   );

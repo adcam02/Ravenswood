@@ -53,6 +53,9 @@ export function ProfilesModal() {
             <Icon name="upload" /> <span>Import</span>
           </button>
           <input ref={file} type="file" accept="application/json,.json" hidden onChange={(e) => void load(e.target.files?.[0])} />
+          <button className="btn small" onClick={() => ui.open({ kind: 'stats' })} title="What gets bought, which executions are picked, what’s played">
+            <Icon name="trophy" /> <span>Stats</span>
+          </button>
           <button className="btn small" onClick={() => hostLink.askForBackups()} title="Players’ browsers keep a copy of these profiles: bring theirs back">
             <Icon name="users" /> <span>Restore from players</span>
           </button>

@@ -13,6 +13,7 @@ import { GamePay } from './town/Money';
 import { shownName } from '../state/nicks';
 import { NameAndReal } from './Nickname';
 import { VictoryLineup } from './Victory';
+import { GameArtButton } from './Gallery';
 
 const TEAM = { good: 'Good', evil: 'Evil' } as const;
 
@@ -187,6 +188,7 @@ export function GameOverLayer() {
               >
                 🏆 The lineup again
               </button>
+              <GameArtButton onOpen={() => setOpen(false)} />
               <button
                 className="btn primary"
                 onClick={() => {
@@ -312,6 +314,7 @@ export function RecapModal() {
   return (
     <Modal title={`${TEAM[ended.winner]} wins`} eyebrow={`Game over · after ${ended.day} ${ended.day === 1 ? 'day' : 'days'}`} size="lg" className={`recap ${ended.winner}`}>
       <p className="recap-reason">{ended.reason}.</p>
+      <GameArtButton />
       {view.mode === 'player' && <MyNotes view={view} />}
       {awards.length > 0 && (
         <section className="recap-section">

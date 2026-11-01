@@ -13,7 +13,7 @@ import { ART_ID } from '../gallery/types';
  */
 
 export const CELL = 0.5;
-/** The frame that holds one of the owner's own drawings. */
+/** The frame that holds one of the drawings the owner has kept (their own or anyone's). */
 export const ART_PIECE = 'myart';
 export const COLS = 20;
 export const ROWS = 16;
@@ -110,7 +110,7 @@ export const PIECES: Piece[] = [
   P('portrait', 'Portrait', '👑', 25, 'wall', 2, 1),
   P('neon', 'Neon heart', '💖', 40, 'wall', 2, 1),
   P('trophies', 'Trophy shelf', '🏆', 45, 'wall', 3, 1),
-  // A frame for one of your own drawings from the night gallery (FlatItem.art says which).
+  // A frame for a drawing kept from the night gallery (FlatItem.art says which).
   P('myart', 'Your art', '🎨', 5, 'wall', 2, 1),
 ];
 
@@ -409,7 +409,7 @@ export interface FlatView {
   /** In the lobby: everyone with a flat here, by the key it's kept under and their name. */
   dir?: { key: string; name: string }[];
   /** In a flat: whose, and how it's laid out. */
-  flat?: { key: string; name: string; layout: FlatLayout; mine: boolean };
+  flat?: { key: string; name: string; layout: FlatLayout; mine: boolean; artBy?: Record<string, string> };
   /** In their own flat: everything they own. */
   own?: { owned: Record<string, number>; finishes: string[] };
   /** A word back about the last thing they did ("The sofa is $40, and you have $12"). */

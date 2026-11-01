@@ -18,6 +18,7 @@ import { ownsVictory } from '../world/victoryShop';
 import { leadersNow } from '../game/leaders';
 import { flatFor, receiveFlats, startFlats, useFlats } from '../flats/host';
 import { galleryFor, receiveGallery, startGallery, useGallery } from '../gallery/host';
+import { startStats } from '../stats/host';
 import type { ClientMessage, HostMessage } from '../state/types';
 import { local, receiveItem } from '../game/local';
 import { presence } from '../game/presence';
@@ -136,6 +137,8 @@ class HostLink {
     startFlats();
     // The night's drawings, and the gallery they hang in.
     startGallery((player, p) => this.sendTo(player, { t: 'art', p }));
+    // The Storyteller's stats (what's bought, which executions are picked), kept here and never sent.
+    startStats();
     if (peerDisabled()) useHostNet.setState({ status: 'reconnecting', detail: 'Using the backup route only.' });
     else this.openPeer();
     this.openMesh();

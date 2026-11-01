@@ -106,7 +106,7 @@ if (zone === 'flat') {
   }
   const held = q.get('held');
   const spot = held ? freeSpot(items, held) : null;
-  town.setFlat({ layout: { wall: q.get('wall') ?? 'cream', floor: q.get('floor') ?? 'oak', items }, held: spot ? { item: spot, index: -1, ok: true } : null, grid: q.has('grid') || Boolean(held), art });
+  town.setFlat({ layout: { wall: q.get('wall') ?? 'cream', floor: q.get('floor') ?? 'oak', items }, held: spot ? { item: spot, index: -1, ok: true } : null, grid: q.has('grid') || Boolean(held), art, artBy: { art0: 'Abbey', art1: 'Bartholomew the Great', art2: 'Cy' } });
 }
 
 // ?door=tavern-in: that door held wide open (as when someone goes in), and the camera on it unless x, z say otherwise.

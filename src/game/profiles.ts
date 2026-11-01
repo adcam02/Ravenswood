@@ -235,7 +235,7 @@ export function cleanProfile(raw: unknown, key: string): Profile {
     const art = r.art
       .filter((a) => a && typeof a.id === 'string' && ART_ID.test(a.id))
       .slice(-SAVED_MAX)
-      .map((a) => ({ id: a.id, prompt: String(a.prompt ?? '').slice(0, 80), at: Number(a.at) || 0 }));
+      .map((a) => ({ id: a.id, prompt: String(a.prompt ?? '').slice(0, 80), at: Number(a.at) || 0, ...(typeof a.by === 'string' && a.by ? { by: a.by.slice(0, 24) } : {}) }));
     if (art.length) p.art = art;
   }
   p.created = Number(r.created) || Date.now();

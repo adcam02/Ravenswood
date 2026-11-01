@@ -3,6 +3,7 @@ import { presence } from '../game/presence';
 import { changeFlat, debit, money, nameKey, profileOf, residents, useProfiles } from '../game/profiles';
 import { debugHooks } from '../lib/util';
 import { useHost } from '../state/host';
+import { stats } from '../stats/host';
 import { flatOwner, flatZone } from '../world/types';
 import { FLOORS, MAX_EACH, MAX_OWNED, WALLS, cleanLayout, emptyFlat, pieceById, type FlatAction, type FlatLayout, type FlatView } from './catalogue';
 
@@ -49,6 +50,7 @@ function buy(player: string, id: string) {
   } else if (finish && (finish.price === 0 || flat.finishes.includes(id))) return tell(player, `You have the ${name} already.`, false);
   const price = (piece ?? finish)!.price;
   if (!debit({ name: seat.name }, price, `for the ${name}`)) return tell(player, `The ${name} is ${money(price)}, and you have ${money(p?.coins ?? 0)}.`, false);
+  stats.bought(`${piece ? 'furn' : WALLS.includes(finish!) ? 'wall' : 'floor'}:${id}`);
   changeFlat({ name: seat.name }, (f) => {
     if (piece) f.owned[id] = (f.owned[id] ?? 0) + 1;
     else if (finish) {
@@ -90,10 +92,15 @@ export function directory(): { key: string; name: string }[] {
 }
 
 /** A flat as anyone in it sees it (whose, and its layout), or null if there's nobody by that name. */
-export function flatShown(key: string): { key: string; name: string; layout: FlatLayout } | null {
+export function flatShown(key: string): { key: string; name: string; layout: FlatLayout; artBy?: Record<string, string> } | null {
   const p = useProfiles.getState().profiles[key];
+  if (!p) return null;
   // (Laid out again on the way: a piece put where the bedroom's things now stand goes back into storage.)
-  return p ? { key, name: p.name, layout: p.flat ? cleanLayout(p.flat.layout, p.flat.owned, p.flat.finishes) : emptyFlat().layout } : null;
+  const layout = p.flat ? cleanLayout(p.flat.layout, p.flat.owned, p.flat.finishes) : emptyFlat().layout;
+  // Who drew each piece in a frame, for its plate (their own drawings say so too).
+  const hung = new Set(layout.items.map((it) => it.art).filter(Boolean));
+  const artBy = Object.fromEntries((p.art ?? []).filter((a) => hung.has(a.id)).map((a) => [a.id, a.by ?? p.name]));
+  return { key, name: p.name, layout, ...(Object.keys(artBy).length ? { artBy } : {}) };
 }
 
 /** What a player is sent of the apartment block: nothing unless they're in it. */

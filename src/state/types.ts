@@ -706,7 +706,9 @@ export type TownAction =
   /** Counted the sheep right tonight: a gold star to wear tomorrow. */
   | { k: 'star' }
   /** Put a song on at the club's jukebox (for everyone in there). */
-  | { k: 'song'; song: string };
+  | { k: 'song'; song: string }
+  /** Finished a minigame, with its stars (only counted in the Storyteller's stats). */
+  | { k: 'played'; game: string; stars: number };
 
 export type HostMessage =
   | { t: 'state'; s: PublicState; now?: number; v?: string }

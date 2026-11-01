@@ -1916,6 +1916,8 @@ export class Engine {
       held: draft && held ? { ...held, ok: !whyNot(draft.items, held.item, held.index) } : null,
       grid: Boolean(draft),
       art: Object.fromEntries(artIds.map((id) => [id, imgs[id]])),
+      // Who drew each, for the frame's plate (in our own flat, from what we've kept, so a new frame has it too).
+      artBy: shown?.mine ? Object.fromEntries((useClient.getState().priv?.gallery?.saved ?? []).map((a) => [a.id, a.by ?? shown.name])) : shown?.artBy,
     });
     // At night it's somebody's bedroom (the letters and the music in bed go by the place's name).
     const night = Boolean(v?.started && v.phase === 'night');
@@ -2077,6 +2079,8 @@ export class Engine {
     // (Two or three stars earn a little money too, and having a go at every job is an achievement.)
     if (stars >= 2 && isPlayerView(this.view)) noteTopJob(job, stars >= 3 ? 3 : 2);
     if (isPlayerView(this.view)) tally('jobs', 1, `job:${job}`);
+    // (Counted in the Storyteller's stats, whatever the stars.)
+    if (isPlayerView(this.view)) this.hooks.townAction({ k: 'played', game: job, stars });
     // Anything that beats the town's best is kept on the noticeboard for everyone.
     const score = SCORE_OF?.[job]?.(r as never) ?? 0;
     if (score > 0) {

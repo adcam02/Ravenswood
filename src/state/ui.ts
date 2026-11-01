@@ -48,6 +48,10 @@ export type Modal =
   | { kind: 'ideas' }
   /** The night gallery: the drawings hanging there, the vote, and keeping your own. */
   | { kind: 'gallery' }
+  /** Every drawing from the game that's just ended, night by night, with hearts to give. */
+  | { kind: 'artbook' }
+  /** Storyteller: what's bought, which executions are picked and the rest, to tune the game. */
+  | { kind: 'stats' }
   | null;
 
 export type Pick =

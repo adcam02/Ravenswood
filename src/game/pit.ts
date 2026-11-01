@@ -11,6 +11,7 @@ import { PIT_RINGS, pitRingAt } from '../world/town/layout';
 import { PETS, type PetId } from '../world/types';
 import { addTally, credit, nameKey, topTally } from './profiles';
 import { presence } from './presence';
+import { stats } from '../stats/host';
 import { MOVES, PIT, allowed, outcome, randomMove, resolveRound } from './pitRules';
 
 /** The zone the pit is in. */
@@ -100,6 +101,8 @@ function finish(pit: PitState, f: PitFight, winner: 0 | 1 | null, why: 'ko' | 'd
     addTally({ seat: f.sides[winner].seat }, WINS);
   } else if (why === 'draw') for (const s of f.sides) prize = pay(pit, s, PIT.drawPrize, 'for a draw in the pet pit');
   f.result = { winner, why, prize };
+  // (A fight called off before a blow was struck isn't counted.)
+  if (f.last) stats.pitFight([f.sides[0].pet, f.sides[1].pet], winner);
   f.stage = 'over';
   f.until = now + PIT.overMs;
   pit.board = board();

@@ -26,7 +26,8 @@ import { ProfilesModal } from './Profiles';
 import { JukeboxModal } from './Club';
 import { LeadersModal } from './Leaders';
 import { IdeaModal, IdeasModal } from './Ideas';
-import { GalleryModal } from './Gallery';
+import { ArtBookModal, GalleryModal } from './Gallery';
+import { StatsModal } from './Stats';
 import { EndGameSetting, RecapModal } from './GameOver';
 import { useProblems } from '../lib/report';
 import { ReminderToken, Token } from './Token';
@@ -97,6 +98,10 @@ export function Modals() {
       return <IdeasModal />;
     case 'gallery':
       return <GalleryModal />;
+    case 'artbook':
+      return <ArtBookModal />;
+    case 'stats':
+      return <StatsModal />;
   }
 }
 
@@ -488,6 +493,15 @@ function StorytellerSettings() {
           </div>
           <button className="btn" onClick={() => ui.open({ kind: 'profiles' })}>
             <Icon name="trophy" /> Profiles
+          </button>
+        </div>
+        <div className="setting">
+          <div>
+            <strong>Stats</strong>
+            <span>What gets bought, which executions are picked, what’s played: kept here, never sent to players</span>
+          </div>
+          <button className="btn" onClick={() => ui.open({ kind: 'stats' })}>
+            Stats
           </button>
         </div>
         <PlayerLines />

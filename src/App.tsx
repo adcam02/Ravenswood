@@ -126,6 +126,7 @@ import {
   WorldFailed,
   GraphicsLost,
 } from './components/town/Hud';
+import { PromptVote } from './components/town/PromptVote';
 import { useEffects } from './lib/effects';
 import { clientLink, useClient } from './net/client';
 import { hostLink } from './net/host';
@@ -361,6 +362,7 @@ function Player({ room }: { room: string }) {
               <SheepLayer />
               <BedGamesLayer />
               <DrawLayer />
+              <PromptVote />
               <BedLetters />
               <VisitCard />
               <PigeonNote />

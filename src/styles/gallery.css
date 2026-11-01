@@ -256,6 +256,8 @@
   gap: 6px;
   min-height: 34px;
   font-size: 0.9rem;
+  /* (Dark on the frame's card, whatever the panel around it.) */
+  color: #4a3424;
 }
 
 .gallery-caption .cosy-btn {
@@ -352,4 +354,206 @@
   object-fit: cover;
   border-radius: 4px;
   background: #fff;
+}
+
+/* ---------------------------------------------------------------- the game's art, once it's over */
+
+.artbook-night {
+  margin: 0 0 16px;
+}
+
+.artbook-night h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+
+.artbook-grid {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+.artbook-caption {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.artbook-caption strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.artbook-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.artbook-heart {
+  min-width: 3.4em;
+  white-space: nowrap;
+}
+
+.artbook-heart.on {
+  background: #ffd9df;
+}
+
+.artbook-heart:disabled {
+  opacity: 0.85;
+  cursor: default;
+}
+
+@media (max-width: 520px) {
+  .artbook-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ---------------------------------------------------------------- nightfall's vote on what to draw */
+
+.prompt-vote {
+  position: fixed;
+  top: 76px;
+  left: 50%;
+  z-index: 40;
+  width: min(440px, calc(100vw - 24px));
+  transform: translateX(-50%);
+  padding: 10px 12px;
+  display: grid;
+  gap: 8px;
+  animation: prompt-vote-in 0.3s ease-out both;
+}
+
+@keyframes prompt-vote-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -10px);
+  }
+}
+
+.prompt-vote-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.prompt-vote-time {
+  min-width: 2.4em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--cosy-accent);
+  color: #fff;
+  font-weight: 700;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.prompt-vote-options {
+  display: grid;
+  gap: 5px;
+}
+
+.prompt-vote-option {
+  position: relative;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  padding: 7px 34px 7px 10px;
+  border: 2px solid #e2cfa8;
+  border-radius: 10px;
+  background: #fffaf0;
+  color: inherit;
+  font: inherit;
+  font-size: 0.92rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.prompt-vote-option:hover {
+  border-color: #c9a46a;
+}
+
+.prompt-vote-option.on {
+  border-color: var(--cosy-accent);
+  background: #ffe9d6;
+}
+
+.prompt-vote-option.idea {
+  border-style: dashed;
+}
+
+.prompt-vote-option em {
+  font-size: 0.78rem;
+  color: var(--cosy-ink-soft);
+}
+
+.prompt-vote-option b {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  min-width: 1.6em;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #f1dfbd;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.prompt-vote-idea {
+  display: flex;
+  gap: 6px;
+}
+
+.prompt-vote-idea input {
+  flex: 1;
+  min-width: 0;
+}
+
+.prompt-vote-add {
+  justify-self: start;
+}
+
+.prompt-vote-note {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--cosy-red);
+}
+
+@media (max-width: 520px) {
+  .prompt-vote {
+    top: 64px;
+  }
+  .prompt-vote-option {
+    font-size: 0.85rem;
+    padding: 6px 30px 6px 8px;
+  }
+}
+
+.gallery-choosing ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.gallery-choosing li {
+  margin: 2px 0;
+}
+
+.gallery-idea {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex-basis: 100%;
+}
+
+.gallery-idea .input {
+  flex: 1;
+  min-width: 12em;
 }

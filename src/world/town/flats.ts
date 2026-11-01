@@ -525,6 +525,32 @@ function framed(p: Paint, w: number, h: number, frame: string, y = 1.85) {
 
 /** Where the drawing sits in a "Your art" frame (4:3, like the drawings), in the piece's own frame. */
 const ART_PIC = { w: 0.8, h: 0.6, y: 1.85, z: 0.122 };
+/** The brass plate under a "Your art" frame with the artist's name. */
+const PLATE = { w: 0.4, h: 0.075, y: ART_PIC.y - ART_PIC.h / 2 - 0.16, z: 0.065 };
+const PLATE_FONT = 'Fredoka, "Trebuchet MS", "Segoe UI", system-ui, sans-serif';
+
+/** The plate's face: the artist's name in dark letters on brass. */
+function plateTexture(name: string): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 320;
+  c.height = 60;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#d9b45f';
+  g.fillRect(0, 0, c.width, c.height);
+  g.strokeStyle = '#8a6a2c';
+  g.lineWidth = 6;
+  g.strokeRect(3, 3, c.width - 6, c.height - 6);
+  g.fillStyle = '#3b2a12';
+  g.textAlign = 'center';
+  g.textBaseline = 'middle';
+  let size = 38;
+  g.font = `700 ${size}px ${PLATE_FONT}`;
+  while (size > 18 && g.measureText(name).width > c.width - 28) g.font = `700 ${(size -= 2)}px ${PLATE_FONT}`;
+  g.fillText(name, c.width / 2, c.height / 2 + 2);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
 
 /** A "Your art" frame: a warm wooden frame and a cream mount (the drawing itself goes in over it, see makeFlatRoom). */
 function artFrame(p: Paint) {
@@ -784,6 +810,8 @@ export interface FlatScene {
   grid?: boolean;
   /** The drawings in the "Your art" frames, by id (undefined while one is on its way, null if it's missing). */
   art?: Record<string, string | null | undefined>;
+  /** Who drew each, by id, for the little plate under its frame. */
+  artBy?: Record<string, string>;
 }
 
 export interface FlatRoom {
@@ -905,7 +933,8 @@ export function makeFlatRoom(glassMaterial: THREE.Material): FlatRoom {
 
   /** The drawings in the "Your art" frames, each a picture on the mount. */
   const picGeo = new THREE.PlaneGeometry(ART_PIC.w, ART_PIC.h);
-  function buildPictures(items: FlatItem[], art: FlatScene['art']) {
+  const plateGeo = new THREE.PlaneGeometry(PLATE.w, PLATE.h);
+  function buildPictures(items: FlatItem[], art: FlatScene['art'], by: FlatScene['artBy']) {
     for (const o of [...pictures.children]) {
       pictures.remove(o);
       const m = (o as THREE.Mesh).material as THREE.MeshLambertMaterial;
@@ -916,6 +945,14 @@ export function makeFlatRoom(glassMaterial: THREE.Material): FlatRoom {
       const img = it.art ? art?.[it.art] : null;
       const at = placeOf(it);
       if (!img || !at) continue;
+      const name = it.art ? by?.[it.art] : undefined;
+      if (name) {
+        const plate = new THREE.Mesh(plateGeo, new THREE.MeshLambertMaterial({ map: plateTexture(name) }));
+        const ps = local(at.x, at.z, at.ry, 0, PLATE.z);
+        plate.position.set(ps.x, PLATE.y, ps.z);
+        plate.rotation.y = at.ry;
+        pictures.add(plate);
+      }
       const tex = new THREE.Texture();
       tex.colorSpace = THREE.SRGBColorSpace;
       const mesh = new THREE.Mesh(picGeo, new THREE.MeshLambertMaterial({ map: tex, emissive: '#ffffff', emissiveMap: tex, emissiveIntensity: 0.1 }));
@@ -978,10 +1015,10 @@ export function makeFlatRoom(glassMaterial: THREE.Material): FlatRoom {
       }
       // The drawings: again whenever a frame moves, or a picture arrives.
       const framed = layout.items.filter((it, i) => it.art && i !== skip);
-      const ak = JSON.stringify(framed.map((it) => [it.art, it.x, it.z, it.r, scene?.art?.[it.art!]?.length ?? 0]));
+      const ak = JSON.stringify(framed.map((it) => [it.art, it.x, it.z, it.r, scene?.art?.[it.art!]?.length ?? 0, scene?.artBy?.[it.art!] ?? '']));
       if (ak !== artKey) {
         artKey = ak;
-        buildPictures(framed, scene?.art);
+        buildPictures(framed, scene?.art, scene?.artBy);
         changed = true;
       }
       const hk = JSON.stringify(scene?.held ?? null);

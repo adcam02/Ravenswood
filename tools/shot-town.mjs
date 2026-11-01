@@ -209,6 +209,7 @@ const ALL = {
   'flats-demo': 'zone=flat&t=0&furnish=demo&wall=sage&floor=herring',
   // Drawings from the night gallery hung in "Your art" frames.
   'flats-art': 'zone=flat&t=0&art&wall=sage&floor=herring',
+  'flats-art-close': 'zone=flat&t=0&art&wall=sage&floor=herring&x=-4.4&z=-3&dist=3.2&pitch=0.12&yaw=0',
   'flats-all': 'zone=flat&t=0&furnish=all&wall=night&floor=checker&dist=14',
   // Night in a flat: the bedroom's things built in, the moon in the window, and the hooded figure at the bed.
   'flats-bedroom-night': 'zone=flat&night&t=1&furnish=demo&wall=mint&floor=walnut',

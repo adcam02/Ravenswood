@@ -17,6 +17,7 @@ import { debit, profileOf } from '../game/profiles';
 import { isSlayMove, ownsSlay } from '../game/slayMoves';
 import { NOM_SHOW_MS, ownsNom, type NomMoveId } from '../game/nomMoves';
 import { pitPublic } from '../game/pitRules';
+import { stats } from '../stats/host';
 import {
   ANIMALS,
   BEDS,
@@ -1713,6 +1714,7 @@ export const st = {
     town(playerId: string, action: TownAction): Item | null {
       const s = hostGame().seats.find((x) => x.playerId === playerId);
       if (!s) return null;
+      if (action.k === 'played') return (stats.played(action.game, action.stars), null);
       if (action.k === 'star') {
         // Only at night, and the star is worn through the day that follows.
         update((g) => {

@@ -26,6 +26,7 @@
 import { create } from 'zustand';
 import { credit, debit, grantItem, grantPet, money, profileOf } from '../game/profiles';
 import { presence } from '../game/presence';
+import { stats } from '../stats/host';
 import { debugHooks, loadJSON, saveJSON } from '../lib/util';
 import { useHost } from '../state/host';
 import { PETS, type PetId } from '../world/types';
@@ -186,6 +187,7 @@ function buy(player: string, pet: string) {
     return tell(player, `The ${petName(pet).toLowerCase()} is ${money(price)}, and you have ${money(p?.coins ?? 0)}.`);
   }
   grantPet({ name: seat.name }, pet as PetId);
+  stats.bought(`pet:${pet}`);
   tell(player, `The ${petName(pet).toLowerCase()} is yours! Wear it from Customise.`);
 }
 
@@ -202,6 +204,7 @@ function buyItem(player: string, key: string) {
   if (p?.items.includes(key)) return tell(player, `You already have ${what}.`);
   if (!debit({ name: seat.name }, ware.price, `for ${what}`)) return tell(player, `That’s ${money(ware.price)}, and you have ${money(p?.coins ?? 0)}.`);
   grantItem({ name: seat.name }, key);
+  stats.bought(key);
   tell(player, boughtNote(ware));
 }
 
@@ -270,6 +273,7 @@ function bjDeal(player: string, raw: unknown) {
   const bet = wholeDollars(raw);
   if (bet < BJ_MIN || bet > BJ_MAX) return tell(player, `Bets are ${money(BJ_MIN)} to ${money(BJ_MAX)}.`);
   if (!debit(who(s), bet, 'bet at blackjack')) return tell(player, `You have ${money(coinsOf(s.name))}: bet a little less.`);
+  stats.staked('blackjack', bet);
   s.bet = bet;
   s.cards = [draw(s)];
   s.dealer = [draw(s)];
@@ -295,6 +299,7 @@ function bjMove(player: string, move: 'hit' | 'stand' | 'double') {
   if (move === 'double') {
     if (s.cards.length !== 2) return;
     if (!debit(who(s), s.bet, 'doubled at blackjack')) return tell(player, `Doubling takes another ${money(s.bet)}.`);
+    stats.staked('blackjack', s.bet, false);
     s.bet *= 2;
     s.cards.push(draw(s));
     standOrBust(s);
@@ -348,6 +353,7 @@ function settle(s: BjSeat) {
     result = 'push';
     paid = s.bet;
   } else result = 'lose';
+  if (paid) stats.paid('blackjack', paid);
   if (paid) credit(who(s), paid, result === 'blackjack' ? 'for a blackjack!' : result === 'win' ? 'won at blackjack' : 'back, a push at blackjack');
   s.result = result;
   s.paid = paid;
@@ -425,6 +431,7 @@ function pkSit(player: string, i: number, raw: unknown) {
   if (table.seats[i]) return tell(player, `${table.seats[i]!.name} is sitting there.`);
   const buyIn = Math.max(PK.minBuy, Math.min(PK.maxBuy, wholeDollars(raw)));
   if (!debit({ name: seat.name }, buyIn, 'for poker chips')) return tell(player, `Chips start at ${money(PK.minBuy)}, and you have ${money(coinsOf(seat.name))}.`);
+  stats.staked('poker', buyIn);
   table.seats[i] = {
     player,
     seatId: seat.id,
@@ -456,6 +463,7 @@ function cashOut(i: number) {
   const s = table.seats[i];
   if (!s) return;
   if (s.inHand && playing() && s.total > 0) table.dead.push({ id: `gone:${s.player}`, amount: s.total, folded: true });
+  if (s.stack > 0) stats.paid('poker', s.stack);
   if (s.stack > 0) credit(who(s), s.stack, 'cashed out from poker');
   table.seats[i] = null;
   bump();
@@ -861,6 +869,7 @@ function throwBall(now: number) {
       continue;
     }
     s.staked = total;
+    stats.staked('roulette', total);
     wheel.riding.push({ name: s.name, player: s.player, bets: s.bets, staked: total });
   }
   wheel.closes = null;
@@ -876,6 +885,7 @@ function settleWheel(now: number) {
   const n = wheel.spin!.n;
   for (const r of wheel.riding) {
     const back = payout(r.bets, n);
+    if (back > 0) stats.paid('roulette', back);
     if (back > 0) credit({ name: r.name }, back, 'won at roulette');
     const s = wheel.seats[rlIndex(r.player)];
     if (s) s.won = back;
@@ -948,6 +958,7 @@ function slPull(player: string, bet: unknown) {
   const now = Date.now();
   if (now < m.readyAt) return;
   if (!debit(who(m.seat), bet, 'on the slots')) return tell(player, `A pull is ${money(bet)}, and you have ${money(coinsOf(m.seat.name))}.`);
+  stats.staked('slots', bet);
   const reels = riggedReels ?? [0, 1, 2].map(() => symbolAt(randomBelow(SLOT_STOPS)));
   riggedReels = null;
   const won = bet * linePays(reels).times;
@@ -962,6 +973,7 @@ function slTick(now: number) {
   const due = pulls.filter((p) => now >= p.until);
   if (!due.length) return;
   pulls = pulls.filter((p) => now < p.until);
+  for (const p of due) if (p.won > 0) stats.paid('slots', p.won);
   for (const p of due) if (p.won > 0) credit({ name: p.name }, p.won, p.won >= p.bet * 100 ? 'for the JACKPOT!' : 'won on the slots');
   bump();
 }

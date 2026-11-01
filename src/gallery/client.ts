@@ -50,7 +50,7 @@ export function useArtImage(id: string | null | undefined, mode: Mode): string |
 // ---------------------------------------------------------------- what we're sent
 
 /** The gallery as this screen sees it. */
-export function galleryNow(mode: Mode): (GalleryView & { drawnTonight?: number; voters?: number }) | null {
+export function galleryNow(mode: Mode): (GalleryView & { drawnTonight?: number; voters?: number; stIdea?: string }) | null {
   if (mode === 'player') return useClient.getState().priv?.gallery ?? null;
   if (mode === 'st') return galleryForST();
   return null;
@@ -93,11 +93,26 @@ export function submitArt(img: string, night: number) {
 }
 
 export const voteArt = (id: string) => player.gallery({ k: 'vote', id });
+/** At nightfall: our vote for tonight's prompt, or an idea of our own for it. */
+export const choosePrompt = (id: string) => player.gallery({ k: 'choose', id });
+export const suggestPrompt = (text: string) => player.gallery({ k: 'idea', text });
+/** A heart for a piece in the game's art, or taking ours back. */
+export const heartArt = (id: string) => player.gallery({ k: 'heart', id });
 
 /** Keeps one of our own pieces (a copy stays in this browser too, in case the Storyteller's is ever lost). */
 export function keepArt(id: string) {
   const img = useArt.getState().imgs[id];
   if (img) void artStore.set(`mine:${id}`, img);
+  else {
+    // (Only its little copy here so far, from the game's art: the whole picture is fetched for our copy.)
+    const off = useArt.subscribe((s) => {
+      const v = s.imgs[id];
+      if (v === undefined) return;
+      off();
+      if (v) void artStore.set(`mine:${id}`, v);
+    });
+    wantArt([id], 'player');
+  }
   player.gallery({ k: 'save', id });
 }
 
@@ -171,6 +186,9 @@ export function watchGallery() {
     if (now && was && was.phase === 'night' && now.phase === 'day' && now.room === was.room) void sendLeftover(now.room, was.day);
     const g = s.priv?.gallery;
     if (g !== prev.priv?.gallery) restoreLost(g);
+    // Tonight's prompt has just been chosen.
+    const lastNight = prev.priv?.gallery?.tonight;
+    if (lastNight?.choosing && g?.tonight && !g.tonight.choosing && g.tonight.night === lastNight.night && g.tonight.prompt) ui.toast(`🎨 Tonight’s drawing: “${g.tonight.prompt}”`, 'info');
     // The voting has just closed: a word about who won.
     const show = g?.show;
     const before = prev.priv?.gallery?.show;

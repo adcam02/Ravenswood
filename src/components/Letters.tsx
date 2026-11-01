@@ -220,7 +220,7 @@ export function BedLetters() {
           🎲 Pass the time
         </button>
       )}
-      {sheep && !visit && !awake && tonightArt && (
+      {sheep && !visit && !awake && tonightArt && !tonightArt.choosing && (
         <button className={`cosy-btn ${tonightArt.sent ? '' : 'primary'}`} onClick={() => useHud.setState({ draw: true })}>
           🎨 {tonightArt.sent ? 'Your drawing' : 'Draw'}
         </button>
