@@ -126,6 +126,8 @@ export const game = {
   summoned: (_zone: string, _x: number, _z: number) => {},
   /** Storyteller: someone was clicked in the world, so open their seat menu there. */
   pickSeat: (_seatId: string, _clientX: number, _clientY: number) => {},
+  /** Open a Domain where we stand (wearing the Domain Expansioner), or close ours. */
+  domain: () => {},
   /** The item in your paw, as the HUD shows it. */
   item: null as Item | null,
 };

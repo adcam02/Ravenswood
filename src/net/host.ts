@@ -22,6 +22,8 @@ import { startStats } from '../stats/host';
 import type { ClientMessage, HostMessage } from '../state/types';
 import { local, receiveItem } from '../game/local';
 import { presence } from '../game/presence';
+import { domainFromPlayer, tickDomains } from '../game/domain';
+import { donkeyFromPlayer, tickDonkey } from '../game/donkey';
 import { fromPose, toPose, type Item, type Look, type Pose } from '../world/types';
 import { meetingSpot } from '../world/town/layout';
 import { joinMesh, type Mesh } from './mesh';
@@ -156,6 +158,11 @@ class HostLink {
         if (this.ticks % 2 === 0) pit.tick();
         // So do the pie-eating contest's, and everyone's bites.
         if (this.ticks % 2 === 1) pie.tick();
+        // Domains open and close, and the golden donkey goes into hiding.
+        if (this.ticks % 10 === 5) {
+          tickDomains();
+          tickDonkey();
+        }
       } catch (e) {
         console.error(e);
       }
@@ -489,6 +496,14 @@ class HostLink {
         break;
       case 'pie':
         pie.fromPlayer(pid, msg.a);
+        break;
+      case 'domain': {
+        const why = domainFromPlayer(pid, msg.open !== false);
+        link.send({ t: 'domain', ok: !why, why: why ?? undefined });
+        break;
+      }
+      case 'donkey':
+        link.send({ t: 'donkey', ...donkeyFromPlayer(pid) });
         break;
       case 'casino':
         receiveCasino(pid, msg.a);

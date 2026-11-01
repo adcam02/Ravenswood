@@ -3621,3 +3621,42 @@
   max-height: none;
   overflow: visible;
 }
+
+/* The Domain Expansioner's button (components/town/Domain.tsx), in the bottom row beside the paw. */
+.domain-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px 6px 8px;
+  border-radius: 18px;
+  border: none;
+  cursor: pointer;
+  color: var(--cosy-ink);
+  text-align: left;
+  font: inherit;
+}
+.domain-btn.open {
+  background: linear-gradient(135deg, #1a1440, #3a2470);
+  color: #eef0ff;
+}
+.domain-icon {
+  font-size: 26px;
+}
+.domain-words {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.domain-words b {
+  font-size: 14px;
+}
+.domain-words small {
+  font-size: 12px;
+  opacity: 0.75;
+}
+@media (max-width: 600px) {
+  .domain-words small,
+  .domain-btn .cosy-key {
+    display: none;
+  }
+}

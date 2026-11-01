@@ -1887,3 +1887,41 @@ export function biteSound() {
   src.connect(f).connect(g).connect(c.destination);
   src.start(at);
 }
+
+/** A Domain opening: a deep swell rushing up into a high shimmer of bell tones (`open` false: the same, falling away). */
+export function domainSound(open = true) {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.value = 0.5;
+  out.connect(c.destination);
+  if (open) {
+    tone(c, out, t, 1.2, 55, 110, 0.22, 'sine', 0, 0, 0.4);
+    hush(c, out, t, 1.0, 'bandpass', 300, 2400, 0.12, 1.5, 0.5);
+    [1320, 1760, 1980, 2640].forEach((f, i) => tone(c, out, t + 0.55 + i * 0.09, 1.4, f, f, 0.035, 'sine', 5, 6));
+  } else {
+    hush(c, out, t, 0.6, 'bandpass', 2000, 300, 0.08, 1.5, 0.05);
+    tone(c, out, t, 0.6, 110, 55, 0.15, 'sine');
+  }
+}
+
+/** The golden donkey, braying somewhere nearby: hee-haw, twice, quieter the further off (`volume` 0 to 1). */
+export function heeHaw(volume = 1) {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.value = 0.35 * volume;
+  const f = c.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = 1100;
+  f.Q.value = 0.9;
+  f.connect(out).connect(c.destination);
+  for (let k = 0; k < 2; k++) {
+    const at = t + k * 0.62;
+    // "Hee": a high, nasal squeal going up; "haw": a lower honk breathed in and out.
+    tone(c, f, at, 0.26, 820, 980, 0.3, 'sawtooth', 30, 25);
+    tone(c, f, at + 0.27, 0.32, 360, 300, 0.32, 'sawtooth', 22, 18);
+  }
+}

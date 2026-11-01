@@ -12,7 +12,7 @@ import { useMoney, useMyItems, useMyPets, useProgress } from '../../game/progres
 import { tillSound } from '../../lib/audio';
 import { useView } from '../../state/view';
 import { HAT_FX } from '../../world/hatFx';
-import { fixLook, HATS, TROPHY_HAT, type HatId } from '../../world/types';
+import { DOMAIN_HAT, fixLook, HATS, TROPHY_HAT, type HatId } from '../../world/types';
 import { HatPicture, PetPicture, TryOn, wearLook } from './JoinFlow';
 import { GraveShelf, StoolShelf } from './SeatPicks';
 import { VictoryShelf } from './VictoryPicks';
@@ -202,6 +202,10 @@ function Hats() {
             <span className="shop-pet-name">{h.name}</span>
             {h.id === TROPHY_HAT ? (
               <span className="shop-trophy-note">For showing off: it comes with a golden glow and gold sparkles all round you, and puts a little crown by your name.</span>
+            ) : h.id === DOMAIN_HAT ? (
+              <span className="shop-trophy-note">
+                Domain Expansion: once a day, out in town, open a starry dome where you stand. You and one other inside hear only each other, for up to three minutes, and nobody sees who you are.
+              </span>
             ) : (
               HAT_FX[h.id] && <span className="shop-fx-note">✨ Comes with {HAT_FX[h.id]}</span>
             )}

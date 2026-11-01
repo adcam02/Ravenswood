@@ -52,6 +52,8 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
       pit: null,
       club: { song: '', at: 0, by: '' },
       dawn: null,
+      domains: [],
+      donkey: null,
     };
   }
   return {
@@ -98,6 +100,8 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
     pie: view.pie,
     club: view.club,
     dawn: view.dawn,
+    domains: view.domains,
+    donkey: view.donkey,
   };
 }
 

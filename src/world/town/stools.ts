@@ -6,6 +6,7 @@ import { signBoard, TextSign } from './sign';
 import { arc, bulge, domeSpots, halfDisc, hex, hexTip, rod, up } from './stoolBits';
 import { POP_GRAVE_PAINT, POP_STOOL_PAINT } from './stools2';
 import { GAG_GRAVE_PAINT, GAG_STOOL_PAINT } from './stools3';
+import { statueGeometry, statueKey, type StatueLook } from './statue';
 
 /**
  * The stools round the dais and the gravestones in the churchyard: the plain ones and every design sold at the
@@ -638,27 +639,63 @@ const GRAVE_PAINT: Record<'plain' | GraveId, GraveDesign> = {
       b.add(G.prism(), c, { pos: [0, 1.06, 0.04], rot: [0, Math.PI / 2, 0], scale: [0.64, 0.24, 0.88] });
     },
     plate: { y: 0.98, z: 0.355, w: 0.74, h: 0.13, bg: '#c8c2b4', fg: '#3a3630' },
-  },  // The ones from films and games (stools2.ts).
+  },
+  statue: {
+    // A weathered stone plinth with a moulding round its top and moss round its foot; the statue of whoever lies
+    // there stands on it (added by graveGeometry).
+    paint(b) {
+      const c = '#a39e94';
+      const d = '#8c877e';
+      b.add(G.box(), d, { pos: [0, 0.04, 0], scale: [0.74, 0.08, 0.6] });
+      b.add(G.box(), c, { pos: [0, 0.29, 0], scale: [0.58, 0.42, 0.46] });
+      b.add(G.box(), d, { pos: [0, 0.525, 0], scale: [0.66, 0.07, 0.54] });
+      for (const [x, z, s] of [
+        [-0.3, 0.26, 0.09],
+        [0.22, 0.28, 0.07],
+        [0.33, -0.2, 0.08],
+        [-0.34, -0.15, 0.06],
+      ]) {
+        b.add(G.sphere(8, 5), '#6a8648', { pos: [x, 0.07, z], scale: [s * 1.4, s * 0.6, s] });
+      }
+    },
+    plate: { y: 0.3, z: 0.232, w: 0.48, h: 0.26, bg: '#a39e94', fg: '#33302a' },
+  },
+  // The ones from films and games (stools2.ts).
   ...POP_GRAVE_PAINT,
   // The gags (stools3.ts).
   ...GAG_GRAVE_PAINT,
 };
 
+/** The statue's plinth top, where the player's own animal stands in stone (see statue.ts). */
+const PLINTH_TOP = 0.56;
+/** Whose statue the shop's picture shows, before anyone has one. */
+const SAMPLE_STATUE: StatueLook = { animal: 'fox', hat: null };
+
+/** The stone animal itself, stood on its plinth (only for the statue design). */
+function addStatue(b: Builder, id: string, statue: StatueLook | null | undefined) {
+  if (id === 'statue') b.addColored(statueGeometry(statue ?? SAMPLE_STATUE), { pos: [0, PLINTH_TOP, 0] });
+}
+
 const graveGeos = new Map<string, { main: THREE.BufferGeometry; glow: THREE.BufferGeometry | null }>();
 
-/** The shared geometry for a gravestone (null: the plain one), with any glowing part separately. */
-export function graveGeometry(id: GraveId | null | undefined): { main: THREE.BufferGeometry; glow: THREE.BufferGeometry | null; plate: GravePlate } {
-  const key = id && GRAVE_PAINT[id] ? id : 'plain';
+/**
+ * The shared geometry for a gravestone (null: the plain one), with any glowing part separately. The statue is of
+ * whoever lies there (`statue`: their animal and hat), so there's one of those for each animal and hat.
+ */
+export function graveGeometry(id: GraveId | null | undefined, statue?: StatueLook | null): { main: THREE.BufferGeometry; glow: THREE.BufferGeometry | null; plate: GravePlate } {
+  const design = id && GRAVE_PAINT[id] ? id : 'plain';
+  const key = design === 'statue' ? `statue:${statueKey(statue ?? SAMPLE_STATUE)}` : design;
   let g = graveGeos.get(key);
   if (!g) {
     const b = new Builder();
     const glow = new Builder();
-    GRAVE_PAINT[key as GraveId].paint(b, glow);
+    GRAVE_PAINT[design as GraveId].paint(b, glow);
+    addStatue(b, design, statue);
     g = { main: b.geometry(), glow: glow.empty ? null : glow.geometry(0) };
     g.main.computeBoundingBox();
     graveGeos.set(key, g);
   }
-  return { ...g, plate: GRAVE_PAINT[key as GraveId].plate };
+  return { ...g, plate: GRAVE_PAINT[design as GraveId].plate };
 }
 
 /**
@@ -666,20 +703,21 @@ export function graveGeometry(id: GraveId | null | undefined): { main: THREE.Buf
  * standing up behind it like a chair's back.
  */
 const spentGeos = new Map<string, THREE.BufferGeometry>();
-export function spentStoolGeometry(grave: GraveId | null | undefined): THREE.BufferGeometry {
-  const key = grave ?? 'plain';
+export function spentStoolGeometry(grave: GraveId | null | undefined, statue?: StatueLook | null): THREE.BufferGeometry {
+  const key = grave === 'statue' ? `statue:${statueKey(statue ?? SAMPLE_STATUE)}` : (grave ?? 'plain');
   let g = spentGeos.get(key);
   if (!g) {
     const b = new Builder();
     b.add(G.rbox(0.12), '#8f8a82', { pos: [0, 0.2, 0], scale: [0.6, 0.4, 0.46] });
     b.add(G.box(), '#a29c92', { pos: [0, 0.405, 0], scale: [0.54, 0.03, 0.4] });
     b.add(G.sphere(8, 5), '#6a8a4a', { pos: [0.2, 0.05, 0.2], scale: [0.12, 0.05, 0.08] });
-    const box = graveGeometry(grave).main.boundingBox!;
+    const box = graveGeometry(grave, statue).main.boundingBox!;
     // (About chair-back height, so it shows above the seat.)
     const s = Math.min(0.9, 0.85 / Math.max(0.1, box.max.y), 0.62 / Math.max(0.1, box.max.x - box.min.x));
     // (Painted again, small, rather than copied: the finished stone has normals the block's parts don't.)
     const within = new Within(b, new THREE.Matrix4().compose(new THREE.Vector3(0, 0, -0.24 - box.max.z * s), new THREE.Quaternion(), new THREE.Vector3(s, s, s)));
     GRAVE_PAINT[grave ?? 'plain'].paint(within, within);
+    addStatue(within, grave ?? 'plain', statue);
     spentGeos.set(key, (g = b.geometry()));
   }
   return g;
@@ -697,6 +735,11 @@ class Within extends Builder {
     const m = p instanceof THREE.Matrix4 ? p.clone() : placeMatrix(p);
     if (parent) m.premultiply(parent);
     this.outer.add(geo, color, m.premultiply(this.m));
+    return this;
+  }
+  addColored(geo: THREE.BufferGeometry, p: Place | THREE.Matrix4 = {}): this {
+    const m = p instanceof THREE.Matrix4 ? p.clone() : placeMatrix(p);
+    this.outer.addColored(geo, m.premultiply(this.m));
     return this;
   }
 }
@@ -729,9 +772,9 @@ export function stoolObject(id: StoolId | null): THREE.Mesh {
 }
 
 /** A gravestone with the name (and the line under it, if any) on its plate. Its sign is freed by onDispose. */
-export function graveObject(id: GraveId | null, name: string, epitaph = ''): THREE.Group {
+export function graveObject(id: GraveId | null, name: string, epitaph = '', statue?: StatueLook | null): THREE.Group {
   const group = new THREE.Group();
-  const { main, glow, plate } = graveGeometry(id);
+  const { main, glow, plate } = graveGeometry(id, statue);
   const add = (geo: THREE.BufferGeometry, mat: THREE.Material) => {
     const m = new THREE.Mesh(geo, mat);
     m.castShadow = true;

@@ -3,7 +3,7 @@ import type { AutoNight } from '../night/rules';
 import type { CasinoAction, CasinoView } from '../casino/types';
 import type { FlatAction, FlatView } from '../flats/catalogue';
 import type { ArtPart, GalleryAction, GalleryView } from '../gallery/types';
-import type { BakeKind, ClothKind, DrinkKind, FlowerKind, Item, Look, PetId, Pose, Progress, TownState, Weather } from '../world/types';
+import type { BakeKind, ClothKind, DomainState, DrinkKind, FlowerKind, Item, Look, PetId, Pose, Progress, TownState, Weather } from '../world/types';
 import type { NomMoveId } from '../game/nomMoves';
 
 export type Phase = 'night' | 'day';
@@ -388,6 +388,24 @@ export interface GameState {
   nightDone: string[];
   /** The automated night (players choose on their own screens), as far as it has gone tonight. Never sent to players. */
   autoNight?: AutoNight | null;
+  /** Domains open in town just now (game/domain.ts), and the day each seat last opened one. */
+  domains?: DomainState[];
+  domainDay?: Record<string, number>;
+  /** Today's golden donkey (game/donkey.ts). */
+  donkey?: DonkeyState | null;
+}
+
+/**
+ * The golden donkey hidden somewhere in town each day: at which of the hiding places (world/donkey.ts), from when
+ * (host clock: he's worth more the longer he goes unfound), and who found him and for how much, once someone has.
+ */
+export interface DonkeyState {
+  day: number;
+  spot: number;
+  at: number;
+  /** He's come out (players are only sent him once he has). */
+  out?: boolean;
+  found?: { seat: string; name: string; amount: number; at: number } | null;
 }
 
 // ---------------------------------------------------------------- what players receive
@@ -448,6 +466,10 @@ export interface PublicState {
   leaders?: Leaders;
   /** When tonight's automated night began (host clock): everyone's screen has the same moment of sleep then. */
   nightFall?: number;
+  /** Domains open in town just now. */
+  domains?: DomainState[];
+  /** Today's golden donkey, once he's out (gone by night). */
+  donkey?: DonkeyState | null;
 }
 
 /** One line on the tavern's leaderboard: a name as they write it, and how many (dollars, wins, achievements). */
@@ -749,7 +771,11 @@ export type HostMessage =
    */
   | { t: 'door'; name: string; ok: boolean | null }
   /** A picture from the gallery (or a piece of one, `i` of `n`), asked for by id. */
-  | { t: 'art'; p: ArtPart };
+  | { t: 'art'; p: ArtPart }
+  /** The answer to opening (or closing) a Domain: whether it worked, or why not. */
+  | { t: 'domain'; ok: boolean; why?: string }
+  /** The answer to catching the golden donkey: how much he paid, or why not. */
+  | { t: 'donkey'; ok: boolean; amount?: number; why?: string };
 
 export type ClientMessage =
   /** `delta`: this page understands world updates that carry only what changed. */
@@ -810,4 +836,8 @@ export type ClientMessage =
   /** Buying furniture for your flat, or laying it out. */
   | { t: 'flat'; a: FlatAction }
   /** The player's emote hotbar, as they've arranged it in Customise (see world/emotes.ts). */
-  | { t: 'hotbar'; slots: string[] };
+  | { t: 'hotbar'; slots: string[] }
+  /** Open a Domain where we stand (wearing the Domain Expansioner), or close ours. */
+  | { t: 'domain'; open: boolean }
+  /** Caught the golden donkey: his gold, please. */
+  | { t: 'donkey' };

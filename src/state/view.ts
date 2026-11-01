@@ -3,8 +3,8 @@ import { defaultAlignment, getRole, type Alignment, type Script } from '../data'
 import { useClient } from '../net/client';
 import { useHostNet } from '../net/host';
 import { isTraveller, seatAlignment, useHost, visitFor } from './host';
-import type { AwakeState, DawnReel, DayTimer, DeathRecord, Execution, GameEnd, LetterIn, Nomination, NominationRequest, Phase, Reminder, SlayerShot, TownHall, Visit, VoteRecord, PitState, PieContest } from './types';
-import type { Look, TownState, Weather } from '../world/types';
+import type { AwakeState, DawnReel, DayTimer, DeathRecord, DonkeyState, Execution, GameEnd, LetterIn, Nomination, NominationRequest, Phase, Reminder, SlayerShot, TownHall, Visit, VoteRecord, PitState, PieContest } from './types';
+import type { DomainState, Look, TownState, Weather } from '../world/types';
 import { nickFor, useNicks } from './nicks';
 import { SONGS } from '../lib/disco';
 import { useUI } from './ui';
@@ -91,6 +91,10 @@ export interface View {
   club: { song: string; at: number; by: string };
   /** This morning's replay of the night's deaths (in this browser's clock). */
   dawn: DawnReel | null;
+  /** Domains open in town (in this browser's clock). */
+  domains: DomainState[];
+  /** Today's golden donkey, while he's out (in this browser's clock). */
+  donkey: DonkeyState | null;
 }
 
 /** The pie contest with its times moved onto this browser's clock. */
@@ -180,6 +184,8 @@ export function useStorytellerView(): View {
       pie: pieHere(g.pie, 0),
       club: clubOf(g.town, 0),
       dawn: g.dawn ?? null,
+      domains: g.domains ?? [],
+      donkey: g.donkey?.out && g.phase === 'day' && g.donkey.day === g.day ? g.donkey : null,
     }),
     [g, online, slow, hide, nicks],
   );
@@ -259,6 +265,8 @@ export function usePlayerView(): View | null {
       pie: pieHere(pub.pie, clockOffset ?? 0),
       club: clubOf(pub.town, clockOffset ?? 0),
       dawn: pub.dawn ? { ...pub.dawn, at: pub.dawn.at - (clockOffset ?? 0) } : null,
+      domains: (Array.isArray(pub.domains) ? pub.domains : []).map((d) => ({ ...d, at: d.at - (clockOffset ?? 0), until: d.until - (clockOffset ?? 0) })),
+      donkey: pub.donkey ? { ...pub.donkey, at: pub.donkey.at - (clockOffset ?? 0) } : null,
     };
   }, [pub, priv, clockOffset, nicks]);
 }

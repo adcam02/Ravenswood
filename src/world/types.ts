@@ -390,7 +390,8 @@ export type HatId =
   | 'sparky'
   | 'lavalamp'
   | 'fishbowl'
-  | 'trophy';
+  | 'trophy'
+  | 'domain';
 
 /** What a player has done across all their games, kept by the Storyteller under their name. */
 export interface Progress {
@@ -509,10 +510,13 @@ export const HATS: { id: HatId; name: string; icon: string; how: string; unlocke
   { id: 'fishbowl', name: 'Goldfish bowl', icon: '🐠', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('fishbowl'), price: 125 },
   { id: 'duo', name: 'Robot DJ helmet', icon: '🎧', how: 'Buy it at the Lucky Raven’s shop', unlocked: bought('duo'), price: 150 },
   { id: 'trophy', name: 'Crown of Midas', icon: '✨', how: 'Buy it at the Lucky Raven’s shop, if you can afford it', unlocked: bought('trophy'), price: 500 },
+  { id: 'domain', name: 'Domain Expansioner', icon: '🌌', how: 'Buy it at the Lucky Raven’s shop, if you can afford it', unlocked: bought('domain'), price: 1000 },
 ];
 
 /** The trophy hat: owning it puts a little crown by your name. */
 export const TROPHY_HAT: HatId = 'trophy';
+/** The hat that opens a Domain (game/domain.ts). */
+export const DOMAIN_HAT: HatId = 'domain';
 
 /** Each hat a player has unlocked makes them a touch quicker about town, walking and running: 0.1% a hat. */
 export const HAT_SPEED = 0.001;
@@ -898,7 +902,7 @@ export function boothSpot(i: number, lx: number, lz: number): Spot {
 }
 /** The seat in each side of booth `i` (left, then right, seen from the front). */
 export const boothSeats = (i: number): Spot[] => [-0.75, 0.75].map((lx) => boothSpot(i, lx, 0));
-/** Which booth this spot is inside, or -1. */
+/** Which booth this spot is inside, or -1. An open Domain counts as a booth too (numbered after the real ones). */
 export function boothAt(zone: ZoneId, x: number, z: number): number {
   for (let i = 0; i < BOOTHS.length; i++) {
     const b = BOOTHS[i];
@@ -906,7 +910,36 @@ export function boothAt(zone: ZoneId, x: number, z: number): number {
     const { lx, lz } = boothLocal(b, x, z);
     if (Math.abs(lx) < BOOTH_HW && Math.abs(lz) < BOOTH_HD) return i;
   }
-  return -1;
+  const d = domainAt(zone, x, z);
+  return d >= 0 ? BOOTHS.length + d : -1;
+}
+
+/**
+ * A Domain: a portable confession booth under a starry dome, opened out in town by whoever wears the Domain
+ * Expansioner (see game/domain.ts). Its owner and one guest inside hear only each other, and nobody outside hears
+ * them. `at` and `until` are when it opened and when it closes by itself (host clock), `ry` the way its owner faced.
+ */
+export interface DomainState {
+  id: string;
+  owner: string;
+  guest: string | null;
+  x: number;
+  z: number;
+  ry: number;
+  at: number;
+  until: number;
+}
+/** How far a Domain reaches from its middle (metres). */
+export const DOMAIN_R = 1.7;
+/** The Domains open right now, as this page last heard (set by whoever draws the town, read by boothAt). */
+let openDomains: { x: number; z: number }[] = [];
+export function setDomains(list: { x: number; z: number }[]) {
+  openDomains = list;
+}
+/** Which open Domain this spot is inside, or -1. They're only ever out in town. */
+export function domainAt(zone: ZoneId, x: number, z: number): number {
+  if (zone !== 'town') return -1;
+  return openDomains.findIndex((d) => Math.hypot(x - d.x, z - d.z) < DOMAIN_R);
 }
 export const inBooth = (zone: ZoneId, x: number, z: number): boolean => boothAt(zone, x, z) >= 0;
 /** The church's booth, as a rectangle and its two seats (it stands square to the room). */

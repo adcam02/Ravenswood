@@ -22,6 +22,9 @@ import { applyNomPose, clearNomPose, nomEndOf, NomShow, type NomFrame } from '..
 import type { ExecMethod } from '../src/state/types';
 import { CHAIR_Y, FELT_Y, PK_TABLE, RL_LOOK, SLOTS, bjSeat, bjSpot, pkSeat, rlSeat, slStool } from '../src/world/town/casinoLayout';
 import { PIECES, freeSpot, type FlatItem } from '../src/flats/catalogue';
+import { DONKEY_SPOTS, DonkeyView } from '../src/world/donkey';
+import { DomainFx } from '../src/world/domainFx';
+import { resolve } from '../src/world/collide';
 
 const q = new URLSearchParams(location.search);
 const num = (k: string, d: number) => (q.has(k) ? Number(q.get(k)) : d);
@@ -188,6 +191,13 @@ if (q.has('stools')) {
     names.map((name, i) => ({ name, me: i === 0, dead: i === 3 || i === 7, ghostVote: i === 3, stool: STOOLS[(from + i) % STOOLS.length].id, grave: i === 7 ? 'angel' : null })),
   );
   town.setGraves([null, ...GRAVES.map((g) => g.id)].map((grave, i) => ({ name: names[i], grave, epitaph: grave === 'tablet' ? 'Was framed by the Spy' : '' })));
+}
+// ?statues: statue gravestones of all sorts of animals and hats in the churchyard, and on spent ghosts' stools.
+if (q.has('statues')) {
+  const who: [AnimalId, HatId | null][] = [['fox', 'domain'], ['bear', 'tophat'], ['octopus', null], ['kaiju', 'crown'], ['snail', 'witch'], ['penguin', null], ['deer', 'beanie'], ['squid', null]];
+  town.setGraves(who.map(([animal, hat], i) => ({ name: `${animal}`, grave: 'statue', epitaph: i % 2 ? 'Stone cold' : '', statue: { animal, hat } })));
+  town.setMeeting({ n: 8, nominee: null, hand: null, active: false, votes: [] });
+  town.setStoolNames(who.map(([animal, hat], i) => ({ name: animal, me: false, dead: true, ghostVote: false, grave: i % 2 ? 'statue' : null, statue: { animal, hat } })));
 }
 if (q.has('meeting')) town.setMeeting({ n: 8, nominee: 2, nominator: 6, hand: 4, active: true, votes: [0, 4, 6] });
 if (q.has('bell')) town.bellRing();
@@ -482,6 +492,44 @@ if (q.has('walkers')) {
   });
 }
 
+// ?donkeys: the golden donkey at every hiding place in this zone, with ?worth= dollars of gold (default 50); each
+// one's spot is checked against the colliders (window.donkeyClear says how far a player would be pushed off it).
+const donkeys: DonkeyView[] = [];
+if (q.has('donkeys')) {
+  const room = zone === 'town' ? 'town' : zone;
+  const clear: Record<string, number> = {};
+  DONKEY_SPOTS.forEach((s, i) => {
+    if (s.zone !== room) return;
+    const d = new DonkeyView();
+    d.place(s, zone === 'town' ? groundAt(s.x, s.z) : 0);
+    d.setWorth(num('worth', 50));
+    scene.add(d.root);
+    donkeys.push(d);
+    const [x, z] = resolve(s.x, s.z, town.colliders[zone], zone === 'town' ? { kind: 'circle', r: 36 } : { kind: 'rect', hw: 20, hd: 20 });
+    clear[`${i} ${s.where}`] = Math.round(Math.hypot(x - s.x, z - s.z) * 100) / 100;
+  });
+  (window as unknown as { donkeyClear: unknown }).donkeyClear = clear;
+}
+// ?domain=x,z: an open Domain there (facing ?dry=), with a fox and a bear inside, one either side of its grille.
+let domainFx: DomainFx | null = null;
+const standers: AvatarView[] = [];
+if (q.has('domain')) {
+  const [dx, dz] = q.get('domain')!.split(',').map(Number);
+  const ry = num('dry', 0);
+  domainFx = new DomainFx(scene);
+  domainFx.sync([{ id: 'a', owner: 'x', guest: null, x: dx, z: dz, ry, at: 0, until: 1 }], 0, groundAt);
+  (['fox', 'bear'] as AnimalId[]).forEach((animal, i) => {
+    const side = i ? -0.7 : 0.7;
+    const a = new AvatarView(scene, { name: animal, look: { animal, color: ANIMALS.find((x) => x.id === animal)!.colors[0], hat: i ? null : 'domain' }, ghost: false, storyteller: false, isMe: false, role: null, badge: null });
+    const x = dx + Math.cos(ry) * side;
+    const z = dz - Math.sin(ry) * side;
+    a.ground = groundAt(x, z);
+    a.setTarget(x, z, ry + (i ? Math.PI / 2 : -Math.PI / 2), a.ground);
+    a.snap();
+    standers.push(a);
+  });
+}
+
 const clock = new THREE.Clock();
 let frames = 0;
 let shadowRenders = 0;
@@ -524,6 +572,9 @@ function loop() {
       w.update(0.05, frames * 0.05, going ? 'walk' : 'idle', false, false);
     });
   }
+  for (const d of donkeys) d.update(clock.elapsedTime);
+  for (const a of standers) a.update(0.05, frames * 0.05, 'idle', false, false);
+  domainFx?.update(1 + frames * 0.1);
   if (casinoView) town.setCasino(casinoView, benchT0 - Date.now());
   for (const a of sitters) a.update({ anim: 'sit', speed: 0, dt: 0.016, t: clock.elapsedTime });
   if (q.has('sway')) swayUniforms.uSway.value = num('sway', 4);

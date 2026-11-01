@@ -1,4 +1,5 @@
 import { Suspense, useContext, useEffect, useRef, useState } from 'react';
+import { DomainButton } from './components/town/Domain';
 import { TopBar } from './components/TopBar';
 import { SidePanel } from './components/SidePanel';
 import { CrashNote, Guard } from './components/Guard';
@@ -356,6 +357,7 @@ function Player({ room }: { room: string }) {
               <ActionPrompt />
               <div className="player-bottom">
                 <HandSlot />
+                <DomainButton />
                 <EmoteBar />
               </div>
               <JobLayer />

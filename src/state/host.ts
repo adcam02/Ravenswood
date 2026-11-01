@@ -265,6 +265,9 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
     // The automated night's start: only when, never who is being asked what.
     nightFall: g.phase === 'night' && g.autoNight?.on && g.autoNight.night === g.day ? g.autoNight.dusk : undefined,
     dawn: g.dawn ?? null,
+    domains: g.domains?.length ? g.domains : undefined,
+    // He's only about by day, once he's out (where he'll be is settled as the day begins).
+    donkey: g.donkey?.out && g.phase === 'day' && g.donkey.day === g.day ? g.donkey : null,
   };
 }
 

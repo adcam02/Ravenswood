@@ -4,6 +4,7 @@ import type { HatId } from './types';
 import { bearskin, beerhat, bicorne, birthday, centurion, hardhat, reindeer, sharkhat, tiara, topper, trophy } from './hatShop';
 import { bobby, duck, flowerpot, frog, icecream, lampshade, pharaoh, plunger, sushi, ufo } from './hatShop2';
 import { blocky, buns, captain, cheese, duo, fishbowl, fries, fruit, ghosthunter, goose, hero, lavalamp, loo, ogre, parka, plumber, ratchef, sparky, talking, thinking } from './hatShop3';
+import { domain } from './hatShopDomain';
 
 /**
  * The hats players earn and wear. Each is modelled for a reference head about half a metre across, with its origin at
@@ -2303,6 +2304,7 @@ const MAKERS: Record<HatId, () => BuiltHat> = {
   lavalamp,
   fishbowl,
   trophy,
+  domain,
 };
 
 export function buildHat(hat: HatId): BuiltHat | null {

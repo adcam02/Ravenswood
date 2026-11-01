@@ -81,7 +81,7 @@ export const STOOLS: { id: StoolId; name: string; icon: string; price: number }[
   ...GAG_STOOLS,
 ];
 
-export type GraveId = 'cartoon' | 'skull' | 'catstone' | 'obelisk' | 'celtic' | 'tablet' | 'pyramid' | 'angel' | 'crystal' | 'mausoleum' | PopGraveId | GagGraveId;
+export type GraveId = 'cartoon' | 'skull' | 'catstone' | 'obelisk' | 'celtic' | 'tablet' | 'pyramid' | 'angel' | 'crystal' | 'mausoleum' | PopGraveId | GagGraveId | 'statue';
 
 /** Cheapest first. */
 export const GRAVES: { id: GraveId; name: string; icon: string; price: number }[] = [
@@ -97,6 +97,7 @@ export const GRAVES: { id: GraveId; name: string; icon: string; price: number }[
   { id: 'mausoleum', name: 'Mausoleum', icon: '🏛️', price: 140 },
   ...POP_GRAVES,
   ...GAG_GRAVES,
+  { id: 'statue', name: 'A statue of you', icon: '🗿', price: 150 },
 ];
 
 export const stoolKey = (id: StoolId) => `stool:${id}`;

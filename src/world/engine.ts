@@ -7,9 +7,11 @@ import { local, setItem } from '../game/local';
 import { presence } from '../game/presence';
 import { SCORE_OF, type GameJob, type JobResults } from '../jobs/meta';
 import { rememberBest } from '../game/bests';
-import type { DawnReel, DayTimer, ExecMethod, Execution, Nomination, TownAction, TownHall, Visit } from '../state/types';
+import type { DawnReel, DayTimer, DonkeyState, ExecMethod, Execution, Nomination, TownAction, TownHall, Visit } from '../state/types';
 import { ambience } from '../lib/ambience';
-import { doorChime, drumroll, execSound, gavel, gulpSound, munchSound, nomSound, pigeonSound, ropeSnap, visitSound } from '../lib/audio';
+import { domainSound, doorChime, drumroll, execSound, gavel, gulpSound, heeHaw, munchSound, nomSound, pigeonSound, ropeSnap, visitSound } from '../lib/audio';
+import { DomainFx } from './domainFx';
+import { DONKEY_REACH, DONKEY_SPOTS, DonkeyView, donkeyWorth } from './donkey';
 import { clubMusic, songById } from '../lib/disco';
 import { execMethod, showStartAt } from '../game/execution';
 import type { ExecStage, ExecPose } from './exec/stage';
@@ -26,7 +28,7 @@ import { earshot } from '../voice/earshot';
 import { useVoice, voice, type Listener } from '../voice/voice';
 import { AvatarView, type AvatarInfo } from './avatar';
 import { buildAnimal, type Rig } from './animals';
-import { resolve, turnToward } from './collide';
+import { BODY, resolve, turnToward } from './collide';
 import { createTown, GALLOWS_BEAM, GALLOWS_KNOT, GALLOWS_ROPE_REST, type TownWorld } from './town';
 import { BED, BOUNCER, CLUB, CLUB_NAME, COTTAGE_NAMES, DAIS, DOCK, FAIRY_RING, FLATS, FLATS_NAME, GRAVEYARD, MEETING_CENTRE, PIT_CORNERS, PIT_RINGS, ROOM_DOOR, SQUARE_R, STOOL_R, TOWER, TRAPDOOR, atShopCounter, doorPoint, groundAt, onDanceFloor, roadDistance } from './town/layout';
 import { local as localSpot } from './town/kit';
@@ -36,7 +38,6 @@ import { Fireworks } from './fireworks';
 import { victoryAnim } from './victoryShop';
 import { petMoods } from './petMood';
 import { PIE, pieBlocked, pieOn } from '../game/pieRules';
-import { player } from '../net/client';
 import { reportProblem } from '../lib/report';
 import { earn, hatBoost, notePerfect, noteTopJob, tally, useProgress } from '../game/progress';
 import { setHatFxLow } from './hatFx';
@@ -54,10 +55,10 @@ import { CHAIR_Y, FELT_Y, PK_TABLE, RL_LOOK, SLOTS, bjSpot } from './town/casino
 import type { CasinoView } from '../casino/types';
 import { decor, flatNav, flatNow, useDecor } from '../flats/client';
 import { galleryNow, useArt, wantArt } from '../gallery/client';
-import { useClient } from '../net/client';
+import { player, useClient } from '../net/client';
 import { emptyLayout, whyNot } from '../flats/catalogue';
 import { shownName } from '../state/nicks';
-import { nameKey } from '../game/profiles';
+import { money, nameKey } from '../game/profiles';
 
 type TableKind = 'blackjack' | 'poker' | 'roulette' | 'slots';
 /** Who's in a seat at one of the casino's tables (or at a slot machine). */
@@ -139,6 +140,10 @@ import {
   cottageZone,
   DANCES,
   danceOwned,
+  DOMAIN_HAT,
+  DOMAIN_R,
+  setDomains,
+  type DomainState,
   houseOwner,
   flatOwner,
   flatZone,
@@ -226,6 +231,9 @@ export interface WorldView {
   club: { song: string; at: number; by: string };
   /** This morning's replay of the night's deaths (this browser's clock). */
   dawn: DawnReel | null;
+  /** Domains open in town, and today's golden donkey while he's out (this browser's clock). */
+  domains: DomainState[];
+  donkey: DonkeyState | null;
 }
 
 /** What the world asks of the game around it. */
@@ -567,6 +575,14 @@ export class Engine {
   private booth: Station | null = null;
   /** The pet fights in the cellar's rings, and which fight we last went to our corner for. */
   private pitShow: PitShow;
+  /** Open Domains' starry domes, and the one we last got shut out of (so it's said once). */
+  private domainFx: DomainFx;
+  private shutOut = '';
+  /** The golden donkey, whether we're close enough to catch him, the next time he brays, and the find we last told of. */
+  private donkey = new DonkeyView();
+  private nearDonkey = false;
+  private brayAt = 0;
+  private donkeyTold = '';
   private pitCorner = '';
   /** Since when (on the clock) we've been in the booth with someone on the other side, for the achievement. */
   private boothWith: number | null = null;
@@ -600,6 +616,7 @@ export class Engine {
 
     this.town = createTown(this.scene, this.renderer);
     this.pitShow = new PitShow(this.town.groups.cellar);
+    this.domainFx = new DomainFx(this.town.groups.town);
     this.town.groups.town.add(this.fireworks.points);
     this.town.setLowDetail(this.quality === 'low');
     this.town.show('town');
@@ -653,6 +670,7 @@ export class Engine {
     canvas.addEventListener('webglcontextrestored', this.onContextRestored);
 
     game.interact = () => this.interact();
+    game.domain = () => this.toggleDomain();
     flatNav.go = (key) => this.goToFlat(key);
     game.emote = (a) => this.startEmote(a);
     game.sip = () => this.sip();
@@ -747,7 +765,7 @@ export class Engine {
     clubMusic.setLevel(0, false);
     for (const s of this.signs) s.el.remove();
     for (const k of ['interact', 'sip', 'give', 'putAway', 'takeMeetingSeat', 'calledToStool', 'jobCancel'] as const) game[k] = () => {};
-    game.emote = game.goTo = game.jobDone = game.sheepDone = game.bedGame = () => {};
+    game.emote = game.goTo = game.jobDone = game.sheepDone = game.bedGame = game.domain = () => {};
     this.ro.disconnect();
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('pagehide', this.rememberPlace);
@@ -759,6 +777,8 @@ export class Engine {
     this.me?.dispose();
     this.fireworks.dispose();
     this.pitShow.dispose();
+    this.domainFx.dispose();
+    this.donkey.dispose();
     this.renderer.dispose();
     // Hand the graphics memory back now rather than whenever the page tidies up (a player's page builds the
     // town twice: once behind the join screens and again once they're in).
@@ -867,7 +887,7 @@ export class Engine {
       const here = v.seats.filter((s) => v.townHall!.back.includes(s.id)).length;
       label = `Everyone to the square · ${here} of ${v.seats.length} seated`;
     }
-    this.town.setGraves(v.seats.filter((s) => s.dead).map((s) => ({ name: s.name, grave: s.look?.grave ?? null, epitaph: s.look?.epitaph ?? '' })));
+    this.town.setGraves(v.seats.filter((s) => s.dead).map((s) => ({ name: s.name, grave: s.look?.grave ?? null, epitaph: s.look?.epitaph ?? '', statue: s.look && { animal: s.look.animal, hat: s.look.hat } })));
     this.town.setPost(v.seats.map((s) => s.name), v.seats.map((s) => s.mail));
     this.town.setMeeting({
       n: v.seats.length,
@@ -883,7 +903,7 @@ export class Engine {
     });
     // Who sits where round the dais, by the names this viewer calls them.
     this.town.setStoolNames(
-      v.seats.map((s, i) => ({ name: s.name || `Seat ${i + 1}`, dead: s.dead, me: s.id === v.mySeatId, stool: s.look?.stool ?? null, grave: s.look?.grave ?? null, ghostVote: s.ghostVote })),
+      v.seats.map((s, i) => ({ name: s.name || `Seat ${i + 1}`, dead: s.dead, me: s.id === v.mySeatId, stool: s.look?.stool ?? null, grave: s.look?.grave ?? null, ghostVote: s.ghostVote, statue: s.look && { animal: s.look.animal, hat: s.look.hat } })),
     );
 
     // Fish caught since we last looked get a bubble over whoever caught them.
@@ -1256,7 +1276,8 @@ export class Engine {
     if (k === 'e' || k === ' ' || k === 'enter') {
       e.preventDefault();
       this.interact();
-    } else if (k === 'g') this.give();
+    } else if (k === 'x' && this.view?.mode === 'player') this.toggleDomain();
+    else if (k === 'g') this.give();
     else if (k === 'q') this.putAway();
     else if (k === 'm') voice.setMuted(!useVoice.getState().muted);
     else if ((useHud.getState().dances || useHud.getState().emotePick) && /^[1-9]$/.test(k)) {
@@ -1616,6 +1637,97 @@ export class Engine {
     if (this.boothWith !== null && t - this.boothWith > 20 && v.mode === 'player') earn('confess');
   }
 
+  // ---------------------------------------------------------------- Domains and the golden donkey
+
+  /** Domains keep anyone but their owner and guest out, once they have a guest: their edges are walls to the rest. */
+  private domainWalls(v: WorldView | null): Collider[] {
+    const me = v?.mySeatId;
+    if (!v || v.mode !== 'player' || zoneKind(local.zone) !== 'town') return [];
+    return v.domains.filter((d) => d.guest && d.owner !== me && d.guest !== me).map((d) => ({ kind: 'circle' as const, x: d.x, z: d.z, r: DOMAIN_R - BODY + 0.05 }));
+  }
+
+  /**
+   * Open Domains: their domes kept in step (with a whoosh as one opens nearby), the town's booths told where they are
+   * (for earshot and hidden names), and anyone who isn't its owner or guest put back outside one.
+   */
+  private runDomains(t: number, v: WorldView | null) {
+    const list = v?.domains ?? [];
+    setDomains(list);
+    const before = this.domainFx.count;
+    this.domainFx.sync(list, t, groundAt);
+    if (this.domainFx.count > before && zoneKind(local.zone) === 'town' && list.some((d) => Math.hypot(d.x - local.x, d.z - local.z) < 25 && Date.now() - d.at < 4000)) domainSound(true);
+    this.domainFx.update(t);
+    if (!v || v.mode !== 'player' || zoneKind(local.zone) !== 'town') return;
+    const me = v.mySeatId;
+    for (const d of list) {
+      if (!d.guest || d.owner === me || d.guest === me) continue;
+      const dx = local.x - d.x;
+      const dz = local.z - d.z;
+      const r = Math.hypot(dx, dz);
+      if (r >= DOMAIN_R) continue;
+      // Stepped in just as someone else did, and they got there first: back out the way we came.
+      const out = DOMAIN_R + 0.1;
+      local.x = d.x + (r > 0.01 ? dx / r : 1) * out;
+      local.z = d.z + (r > 0.01 ? dz / r : 0) * out;
+      this.me?.setTarget(local.x, local.z, local.ry, 0);
+      this.me?.snap();
+      this.moveTarget = null;
+      if (this.shutOut !== d.id) {
+        this.shutOut = d.id;
+        this.me?.bubble('Someone else is in that Domain', 2200);
+      }
+    }
+  }
+
+  /** The Domain key or button: open one where we stand (if we're wearing the hat), or close ours. */
+  private toggleDomain() {
+    const v = this.view;
+    if (!v || v.mode !== 'player' || !v.mySeatId) return;
+    const mine = v.domains.find((d) => d.owner === v.mySeatId);
+    if (mine) {
+      player.domain(false);
+      return;
+    }
+    if (v.seats.find((s) => s.id === v.mySeatId)?.look?.hat !== DOMAIN_HAT) return;
+    player.domain(true);
+  }
+
+  /** The golden donkey: where he's hiding today (only by day, once he's out), his pile of gold, and his bray. */
+  private runDonkey(t: number, v: WorldView | null) {
+    const d: DonkeyState | null = v?.donkey ?? null;
+    const spot = d && !d.found ? DONKEY_SPOTS[d.spot] : null;
+    const here = Boolean(spot && zoneKind(local.zone) === spot.zone);
+    if (spot && this.donkey.root.parent !== this.town.groups[spot.zone]) this.town.groups[spot.zone].add(this.donkey.root);
+    this.donkey.place(spot, spot ? groundY(spot.zone, spot.x, spot.z) : 0);
+    this.nearDonkey = Boolean(here && spot && v?.mode === 'player' && Math.hypot(spot.x - local.x, spot.z - local.z) < DONKEY_REACH);
+    if (d && spot) {
+      this.donkey.setWorth(donkeyWorth(Date.now() - d.at));
+      this.donkey.update(t);
+      // Now and then a quiet hee-haw, for anyone near enough to hear it.
+      if (here && t > this.brayAt) {
+        this.brayAt = t + 14 + Math.random() * 12;
+        const far = Math.hypot(spot.x - local.x, spot.z - local.z);
+        if (far < 16) heeHaw(Math.max(0.15, 1 - far / 16));
+      }
+    }
+    // Found: everyone hears who found him, and for how much.
+    if (d?.found && this.donkeyTold !== `${d.day}:${d.found.at}`) {
+      this.donkeyTold = `${d.day}:${d.found.at}`;
+      if (Date.now() - d.found.at < 15000) {
+        const mine = d.found.seat === v?.mySeatId;
+        ui.toast(mine ? `You found the golden donkey: ${money(d.found.amount)}! 🫏✨` : `${d.found.name} found the golden donkey: ${money(d.found.amount)}! 🫏✨`, 'good');
+      }
+    }
+  }
+
+  private catchDonkey() {
+    const v = this.view;
+    if (!v?.donkey || v.mode !== 'player') return;
+    this.moveTarget = null;
+    this.emote = { anim: 'cheer', until: this.clock.elapsedTime + 1.6 };
+    player.donkey();
+  }
+
   private hasClubPass(v: WorldView): boolean {
     return this.clubPass === `${v.day}:${v.phase}`;
   }
@@ -1733,6 +1845,10 @@ export class Engine {
     if (!this.me || this.view?.paused || this.job || this.bedGame || this.frozen || this.dawn || this.pinned()) return;
     if (this.inBed) {
       if (useHud.getState().sheep === 'offer' && !useHud.getState().bedMenu && !useHud.getState().draw) useHud.setState({ sheep: 'playing' });
+      return;
+    }
+    if (this.nearDonkey) {
+      this.catchDonkey();
       return;
     }
     const s = this.nearStation;
@@ -2252,6 +2368,8 @@ export class Engine {
     this.runDawn(t, v);
     this.runPigeons(t, v);
     this.runPit(dt, t, v);
+    this.runDomains(t, v);
+    this.runDonkey(t, v);
     // Unlock popups wait while something everyone should watch is on screen.
     const drama = Boolean(this.show || this.visit || this.dawn || this.slay || this.nom);
     if (drama !== useHud.getState().drama) useHud.setState({ drama });
@@ -2390,6 +2508,7 @@ export class Engine {
           if (key === 'st' || p.zone !== local.zone) continue;
           if (Math.hypot(p.x - local.x, p.z - local.z) < 3) people.push({ kind: 'circle', x: p.x, z: p.z, r: 0.3 });
         }
+        people.push(...this.domainWalls(this.view));
       }
       const [rx, rz] = resolve(nx, nz, people.length ? [...colliders, ...people] : colliders, bounds);
       const progress = Math.hypot(rx - local.x, rz - local.z);
@@ -2731,6 +2850,7 @@ export class Engine {
       const sheep = useHud.getState().sheep;
       prompt = sheep === 'offer' ? { label: 'Count the sheep', key: 'E' } : sheep === 'playing' ? null : { label: 'Fast asleep until morning', key: '', locked: true };
     } else if (this.nearDoor?.locked && best?.job !== 'bouncer') prompt = { label: this.nearDoor.locked, key: '', locked: true };
+    else if (this.nearDonkey && v.donkey) prompt = { label: `Catch the golden donkey! (${money(donkeyWorth(Date.now() - v.donkey.at))})`, key: 'E' };
     else if (best) {
       let label = best.label;
       let locked = false;

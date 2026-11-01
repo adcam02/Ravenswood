@@ -376,6 +376,10 @@ class ClientLink {
       if (typeof msg.zone === 'string' && Number.isFinite(msg.x) && Number.isFinite(msg.z)) game.summoned(msg.zone, msg.x, msg.z);
     } else if (msg.t === 'seat') {
       game.calledToStool();
+    } else if (msg.t === 'domain') {
+      if (!msg.ok) ui.toast(typeof msg.why === 'string' ? msg.why.slice(0, 120) : 'The Domain wouldn’t open', 'info');
+    } else if (msg.t === 'donkey') {
+      if (!msg.ok) ui.toast(typeof msg.why === 'string' ? msg.why.slice(0, 120) : 'He got away!', 'info');
     } else if (msg.t === 'art') {
       receiveArt(msg.p);
     }
@@ -468,4 +472,8 @@ export const player = {
   pit: (a: PitAction) => clientLink.send({ t: 'pit', a }),
   /** Call a pie-eating contest, join or leave one, or send the bites taken so far. */
   pie: (a: PieAction) => clientLink.send({ t: 'pie', a }),
+  /** Open a Domain where we stand, or close ours. */
+  domain: (open: boolean) => clientLink.send({ t: 'domain', open }),
+  /** Caught the golden donkey. */
+  donkey: () => clientLink.send({ t: 'donkey' }),
 };

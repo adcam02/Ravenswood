@@ -322,6 +322,26 @@ export function coin(): THREE.Group {
  * The Infinite Void: a great starry dome round the two of them (seen from inside, so from the camera it's the dark
  * sky behind them), a dark starry floor, and a ring of light where it meets the boards. Radius 1: scale it.
  */
+
+/** A round dot of light, bright in the middle and fading to nothing at its edge (shared, never freed). */
+let dotTex: THREE.Texture | null = null;
+function softDot(): THREE.Texture {
+  if (dotTex) return dotTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const g = c.getContext('2d')!;
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.25, 'rgba(255,255,255,0.85)');
+  grad.addColorStop(0.6, 'rgba(255,255,255,0.2)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  dotTex = new THREE.CanvasTexture(c);
+  dotTex.colorSpace = THREE.SRGBColorSpace;
+  return dotTex;
+}
+
 export function voidDome(): { group: THREE.Group; materials: THREE.MeshBasicMaterial[]; dispose(): void } {
   const group = new THREE.Group();
   const sky = glow('#0a0820');
@@ -355,7 +375,8 @@ export function voidDome(): { group: THREE.Group; materials: THREE.MeshBasicMate
   const starGeo = new THREE.BufferGeometry();
   starGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   starGeo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  const starMat = new THREE.PointsMaterial({ size: 0.06, vertexColors: true, transparent: true, depthWrite: false, sizeAttenuation: true });
+  // (Round, soft-edged stars rather than the square points they'd otherwise be.)
+  const starMat = new THREE.PointsMaterial({ size: 0.08, map: softDot(), vertexColors: true, transparent: true, depthWrite: false, sizeAttenuation: true, blending: THREE.AdditiveBlending });
   const stars = new THREE.Points(starGeo, starMat);
   const rimMat = glow('#9ab8ff', 0.8);
   const rim = new THREE.Mesh(new THREE.TorusGeometry(1, 0.012, 6, 64).rotateX(Math.PI / 2), rimMat);

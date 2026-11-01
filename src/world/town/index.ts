@@ -51,6 +51,7 @@ import type { FlatScene } from './flats';
 import type { CasinoView } from '../../casino/types';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { ghostGeometry, graveObject, spentStoolGeometry, stoolGeometry, stoolMaterial } from './stools';
+import { statueKey, type StatueLook } from './statue';
 import type { GraveId, StoolId } from '../stoolShop';
 
 /** How the gallows looks at a moment of the hanging. */
@@ -105,9 +106,9 @@ export interface TownWorld {
    * `stool`: the design its player sits on; a dead player's stool is ghostly while `ghostVote` is unused, and their
    * gravestone (`grave`, small) once it's spent.
    */
-  setStoolNames(seats: { name: string; dead: boolean; me: boolean; stool?: StoolId | null; grave?: GraveId | null; ghostVote?: boolean }[]): void;
+  setStoolNames(seats: { name: string; dead: boolean; me: boolean; stool?: StoolId | null; grave?: GraveId | null; ghostVote?: boolean; statue?: StatueLook | null }[]): void;
   /** Gravestones for the dead, by seat name, each with its design and a line under the name if they chose them. */
-  setGraves(list: (string | { name: string; grave?: GraveId | null; epitaph?: string })[]): void;
+  setGraves(list: (string | { name: string; grave?: GraveId | null; epitaph?: string; statue?: StatueLook | null })[]): void;
   /** The post office's letterboxes: everyone's name in grimoire order, and whose have letters waiting. */
   setPost(names: string[], mail: boolean[]): void;
   /** The night gallery's board: what they were asked to draw, and the pieces in the order they hang. */
@@ -660,9 +661,9 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     return b.geometry();
   })();
   const stoneMat = matte();
-  const graves = new Keeper<{ id: string; name: string; i: number; grave: GraveId | null; epitaph: string }>(outdoor.group, (g) => {
+  const graves = new Keeper<{ id: string; name: string; i: number; grave: GraveId | null; epitaph: string; statue: StatueLook | null }>(outdoor.group, (g) => {
     // The stone its player chose (town/stools.ts), on a mound of grass.
-    const group = graveObject(g.grave, g.name, g.epitaph);
+    const group = graveObject(g.grave, g.name, g.epitaph, g.statue);
     const mound = new THREE.Mesh(stoneGeo, stoneMat);
     mound.receiveShadow = true;
     // Every grave shares these, so taking one away mustn't free them.
@@ -799,7 +800,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
   const ghostMat = new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true, opacity: 0.85, emissive: '#cfe0ff', emissiveIntensity: 0.45 });
   const ghosts: THREE.Mesh[] = [];
   /** What each stool looks like, by grimoire order (see setStoolNames). */
-  let stoolLooks: { stool: StoolId | null; grave: GraveId | null; ghost: 'vote' | 'spent' | null }[] = [];
+  let stoolLooks: { stool: StoolId | null; grave: GraveId | null; ghost: 'vote' | 'spent' | null; statue: StatueLook | null }[] = [];
   let stoolLooksKey = '';
   let nomineeStool: number | null = null;
   const stools: THREE.Mesh[] = [];
@@ -839,14 +840,14 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     });
   // Each stool as its player chose it, ghostly or a gravestone for the dead, red for the nominee.
   const dressStools = () => {
-    const key = stoolLooks.map((l) => `${l.stool}:${l.grave}:${l.ghost}`).join('|');
+    const key = stoolLooks.map((l) => `${l.stool}:${l.grave}:${l.ghost}:${l.grave === 'statue' && l.statue ? statueKey(l.statue) : ''}`).join('|');
     if (key !== stoolLooksKey) {
       stoolLooksKey = key;
       shadowDirty = true;
     }
     stools.forEach((s, i) => {
       const look = i < stoolCount ? stoolLooks[i] : undefined;
-      const geo = look?.ghost === 'spent' ? spentStoolGeometry(look.grave) : stoolGeometry(look?.stool);
+      const geo = look?.ghost === 'spent' ? spentStoolGeometry(look.grave, look.statue) : stoolGeometry(look?.stool);
       if (s.geometry !== geo) s.geometry = geo;
       s.material = i === nomineeStool ? nomineeMat : look?.ghost === 'vote' ? ghostStoolMat : stoolMat;
       // (A see-through stool casts no shadow.)
@@ -1419,7 +1420,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
         tag.el.classList.toggle('is-dead', s.dead);
         tag.el.classList.toggle('is-me', s.me);
       });
-      stoolLooks = seats.map((s) => ({ stool: s.stool ?? null, grave: s.grave ?? null, ghost: s.dead ? (s.ghostVote === false ? 'spent' : 'vote') : null }));
+      stoolLooks = seats.map((s) => ({ stool: s.stool ?? null, grave: s.grave ?? null, ghost: s.dead ? (s.ghostVote === false ? 'spent' : 'vote') : null, statue: s.statue ?? null }));
       dressStools();
       placeStoolTags();
     },
@@ -1434,8 +1435,10 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
 
     setGraves(list) {
       const all = list.map((x) => (typeof x === 'string' ? { name: x } : x));
-      graves.sync(all.map(({ name, grave = null, epitaph = '' }, i) => ({ id: `${i}:${name}:${grave ?? ''}:${epitaph}`, name, i, grave, epitaph })));
-      const key = all.map((x) => `${x.name}:${x.grave ?? ''}:${x.epitaph ?? ''}`).join('|');
+      // (A statue is of whoever lies there, so it changes with their animal and hat.)
+      const who = (grave: GraveId | null, statue: StatueLook | null | undefined) => (grave === 'statue' && statue ? statueKey(statue) : '');
+      graves.sync(all.map(({ name, grave = null, epitaph = '', statue = null }, i) => ({ id: `${i}:${name}:${grave ?? ''}:${epitaph}:${who(grave, statue)}`, name, i, grave, epitaph, statue })));
+      const key = all.map((x) => `${x.name}:${x.grave ?? ''}:${x.epitaph ?? ''}:${who(x.grave ?? null, x.statue)}`).join('|');
       if (key !== gravesKey) {
         gravesKey = key;
         shadowDirty = true;

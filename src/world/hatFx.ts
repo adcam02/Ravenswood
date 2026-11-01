@@ -22,6 +22,7 @@ export const HAT_FX: Partial<Record<HatId, string>> = {
   knight: 'rose petals falling for the hero',
   pumpkin: 'spooky embers and a few bats',
   astronaut: 'a little planet in orbit',
+  domain: 'a cold blue shimmer and drifting starlight',
 };
 
 let low = new URLSearchParams(location.search).get('fx') === 'low';
@@ -238,6 +239,12 @@ interface Pool {
 type Layer = Motes | Aura | Pool;
 
 const FX: Partial<Record<HatId, Layer[]>> = {
+  // The Domain Expansioner: an untouchable blue shimmer round them, and starlight spiralling slowly up.
+  domain: [
+    { kind: 'aura', color: '#7ab4ff', strength: 0.4 },
+    { kind: 'pool', color: '#6a7aff', strength: 0.3 },
+    { kind: 'motes', mode: 'rise', n: 16, glyphs: ['twinkle', 'star', 'dot'], colors: ['#d4ecff', '#9a8cff', '#ffffff'], size: [0.09, 0.16], period: [3.2, 4.6], out: [1.0, 1.3], y: 0.05, y1: 1.2, swirl: 3, spin: 1.4, twinkle: 0.7 },
+  ],
   // The Crown of Midas: the grandest. A warm golden glow round them and on the ground, and gold glints rising.
   trophy: [
     { kind: 'aura', color: '#ffd458', strength: 0.6 },
