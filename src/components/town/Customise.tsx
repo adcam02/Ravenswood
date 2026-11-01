@@ -13,7 +13,7 @@ import { shownName } from '../../state/nicks';
  */
 /** The same stool, gravestone and epitaph (what the Seat tab changes). */
 const sameSeat = (a: Look, b: Look) =>
-  (a.stool ?? null) === (b.stool ?? null) && (a.grave ?? null) === (b.grave ?? null) && (a.epitaph ?? '') === (b.epitaph ?? '') && (a.win ?? null) === (b.win ?? null);
+  (a.stool ?? null) === (b.stool ?? null) && (a.grave ?? null) === (b.grave ?? null) && (a.epitaph ?? '') === (b.epitaph ?? '') && (a.win ?? null) === (b.win ?? null) && (a.nom ?? null) === (b.nom ?? null);
 
 export function CustomiseModal() {
   const view = useView();

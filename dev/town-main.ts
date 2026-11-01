@@ -10,13 +10,15 @@ import { createTown } from '../src/world/town';
 import { swayUniforms } from '../src/world/town/fx';
 import { ANIMALS, BOOTHS, animalInfo, emptyTown, type AnimalId, type HatId, type PetId, type Weather, type ZoneKind } from '../src/world/types';
 import { buildAnimal } from '../src/world/animals';
-import { BED, DAIS, MEETING_CENTRE, groundAt } from '../src/world/town/layout';
+import { BED, DAIS, MEETING_CENTRE, groundAt, meetingSpot } from '../src/world/town/layout';
 import { NightVisit, bendVictim } from '../src/world/visit';
 import { PigeonFlight } from '../src/world/pigeon';
 import { AvatarView } from '../src/world/avatar';
 import type { ExecStage } from '../src/world/exec/stage';
 import { EXEC_CAM, execCamera, makeStage, SlayStage } from '../src/world/exec/shows';
 import type { SlayMoveId } from '../src/game/slayMoves';
+import type { NomMoveId } from '../src/game/nomMoves';
+import { applyNomPose, clearNomPose, nomEndOf, NomShow, type NomFrame } from '../src/world/nomShow';
 import type { ExecMethod } from '../src/state/types';
 import { CHAIR_Y, FELT_Y, PK_TABLE, RL_LOOK, SLOTS, bjSeat, bjSpot, pkSeat, rlSeat, slStool } from '../src/world/town/casinoLayout';
 import { PIECES, freeSpot, type FlatItem } from '../src/flats/catalogue';
@@ -561,3 +563,49 @@ function loop() {
   }
 }
 loop();
+// ?nom=plane&et=2.8: a nomination's show held at et seconds in, round the meeting circle (&n= stools): a bear
+// (&by=, on stool &nby=) nominating a fox (&to=, on stool &nto=). window.nomAt({...}) shows another.
+let nomShow: { show: NomShow; rigs: ReturnType<typeof buildAnimal>[] } | null = null;
+function nomAt(o: { nom: string; et: number; by?: string; to?: string; n?: number; nby?: number; nto?: number }) {
+  nomShow?.show.dispose();
+  nomShow?.rigs.forEach((r) => (r.root.removeFromParent(), r.dispose()));
+  const n = o.n ?? 8;
+  town.setMeeting({ n, nominee: o.nto ?? 4, nominator: o.nby ?? 0, hand: null, active: true, votes: [] });
+  const rig = (animal: string, i: number) => {
+    const r = buildAnimal({ animal: animal as never, color: ANIMALS.find((a) => a.id === animal)?.colors[0] ?? '#e2793a', hat: null });
+    const s = meetingSpot(i, n);
+    r.root.position.set(s.x, DAIS.top + 0.42, s.z);
+    r.root.rotation.y = s.ry;
+    town.groups.town.add(r.root);
+    return r;
+  };
+  const by = rig(o.by ?? 'bear', o.nby ?? 0);
+  const to = rig(o.to ?? 'fox', o.nto ?? 4);
+  const show = new NomShow(o.nom as NomMoveId);
+  town.groups.town.add(show.group);
+  nomShow = { show, rigs: [by, to] };
+  let f: NomFrame | null = null;
+  const base = [by, to].map((r) => r.root.position.clone());
+  const rys = [by, to].map((r) => r.root.rotation.y);
+  for (let x = 0; ; x = Math.min(o.et, x + 1 / 30)) {
+    const ends = [by, to].map((r, i) => nomEndOf(r.root, r.headHeight, DAIS.top, rys[i]));
+    f = show.update(x, ends[0], ends[1], camera, innerWidth / innerHeight);
+    [by, to].forEach((r, i) => {
+      const p = i ? f!.target : f!.by;
+      r.update({ anim: p?.anim ?? 'sit', speed: 0, dt: 1 / 30, t: x });
+      r.root.position.copy(base[i]);
+      r.root.rotation.z = 0;
+      r.root.rotation.y = rys[i];
+      if (p) applyNomPose(r.root, p);
+      else clearNomPose(r.root);
+      r.root.updateMatrixWorld(true);
+    });
+    camera.position.copy(f.pos);
+    camera.lookAt(f.look);
+    if (x >= o.et) break;
+  }
+  camera.near = f?.close ? 0.1 : 0.3;
+  camera.updateProjectionMatrix();
+}
+(window as unknown as { nomAt: typeof nomAt }).nomAt = nomAt;
+if (q.has('nom')) nomAt({ nom: q.get('nom')!, et: num('et', 2.8), by: q.get('by') ?? undefined, to: q.get('to') ?? undefined, n: num('n', 8), nby: num('nby', 0), nto: num('nto', 4) });

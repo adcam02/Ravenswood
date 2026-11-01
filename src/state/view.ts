@@ -223,8 +223,12 @@ export function usePlayerView(): View | null {
       }),
       fabled: pub.fabled,
       // (Whoever has the floor before the vote, until when in this browser's clock.)
-      nomination: pub.nomination?.speech
-        ? { ...pub.nomination, speech: { ...pub.nomination.speech, until: pub.nomination.speech.until - (clockOffset ?? 0) } }
+      nomination: pub.nomination
+        ? {
+            ...pub.nomination,
+            speech: pub.nomination.speech ? { ...pub.nomination.speech, until: pub.nomination.speech.until - (clockOffset ?? 0) } : pub.nomination.speech,
+            at: pub.nomination.at === undefined ? undefined : pub.nomination.at - (clockOffset ?? 0),
+          }
         : pub.nomination,
       marked: pub.marked,
       history: pub.history,

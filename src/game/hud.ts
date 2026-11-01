@@ -5,7 +5,7 @@ import type { AnimalId, Anim, Item } from '../world/types';
 import { PICK_DANCES, PICK_EMOTES } from '../world/emotes';
 
 /** The shop's shelves. */
-export type ShopTab = 'pets' | 'hats' | 'dances' | 'seats' | 'graves' | 'slay' | 'emotes' | 'win';
+export type ShopTab = 'pets' | 'hats' | 'dances' | 'seats' | 'graves' | 'slay' | 'emotes' | 'win' | 'nom';
 
 export interface Prompt {
   label: string;
@@ -68,6 +68,8 @@ interface Hud {
   dawnReel: { line: string; n: number; of: number; key: string } | null;
   /** A Slayer claim playing out in the square: its caption, and then how it went. */
   slayReel: { line: string; then: string | null; key: string } | null;
+  /** A nomination's little show at the meeting (see world/nomShow.ts): its caption. Cleared to skip it. */
+  nomReel: { line: string; key: string } | null;
 }
 
 export const useHud = create<Hud>(() => ({
@@ -96,6 +98,7 @@ export const useHud = create<Hud>(() => ({
   pigeon: null,
   dawnReel: null,
   slayReel: null,
+  nomReel: null,
 }));
 
 /** Commands from the on-screen buttons to the 3D world. The world fills these in when it starts. */

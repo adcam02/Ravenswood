@@ -3,6 +3,7 @@
  * things players leave around town (drinks on the bar, washing on the line, flowers in the beds).
  * Plain data only, so the game state and network messages can use it without pulling in three.js.
  */
+import { fixNom, type NomMoveId } from '../game/nomMoves';
 import { cleanEpitaph, fixGrave, fixStool, type GraveId, type StoolId } from './stoolShop';
 import type { EmoteAnim } from './emotes';
 import { fixVictory, type VictoryId } from './victoryShop';
@@ -147,6 +148,8 @@ export interface Look {
   epitaph?: string;
   /** Their victory move, for the lineup when their team wins (bought at the shop, see victoryShop.ts). */
   win?: VictoryId | null;
+  /** How they nominate at a meeting (bought at the shop, see game/nomMoves.ts); none is the paper aeroplane. */
+  nom?: NomMoveId | null;
 }
 
 // ---------------------------------------------------------------- pets, bought at the casino (see casino/shop.ts)
@@ -678,6 +681,8 @@ export function fixLook(look: Partial<Look> | null | undefined): Look {
   if (epitaph) out.epitaph = epitaph;
   const win = fixVictory(look?.win);
   if (win) out.win = win;
+  const nom = fixNom(look?.nom);
+  if (nom) out.nom = nom;
   return out;
 }
 
@@ -748,7 +753,10 @@ export type Anim =
   | 'vogue'
   | 'cancan'
   /** A victory move, in the lineup at the end of a game (see victoryShop.ts). */
-  | `win:${VictoryId}`;
+  | `win:${VictoryId}`
+  /** A nomination's show (see nomShow.ts): a paw pointing straight out across the circle, and a shocked gasp. */
+  | 'point'
+  | 'gasp';
 
 export const EMOTES: { anim: Anim; label: string; key: string }[] = [
   { anim: 'wave', label: 'Wave', key: '1' },

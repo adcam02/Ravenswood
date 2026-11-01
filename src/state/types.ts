@@ -4,6 +4,7 @@ import type { CasinoAction, CasinoView } from '../casino/types';
 import type { FlatAction, FlatView } from '../flats/catalogue';
 import type { ArtPart, GalleryAction, GalleryView } from '../gallery/types';
 import type { BakeKind, ClothKind, DrinkKind, FlowerKind, Item, Look, PetId, Pose, Progress, TownState, Weather } from '../world/types';
+import type { NomMoveId } from '../game/nomMoves';
 
 export type Phase = 'night' | 'day';
 
@@ -56,6 +57,9 @@ export interface Nomination {
    * while), then open discussion until the Storyteller starts the vote.
    */
   speech?: NominationSpeech | null;
+  /** When it started (host clock; a player's view has it in their own clock), and the nominator's move for the show. */
+  at?: number;
+  move?: NomMoveId;
 }
 
 /**

@@ -3089,6 +3089,26 @@ class AnimalRig implements Rig {
         this.reach(P, 'both', sh.y - 0.2, this.front + this.pawR, 0, 'paw');
         P.try = sin(t * 9) * 0.3;
         break;
+      case 'point':
+        // A paw straight out in front and up a little, leaning into it, chin up: "You!"
+        this.reach(P, 'r', sh.y + this.reachLength() * 0.55, sh.z + this.reachLength() * 1.1, 0.01);
+        this.freePaw(P);
+        P.brx = 0.07;
+        P.hrx = -0.1;
+        P.by = Math.abs(sin(t * 3)) * 0.01;
+        P.try = sin(t * 7) * 0.3;
+        break;
+      case 'gasp': {
+        // Paws to the cheeks (clear of the face), head thrown back a touch, ears up.
+        const m = this.headNow(this.mouth, -0.22 + prof.head - prof.lean);
+        this.reach(P, 'both', m.y + 0.02, this.faceFront(m.y) - this.pawR - 0.04, this.besideHead(-0.02), 'paw');
+        P.hrx = -0.22;
+        P.brx = -0.06;
+        P.by = 0.01;
+        aux(A, 'earL')[0] = aux(A, 'earR')[0] = -0.3;
+        aux(A, 'stalkL')[0] = aux(A, 'stalkR')[0] = -0.3;
+        break;
+      }
       case 'cry':
         P.hrx = 0.34 + sin(t * 12) * 0.03;
         {

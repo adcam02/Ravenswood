@@ -520,6 +520,8 @@ class HostLink {
     if (look.grave && !profileOf({ name })?.items.includes(`grave:${look.grave}`)) look.grave = null;
     // And the victory moves.
     if (look.win && !ownsVictory(look.win, profileOf({ name })?.items)) look.win = null;
+    // And the ways to nominate.
+    if (look.nom && !profileOf({ name })?.items.includes(`nom:${look.nom}`)) look.nom = null;
     const refused = st.fromPlayer.join(playerId, name, look);
     if (refused) link.send({ t: 'taken', animal: refused.taken, by: refused.by });
   }

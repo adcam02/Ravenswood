@@ -16,6 +16,7 @@ import { SeatPicks } from './SeatPicks';
 import { HotbarPicks, usePreviewAnim } from './HotbarPicks';
 import { VictoryPicks } from './VictoryPicks';
 import { victoryAnim, type VictoryId } from '../../world/victoryShop';
+import { NomPicks } from './NomPicks';
 
 type Step = 'name' | 'animal' | 'mic';
 
@@ -188,7 +189,7 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
   );
 }
 
-export type PickTab = 'animal' | 'hat' | 'pet' | 'seat' | 'emotes' | 'win';
+export type PickTab = 'animal' | 'hat' | 'pet' | 'seat' | 'emotes' | 'win' | 'nom';
 const TABS: { id: PickTab; label: string; icon: string }[] = [
   { id: 'animal', label: 'Animal', icon: '🦊' },
   { id: 'hat', label: 'Hats', icon: '🎩' },
@@ -196,6 +197,7 @@ const TABS: { id: PickTab; label: string; icon: string }[] = [
   { id: 'seat', label: 'Seat', icon: '🪑' },
   { id: 'emotes', label: 'Emotes', icon: '🎭' },
   { id: 'win', label: 'Victory', icon: '🏆' },
+  { id: 'nom', label: 'Nominate', icon: '👉' },
 ];
 
 /**
@@ -316,6 +318,8 @@ export function LookEditor({
           <HotbarPicks />
         ) : tab === 'win' ? (
           <VictoryPicks look={look} setLook={setLook} trying={trying} setTrying={setTrying} />
+        ) : tab === 'nom' ? (
+          <NomPicks look={look} setLook={setLook} />
         ) : (
           <DressUp tab={tab} look={look} setLook={setLook} />
         )}

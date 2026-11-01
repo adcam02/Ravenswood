@@ -9,12 +9,14 @@ import { SCORE_OF, type GameJob, type JobResults } from '../jobs/meta';
 import { rememberBest } from '../game/bests';
 import type { DawnReel, DayTimer, ExecMethod, Execution, Nomination, TownAction, TownHall, Visit } from '../state/types';
 import { ambience } from '../lib/ambience';
-import { doorChime, drumroll, execSound, gavel, gulpSound, munchSound, pigeonSound, ropeSnap, visitSound } from '../lib/audio';
+import { doorChime, drumroll, execSound, gavel, gulpSound, munchSound, nomSound, pigeonSound, ropeSnap, visitSound } from '../lib/audio';
 import { clubMusic, songById } from '../lib/disco';
 import { execMethod, showStartAt } from '../game/execution';
 import type { ExecStage, ExecPose } from './exec/stage';
 import type { SlayStage } from './exec/slay';
 import { isSlayMove, slayMove, type SlayMoveId } from '../game/slayMoves';
+import type { NomMoveId } from '../game/nomMoves';
+import type { NomEnd, NomFrame, NomPose, NomShow } from './nomShow';
 import { SOUL } from './exec/soul';
 import type { NightVisit, VictimPose } from './visit';
 import { lazyModule } from '../lib/lazy';
@@ -114,6 +116,11 @@ const DAWN = { visit: 6.4, from: 1.2, quiet: 3.4, quietAt: 1.0 };
 // loads, whichever comes first): nobody needs them for the first look at the town.
 const execShows = lazyModule(() => import('./exec/shows'));
 const nightVisits = lazyModule(() => import('./visit'));
+const nomShows = lazyModule(() => import('./nomShow'));
+/** A nomination's show plays only as it starts: not for anyone joining (or coming back) more than this long after. */
+const NOM_LATE_MS = 3500;
+/** And it starts this long after the nomination does, on every screen, so the state has reached everyone. */
+const NOM_LEAD_MS = 400;
 /** Even with nothing changing, the shadow map is redrawn this often, just in case. */
 const SHADOW_SAFETY_S = 10;
 /** Out in town, at least this long between redraws of the shadow map for things changing (see frame). */
@@ -509,6 +516,14 @@ export class Engine {
   private slayQueue: { id: string; by: string; target: string; move: SlayMoveId; kill: boolean; settled: number }[] = [];
   /** Tests can hold a Slayer show at a moment, in seconds. */
   slayFreeze: number | null = null;
+  /**
+   * A nomination's little show at the meeting (see nomShow.ts): who nominated whom (`by` null for the Storyteller),
+   * how, and when it starts (Date.now()). `seen` is the last nomination noticed, so it never plays twice.
+   */
+  private nom: { pair: string; by: string | null; target: string; move: NomMoveId; start: number; show: NomShow | null; frame: NomFrame | null } | null = null;
+  private nomSeen: { pair: string; at: number } | null = null;
+  /** Tests can hold a nomination's show at a moment, in seconds. */
+  nomFreeze: number | null = null;
   /** The Storyteller hovering higher than usual, over someone's bed. */
   private hoverY = 0;
   /** The ground under us, eased, for walking up and down steps. */
@@ -796,6 +811,14 @@ export class Engine {
 
     const nom = v.nomination;
     const meeting = Boolean(nom || v.townHall);
+    // A nomination just made: its show, for everyone in the square (once, and only as it starts).
+    if (nom?.at) {
+      const pair = `${nom.nominatorId}>${nom.nomineeId}`;
+      if (!this.nomSeen || this.nomSeen.pair !== pair || Math.abs(this.nomSeen.at - nom.at) > 3000) {
+        this.nomSeen = { pair, at: nom.at };
+        if (Date.now() - nom.at < NOM_LATE_MS && !v.ended) this.beginNom(v, nom, pair);
+      }
+    }
     const handOn = nom && (nom.status === 'running' || nom.status === 'paused' || nom.status === 'done') ? (nom.step === 0 ? nom.nomineeId : nom.order[nom.step - 1]) : null;
     // (The stools set out for the end of the game aren't a bell call: celebrate() seats everyone itself.)
     const newCall = v.townHall && !v.ended && (!prev?.townHall || prev.townHall.ring !== v.townHall.ring || prev.townHall.id !== v.townHall.id);
@@ -2211,12 +2234,13 @@ export class Engine {
 
     this.runShow(t);
     this.runSlay(t, v);
+    this.runNom(v);
     this.runVisit(t, v);
     this.runDawn(t, v);
     this.runPigeons(t, v);
     this.runPit(dt, t, v);
     // Unlock popups wait while something everyone should watch is on screen.
-    const drama = Boolean(this.show || this.visit || this.dawn || this.slay);
+    const drama = Boolean(this.show || this.visit || this.dawn || this.slay || this.nom);
     if (drama !== useHud.getState().drama) useHud.setState({ drama });
     if (this.me && v) this.moveMe(dt, t, v);
     if (v) this.runClub(v);
@@ -2434,7 +2458,9 @@ export class Engine {
     me.setVisible(!this.dawn);
     // (A prestige hat's glow would only get in the way of the show.)
     me.setHatFxShown(!this.show?.mine && !this.inSlay(v.mySeatId));
-    me.update(dt, t, anim, local.speaking, false);
+    // (Only drawn so: what others see of us comes from their own copy of the show.)
+    const np = this.nomPose(v.mode === 'st' ? 'st' : v.mySeatId);
+    me.update(dt, t, np?.anim ?? anim, local.speaking, false);
     me.rig.root.rotation.z = (dangle?.swing ?? 0) + (this.visit?.mine && this.victimPose ? this.victimPose.shake : 0);
     if (this.visit?.mine && this.victimPose) me.rig.root.position.y += this.victimPose.dy;
     me.rig.root.scale.setScalar(dangle?.scale ?? 1);
@@ -2442,6 +2468,7 @@ export class Engine {
     // Down in the dark under the gallows (or through the bed), their name tag goes too.
     me.setTagShown(!dangle?.hidden && !(this.visit?.mine && this.victimPose?.hidden));
     if (staged) this.applyStagePose(me, staged);
+    this.applyNom(me, v.mode === 'st' ? 'st' : v.mySeatId, np);
 
     this.checkDoors(v, moving, dx, dz);
     this.checkStations(v);
@@ -2936,6 +2963,95 @@ export class Engine {
       execSound('twinkle');
     }
     if (age > (show.mine ? end : end + 0.8)) this.endShow();
+  }
+
+  // ---------------------------------------------------------------- a nomination's show
+
+  /** A nomination has just started: its show begins in a moment, on every screen at once. */
+  private beginNom(v: WorldView, nom: Nomination, pair: string) {
+    this.endNom();
+    if (local.zone !== 'town' || this.show || this.slay || this.dawn) return;
+    this.nom = { pair, by: nom.nominatorId, target: nom.nomineeId, move: nom.move ?? 'plane', start: nom.at! + NOM_LEAD_MS, show: null, frame: null };
+    nomShows.want();
+    const name = (id: string | null) => (id ? shownName(v.seats.find((s) => s.id === id)?.name || 'Someone') : 'The Storyteller');
+    useHud.setState({ nomReel: { line: `${name(nom.nominatorId)} nominates ${name(nom.nomineeId)}!`, key: pair } });
+  }
+
+  /** The show, a frame of it: over when it ends, is skipped, or the nomination goes (or we leave the square). */
+  private runNom(v: WorldView | null) {
+    const n = this.nom;
+    if (!n) return;
+    const nv = v?.nomination;
+    const reel = useHud.getState().nomReel;
+    if (!v || v.ended || !nv || `${nv.nominatorId}>${nv.nomineeId}` !== n.pair || local.zone !== 'town' || this.show || this.slay || reel?.key !== n.pair) return this.endNom();
+    const age = this.nomFreeze ?? (Date.now() - n.start) / 1000;
+    const mod = nomShows.now();
+    if (!mod) {
+      // Still on its way (a slow line): a beat late, or not at all.
+      nomShows.want();
+      if (age > 2) this.endNom();
+      return;
+    }
+    if (age > mod.NOM.end) return this.endNom();
+    if (!n.show) {
+      n.show = new mod.NomShow(n.move, nomSound);
+      this.town.groups.town.add(n.show.group);
+    }
+    n.frame = n.show.update(Math.max(0, age), this.nomEnd(v, n.by, n.target), this.nomEnd(v, n.target, n.by), this.camera, this.camera.aspect);
+  }
+
+  /** Where one of the two is for the show: their animal if it's here, or their stool round the dais if not. */
+  private nomEnd(v: WorldView, id: string | null, other: string | null): NomEnd {
+    const mod = nomShows.now()!;
+    const av = this.nomAvatar(v, id ?? 'st');
+    if (av?.shown) return mod.nomEndOf(av.rig.root, av.rig.headHeight, av.ground, av.ry);
+    const n = v.seats.length;
+    const i = v.seats.findIndex((s) => s.id === id);
+    // (The Storyteller not about: from up over the dais, towards whoever it is.)
+    const j = v.seats.findIndex((s) => s.id === other);
+    const spot = i >= 0 ? this.town.meetingSpot(i, n) : { x: MEETING_CENTRE.x, z: MEETING_CENTRE.z, ry: j >= 0 ? this.town.meetingSpot(j, n).ry + Math.PI : 0 };
+    const y = i >= 0 ? STOOL_Y : DAIS.top + 0.6;
+    return { face: new THREE.Vector3(spot.x, y + 0.8, spot.z), fwd: new THREE.Vector3(Math.sin(spot.ry), 0, Math.cos(spot.ry)), top: 0.95, floor: DAIS.top };
+  }
+
+  /** Someone's animal by seat id ('st' for the Storyteller), ours included. */
+  private nomAvatar(v: WorldView | null, key: string): AvatarView | null | undefined {
+    const mine = v?.mode === 'st' ? 'st' : v?.mySeatId;
+    return key === mine ? this.me : this.others.get(key);
+  }
+
+  /** How the show has someone this frame, if they're one of the two (null otherwise, or between their moments). */
+  private nomPose(key: string | null | undefined): NomPose | null {
+    const n = this.nom;
+    if (!n?.frame || key === undefined || key === null) return null;
+    if (key === n.target) return n.frame.target;
+    return key === (n.by ?? 'st') ? n.frame.by : null;
+  }
+
+  /** Puts one of the two in the show's pose (their name tag out of the shot), or straight again between moments. */
+  private applyNom(av: AvatarView, key: string | null | undefined, np: NomPose | null) {
+    const n = this.nom;
+    if (!n?.frame || !key || (key !== n.target && key !== (n.by ?? 'st'))) return;
+    const mod = nomShows.now();
+    if (np && mod) mod.applyNomPose(av.rig.root, np);
+    else av.rig.root.rotation.x = 0;
+    av.setTagShown(false);
+  }
+
+  /** Over: the props go, the two of them are put straight, and the caption goes. */
+  private endNom() {
+    const n = this.nom;
+    if (!n) return;
+    this.nom = null;
+    n.show?.dispose();
+    const v = this.view;
+    for (const id of [n.by ?? 'st', n.target]) {
+      const av = this.nomAvatar(v, id);
+      if (!av) continue;
+      nomShows.now()?.clearNomPose(av.rig.root);
+      av.setTagShown(true);
+    }
+    if (useHud.getState().nomReel?.key === n.pair) useHud.setState({ nomReel: null });
   }
 
   // ---------------------------------------------------------------- the Slayer
@@ -3549,6 +3665,8 @@ export class Engine {
       av.setHatFxShown(!hidden && this.show?.seatId !== key && !this.inSlay(key));
       av.setTagShown(!dangle?.hidden && !hidden && !this.tablemates.has(key) && (v.mode === 'st' || key === 'st' || far < TAG_FAR || p.speaking || Boolean(p.shout)));
       av.setVoiceState(Boolean(p.muted), Boolean(p.shout));
+      const np = this.nomPose(key);
+      if (np?.anim) anim = np.anim;
       av.update(dt, t, anim, p.speaking, true);
       const jolt = this.visit && !this.visit.mine && this.visit.seatId === key ? this.victimPose : null;
       av.rig.root.rotation.z = (dangle?.swing ?? 0) + (jolt?.shake ?? 0);
@@ -3559,6 +3677,7 @@ export class Engine {
         if (jolt.hidden) av.setTagShown(false);
       }
       if (staged) this.applyStagePose(av, staged);
+      this.applyNom(av, key, np);
     }
     for (const [key, av] of this.others) {
       if (!seen.has(key)) {
@@ -3667,6 +3786,10 @@ export class Engine {
       const shot = this.gallowsShot(t);
       wantPos.copy(shot.pos);
       wantLook.copy(shot.look);
+    } else if (this.nom?.frame && zoneKind(local.zone) === 'town') {
+      // A nomination's show: the nominator, the flight across, and the close-up.
+      wantPos.copy(this.nom.frame.pos);
+      wantLook.copy(this.nom.frame.look);
     } else if (this.pinned()) {
       // On our stool at a town meeting: from behind our seat, looking down into the middle of the circle, far
       // enough back that every stool (and whoever is on it) is in the shot.
@@ -3700,7 +3823,7 @@ export class Engine {
     // The near plane sits as far out as the shot allows: depth precision depends mostly on it, and a close
     // near plane makes faces a hair apart (trims on panelling, rugs on floors) shimmer. Only the
     // over-the-shoulder book shot needs to see things right in front of the lens.
-    const near = this.view?.reading || this.tableCam ? 0.1 : 1.0;
+    const near = this.view?.reading || this.tableCam || this.nom?.frame?.close ? 0.1 : 1.0;
     if (this.camera.near !== near) {
       this.camera.near = near;
       this.camera.updateProjectionMatrix();
@@ -3734,6 +3857,8 @@ export class Engine {
     // Closing in on the book (or pulling back over the meeting) is a slow swoop; everything else follows closely.
     let ease = this.view?.reading || this.pinned() || this.tableCam ? 1 - Math.exp(-dt * 4) : this.show ? 1 - Math.exp(-dt * 6) : 1 - Math.exp(-dt * 9);
     if (!this.me && !this.view?.reading) ease = 1;
+    // A nomination's show whips along quickly, and cuts from one shot to the next.
+    if (this.nom?.frame) ease = this.nom.frame.cut ? 1 : 1 - Math.exp(-dt * 10);
     // (A cut, from one death to the next.)
     if (this.dawn?.cut) {
       this.dawn.cut = false;

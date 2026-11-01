@@ -67,3 +67,38 @@ export function SlayReel() {
     </div>
   );
 }
+
+/**
+ * A nomination's little show at the meeting (see the engine's nomination show): thin bars and who nominated whom,
+ * with a button to skip it (just for you).
+ */
+export function NomReel() {
+  const reel = useHud((s) => s.nomReel);
+  const on = Boolean(reel);
+  // (The meeting's own panels step out of the picture too, for the few seconds it lasts.)
+  useEffect(() => {
+    document.body.classList.toggle('dawn-on', on);
+    document.body.classList.toggle('nom-on', on);
+    return () => document.body.classList.remove('dawn-on', 'nom-on');
+  }, [on]);
+  useEffect(() => {
+    if (!on) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && useHud.setState({ nomReel: null });
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [on]);
+  if (!reel) return null;
+  return (
+    <div className="dawn-reel slay-reel nom-reel" role="status" aria-live="polite">
+      <div className="dawn-bar top" aria-hidden="true" />
+      <div className="dawn-bar bottom">
+        <p key={reel.key} className="dawn-line">
+          {reel.line}
+        </p>
+        <button className="cosy-btn dawn-skip" onClick={() => useHud.setState({ nomReel: null })} title="Skip the rest (just for you)">
+          Skip ⏭
+        </button>
+      </div>
+    </div>
+  );
+}

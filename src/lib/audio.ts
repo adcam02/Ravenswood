@@ -1662,3 +1662,88 @@ export function munchSound() {
     src.start(at);
   }
 }
+
+/**
+ * A nomination's little show at the meeting (see world/nomShow.ts), kept quiet: a call, a whoosh, a boop where it
+ * lands, a whistle, a slap, a coo and flap, a meow, a cannon's pop, a gavel's knock, the gasp and the dun dun DUN.
+ */
+export function nomSound(name: string) {
+  const c = audio();
+  if (!c) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.value = 0.55;
+  out.connect(c.destination);
+  switch (name) {
+    case 'call':
+      blip(c, out, t, 0.18, 'triangle', 520, 780, 0.1);
+      break;
+    case 'whistle':
+      // A referee's two blasts, with a trill.
+      tone(c, out, t, 0.22, 2600, 2500, 0.06, 'sine', 40, 120, 0.8);
+      tone(c, out, t + 0.28, 0.45, 2600, 2450, 0.06, 'sine', 40, 120, 0.85);
+      break;
+    case 'objection':
+      blip(c, out, t, 0.25, 'square', 330, 300, 0.05);
+      blip(c, out, t + 0.02, 0.25, 'square', 415, 380, 0.04);
+      hush(c, out, t, 0.2, 'bandpass', 1400, 900, 0.08, 2);
+      break;
+    case 'spot':
+      // The clunk of a big lamp switched on.
+      blip(c, out, t, 0.12, 'square', 120, 60, 0.08);
+      hush(c, out, t, 0.1, 'highpass', 3000, 3000, 0.06);
+      break;
+    case 'whoosh':
+      rush(c, out, t, 0.55, 500, 2200, 0.09);
+      break;
+    case 'zap':
+      tone(c, out, t, 0.6, 1800, 1700, 0.025, 'sine', 30, 60, 0.9);
+      break;
+    case 'flap':
+      for (let k = 0; k < 6; k++) hush(c, out, t + k * 0.11, 0.08, 'bandpass', 900, 500, 0.06, 1.5);
+      tone(c, out, t + 0.1, 0.3, 520, 420, 0.04, 'sine', 9, 30);
+      break;
+    case 'cannon':
+      blip(c, out, t, 0.3, 'sine', 160, 50, 0.2);
+      hush(c, out, t, 0.35, 'lowpass', 2400, 300, 0.14);
+      break;
+    case 'boop':
+      blip(c, out, t, 0.16, 'sine', 900, 1500, 0.12);
+      blip(c, out, t + 0.09, 0.2, 'sine', 1200, 1800, 0.08);
+      break;
+    case 'slap':
+      hush(c, out, t, 0.12, 'highpass', 2200, 1200, 0.25);
+      blip(c, out, t, 0.1, 'sine', 260, 120, 0.12);
+      break;
+    case 'gavel':
+      for (let k = 0; k < 3; k++) {
+        blip(c, out, t + k * 0.16, 0.14, 'square', 220, 110, 0.07);
+        hush(c, out, t + k * 0.16, 0.08, 'bandpass', 1800, 900, 0.12, 2);
+      }
+      break;
+    case 'meow':
+      tone(c, out, t, 0.45, 600, 900, 0.06, 'triangle', 6, 40, 0.3);
+      break;
+    case 'party':
+      for (let k = 0; k < 5; k++) hush(c, out, t + k * 0.04, 0.08, 'highpass', 2600, 2600, 0.08);
+      blip(c, out, t + 0.2, 0.4, 'sawtooth', 520, 780, 0.025);
+      break;
+    case 'gasp':
+      rush(c, out, t, 0.35, 900, 2600, 0.06, 'bandpass', 2);
+      break;
+    case 'shiver':
+      tone(c, out, t, 0.9, 300, 280, 0.03, 'triangle', 18, 25);
+      break;
+    case 'faint':
+      tone(c, out, t, 0.9, 700, 180, 0.05, 'triangle', 5, 20);
+      break;
+    case 'dun':
+      blip(c, out, t, 0.35, 'sawtooth', 147, 140, 0.06);
+      blip(c, out, t, 0.35, 'sine', 73, 70, 0.12);
+      break;
+    case 'dun2':
+      blip(c, out, t, 0.9, 'sawtooth', 139, 120, 0.07);
+      blip(c, out, t, 0.9, 'sine', 69, 60, 0.14);
+      break;
+  }
+}

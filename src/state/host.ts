@@ -15,6 +15,7 @@ import { SONGS } from '../lib/disco';
 import { ui } from './ui';
 import { debit, profileOf } from '../game/profiles';
 import { isSlayMove, ownsSlay } from '../game/slayMoves';
+import { NOM_SHOW_MS, ownsNom, type NomMoveId } from '../game/nomMoves';
 import { pitPublic } from '../game/pitRules';
 import {
   ANIMALS,
@@ -366,6 +367,13 @@ export function nominateWhy(block: NominateBlock, targetName = 'They'): string {
 
 /** Seconds each for the accusation and the defence before a vote, unless the Storyteller has changed it (0 is off). */
 export const SPEECH_SECS = 30;
+/** A nominator's move, as long as they own it (a dead nominator still has theirs); the paper aeroplane otherwise. */
+function nomMoveOf(g: GameState, seatId: string | null): NomMoveId {
+  const s = seatId ? g.seats.find((x) => x.id === seatId) : null;
+  const id = s?.look?.nom;
+  return id && s?.playerId && ownsNom(id, profileOf({ player: s.playerId })?.items) ? id : 'plane';
+}
+
 export const speechSecs = (g: { speechSecs?: number }) => g.speechSecs ?? SPEECH_SECS;
 
 /** Why a pigeon can't fly just now: by night, or while the town is busy with a nomination and its vote. */
@@ -1234,13 +1242,16 @@ export const st = {
         status: 'idle',
         countdown: 0,
         secondsPerPlayer: prev?.secondsPerPlayer ?? 2,
+        // The little show everyone sees as it starts (see world/nomShow.ts): the nominator's own move, if they own it.
+        at: Date.now(),
+        move: nomMoveOf(g, nominatorId),
       };
-      // First the nominator makes their case, then the nominee defends themselves, then the vote.
+      // First the nominator makes their case, then the nominee defends themselves, then the vote. (The talking
+      // stick waits for the show.)
       const secs = speechSecs(g);
       if (secs > 0) {
-        g.nomination.speech = nominatorId
-          ? { kind: 'accuse', seatId: nominatorId, until: Date.now() + secs * 1000 }
-          : { kind: 'defend', seatId: nomineeId, until: Date.now() + secs * 1000 };
+        const until = Date.now() + secs * 1000 + NOM_SHOW_MS;
+        g.nomination.speech = nominatorId ? { kind: 'accuse', seatId: nominatorId, until } : { kind: 'defend', seatId: nomineeId, until };
       }
       // Players who asked to nominate find out what came of it: this is theirs, or someone got there first.
       for (const r of g.nomRequests ?? []) {

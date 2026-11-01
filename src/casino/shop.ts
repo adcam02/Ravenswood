@@ -3,6 +3,7 @@ import { BUY_EMOTES, buyEmote } from '../world/emotes';
 import { GRAVES, STOOLS } from '../world/stoolShop';
 import { SLAY_MOVES } from '../game/slayMoves';
 import { VICTORY_MOVES } from '../world/victoryShop';
+import { NOM_MOVES } from '../game/nomMoves';
 
 /**
  * The pet shop's prices. Each pet has a tier; a pet not listed here (a new one) is a fancy one. A game pays
@@ -135,9 +136,11 @@ export const shopEmotes = () => [...BUY_EMOTES].sort((a, b) => a.price - b.price
 /** The victory moves on sale, cheapest first (the fist pump is everyone's already). */
 export const shopVictories = () => VICTORY_MOVES.filter((m) => m.price).sort((a, b) => a.price! - b.price! || a.name.localeCompare(b.name));
 export const shopSlayMoves = () => SLAY_MOVES.filter((m) => m.price).sort((a, b) => a.price! - b.price!);
+/** The nomination moves on sale, cheapest first (the paper aeroplane is everyone's already). */
+export const shopNomMoves = () => NOM_MOVES.filter((m) => m.price).sort((a, b) => a.price! - b.price!);
 
 /** Something on sale besides pets, by its key ('hat:topper', 'dance:worm'): what it is, its name and its price. */
-export function wareOf(key: string): { kind: 'hat' | 'dance' | 'stool' | 'grave' | 'slay' | 'emote' | 'win'; id: string; name: string; price: number } | null {
+export function wareOf(key: string): { kind: 'hat' | 'dance' | 'stool' | 'grave' | 'slay' | 'emote' | 'win' | 'nom'; id: string; name: string; price: number } | null {
   const [kind, id] = key.split(':');
   if (kind === 'hat') {
     const h = HATS.find((x) => x.id === id && x.price);
@@ -165,6 +168,10 @@ export function wareOf(key: string): { kind: 'hat' | 'dance' | 'stool' | 'grave'
     const m = VICTORY_MOVES.find((x) => x.id === id && x.price);
     return m ? { kind, id: m.id, name: m.name, price: m.price! } : null;
   }
+  if (kind === 'nom') {
+    const m = NOM_MOVES.find((x) => x.id === id && x.price);
+    return m ? { kind, id: m.id, name: m.name, price: m.price! } : null;
+  }
   return null;
 }
 export const hatKey = (hat: HatId) => `hat:${hat}`;
@@ -179,6 +186,7 @@ export function boughtNote(ware: NonNullable<ReturnType<typeof wareOf>>): string
   if (ware.kind === 'grave') return `${ware.name}: yours! Choose it from here or from Customise.`;
   if (ware.kind === 'emote') return `${ware.name}: yours! Put it on your emote bar from Customise, or find it in the Emotes picker.`;
   if (ware.kind === 'win') return `${ware.name}: yours! Choose it in Customise (the Victory tab) for when your team wins.`;
+  if (ware.kind === 'nom') return `${ware.name}: yours! Choose it from here or from Customise, and nominate in style.`;
   if (ware.kind === 'slay') return `${ware.name}: yours! Choose it in the Slayer box when you claim.`;
   return `${ware.name}: yours! It’s in your Dances now.`;
 }
