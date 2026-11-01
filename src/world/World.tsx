@@ -95,6 +95,7 @@ function toWorldView(view: View | null, mode: 'st' | 'player' | 'preview', pause
     pigeons: view.pigeons,
     pigeonNotes: view.pigeonNotes,
     pit: view.pit,
+    pie: view.pie,
     club: view.club,
     dawn: view.dawn,
   };

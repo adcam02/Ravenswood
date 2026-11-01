@@ -64,6 +64,26 @@ function PitPanel() {
     </Guard>
   );
 }
+
+const PieLazy = lazyPart(() => import('./components/town/PieContest').then((m) => m.PiePanel));
+
+/** The pie-eating contest, for anyone in the tavern while one's on (or just over). */
+function PiePanel() {
+  const [here, setHere] = useState(false);
+  const on = useView().pie !== null;
+  useEffect(() => {
+    const t = setInterval(() => setHere(zoneKind(local.zone) === 'tavern'), 300);
+    return () => clearInterval(t);
+  }, []);
+  if (!here || !on) return null;
+  return (
+    <Guard fallback={() => null}>
+      <Suspense fallback={null}>
+        <PieLazy />
+      </Suspense>
+    </Guard>
+  );
+}
 import { Toasts } from './components/Toasts';
 import { BluffBar } from './components/BluffBar';
 import { PickBanner } from './components/PickBanner';
@@ -112,7 +132,7 @@ import { hostLink } from './net/host';
 import { notes } from './state/notes';
 import { voice } from './voice/voice';
 import { useUI } from './state/ui';
-import { ModeContext, usePlayerView, useStorytellerView, ViewContext } from './state/view';
+import { ModeContext, usePlayerView, useStorytellerView, ViewContext, useView } from './state/view';
 import { Icon } from './components/Icon';
 import { BedLetters } from './components/Letters';
 import { PigeonNote } from './components/Pigeon';
@@ -232,6 +252,7 @@ function Storyteller() {
               <JobLayer />
               <NoticeBoard />
               <PitPanel />
+              <PiePanel />
               <CasinoPanels />
               <FlatsPanels />
             </>
@@ -349,6 +370,7 @@ function Player({ room }: { room: string }) {
               <NomReel />
               <DayClock />
               <PitPanel />
+              <PiePanel />
               <ProgressWatcher />
               <NoticeBoard />
               <CasinoPanels />

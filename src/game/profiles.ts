@@ -371,6 +371,28 @@ export function credit(who: Who, amount: number, why: string): boolean {
   return true;
 }
 
+/**
+ * A party game's prize (the pie-eating contest), under the minigames' rules: its top prize once a day, and inside the
+ * day's cap (`PAY.jobDaily`). Returns what was paid (0 once they've had today's, or hit the cap).
+ */
+export function payGame(who: Who, game: string, amount: number, why: string): number {
+  const name = nameOf(who);
+  if (!name || !(amount > 0)) return 0;
+  ensure(name);
+  const day = today();
+  const p = useProfiles.getState().profiles[nameKey(name)];
+  const paid = p.jobPay?.day === day ? p.jobPay.paid : 0;
+  const tops = p.jobTops?.day === day ? p.jobTops.jobs : [];
+  const n = Math.min(Math.round(amount), PAY.jobDaily - paid);
+  if (tops.includes(game) || n <= 0) return 0;
+  change(name, (x) => {
+    x.jobPay = { day, paid: paid + n };
+    x.jobTops = { day, jobs: [...tops, game] };
+    addPay(x, n, why);
+  });
+  return n;
+}
+
 /** Takes money from a player if they have that much. Returns whether it did; if not, nothing changes. */
 export function debit(who: Who, amount: number, why: string): boolean {
   const name = nameOf(who);

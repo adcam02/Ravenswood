@@ -3,6 +3,7 @@ import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import * as Animals from './animals';
 import { buildAnimal, buildStoryteller, type Rig } from './animals';
 import { wrapAngle, type Anim, type HatId, type Item, type Look, type PetId } from './types';
+import { PetFeel, type PetMood } from './petMood';
 
 export interface AvatarInfo {
   name: string;
@@ -144,6 +145,11 @@ export class AvatarView {
   /** The height of the ground under this animal (the cobbles, the pier), for its shadow and pet. */
   ground = 0;
   private petRy = 0;
+  /** Which way the pet is turned (kept apart from its root, which a mood may twirl). */
+  private petTurn = 0;
+  /** How the pet feels about what's happening to its owner (petMood.ts), and the bits that show it. */
+  private petMood: PetMood | null = null;
+  private feel: PetFeel | null = null;
   private detail: 'high' | 'low' = 'high';
   private hand: THREE.Group | null = null;
   /** Whether a prestige hat's effect is shown (see setHatFxShown). */
@@ -262,10 +268,13 @@ export class AvatarView {
         AvatarView.noShadows(this.pet.root);
         this.petPos.set(this.x - 0.6, 0, this.z + 0.6);
         this.pet.root.position.copy(this.petPos);
-        this.scene.add(this.pet.root);
-      }
+        this.feel ??= new PetFeel();
+        this.feel.measure(this.pet.root);
+        this.scene.add(this.pet.root, this.feel.group);
+      } else if (this.feel) this.feel.group.visible = false;
     }
-    this.pet?.setGhost(ghost);
+    // (A pet mourning at its owner's grave is no ghost.)
+    this.pet?.setGhost(ghost && this.petMood?.kind !== 'mourn');
     const voting = Boolean(info.voting) && !info.storyteller;
     if (voting && (!this.hand || this.hand.parent !== this.rig.root)) {
       this.hand?.removeFromParent();
@@ -428,35 +437,7 @@ export class AvatarView {
     this.blob.position.set(this.x, this.ground + 0.025, this.z);
     this.blob.scale.setScalar(Math.max(0.5, 0.95 - lift * 0.25));
     this.blobMat.opacity = (this.ghost ? 0.35 : 1) * Math.max(0.25, 1 - lift * 0.6);
-    if (this.pet) {
-      // The pet keeps a little behind and to the side of its owner, catching up with a lag.
-      const side = 0.55;
-      const behind = 0.55;
-      const wantX = this.x - Math.sin(this.ry) * behind + Math.cos(this.ry) * side;
-      const wantZ = this.z - Math.cos(this.ry) * behind - Math.sin(this.ry) * side;
-      const dx = wantX - this.petPos.x;
-      const dz = wantZ - this.petPos.z;
-      const gap = Math.hypot(dx, dz);
-      if (gap > 6) this.petPos.set(wantX, 0, wantZ);
-      else {
-        const k = 1 - Math.exp(-dt * 4.5);
-        this.petPos.x += dx * k;
-        this.petPos.z += dz * k;
-      }
-      const moving = gap > 0.12;
-      if (moving) this.petRy = Math.atan2(dx, dz);
-      else {
-        // Standing still, it turns to look at its owner.
-        this.petRy = Math.atan2(this.x - this.petPos.x, this.z - this.petPos.z);
-      }
-      const root = this.pet.root;
-      root.visible = !this.away && !this.petAway;
-      root.position.set(this.petPos.x, this.ground, this.petPos.z);
-      let d = this.petRy - root.rotation.y;
-      d = wrapAngle(d);
-      root.rotation.y += d * Math.min(1, dt * 8);
-      this.pet.update(dt, t, moving);
-    }
+    this.petStep(dt, t);
     if (this.away) return;
     root.position.set(this.x, this.y, this.z);
     root.rotation.y = this.ry;
@@ -481,6 +462,70 @@ export class AvatarView {
   setVoiceState(muted: boolean, shout: boolean) {
     this.el.classList.toggle('is-muted', muted);
     this.el.classList.toggle('is-shouting', shout && !muted);
+  }
+
+  /** The pet keeps a little behind and to the side of its owner, catching up with a lag (or does as it feels). */
+  private petStep(dt: number, t: number) {
+    if (!this.pet) return;
+    const mood = this.petMood;
+    let wantX: number;
+    let wantZ: number;
+    if (mood?.kind === 'mourn') {
+      wantX = mood.x;
+      wantZ = mood.z;
+    } else if (mood?.kind === 'hide') {
+      // Tucked in right behind them.
+      wantX = this.x - Math.sin(this.ry) * 0.55;
+      wantZ = this.z - Math.cos(this.ry) * 0.55;
+    } else {
+      const side = 0.55;
+      const behind = 0.55;
+      wantX = this.x - Math.sin(this.ry) * behind + Math.cos(this.ry) * side;
+      wantZ = this.z - Math.cos(this.ry) * behind - Math.sin(this.ry) * side;
+    }
+    const dx = wantX - this.petPos.x;
+    const dz = wantZ - this.petPos.z;
+    const gap = Math.hypot(dx, dz);
+    if (gap > 6) this.petPos.set(wantX, 0, wantZ);
+    else {
+      const k = 1 - Math.exp(-dt * 4.5);
+      this.petPos.x += dx * k;
+      this.petPos.z += dz * k;
+    }
+    const moving = gap > 0.12;
+    if (moving) this.petRy = Math.atan2(dx, dz);
+    else if (mood?.kind === 'mourn') {
+      // At the grave it faces the stone, but looks up at anyone passing.
+      this.petRy = mood.look ? Math.atan2(mood.look.x - this.petPos.x, mood.look.z - this.petPos.z) : mood.ry;
+    } else if (mood?.kind === 'hide') {
+      // Peeking out the way its owner faces.
+      this.petRy = this.ry;
+    } else {
+      // Standing still, it turns to look at its owner.
+      this.petRy = Math.atan2(this.x - this.petPos.x, this.z - this.petPos.z);
+    }
+    const root = this.pet.root;
+    root.visible = (mood?.kind === 'mourn' ? mood.shown : !this.away) && !this.petAway;
+    root.position.set(this.petPos.x, mood?.kind === 'mourn' ? 0 : this.ground, this.petPos.z);
+    let d = this.petRy - this.petTurn;
+    d = wrapAngle(d);
+    this.petTurn += d * Math.min(1, dt * 8);
+    root.rotation.y = this.petTurn;
+    this.pet.update(dt, t, moving);
+    this.feel?.apply(root, mood, dt, t);
+  }
+
+  /** How the pet feels (see petMood.ts); null for just following along. */
+  setPetMood(mood: PetMood | null) {
+    const was = this.petMood?.kind;
+    this.petMood = mood;
+    if (was !== mood?.kind) this.pet?.setGhost(this.ghost && mood?.kind !== 'mourn');
+  }
+
+  /** The pet of someone elsewhere, mourning at their grave where we are, still needs to move. */
+  tickPet(dt: number, t: number) {
+    if (this.away && this.petMood?.kind === 'mourn') this.petStep(dt, t);
+    else if (this.away && this.pet) this.pet.root.visible = false;
   }
 
   /** The pet is off fighting in the pit (where the pit draws it), so the one at their heels is hidden. */
@@ -513,6 +558,8 @@ export class AvatarView {
     this.pet?.root.removeFromParent();
     this.pet?.dispose();
     this.pet = null;
+    this.feel?.dispose();
+    this.feel = null;
     this.star?.removeFromParent();
     this.star = null;
     this.hand?.removeFromParent();

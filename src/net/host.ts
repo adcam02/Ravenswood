@@ -11,6 +11,7 @@ import { admitDevice, backupCopy, nameKey, profileFor, profileOf, receiveProgres
 import { backups, currentOffer, useBackups } from '../game/backup';
 import { hashDevice, knocks } from '../game/devices';
 import { pit } from '../game/pit';
+import { pie } from '../game/pie';
 import { casinoFor, receiveCasino, startCasino, useCasino } from '../casino/host';
 import { hatKey, isShopHat } from '../casino/shop';
 import { ownsVictory } from '../world/victoryShop';
@@ -150,6 +151,8 @@ class HostLink {
         if (++this.ticks % 10 === 0) st.checkDayTimer();
         // The pet pit's rounds keep time a little more finely.
         if (this.ticks % 2 === 0) pit.tick();
+        // So do the pie-eating contest's, and everyone's bites.
+        if (this.ticks % 2 === 1) pie.tick();
       } catch (e) {
         console.error(e);
       }
@@ -480,6 +483,9 @@ class HostLink {
         break;
       case 'pit':
         pit.fromPlayer(pid, msg.a);
+        break;
+      case 'pie':
+        pie.fromPlayer(pid, msg.a);
         break;
       case 'casino':
         receiveCasino(pid, msg.a);

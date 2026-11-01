@@ -1869,3 +1869,21 @@ export function nomSound(name: string) {
       break;
   }
 }
+
+/** One squelchy bite of pie (quick and quiet, as it's tapped many times a second). */
+export function biteSound() {
+  const c = audio();
+  if (!c) return;
+  const at = c.currentTime + 0.005;
+  const src = noise(c, 0.08);
+  const f = c.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.setValueAtTime(1800 + Math.random() * 600, at);
+  f.frequency.exponentialRampToValueAtTime(400, at + 0.07);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(0.16, at + 0.008);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + 0.075);
+  src.connect(f).connect(g).connect(c.destination);
+  src.start(at);
+}

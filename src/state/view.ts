@@ -3,7 +3,7 @@ import { defaultAlignment, getRole, type Alignment, type Script } from '../data'
 import { useClient } from '../net/client';
 import { useHostNet } from '../net/host';
 import { isTraveller, seatAlignment, useHost, visitFor } from './host';
-import type { AwakeState, DawnReel, DayTimer, DeathRecord, Execution, GameEnd, LetterIn, Nomination, NominationRequest, Phase, Reminder, SlayerShot, TownHall, Visit, VoteRecord, PitState } from './types';
+import type { AwakeState, DawnReel, DayTimer, DeathRecord, Execution, GameEnd, LetterIn, Nomination, NominationRequest, Phase, Reminder, SlayerShot, TownHall, Visit, VoteRecord, PitState, PieContest } from './types';
 import type { Look, TownState, Weather } from '../world/types';
 import { nickFor, useNicks } from './nicks';
 import { SONGS } from '../lib/disco';
@@ -85,11 +85,17 @@ export interface View {
   pigeonNotes: { id: string; name: string; where: string; at: number }[];
   /** The pet pit in the tavern's cellar (times in this browser's clock), or null before it's opened. */
   pit: PitState | null;
+  /** The pie-eating contest at the tavern table (times in this browser's clock). */
+  pie: PieContest | null;
   /** The song on at the club, since when (in this browser's clock), and who put it on ('' for nobody yet). */
   club: { song: string; at: number; by: string };
   /** This morning's replay of the night's deaths (in this browser's clock). */
   dawn: DawnReel | null;
 }
+
+/** The pie contest with its times moved onto this browser's clock. */
+const pieHere = (p: PieContest | null | undefined, offset: number): PieContest | null =>
+  p ? { ...p, until: p.until - offset, began: p.began === undefined ? undefined : p.began - offset } : null;
 
 /** The pit with its times moved onto this browser's clock. */
 function pitHere(p: PitState | undefined, offset: number): PitState | null {
@@ -171,6 +177,7 @@ export function useStorytellerView(): View {
       pigeons: (g.pigeons ?? []).filter((p) => Date.now() - p.at < 60000).map(({ id, to, at }) => ({ id, to, at })),
       pigeonNotes: [],
       pit: pitHere(g.pit && pitPublic(g.pit), 0),
+      pie: pieHere(g.pie, 0),
       club: clubOf(g.town, 0),
       dawn: g.dawn ?? null,
     }),
@@ -249,6 +256,7 @@ export function usePlayerView(): View | null {
       pigeons: (Array.isArray(pub.pigeons) ? pub.pigeons : []).map((p) => ({ ...p, at: p.at - (clockOffset ?? 0) })),
       pigeonNotes: (Array.isArray(priv?.pigeons) ? priv.pigeons : []).map((p) => ({ ...p, at: p.at - (clockOffset ?? 0) })),
       pit: pitHere(pub.pit, clockOffset ?? 0),
+      pie: pieHere(pub.pie, clockOffset ?? 0),
       club: clubOf(pub.town, clockOffset ?? 0),
       dawn: pub.dawn ? { ...pub.dawn, at: pub.dawn.at - (clockOffset ?? 0) } : null,
     };

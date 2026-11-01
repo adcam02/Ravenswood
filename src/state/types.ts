@@ -378,6 +378,8 @@ export interface GameState {
   startedAt?: number;
   /** The pet fights in the tavern's cellar: challenges, the fight in the ring, the board of wins. */
   pit?: PitState;
+  /** The pie-eating contest at the tavern table, while one's gathering, on, or just over. */
+  pie?: PieContest | null;
   /** The game-over question the Storyteller has answered (or that ending the game settled), so it isn't asked again. */
   winDismissed?: string | null;
   awake: Record<string, AwakeState>;
@@ -438,6 +440,8 @@ export interface PublicState {
   deaths?: DeathRecord[];
   /** The pet pit, without anyone's secret pick. */
   pit?: PitState;
+  /** The pie-eating contest at the tavern table. */
+  pie?: PieContest | null;
   /** This morning's replay of the night's deaths. */
   dawn?: DawnReel | null;
   /** The tavern's leaderboard (from everyone's profile, which only the Storyteller has). */
@@ -575,6 +579,33 @@ export interface PitState {
   /** Storyteller only: prizes paid today, by player name. */
   paid?: Record<string, { day: string; wins: number }>;
 }
+
+// ---------------------------------------------------------------- the pie-eating contest
+
+/** Someone at the pie table: how many bites they've taken (a pie is PIE.bites of them). */
+export interface PieEater {
+  seat: string;
+  name: string;
+  bites: number;
+}
+
+export interface PieContest {
+  id: string;
+  /** Gathering eaters, the count of three, eating, and the result. */
+  stage: 'join' | 'count' | 'eat' | 'over';
+  /** When this stage ends (host clock). */
+  until: number;
+  /** When the eating began (host clock). */
+  began?: number;
+  /** Who called it (a seat id). */
+  by: string;
+  eaters: PieEater[];
+  /** How it ended: who won (a seat id) and what they got, or why nobody did. */
+  result?: { winner: string | null; prize: number; why: 'won' | 'time' | 'few' | 'off' };
+}
+
+/** Calling a contest, joining or leaving one before it starts, and the bites taken so far (a running count). */
+export type PieAction = { k: 'start' } | { k: 'join' } | { k: 'leave' } | { k: 'bites'; n: number };
 
 /** Something a player does in the pit. */
 export type PitAction =
@@ -766,6 +797,8 @@ export type ClientMessage =
   | { t: 'progress'; events: ProgressEvent[] }
   /** Challenging someone in the pet pit, answering, or picking a move. */
   | { t: 'pit'; a: PitAction }
+  /** The pie-eating contest: calling one, joining, and bites taken. */
+  | { t: 'pie'; a: PieAction }
   /** A bet, a card, a pet from the shop: everything at the casino. */
   | { t: 'casino'; a: CasinoAction }
   /** The night's drawing and the gallery: sending a drawing, a vote, asking for pictures, keeping a piece. */

@@ -979,6 +979,8 @@ export type JobId =
   | 'ideas'
   /** Read the leaderboard on the tavern wall. */
   | 'leaders'
+  /** Call a pie-eating contest at the tavern table, or pull up a chair at one. */
+  | 'pies'
   /** The casino: the shop's counter (pets, hats, dances), and a seat at either card table. */
   | 'shop'
   | 'blackjack'

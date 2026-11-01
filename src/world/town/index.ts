@@ -16,6 +16,7 @@ import {
   DOCK,
   GALLOWS,
   GRAVEYARD,
+  graveSpot,
   LINE_Y,
   LINE_SLOT_X,
   MEETING_R,
@@ -668,8 +669,8 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
     mound.userData.shared = true;
     group.add(mound);
     // Down the middle of the churchyard, oldest nearest the church.
-    const col = Math.floor(g.i / 8);
-    group.position.set(GRAVEYARD.x + col * 1.3 - 0.65 * Math.min(col, 1), 0, GRAVEYARD.z - 4.4 + (g.i % 8) * 1.25);
+    const at = graveSpot(g.i);
+    group.position.set(at.x, 0, at.z);
     return group;
   });
 

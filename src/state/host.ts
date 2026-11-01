@@ -260,6 +260,7 @@ export function toPublic(g: GameState, online: Set<string>): PublicState {
     // Night deaths stay secret until dawn, so the list only goes out once the game is over.
     deaths: g.ended ? g.deaths : undefined,
     pit: g.pit ? pitPublic(g.pit) : undefined,
+    pie: g.pie ?? null,
     // The automated night's start: only when, never who is being asked what.
     nightFall: g.phase === 'night' && g.autoNight?.on && g.autoNight.night === g.day ? g.autoNight.dusk : undefined,
     dawn: g.dawn ?? null,

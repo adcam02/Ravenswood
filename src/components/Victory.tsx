@@ -8,6 +8,7 @@ import { townCovered } from '../world/engine';
 import { Fireworks } from '../world/fireworks';
 import { AURA, VICTORY_PROPS } from '../world/victoryMoves';
 import { victoryAnim, victoryMove } from '../world/victoryShop';
+import { PetFeel } from '../world/petMood';
 
 const params = new URLSearchParams(location.search);
 const LOW = params.get('fx') === 'low';
@@ -57,6 +58,9 @@ interface Winner {
   seat: SeatView;
   rig: Rig;
   pet: Pet | null;
+  /** Their pet's celebrating, and where it stands. */
+  feel: PetFeel | null;
+  at: { x: number; y: number; z: number };
   /** When their move starts (lineup seconds), one after another down the line. */
   start: number;
   mic: { obj: THREE.Object3D; held: boolean; vy: number } | null;
@@ -205,12 +209,17 @@ export function VictoryLineup({ winner, seats, reason, onDone }: { winner: 'good
       rig.root.traverse((o) => (o.castShadow = (o as THREE.Mesh).isMesh === true));
       scene.add(rig.root);
       let pet: Pet | null = null;
+      let feel: PetFeel | null = null;
       if (seat.look!.pet) {
         pet = buildPet(seat.look!.pet);
         pet.root.position.set(p.x + 0.45, p.y, p.z + 0.4);
         pet.root.rotation.y = -0.35;
         pet.root.traverse((o) => (o.castShadow = (o as THREE.Mesh).isMesh === true));
         scene.add(pet.root);
+        // It celebrates too (world/petMood.ts), once its owner starts.
+        feel = new PetFeel();
+        feel.measure(pet.root);
+        scene.add(feel.group);
       }
       const move = victoryMove(seat.look!.win);
       const mic = VICTORY_PROPS[move.id] ? { obj: microphone(), held: false, vy: 0 } : null;
@@ -221,7 +230,7 @@ export function VictoryLineup({ winner, seats, reason, onDone }: { winner: 'good
         aura.position.set(p.x, p.y + aura.scale.y / 2, p.z);
         scene.add(aura);
       }
-      return { seat, rig, pet, start: 0.9 + i * 0.18, mic, aura };
+      return { seat, rig, pet, feel, at: { x: p.x + 0.45, y: p.y, z: p.z + 0.4 }, start: 0.9 + i * 0.18, mic, aura };
     });
 
     // Framed so the whole team fits under the title, coming in from further out and round to one side.
@@ -279,6 +288,11 @@ export function VictoryLineup({ winner, seats, reason, onDone }: { winner: 'good
         const anim = go ? victoryAnim(w.seat.look!.win) : t > 0.3 ? 'cheer' : 'idle';
         w.rig.update({ anim, speed: 0, dt, t });
         w.pet?.update(dt, t, false);
+        if (w.pet && w.feel) {
+          w.pet.root.position.set(w.at.x, w.at.y, w.at.z);
+          w.pet.root.rotation.y = -0.35;
+          w.feel.apply(w.pet.root, go ? { kind: 'cheer' } : null, dt, t);
+        }
         const into = t - w.start;
         if (w.mic) {
           const prop = VICTORY_PROPS[victoryMove(w.seat.look!.win).id]!;
@@ -340,6 +354,7 @@ export function VictoryLineup({ winner, seats, reason, onDone }: { winner: 'good
         w.rig.holdProp?.(null);
         w.rig.dispose();
         w.pet?.dispose();
+        w.feel?.dispose();
         if (w.aura) (w.aura.material as THREE.Material).dispose();
         if (w.mic) w.mic.obj.traverse((o) => {
           const m = o as THREE.Mesh;

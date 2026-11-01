@@ -34,12 +34,15 @@ import { nearPath } from './town/outdoor';
 import { blocksLine } from './town/occlusion';
 import { Fireworks } from './fireworks';
 import { victoryAnim } from './victoryShop';
+import { petMoods } from './petMood';
+import { PIE, pieBlocked, pieOn } from '../game/pieRules';
+import { player } from '../net/client';
 import { reportProblem } from '../lib/report';
 import { earn, hatBoost, notePerfect, noteTopJob, tally, useProgress } from '../game/progress';
 import { setHatFxLow } from './hatFx';
 import { crowned } from '../game/leaders';
 import { PitShow, pitFightFor } from './pitfight';
-import type { PitState } from '../state/types';
+import type { PieContest, PitState } from '../state/types';
 
 /** Hats are a player's own: the Storyteller doesn't collect them. */
 const isPlayerView = (v: WorldView | null) => v?.mode === 'player';
@@ -219,6 +222,8 @@ export interface WorldView {
   pigeonNotes: { id: string; name: string; where: string; at: number }[];
   /** The pet pit in the tavern's cellar (this browser's clock). */
   pit?: PitState | null;
+  /** The pie-eating contest at the tavern table (this browser's clock). */
+  pie?: PieContest | null;
   /** The song on at the club, since when (this browser's clock), and who put it on. */
   club: { song: string; at: number; by: string };
   /** This morning's replay of the night's deaths (this browser's clock). */
@@ -315,6 +320,7 @@ const SIGN_TEXT: Partial<Record<Station['job'], string>> = {
   ideas: '💡 Idea box',
   shop: '🛍️ Shop',
   leaders: '🏆 Leaderboard',
+  pies: '🥧 Pie contest',
   blackjack: '🃏 Blackjack',
   poker: '♠️ Texas hold’em',
   roulette: '🎡 Roulette',
@@ -1787,6 +1793,8 @@ export class Engine {
       ui.open({ kind: 'jukebox' });
     } else if (s.job === 'leaders') {
       ui.open({ kind: 'leaders' });
+    } else if (s.job === 'pies') {
+      this.pieTable(v);
     } else if (s.job === 'gallery') {
       ui.open({ kind: 'gallery' });
     } else if (s.job === 'ideas') {
@@ -2246,6 +2254,7 @@ export class Engine {
     if (v) this.runClub(v);
     this.updateOthers(dt, t, v);
     this.updatePreview(dt, t);
+    this.tendPets(dt, t, v);
     this.syncCasino(v);
     this.syncFlats(v);
     this.syncGallery(t, v);
@@ -3434,6 +3443,35 @@ export class Engine {
         this.pigeons.delete(id);
       }
     }
+  }
+
+  /** At the pie table: call a contest, or pull up a chair at the one gathering (the panel shows the rest). */
+  private pieTable(v: WorldView | null) {
+    if (v?.mode !== 'player' || !v.mySeatId || !this.me) return this.me?.bubble('Only players eat pies', 2000);
+    const c = v.pie;
+    const why = pieBlocked(v);
+    if (c?.eaters.some((e) => e.seat === v.mySeatId) && pieOn(c)) return this.me.bubble('You’re at the table!', 2000);
+    if (pieOn(c) && c!.stage !== 'join') return this.me.bubble('A contest’s on: wait for the next one', 2200);
+    if (why) return this.me.bubble(why, 2600);
+    if (c?.stage === 'join' && c.eaters.length >= PIE.maxEaters) return this.me.bubble('The table’s full', 2000);
+    player.pie({ k: pieOn(c) ? 'join' : 'start' });
+  }
+
+  /** Pets feel for their owners (petMood.ts): hiding behind them when they're nominated, mourning at their grave, cheering a win. */
+  private tendPets(dt: number, t: number, v: WorldView | null) {
+    if (!v) return;
+    const inTown = local.zone === 'town';
+    const here: { x: number; z: number }[] = [];
+    if (inTown) {
+      if (this.me) here.push({ x: local.x, z: local.z });
+      for (const [key, av] of this.others) if (av.shown && key !== 'st') here.push({ x: av.x, z: av.z });
+    }
+    const moods = petMoods(v, here, inTown);
+    for (const [key, av] of this.others) {
+      av.setPetMood(moods.get(key) ?? null);
+      av.tickPet(dt, t);
+    }
+    this.me?.setPetMood((v.mySeatId && moods.get(v.mySeatId)) || null);
   }
 
   /**

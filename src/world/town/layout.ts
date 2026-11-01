@@ -35,6 +35,11 @@ export const COTTAGE_NAMES = ['The Old Mill', 'Hollow Oak'];
 export const GALLOWS = { x: 8.6, z: 6.2, ry: -Math.PI / 2 };
 /** The churchyard beside the church. */
 export const GRAVEYARD = { x: -8, z: -23, hw: 2.2, hd: 5.6 };
+/** Where the `i`th of the dead lies: down the middle of the churchyard, oldest nearest the church, eight to a row. */
+export const graveSpot = (i: number) => {
+  const col = Math.floor(i / 8);
+  return { x: GRAVEYARD.x + col * 1.3 - 0.65 * Math.min(col, 1), z: GRAVEYARD.z - 4.4 + (i % 8) * 1.25 };
+};
 
 export const face = (fromX: number, fromZ: number, toX: number, toZ: number) => Math.atan2(toX - fromX, toZ - fromZ);
 
@@ -364,6 +369,8 @@ export const TAVERN_TABLES = [
   { x: -4.6, z: 2.6 },
   { x: 3.0, z: 2.4 },
 ];
+/** The table the pie-eating contest is held at. */
+export const PIE_TABLE = TAVERN_TABLES[1];
 export const tableChairs = (t: { x: number; z: number }) =>
   [0, 1, 2].map((k) => {
     const a = (k / 3) * Math.PI * 2 + Math.PI / 6;
@@ -547,6 +554,8 @@ export function makeStations(): Station[] {
       st.push({ id: `chair-${ti}-${i}`, zone: 'tavern', x: c.x, z: c.z, r: 0.9, job: 'sit', stand: c, y: 0.47, label: 'Sit' }),
     ),
   );
+  // The pie-eating contest is held at the right-hand table.
+  st.push({ id: 'pies', zone: 'tavern', x: PIE_TABLE.x, z: PIE_TABLE.z, r: 1.9, job: 'pies', stand: { x: PIE_TABLE.x + 1.15, z: PIE_TABLE.z, ry: -Math.PI / 2 }, label: 'Pie-eating contest' });
   st.push({ id: 'darts', zone: 'tavern', x: 5.4, z: -0.5, r: 1.6, job: 'darts', stand: { x: 5.4, z: -0.5, ry: Math.PI / 2 }, label: 'Throw some darts' });
   st.push({ id: 'leaders', zone: 'tavern', x: LEADERBOARD.x + 1.1, z: LEADERBOARD.z, r: 1.6, job: 'leaders', stand: { x: LEADERBOARD.x + 1.0, z: LEADERBOARD.z, ry: -Math.PI / 2 }, label: 'Read the leaderboard' });
   // The tavern's shop corner, by the end of the bar.
