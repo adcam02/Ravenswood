@@ -157,7 +157,10 @@ export function SlayerPrompt() {
               {target?.dead && ' Everyone sees them as dead already.'}
             </p>
           )}
-          <p>If they’re the Demon, would you like to kill {targetName}? Choose no if {byName} is drunk or poisoned.</p>
+          <p>
+            If they’re the Demon (or register as one, like a Recluse might), would you like to kill {targetName}? Choose no if {byName} is drunk or
+            poisoned.
+          </p>
           {!hide && notes.length > 0 && <p className="slayer-notes">Reminders: {notes.join(' · ')}</p>}
         </>
       ) : (
@@ -168,17 +171,15 @@ export function SlayerPrompt() {
           <p>
             {byName} isn’t the Slayer
             {!hide && byRole ? ` (${by?.shownRoleId === 'slayer' ? `the ${byRole.name}, who only thinks they are` : `they’re the ${byRole.name}`})` : ''}, so
-            nothing happens.
+            nothing should happen, unless you decide otherwise (for example, they picked up the Slayer’s ability some other way).
           </p>
         </>
       )}
       <p className="slayer-notes">Everyone waits for your answer either way, so the pause gives nothing away.</p>
       <div className="slayer-choice">
-        {shot.real && (
-          <button className="btn blood" disabled={waiting} onClick={() => st.settleSlayer(shot.id, true)}>
-            <Icon name="skull" /> Kill {targetName}
-          </button>
-        )}
+        <button className={`btn ${shot.real ? 'blood' : ''}`} disabled={waiting} onClick={() => st.settleSlayer(shot.id, true)}>
+          <Icon name="skull" /> Kill {targetName}
+        </button>
         <button className={`btn ${shot.real ? '' : 'primary'}`} disabled={waiting} onClick={() => st.settleSlayer(shot.id, false)}>
           {waiting ? 'A moment…' : 'Nothing happens'}
         </button>

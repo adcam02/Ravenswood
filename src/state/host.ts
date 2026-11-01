@@ -1526,7 +1526,9 @@ export const st = {
     update((g) => {
       const shot = g.slayer.find((s) => s.id === id);
       if (!shot || shot.result !== 'pending') return;
-      shot.result = kill && shot.real ? 'dies' : 'nothing';
+      // The Storyteller can kill whoever was chosen, whatever the rules say (a Recluse registering as the Demon, a
+      // Philosopher who took the Slayer's ability, a house rule): it's their call.
+      shot.result = kill ? 'dies' : 'nothing';
       shot.settled = Date.now();
       const target = seatOf(g, shot.target);
       if (shot.result === 'dies' && target) {
