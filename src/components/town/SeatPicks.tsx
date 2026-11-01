@@ -157,7 +157,7 @@ function Epitaph({ look, onSave }: { look: Look; onSave: (epitaph: string) => vo
 // ---------------------------------------------------------------- Customise's Seat tab
 
 /** Your stool and gravestone among those you own, and your epitaph, in Customise (saved with the rest). */
-export function SeatPicks({ look, setLook }: { look: Look; setLook: (l: Look) => void }) {
+export function SeatPicks({ look, setLook, only }: { look: Look; setLook: (l: Look) => void; only: 'stool' | 'grave' }) {
   const items = useMyItems();
   const stools = [PLAIN_STOOL, ...STOOLS];
   const graves = [PLAIN_GRAVE, ...GRAVES];
@@ -173,24 +173,35 @@ export function SeatPicks({ look, setLook }: { look: Look; setLook: (l: Look) =>
   const mine = <T extends { id: string | null }>(list: T[], kind: 'stool' | 'grave') => [...list].sort((a, b) => Number(Boolean(a.id) && !items.includes(`${kind}:${a.id}`)) - Number(Boolean(b.id) && !items.includes(`${kind}:${b.id}`)));
   return (
     <>
-      <p className="join-pick-note">
-        Your stool in the circle round the dais, and your gravestone in the churchyard.{' '}
-        <button className="link-btn" onClick={() => useHud.setState({ casino: { kind: 'shop', tab: 'seats', away: true } })}>
-          More at the shop
-        </button>
-      </p>
-      <h3 className="seat-picks-head">🪑 Your stool</h3>
-      <div className="join-items" role="radiogroup" aria-label="Stool">
-        {mine(stools, 'stool').map((s) => tile(`s-${s.id}`, (look.stool ?? null) === s.id, !s.id || items.includes(stoolKey(s.id)), s.name, s.price, <StoolPicture id={s.id} icon={s.icon} />, () => setLook({ ...look, stool: s.id })))}
-      </div>
-      <h3 className="seat-picks-head">🪦 Your gravestone</h3>
-      <div className="join-items" role="radiogroup" aria-label="Gravestone">
-        {mine(graves, 'grave').map((g) => tile(`g-${g.id}`, (look.grave ?? null) === g.id, !g.id || items.includes(graveKey(g.id)), g.name, g.price, <GravePicture id={g.id} icon={g.icon} />, () => setLook({ ...look, grave: g.id })))}
-      </div>
-      <label className="epitaph epitaph-in-picks">
-        <span>On your gravestone, under your name</span>
-        <input className="cosy-input" value={look.epitaph ?? ''} maxLength={EPITAPH_MAX} onChange={(e) => setLook({ ...look, epitaph: e.target.value.slice(0, EPITAPH_MAX) })} placeholder="Here lies a very honest Washerwoman" />
-      </label>
+      {only === 'stool' ? (
+        <>
+          <p className="join-pick-note">
+            Your stool in the circle round the dais, where you sit at every meeting.{' '}
+            <button className="link-btn" onClick={() => useHud.setState({ casino: { kind: 'shop', tab: 'seats', away: true } })}>
+              More at the shop
+            </button>
+          </p>
+          <div className="join-items" role="radiogroup" aria-label="Stool">
+            {mine(stools, 'stool').map((s) => tile(`s-${s.id}`, (look.stool ?? null) === s.id, !s.id || items.includes(stoolKey(s.id)), s.name, s.price, <StoolPicture id={s.id} icon={s.icon} />, () => setLook({ ...look, stool: s.id })))}
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="join-pick-note">
+            Your gravestone in the churchyard, for when you die, and what it says under your name.{' '}
+            <button className="link-btn" onClick={() => useHud.setState({ casino: { kind: 'shop', tab: 'graves', away: true } })}>
+              More at the shop
+            </button>
+          </p>
+          <label className="epitaph epitaph-in-picks">
+            <span>On your gravestone, under your name</span>
+            <input className="cosy-input" value={look.epitaph ?? ''} maxLength={EPITAPH_MAX} onChange={(e) => setLook({ ...look, epitaph: e.target.value.slice(0, EPITAPH_MAX) })} placeholder="Here lies a very honest Washerwoman" />
+          </label>
+          <div className="join-items" role="radiogroup" aria-label="Gravestone">
+            {mine(graves, 'grave').map((g) => tile(`g-${g.id}`, (look.grave ?? null) === g.id, !g.id || items.includes(graveKey(g.id)), g.name, g.price, <GravePicture id={g.id} icon={g.icon} />, () => setLook({ ...look, grave: g.id })))}
+          </div>
+        </>
+      )}
     </>
   );
 }

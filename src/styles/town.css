@@ -3603,3 +3603,21 @@
   color: #b07a1c;
   font-weight: 700;
 }
+
+/* Customise tabs with several lists (seat, emotes, victory, nominate): the whole tab scrolls as one, so each list
+   shows in full instead of each being squeezed into its own little scrolling strip. */
+.pick-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+.pick-scroll .join-items,
+.pick-scroll .join-grid,
+.pick-scroll .shop-grid {
+  flex: none;
+  min-height: auto;
+  max-height: none;
+  overflow: visible;
+}

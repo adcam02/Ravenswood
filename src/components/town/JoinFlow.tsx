@@ -189,12 +189,13 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
   );
 }
 
-export type PickTab = 'animal' | 'hat' | 'pet' | 'seat' | 'emotes' | 'win' | 'nom';
+export type PickTab = 'animal' | 'hat' | 'pet' | 'seat' | 'grave' | 'emotes' | 'win' | 'nom';
 const TABS: { id: PickTab; label: string; icon: string }[] = [
   { id: 'animal', label: 'Animal', icon: '🦊' },
   { id: 'hat', label: 'Hats', icon: '🎩' },
   { id: 'pet', label: 'Pet', icon: '🐾' },
   { id: 'seat', label: 'Seat', icon: '🪑' },
+  { id: 'grave', label: 'Grave', icon: '🪦' },
   { id: 'emotes', label: 'Emotes', icon: '🎭' },
   { id: 'win', label: 'Victory', icon: '🏆' },
   { id: 'nom', label: 'Nominate', icon: '👉' },
@@ -312,14 +313,22 @@ export function LookEditor({
               ))}
             </div>
           </>
-        ) : tab === 'seat' ? (
-          <SeatPicks look={look} setLook={setLook} />
+        ) : tab === 'seat' || tab === 'grave' ? (
+          <div className="pick-scroll">
+            <SeatPicks look={look} setLook={setLook} only={tab === 'seat' ? 'stool' : 'grave'} />
+          </div>
         ) : tab === 'emotes' ? (
-          <HotbarPicks />
+          <div className="pick-scroll">
+            <HotbarPicks />
+          </div>
         ) : tab === 'win' ? (
-          <VictoryPicks look={look} setLook={setLook} trying={trying} setTrying={setTrying} />
+          <div className="pick-scroll">
+            <VictoryPicks look={look} setLook={setLook} trying={trying} setTrying={setTrying} />
+          </div>
         ) : tab === 'nom' ? (
-          <NomPicks look={look} setLook={setLook} />
+          <div className="pick-scroll">
+            <NomPicks look={look} setLook={setLook} />
+          </div>
         ) : (
           <DressUp tab={tab} look={look} setLook={setLook} />
         )}
