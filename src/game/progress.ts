@@ -49,7 +49,7 @@ function load(): Stored {
     seen: list<string>(raw?.seen, 400).filter((x) => typeof x === 'string'),
     coins: Math.max(0, Math.floor(Number(raw?.coins) || 0)),
     pets: list<PetId>(raw?.pets, 40).filter((x) => PETS.some((p) => p.id === x)),
-    items: list<string>(raw?.items, 200).filter((x) => typeof x === 'string'),
+    items: list<string>(raw?.items, 1000).filter((x) => typeof x === 'string'),
     ...(cleanHotbar(raw?.hotbar) ? { hotbar: cleanHotbar(raw?.hotbar)! } : {}),
     owner: typeof raw?.owner === 'string' ? raw.owner : null,
     merged: list<string>(raw?.merged, 20).filter((x) => typeof x === 'string'),

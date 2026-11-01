@@ -4,6 +4,22 @@ import { ui } from '../state/ui';
 import { hostLink } from '../net/host';
 import { RestoreOffer } from './ProfilePrompts';
 import { FEATS, HATS, PETS } from '../world/types';
+import { danceKey, hatKey, shopDances, shopEmotes, shopHats, shopNomMoves, shopSlayMoves, shopVictories } from '../casino/shop';
+import { GRAVES, STOOLS, graveKey, stoolKey } from '../world/stoolShop';
+import { emoteKey } from '../world/emotes';
+import { slayKey } from '../game/slayMoves';
+
+/** Every item the shop sells, as profile keys: for the Storyteller to hand out when testing. */
+const everyItem = () => [
+  ...shopHats().map((h) => hatKey(h.id)),
+  ...shopDances().map((d) => danceKey(d.anim)),
+  ...STOOLS.map((x) => stoolKey(x.id)),
+  ...GRAVES.map((x) => graveKey(x.id)),
+  ...shopSlayMoves().map((m) => slayKey(m.id)),
+  ...shopEmotes().map((e) => emoteKey(e.anim)),
+  ...shopVictories().map((m) => `win:${m.id}`),
+  ...shopNomMoves().map((m) => `nom:${m.id}`),
+];
 import { Icon } from './Icon';
 import { Modal } from './Modal';
 
@@ -126,6 +142,9 @@ function ProfileDetail({ id, p }: { id: string; p: Profile }) {
             <Icon name="minus" /> Take
           </button>
         </div>
+        <button className="btn small" title="Every hat, pet, dance, seat, gravestone, emote and move in the shop, for trying things out" onClick={() => profiles.grantAll(id, everyItem())}>
+          🎁 Give everything (for testing)
+        </button>
       </div>
       <div className="profile-section">
         <span className="eyebrow">

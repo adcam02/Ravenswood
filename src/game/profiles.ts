@@ -218,7 +218,7 @@ export function cleanProfile(raw: unknown, key: string): Profile {
   const p = { ...blank(typeof r.name === 'string' && r.name.trim() ? r.name : key), ...cleanSnapshot(r) };
   p.coins = count(r.coins, 1e9);
   p.pets = strings(r.pets, PETS.length).filter((x) => PETS.some((pet) => pet.id === x)) as PetId[];
-  p.items = strings(r.items, 200, 40).filter((x) => ITEM_KEY.test(x));
+  p.items = strings(r.items, 1000, 40).filter((x) => ITEM_KEY.test(x));
   if (r.wins) p.wins = count(r.wins);
   p.seen = strings(r.seen, SEEN_KEPT, 80);
   p.pay = Array.isArray(r.pay) ? r.pay.filter((l) => l && typeof l.id === 'string' && Number.isFinite(l.amount)).slice(-PAY_KEPT) : [];
@@ -705,6 +705,15 @@ export const profiles = {
     const p = useProfiles.getState().profiles[key];
     const n = Math.round(amount);
     if (p && n) change(key, (x) => addPay(x, n, n > 0 ? 'from the Storyteller' : 'taken by the Storyteller'));
+  },
+  /** For testing: every pet and every shop item (keys from the Storyteller's Profiles panel) on this profile. */
+  grantAll(key: string, items: string[]) {
+    const p = useProfiles.getState().profiles[key];
+    if (!p) return;
+    change(key, (x) => {
+      x.pets = [...PETS.map((pet) => pet.id)];
+      x.items = [...new Set([...x.items, ...items.filter((k) => ITEM_KEY.test(k))])];
+    });
   },
   forget(key: string) {
     const { [key]: _, ...rest } = useProfiles.getState().profiles;
