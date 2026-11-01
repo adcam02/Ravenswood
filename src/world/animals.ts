@@ -3704,6 +3704,8 @@ const HAT_NUDGE: Partial<Record<AnimalId, HatTweak>> = {
   // among.
   robot: { bumps: 'head' },
   hedgehog: { bumps: 'none' },
+  // A fluffy forelock and mane: hats sit down over the hair as if it were more head.
+  pony: { bumps: 'head' },
   // Eyes on stalks at the front of the head: hats go behind them.
   snail: { dz: -0.04 },
   crab: { dz: -0.04 },

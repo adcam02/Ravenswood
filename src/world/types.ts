@@ -53,7 +53,8 @@ export type AnimalId =
   | 'whaleshark'
   | 'prawn'
   | 'meerkat'
-  | 'skeleton';
+  | 'skeleton'
+  | 'pony';
 
 export interface AnimalInfo {
   id: AnimalId;
@@ -62,6 +63,8 @@ export interface AnimalInfo {
   aquatic: boolean;
   /** Colour choices for the main coat, natural ones first. The first is the default. */
   colors: string[];
+  /** A character with a name of her own (Pico), said as is rather than "the fox". */
+  called?: boolean;
 }
 
 /** Colours offered for every animal after its natural ones. */
@@ -125,10 +128,15 @@ export const ANIMALS: AnimalInfo[] = [
   { id: 'prawn', name: 'Prawn', aquatic: true, colors: ['#f2906e', '#a9b9c6', '#f0705a', '#e8b448'] },
   { id: 'meerkat', name: 'Meerkat', aquatic: false, colors: ['#c79d68', '#a8845c', '#dcc093', '#9c8b73'] },
   { id: 'skeleton', name: 'Skeleton', aquatic: false, colors: ['#efe8d6', '#e2d3b0', '#d6e2e6', '#d4e8c4'] },
+  // A character with a name of her own rather than a kind of animal.
+  { id: 'pony', name: 'Pico', aquatic: false, colors: ['#33241e', '#5a3624', '#7a4a2c', '#cdb89a'], called: true },
 ];
 
 export const animalInfo = (id: AnimalId | string | null | undefined): AnimalInfo =>
   ANIMALS.find((a) => a.id === id) ?? ANIMALS[0];
+
+/** How the animal is named in a sentence: "the fox", or a character's own name. */
+export const theAnimal = (info: AnimalInfo): string => (info.called ? info.name : `the ${info.name.toLowerCase()}`);
 
 /** The animals in alphabetical order of their names, the way players see them to choose from. */
 export const ANIMALS_ABC: AnimalInfo[] = [...ANIMALS].sort((a, b) => a.name.localeCompare(b.name));

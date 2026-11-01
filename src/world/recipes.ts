@@ -3455,6 +3455,138 @@ const skeleton: Recipe = (k, c) => {
   return {};
 };
 
+const pony: Recipe = (k, c) => {
+  const muzzle = mix(c.coat, '#a07c66', 0.32);
+  const hoof = mix(c.coat, '#141010', 0.6);
+  // The hair: a touch darker than the coat, with a few warmer, lighter brown clumps through it. (On a pale coat the
+  // hair goes darker instead, so it still reads.)
+  const pale = luminance(c.coat) > 0.3;
+  const hair = pale ? mix(c.coat, '#4a3426', 0.45) : mix(c.coat, '#0c0807', 0.35);
+  const streak = pale ? mix(c.coat, '#6a4a32', 0.3) : mix(c.coat, '#8a5a34', 0.24);
+  // Pico, a miniature pony: a round barrel of a body on short chunky legs with little hooves, a big head with a
+  // soft rounded muzzle, small upright ears, and a fluffy forelock falling over the brow, a full fluffy mane down
+  // the back of the neck and a big fluffy tail, all soft clumped tufts.
+  k.joints.neck = [0, 0.6, 0.07];
+  k.joints.shoulder = [0.13, 0.48, 0.12];
+  k.joints.hip = [0.1, 0.19, -0.05];
+  k.joints.tail = [0, 0.3, -0.21];
+  // (Cut a little finer, so the clumps of hair stand apart.)
+  k.step = 0.03;
+  torso(k, {
+    belly: [
+      [0, 0.33, -0.04],
+      [0.215, 0.215, 0.205],
+    ],
+    chest: [
+      [0, 0.48, 0.05],
+      [0.16, 0.14, 0.15],
+    ],
+    haunch: [
+      [0.11, 0.21, -0.07],
+      [0.1, 0.12, 0.14],
+    ],
+    melt: 0.2,
+  });
+  const headAt: Vec3 = [0, 0.12, 0.06];
+  const headR: Vec3 = [0.17, 0.155, 0.16];
+  headForm(k, { r: headR, at: headAt, melt: 0.1 });
+  const snout = snoutForm(k, { dy: -0.3, len: 0.125, ra: 0.1, rb: 0.088, drop: 0.085, squash: [0.94, 1, 1] });
+  earForms(k, { x: 0.56, y: 0.8, w: 0.052, h: 0.14, d: 0.03, splay: 0.4, rake: 0.05, cup: 0.5, notch: true });
+  armForms(k, { len: 0.25, r0: 0.062, r1: 0.054, paw: [0.052, 0.046, 0.056], fwd: 0.3, out: 0.14 });
+  legForms(k, { r0: 0.072, r1: 0.062, foot: [0.058, 0.048, 0.064] });
+  const sc = sculptOf(k);
+  const hc = plus(k.joints.neck, headAt);
+  // A tuft: a soft clump of hair, longer along the way it falls, with a smaller lump or two melted onto it so it
+  // reads as clumped rather than smooth.
+  let n = 0;
+  const Y = new THREE.Vector3(0, 1, 0);
+  const tuft = (bone: string, at: Vec3, fall: Vec3, r: number, len = 1.5, name = 'hair') => {
+    const d = new THREE.Vector3(...fall).normalize();
+    const e = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().setFromUnitVectors(Y, d));
+    const rot: Vec3 = [e.x, e.y, e.z];
+    const i = n++;
+    const nm = `${name}${(i * 37) % 7 < 2 ? 'Hi' : ''}${i}`;
+    sc.add(ellipsoid(bone, at, [r, r * len, r * 0.9], { rot, k: 0.012, name: nm }));
+    // A little lump off to one side, near the tip.
+    const side = new THREE.Vector3().crossVectors(d, new THREE.Vector3(0.3, 0.2, 1)).normalize().multiplyScalar(r * (i % 2 ? 0.55 : -0.55));
+    const tip = new THREE.Vector3(...at).addScaledVector(d, r * len * 0.55).add(side);
+    sc.add(ellipsoid(bone, v3(tip), [r * 0.62, r * 0.85, r * 0.62], { rot, k: 0.01, name: `${nm}b` }));
+  };
+  // On the head: a point on the skull (unit direction from its middle), pushed out a little.
+  const onSkull = (x: number, y: number, z: number, out = 0.9): Vec3 => {
+    const u = new THREE.Vector3(x, y, z).normalize();
+    return [hc[0] + u.x * headR[0] * out, hc[1] + u.y * headR[1] * out, hc[2] + u.z * headR[2] * out];
+  };
+  // The forelock: clumps from the crown between the ears tumbling forward over the brow, the middle ones longest,
+  // stopping above the eyes so they peep out from under it.
+  for (const x of [-0.32, 0, 0.32]) {
+    const mid = 1 - Math.abs(x) * 2;
+    tuft('neck', onSkull(x, 1, 0.2, 1.02), [x * 0.4, 0.3, 1], 0.06, 1.1);
+    tuft('neck', onSkull(x * 1.1, 0.8, 0.62, 1.02), [x * 0.6, -1, 0.55], 0.055, 1.25);
+    tuft('neck', onSkull(x * 1.2, 0.52 - 0.08 * mid, 0.85, 1.0), [x * 0.8, -1, 0.3], 0.044 + 0.006 * mid, 1.2 + 0.25 * mid);
+  }
+  for (const x of [-0.58, 0.58]) tuft('neck', onSkull(x, 0.66, 0.5, 1.0), [x * 1.2, -1, 0.3], 0.045, 1.25);
+  // The mane: a full crest of clumps from between the ears down the back of the head and onto the shoulders, and
+  // a fall of clumps down either side.
+  const crest: [number, number][] = [
+    [0.96, -0.25],
+    [0.8, -0.6],
+    [0.5, -0.87],
+    [0.12, -0.99],
+  ];
+  crest.forEach(([y, z], i) => {
+    tuft('neck', onSkull(0, y, z, 1.1), [0, 0.6 - i * 0.4, -1], 0.065, 1.3);
+    for (const side of [-1, 1]) tuft('neck', onSkull(side * 0.42, y * 0.9, z, 1.03), [side * 0.9, -1, -0.3], 0.056, 1.4);
+  });
+  // Down onto the body, behind the head.
+  for (let i = 0; i < 3; i++) {
+    const y = 0.6 - i * 0.055;
+    const z = -0.03 - i * 0.045;
+    tuft('body', [0, y + 0.02, z - 0.02], [0, -0.6, -1], 0.055 - i * 0.006, 1.3);
+    for (const side of [-1, 1]) tuft('body', [side * 0.07, y, z], [side * 0.9, -1, -0.3], 0.048 - i * 0.006, 1.35);
+  }
+  // The tail: a short dock with a big fluffy fall of clumps round it, fuller towards the end.
+  const path = tailPath(0.28, [0, -1, -0.6], [0, -0.2, 0.5], 0.045, [1, 1, 0.9, 0.8, 0.7]);
+  tailForm(k, path);
+  const tj = k.joints.tail;
+  const steps = path.pts.length - 1;
+  const i1 = Math.max(1, Math.round(steps / 3));
+  const i2 = Math.max(i1 + 1, Math.round((steps * 2) / 3));
+  for (let i = 1; i <= steps; i++) {
+    const p = plus(tj, path.pts[i]);
+    const b = i < i1 ? 'tail' : i < i2 ? 'tail1' : 'tail2';
+    const t = i / steps;
+    const r = 0.045 + 0.028 * Math.sin(t * Math.PI * 0.8);
+    const ring = i % 2 ? [0, 2.1, 4.2] : [1.05, 3.15, 5.25];
+    for (const a of ring) {
+      const o: Vec3 = [Math.cos(a) * r * 0.7, Math.sin(a) * r * 0.45, Math.sin(a) * r * 0.3];
+      tuft(b, plus(p, o), [Math.cos(a) * 0.4, -1, -0.5], r, 1.3, 'tailHair');
+    }
+  }
+  useSurface(k);
+  // Big warm brown eyes, ringed so they still show on the dark coat.
+  eyes(k, { x: 0.4, y: 0.06, size: 1.05, wide: 1, slant: 0.06, color: '#140e0c', ring: '#7a4a2a', ringSize: 1.3 });
+  // Two nostrils on the end of the muzzle, and a small smile under it.
+  const tip = new THREE.Vector3(...plus(k.joints.neck, snout.nose));
+  for (const side of [-1, 1]) {
+    decal(k, { bone: 'neck', from: tip.clone().add(new THREE.Vector3(0, 0, -0.06)), dir: new THREE.Vector3(side * 0.55, 0.3, 1), r: 0.015, stretch: 1.5, along: new THREE.Vector3(side * 0.4, 1, 0), color: mix(muzzle, '#140e0c', 0.75), name: `nostril${side > 0 ? 'L' : 'R'}` });
+  }
+  mouth(k, { w: 0.1, y: -0.62, curve: 0.05, r: 0.005, color: mix(muzzle, '#140e0c', 0.7) });
+  const ears = ['earL', 'earR'].map((e) => earMarks(k, e));
+  k.marks = {
+    base: c.coat,
+    marks: [
+      { color: streak, f: region(k, /^(hair|tailHair)Hi/) },
+      { color: hair, f: region(k, /^(hair|tailHair)/, /^tail\d/) },
+      { color: muzzle, f: any(...ears.map((e) => e.inner)) },
+      { color: muzzle, f: all(region(k, 'muzzle'), (q) => -q.p.z + hc[2] + 0.17) },
+      { color: hoof, f: all(region(k, /^leg/), (q) => q.p.y - 0.055) },
+      { color: hoof, f: all(region(k, 'armLPaw', 'armRPaw'), (q) => q.p.y - (k.joints.shoulder[1] - 0.33)) },
+    ],
+  };
+  return {};
+};
+
 export const RECIPES: Record<AnimalId, Recipe> = {
   raccoon,
   fox,
@@ -3499,6 +3631,7 @@ export const RECIPES: Record<AnimalId, Recipe> = {
   prawn,
   meerkat,
   skeleton,
+  pony,
 };
 
 /** How each species carries itself. Anything left out is the plain default. */
@@ -3592,6 +3725,9 @@ const PROFILES: Partial<Record<AnimalId, Partial<Profile>>> = {
   meerkat: { lean: -0.04, head: -0.06, paws: 0.17, gait: 'trot', cadence: 1.55, stride: 0.75, sit: 'feet', idles: ['sentinel', 'lookAround', 'sniff', 'sentinel'], tailSway: 0.12 },
   // A jaunty, loose-limbed little walk; tilts its head, looks about, and has a good stretch now and then.
   skeleton: { lean: 0, head: -0.03, gait: 'trot', cadence: 1.2, stride: 0.85, sit: 'feet', idles: ['headTilt', 'lookAround', 'stretch'], tailSway: 0 },
+  // A bouncy little trot on short legs, a tilt of the head, a swish of its big tail now and then. Sleeps curled up on
+  // its side, off its mane.
+  pony: { lean: 0.02, head: -0.04, gait: 'trot', cadence: 1.35, stride: 0.7, sit: 'tuck', bed: 'side', idles: ['headTilt', 'tailSwish', 'lookAround'], tailSway: 0.25 },
 };
 
 /** Finishing touches: toes on the feet, claws, buck teeth. */

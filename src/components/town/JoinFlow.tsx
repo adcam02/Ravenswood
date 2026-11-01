@@ -7,7 +7,7 @@ import { useVoice, voice } from '../../voice/voice';
 import { AnimalPreview } from '../../world/AnimalPreview';
 import { animalThumbnail, hatThumbnail, petThumbnail } from '../../world/animals';
 import { HAT_FX } from '../../world/hatFx';
-import { ANIMALS_ABC, animalInfo, EXTRA_COLORS, fixLook, HATS, hatsOwned, hatSpeedLabel, type AnimalId, type HatId, type Look, type PetId } from '../../world/types';
+import { ANIMALS_ABC, animalInfo, EXTRA_COLORS, fixLook, HATS, hatsOwned, hatSpeedLabel, theAnimal, type AnimalId, type HatId, type Look, type PetId } from '../../world/types';
 import { useProgress } from '../../game/progress';
 import { shownName } from '../../state/nicks';
 import { money } from '../../game/profiles';
@@ -85,8 +85,8 @@ export function JoinFlow({ room, current }: { room: string; current: { name: str
     if (!taken.animal || Date.now() - taken.at > 5000) return;
     // We don't hold it after all.
     if (useJoin.getState().held === taken.animal) useJoin.setState({ held: null });
-    const who = animalInfo(taken.animal as AnimalId)?.name ?? 'that animal';
-    setNote(`${shownName(taken.by)} just took the ${who.toLowerCase()}. Pick another!`);
+    const who = taken.animal ? theAnimal(animalInfo(taken.animal)) : 'that animal';
+    setNote(`${shownName(taken.by)} just took ${who}. Pick another!`);
     setTab('animal');
     setStep((s) => (s === 'name' ? s : 'animal'));
   }, [taken.at, taken.animal, taken.by]);
@@ -303,7 +303,7 @@ export function LookEditor({
           <>
             {locked && (
               <p className="join-pick-note locked">
-                🔒 You’re the {info.name.toLowerCase()} until this game ends, so everyone can keep track of who’s who. Your hat and pet can change any time,
+                🔒 You’re {theAnimal(info)} until this game ends, so everyone can keep track of who’s who. Your hat and pet can change any time,
                 and once the game is over you can choose a new animal.
               </p>
             )}

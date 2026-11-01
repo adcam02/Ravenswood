@@ -3,7 +3,7 @@ import { useTaken } from '../../net/client';
 import { animalsLocked } from '../../state/host';
 import { ui, useUI } from '../../state/ui';
 import { useView } from '../../state/view';
-import { animalInfo, fixLook, type AnimalId, type Look } from '../../world/types';
+import { animalInfo, fixLook, theAnimal, type Look } from '../../world/types';
 import { letGoOfAnimal, LookEditor, savedLook, useJoin, wearLook, type PickTab } from './JoinFlow';
 import { shownName } from '../../state/nicks';
 
@@ -60,8 +60,8 @@ export function CustomiseModal() {
   useEffect(() => {
     if (!taken.animal || taken.at < opened.current) return;
     if (useJoin.getState().held === taken.animal) useJoin.setState({ held: null });
-    const who = animalInfo(taken.animal as AnimalId)?.name ?? 'that animal';
-    setNote(`${shownName(taken.by)} just took the ${who.toLowerCase()}. Pick another!`);
+    const who = taken.animal ? theAnimal(animalInfo(taken.animal)) : 'that animal';
+    setNote(`${shownName(taken.by)} just took ${who}. Pick another!`);
     setSent(null);
     setTab('animal');
   }, [taken.at, taken.animal, taken.by]);
