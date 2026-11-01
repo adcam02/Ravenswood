@@ -153,16 +153,16 @@ export const NOTICEBOARD = { x: 3.2, z: -13.6 };
  */
 export const POST = { x: -3.1, z: 16.6, ry: Math.PI / 2 };
 /**
- * The night gallery: an open-air picture board on the grass between the washhouse and the post office, facing the
- * camera (south), where each night's drawings hang the next day. `w` is the board's width.
+ * The night gallery: an open-air picture board on the grass north-east of the square by the idea box, turned a little
+ * towards the square, where each night's drawings hang the next day. `w` is the board's width.
  */
-export const GALLERY = { x: 13.2, z: 14.0, ry: 0, w: 5.0 };
+export const GALLERY = { x: 9.0, z: -9.9, ry: -0.3, w: 5.0 };
 /**
- * The market: a cluster of timber stalls round a little stone cross on the grass north-east of the square, between
- * the gallery and the ring road, facing south-west towards the middle of town. Its main stall is the shop's counter
+ * The market: a cluster of timber stalls round a little stone cross on the grass south-east of the square, past the
+ * pond, its open side facing the middle of town. Its main stall is the shop's counter
  * out of doors (the same shop as the Lucky Raven's).
  */
-export const MARKET = { x: 11.8, z: -15.2, ry: -0.5 };
+export const MARKET = { x: 14.7, z: 12.7, ry: Math.atan2(-14.7, -12.7) };
 /** Anyone this close to the market's middle counts as at its counter (the host checks it from where players say they are). */
 export const MARKET_R = 7;
 /**
@@ -627,7 +627,8 @@ export function makeStations(): Station[] {
     st.push({ id: 'post', zone: 'town', x: at.x, z: at.z, r: 1.5, job: 'post', stand: { ...stand, ry: POST.ry + Math.PI }, label: 'Write a letter' });
   }
   // In front of the gallery's board: look at the night's drawings, and vote.
-  st.push({ id: 'gallery', zone: 'town', x: GALLERY.x, z: GALLERY.z + 1.3, r: 1.8, job: 'gallery', stand: { x: GALLERY.x, z: GALLERY.z + 1.3, ry: Math.PI }, label: 'Look at the drawings' });
+  const gv = local(GALLERY.x, GALLERY.z, GALLERY.ry, 0, 1.3);
+  st.push({ id: 'gallery', zone: 'town', x: gv.x, z: gv.z, r: 1.8, job: 'gallery', stand: { x: gv.x, z: gv.z, ry: GALLERY.ry + Math.PI }, label: 'Look at the drawings' });
   st.push({ id: 'ideas', zone: 'town', x: IDEA_BOX.x, z: IDEA_BOX.z + 1.0, r: 1.4, job: 'ideas', stand: { x: IDEA_BOX.x, z: IDEA_BOX.z + 0.9, ry: Math.PI }, label: 'Post an idea for the Storyteller' });
   st.push({ id: 'notice', zone: 'town', x: NOTICEBOARD.x, z: NOTICEBOARD.z + 1.1, r: 1.6, job: 'notice', stand: { x: NOTICEBOARD.x, z: NOTICEBOARD.z + 1.0, ry: Math.PI }, label: 'Read the noticeboard' });
   benches.forEach((b, i) =>

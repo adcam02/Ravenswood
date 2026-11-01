@@ -23,11 +23,11 @@ const ALL = {
   // From straight above, for finding room for something new.
   'overview-top': 'x=0&z=0&t=0&dist=78&pitch=1.5',
   // The night gallery by the post office, empty, with drawings up, and after the voting; and at night.
-  'gallery-wide': 'x=11&z=12&t=0&dist=22&pitch=0.7&yaw=0',
-  'gallery-empty': 'x=13.2&z=20&t=0&dist=9&pitch=0.32&yaw=0.15',
-  'gallery-up': 'x=13.2&z=20&t=0&dist=8&pitch=0.3&yaw=0.1&gallery=12',
-  'gallery-revealed': 'x=13.2&z=20&t=0&dist=6.5&pitch=0.25&yaw=0&gallery=7&revealed',
-  'gallery-night': 'x=13.2&z=20&t=1&dist=9&pitch=0.3&yaw=0.2&gallery=5',
+  'market-wide': 'x=13&z=12&t=0&dist=22&pitch=0.7&yaw=0',
+  'gallery-empty': 'x=8&z=-3.5&t=0&dist=9&pitch=0.32&yaw=0.15',
+  'gallery-up': 'x=8&z=-3.5&t=0&dist=8&pitch=0.3&yaw=0.1&gallery=12',
+  'gallery-revealed': 'x=8&z=-3.5&t=0&dist=6.5&pitch=0.25&yaw=0&gallery=7&revealed',
+  'gallery-night': 'x=8&z=-3.5&t=1&dist=9&pitch=0.3&yaw=0.2&gallery=5',
   'gallery-site': 'x=-5&z=14&t=0&dist=26&pitch=0.7&yaw=0.3&gallery=7',
   // Animals walking with their pets in tow, and standing still with the pets caught up.
   'pets-walk': 'x=0&z=6&t=0&dist=7&pitch=0.42&frames=32&walkers=fox:zapmouse,bear:dragon,otter:spirit,wolf:balldroid',
@@ -230,10 +230,10 @@ const ALL = {
   'club-inside-close': 'zone=club&x=0&z=-1.5&t=0&dist=9&pitch=0.55&frames=8',
   // The market north-east of the square: from the game's own camera by day and by night, close up from its open side,
   // and from above; and the tavern's shop corner.
-  'market-day': 'x=12.1&z=-15&t=0',
+  'market-day': 'x=14&z=11.5&t=0',
   'market-night': 'x=12.1&z=-15&t=1',
-  'market-close': 'x=12.1&z=-15.8&t=0&dist=6&pitch=0.45&yaw=-0.5',
-  'market-top': 'x=11.8&z=-14&t=0&dist=30&pitch=1.45',
+  'market-close': 'x=14.5&z=12.5&t=0&dist=6&pitch=0.45&yaw=-0.5',
+  'market-top': 'x=12&z=10&t=0&dist=30&pitch=1.45',
   'tavern-shop': 'zone=tavern&x=4&z=-4.5&t=0&dist=6&pitch=0.4&yaw=0',
   // The idea box by the noticeboard, and the confession booths out among the trees.
   'idea-box': 'x=4.6&z=-13.2&t=0&dist=5&pitch=0.3&yaw=0.2',
