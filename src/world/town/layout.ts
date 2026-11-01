@@ -156,7 +156,7 @@ export const POST = { x: -3.1, z: 16.6, ry: Math.PI / 2 };
  * The night gallery: an open-air picture board on the grass between the washhouse and the post office, facing the
  * camera (south), where each night's drawings hang the next day. `w` is the board's width.
  */
-export const GALLERY = { x: 9.6, z: -9.6, ry: 0, w: 5.0 };
+export const GALLERY = { x: 13.2, z: 14.0, ry: 0, w: 5.0 };
 /**
  * The market: a cluster of timber stalls round a little stone cross on the grass north-east of the square, between
  * the gallery and the ring road, facing south-west towards the middle of town. Its main stall is the shop's counter

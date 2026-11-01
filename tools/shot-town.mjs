@@ -23,10 +23,11 @@ const ALL = {
   // From straight above, for finding room for something new.
   'overview-top': 'x=0&z=0&t=0&dist=78&pitch=1.5',
   // The night gallery by the post office, empty, with drawings up, and after the voting; and at night.
-  'gallery-empty': 'x=-7&z=17&t=0&dist=9&pitch=0.32&yaw=0.15',
-  'gallery-up': 'x=-7&z=17&t=0&dist=8&pitch=0.3&yaw=0.1&gallery=12',
-  'gallery-revealed': 'x=-7&z=17&t=0&dist=6.5&pitch=0.25&yaw=0&gallery=7&revealed',
-  'gallery-night': 'x=-7&z=17&t=1&dist=9&pitch=0.3&yaw=0.2&gallery=5',
+  'gallery-wide': 'x=11&z=12&t=0&dist=22&pitch=0.7&yaw=0',
+  'gallery-empty': 'x=13.2&z=20&t=0&dist=9&pitch=0.32&yaw=0.15',
+  'gallery-up': 'x=13.2&z=20&t=0&dist=8&pitch=0.3&yaw=0.1&gallery=12',
+  'gallery-revealed': 'x=13.2&z=20&t=0&dist=6.5&pitch=0.25&yaw=0&gallery=7&revealed',
+  'gallery-night': 'x=13.2&z=20&t=1&dist=9&pitch=0.3&yaw=0.2&gallery=5',
   'gallery-site': 'x=-5&z=14&t=0&dist=26&pitch=0.7&yaw=0.3&gallery=7',
   // Animals walking with their pets in tow, and standing still with the pets caught up.
   'pets-walk': 'x=0&z=6&t=0&dist=7&pitch=0.42&frames=32&walkers=fox:zapmouse,bear:dragon,otter:spirit,wolf:balldroid',
