@@ -357,6 +357,9 @@ function bunting(p: Paint, ax: number, ay: number, az: number, bx: number, by: n
 
 // ---------------------------------------------------------------- the stall-keepers
 
+/** Past this far from the market, its keepers aren't animated (nobody could tell they'd stopped). */
+const KEEPERS_STILL = 32;
+
 /** The keepers behind the main stall and the pottery stall: they stand about, and wave now and then. */
 export function marketKeepers() {
   const group = new THREE.Group();
@@ -376,7 +379,9 @@ export function marketKeepers() {
   add(2, { animal: 'hedgehog', color: '#8a6a4a', hat: 'sunhat' }, 5);
   return {
     group,
-    update(dt: number, t: number) {
+    /** `far`: how far the camera's looking from the market (from across town they keep still, saving the work). */
+    update(dt: number, t: number, far: number) {
+      if (far > KEEPERS_STILL) return;
       for (const k of keepers) {
         // A wave for a second and a half every twelve.
         k.anim = (t + k.wave) % 12 < 1.5 ? 'wave' : 'idle';

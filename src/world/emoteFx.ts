@@ -194,7 +194,25 @@ interface Props {
   l?: THREE.Object3D;
 }
 
-const mat = (color: string, extra: THREE.MeshStandardMaterialParameters = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.6, flatShading: true, ...extra });
+/**
+ * The props' materials are made once and kept (never freed): a fresh one for every emote, freed as it ended, had the
+ * graphics card build its shader all over again each time anyone emoted, a stutter of a tenth of a second or more.
+ */
+const mats = new Map<string, THREE.MeshStandardMaterial>();
+const kept = new Set<THREE.Material>();
+function mat(color: string, extra: THREE.MeshStandardMaterialParameters = {}) {
+  const key = `${color}:${JSON.stringify(extra)}`;
+  let m = mats.get(key);
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({ color, roughness: 0.6, flatShading: true, ...extra });
+    mats.set(key, m);
+    kept.add(m);
+  }
+  return m;
+}
+/** The effects' sprites, kept the same way between emotes (and shared by everyone's), up to this many spare. */
+const spareSprites: THREE.Sprite[] = [];
+const SPARE_SPRITES = 96;
 /** Fingers, in the animal's own coat (the material isn't the prop's to free). */
 function finger(skin: THREE.Material, len: number, r = 0.016) {
   const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 3, 6), skin);
@@ -257,8 +275,7 @@ function buildProps(anim: EmoteAnim, skin: THREE.Material, pawR: number): Props 
       const brass = mat('#e2b33c', { metalness: 0.7, roughness: 0.3 });
       const tube = at(new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.16, 6), brass), 0, 0, 0.08, Math.PI / 2);
       const bell = at(new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.01, 0.07, 12, 1, true), brass), 0, 0, 0.19, Math.PI / 2);
-      (bell as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>).material = brass.clone();
-      (bell as THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>).material.side = THREE.DoubleSide;
+      (bell as THREE.Mesh).material = mat('#e2b33c', { metalness: 0.7, roughness: 0.3, side: THREE.DoubleSide });
       const valves = at(new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.035, 0.05), brass), 0, 0.022, 0.07);
       return { r: group(tube, bell, valves) };
     }
@@ -475,6 +492,29 @@ function particles(anim: EmoteAnim, u: number, T: number, P: EmoteSpots, add: Ad
   }
 }
 
+/**
+ * Builds the effects' shaders in the background a little after the town loads (the props' two kinds of material and
+ * the sprites), so not even the first emote anyone does stutters. They're kept from then on (see mat).
+ */
+export function warmEmoteFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.Camera) {
+  const box = new THREE.BoxGeometry(0.01, 0.01, 0.01);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, map: glyphs()[0] }));
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(box, mat('#ffffff')), new THREE.Mesh(box, mat('#ffffff', { side: THREE.DoubleSide })), sprite);
+  const done = () => {
+    // (Without the graphics card's background compiling, the work would still wait for the first draw: done now.)
+    for (const p of renderer.info.programs ?? []) p.getUniforms();
+    g.clear();
+    box.dispose();
+    spareSprites.push(sprite);
+  };
+  try {
+    renderer.compileAsync(g, camera, scene).then(done, done);
+  } catch {
+    done();
+  }
+}
+
 /** Whether an emote has anything for EmoteFx to do. */
 const NONE: EmoteAnim[] = ['facepalm', 'shrug', 'salute', 'bow', 'dab', 'loser'];
 
@@ -510,7 +550,7 @@ export class EmoteFx {
       if (opacity <= 0.01) return;
       let s = this.sprites[this.used];
       if (!s) {
-        s = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false }));
+        s = spareSprites.pop() ?? new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false }));
         this.sprites.push(s);
         this.group.add(s);
       }
@@ -566,14 +606,19 @@ export class EmoteFx {
   }
 
   dispose() {
-    for (const s of this.sprites) s.material.dispose();
+    for (const s of this.sprites) {
+      s.removeFromParent();
+      if (spareSprites.length < SPARE_SPRITES) spareSprites.push(s);
+      else s.material.dispose();
+    }
+    this.sprites = [];
     const free = (o: THREE.Object3D) =>
       o.traverse((x) => {
         const m = x as THREE.Mesh;
         if (!m.isMesh) return;
         m.geometry.dispose();
         // (Fingers are the animal's own coat.)
-        if (!m.userData.skin) (m.material as THREE.Material).dispose();
+        if (!m.userData.skin && !kept.has(m.material as THREE.Material)) (m.material as THREE.Material).dispose();
       });
     if (this.props.r) free(this.props.r);
     if (this.props.l) free(this.props.l);

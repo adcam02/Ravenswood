@@ -19,6 +19,7 @@ import {
   graveSpot,
   LINE_Y,
   LINE_SLOT_X,
+  MARKET,
   MEETING_R,
   POND,
   ROOMS,
@@ -1506,7 +1507,7 @@ export function createTown(scene: THREE.Scene, renderer: THREE.WebGLRenderer): T
       }
       if (zone === 'town') {
         bouncer.update(dt, t, beat);
-        keepers.update(dt, t);
+        keepers.update(dt, t, Math.hypot(followAt.x - MARKET.x, followAt.z - MARKET.z));
         // The stools' names fade out from far across town, so they don't clutter the view of everything else.
         const d = Math.hypot(followAt.x - MEETING_CENTRE.x, followAt.z - MEETING_CENTRE.z);
         const fade = Math.max(0, Math.min(1, (34 - d) / 12)).toFixed(2);

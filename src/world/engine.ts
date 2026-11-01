@@ -3,6 +3,7 @@ import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRe
 import { getRole, iconUrl } from '../data';
 import { game, pressHotSlot, useHud, type Prompt } from '../game/hud';
 import { BUY_EMOTES, buyEmote, emoteOwned, shownHotbar } from './emotes';
+import { warmEmoteFx } from './emoteFx';
 import { local, setItem } from '../game/local';
 import { presence } from '../game/presence';
 import { SCORE_OF, type GameJob, type JobResults } from '../jobs/meta';
@@ -620,6 +621,8 @@ export class Engine {
     this.town.groups.town.add(this.fireworks.points);
     this.town.setLowDetail(this.quality === 'low');
     this.town.show('town');
+    // (The emotes' shaders, ready before anyone needs them.)
+    setTimeout(() => warmEmoteFx(this.renderer, this.scene, this.camera), 4000);
     for (const station of this.town.stations) {
       const text = station.sign ?? SIGN_TEXT[station.job];
       if (!text) continue;
