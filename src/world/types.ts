@@ -1016,7 +1016,7 @@ export interface Station {
 export const COUNTER_SPOTS = 6;
 export const LINES = 2;
 export const LINE_SLOTS = 8;
-export const BEDS = 3;
+export const BEDS = 2;
 export const BED_SPOTS = 6;
 export const SHELF_SLOTS = 8;
 

@@ -256,9 +256,9 @@ export const BED_LEN = 4.8;
 export const BED_DEPTH = 1.5;
 export const BED_H = 0.35;
 
-// (The fourth bed, at 45 degrees by the idea box, made way for the night gallery.)
+// (The bed at 45 degrees made way for the night gallery, and the one at 135 for the market.)
 export const beds = Array.from({ length: BEDS }, (_, i) => {
-  const a = ((135 + i * 90) * Math.PI) / 180;
+  const a = ((225 + i * 90) * Math.PI) / 180;
   const r = 14;
   const x = r * Math.sin(a);
   const z = -r * Math.cos(a);
