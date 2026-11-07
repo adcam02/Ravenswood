@@ -12,10 +12,51 @@ const FRAME_MS = LOW ? 1000 / 8 : 1000 / 30;
 const TURN_SPEED = 2.2;
 const TURN_TAP = 0.35;
 
+/** Something to stand on the turntable with the animal (a stool under it, a gravestone beside it), from the shop. */
+export interface PreviewProp {
+  /** Which it is: a new key makes a new one. */
+  key: string;
+  make: () => THREE.Object3D;
+  x?: number;
+  z?: number;
+  ry?: number;
+}
+
 /**
  * A small turntable showing one animal (and its pet, beside it), for the animal picker. With `turnable`, buttons
- * either side turn it (hold one to keep turning) and it can be dragged round.
+ * either side turn it (hold one to keep turning) and it can be dragged round. The shop's preview stands a `prop`
+ * with it too, and can `lift` the animal (up on a stool) or `shift` it to one side.
  */
+/** Frames the animal (tall ones, with long ears or antlers, a little further back), and whatever stands with it. */
+function frame(st: { camera: THREE.PerspectiveCamera; rig: Rig | null; prop: THREE.Object3D | null }, lift: number, shift = 0, zoom = 1) {
+  if (!st.rig) return;
+  let top = Math.max(st.rig.headHeight + lift * 0.6, 1.1);
+  let wide = shift ? Math.abs(shift) + 0.3 : 0;
+  if (st.prop) {
+    const box = new THREE.Box3().setFromObject(st.prop);
+    top = Math.max(top, box.max.y);
+    wide = Math.max(wide, Math.abs(box.min.x), Math.abs(box.max.x));
+  }
+  const reach = Math.max(top, wide * 1.5);
+  const y = 0.55 + top * 0.65;
+  const look = top * 0.52;
+  // (Closer in along the same line of sight.)
+  st.camera.position.set(0, look + (y - look) / zoom, (1.6 + reach * 1.35) / zoom);
+  st.camera.lookAt(0, look, 0);
+}
+
+/** Takes a prop off the turntable, freeing what's its own (what's shared between them is marked so). */
+function freeProp(o: THREE.Object3D) {
+  o.removeFromParent();
+  o.traverse((m) => {
+    const mesh = m as THREE.Mesh;
+    if (!mesh.isMesh || mesh.userData.shared) return;
+    mesh.geometry.dispose();
+    for (const mat of [mesh.material].flat()) mat.dispose();
+  });
+  (o.userData.onDispose as (() => void) | undefined)?.();
+}
+
 export function AnimalPreview({
   look,
   size = 260,
@@ -23,6 +64,10 @@ export function AnimalPreview({
   anim = 'idle',
   className,
   turnable = false,
+  prop = null,
+  lift = 0,
+  shift = 0,
+  zoom = 1,
 }: {
   look: Look;
   size?: number;
@@ -30,9 +75,22 @@ export function AnimalPreview({
   anim?: Anim;
   className?: string;
   turnable?: boolean;
+  prop?: PreviewProp | null;
+  lift?: number;
+  shift?: number;
+  /** Closer in than the picker's framing, for a small preview. */
+  zoom?: number;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
-  const stage = useRef<{ renderer: THREE.WebGLRenderer; scene: THREE.Scene; camera: THREE.PerspectiveCamera; table: THREE.Group; rig: Rig | null; pet: Pet | null } | null>(null);
+  const stage = useRef<{
+    renderer: THREE.WebGLRenderer;
+    scene: THREE.Scene;
+    camera: THREE.PerspectiveCamera;
+    table: THREE.Group;
+    rig: Rig | null;
+    pet: Pet | null;
+    prop: THREE.Object3D | null;
+  } | null>(null);
   const animRef = useRef(anim);
   const spinRef = useRef(spin);
   // Where the turntable is heading, which way a held button is turning it, and whether anyone has turned it yet.
@@ -77,7 +135,7 @@ export function AnimalPreview({
     const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 30);
     camera.position.set(0, 1.25, 3.1);
     camera.lookAt(0, 0.62, 0);
-    stage.current = { renderer, scene, camera, table, rig: null, pet: null };
+    stage.current = { renderer, scene, camera, table, rig: null, pet: null, prop: null };
 
     let raf = 0;
     let last = performance.now();
@@ -105,6 +163,7 @@ export function AnimalPreview({
       cancelAnimationFrame(raf);
       stage.current?.rig?.dispose();
       stage.current?.pet?.dispose();
+      if (stage.current?.prop) freeProp(stage.current.prop);
       ground.geometry.dispose();
       (ground.material as THREE.Material).dispose();
       renderer.dispose();
@@ -120,11 +179,25 @@ export function AnimalPreview({
     const rig = buildAnimal(look);
     st.table.add(rig.root);
     st.rig = rig;
-    // Frame tall animals (long ears, antlers) a little further back.
-    const top = Math.max(rig.headHeight, 1.1);
-    st.camera.position.set(0, 0.55 + top * 0.65, 1.6 + top * 1.35);
-    st.camera.lookAt(0, top * 0.52, 0);
+    frame(st, lift, shift, zoom);
   }, [look.animal, look.color, look.hat, size]);
+
+  useEffect(() => {
+    const st = stage.current;
+    if (!st?.rig) return;
+    st.rig.root.position.set(shift, lift, 0);
+    if (st.prop) freeProp(st.prop);
+    st.prop = null;
+    if (prop) {
+      const o = prop.make();
+      o.position.set(prop.x ?? 0, 0, prop.z ?? 0);
+      o.rotation.y = prop.ry ?? 0;
+      o.traverse((m) => (m.castShadow = (m as THREE.Mesh).isMesh === true));
+      st.table.add(o);
+      st.prop = o;
+    }
+    frame(st, lift, shift, zoom);
+  }, [prop?.key, lift, shift, zoom, look.animal, look.color, look.hat, size]);
 
   useEffect(() => {
     const st = stage.current;

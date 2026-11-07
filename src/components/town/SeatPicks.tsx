@@ -8,9 +8,10 @@ import { drawless } from '../../lib/util';
 import { useView } from '../../state/view';
 import { objectThumbnail } from '../../world/animals';
 import { cleanEpitaph, EPITAPH_MAX, graveKey, GRAVES, stoolKey, STOOLS, type GraveId, type StoolId } from '../../world/stoolShop';
-import { graveObject, stoolObject } from '../../world/town/stools';
+import { graveObject, SEAT, stoolObject } from '../../world/town/stools';
 import { fixLook, type AnimalId, type Look } from '../../world/types';
 import { loadThumb, queueThumbnail, saveThumb, wearLook } from './JoinFlow';
+import { ShopPane } from './ShopPane';
 
 /**
  * Stools for the circle and gravestones for the churchyard: their pictures, the Shop's two shelves of them, and the
@@ -67,29 +68,51 @@ export function StoolShelf({ BuyButton }: { BuyButton: Buy }) {
   const items = useMyItems();
   const { look, wear } = useMine();
   const using = look?.stool ?? null;
+  const list = [PLAIN_STOOL, ...STOOLS];
+  // The one you're sat on in the preview: yours, until another is tapped.
+  const [picked, setPicked] = useState<StoolId | null>(using);
+  const shown = list.find((s) => s.id === picked) ?? list[0];
+  const owned = (s: (typeof list)[number]) => !s.id || items.includes(stoolKey(s.id));
+  const action = (s: (typeof list)[number]) =>
+    owned(s) ? (
+      <button className="cosy-btn" disabled={!look || using === s.id} onClick={() => wear({ stool: s.id })}>
+        {using === s.id ? 'Your seat ✓' : 'Use this seat'}
+      </button>
+    ) : (
+      <BuyButton price={s.price} what={`the ${s.name.toLowerCase()}`} onBuy={() => casino({ k: 'buyItem', item: stoolKey(s.id!) })} />
+    );
   return (
     <>
-      <p className="casino-blurb">A seat of your own in the circle round the dais in the square: everyone sees you sit on it, at every meeting. Yours to keep.</p>
+      <p className="casino-blurb">A seat of your own in the circle round the dais in the square: everyone sees you sit on it, at every meeting. Yours to keep. Tap one to try it.</p>
+      {look && (
+        <ShopPane
+          look={{ ...look, pet: null }}
+          anim="sit"
+          spin
+          lift={SEAT}
+          zoom={1.1}
+          prop={{ key: `stool-${shown.id ?? 'log'}`, make: () => stoolObject(shown.id) }}
+          title={
+            <>
+              {shown.icon} {shown.name}
+            </>
+          }
+          sub={owned(shown) ? (using === shown.id ? 'Your seat' : 'Yours') : money(shown.price)}
+          action={action(shown)}
+        />
+      )}
       <div className="shop-grid">
-        {[PLAIN_STOOL, ...STOOLS].map((s) => {
-          const owned = !s.id || items.includes(stoolKey(s.id));
-          const on = using === s.id;
-          return (
-            <div key={s.id ?? 'log'} className={`shop-pet shop-seat ${owned ? 'owned' : ''} ${on ? 'picked' : ''}`}>
-              <span className="shop-pet-icon">
-                <StoolPicture id={s.id} icon={s.icon} />
-              </span>
-              <span className="shop-pet-name">{s.name}</span>
-              {owned ? (
-                <button className="cosy-btn" disabled={!look || on} onClick={() => wear({ stool: s.id })}>
-                  {on ? 'Your seat ✓' : 'Use this seat'}
-                </button>
-              ) : (
-                <BuyButton price={s.price} what={`the ${s.name.toLowerCase()}`} onBuy={() => casino({ k: 'buyItem', item: stoolKey(s.id!) })} />
-              )}
-            </div>
-          );
-        })}
+        {list.map((s) => (
+          <div key={s.id ?? 'log'} className={`shop-pet shop-seat shop-hat ${owned(s) ? 'owned' : ''} ${picked === s.id ? 'picked' : ''}`} onClick={() => setPicked(s.id)}>
+            <span className="shop-pet-icon">
+              <StoolPicture id={s.id} icon={s.icon} />
+            </span>
+            <span className="shop-pet-name">{s.name}</span>
+            <span onClick={(e) => e.stopPropagation()} className="shop-hat-buy">
+              {action(s)}
+            </span>
+          </div>
+        ))}
       </div>
     </>
   );
@@ -98,32 +121,54 @@ export function StoolShelf({ BuyButton }: { BuyButton: Buy }) {
 /** The Gravestones shelf, and the line to put on yours. */
 export function GraveShelf({ BuyButton }: { BuyButton: Buy }) {
   const items = useMyItems();
-  const { look, wear } = useMine();
+  const { me, look, wear } = useMine();
   const using = look?.grave ?? null;
+  const list = [PLAIN_GRAVE, ...GRAVES];
+  // The one shown beside you in the preview, with your name on it: yours, until another is tapped.
+  const [picked, setPicked] = useState<GraveId | null>(using);
+  const shown = list.find((g) => g.id === picked) ?? list[0];
+  const owned = (g: (typeof list)[number]) => !g.id || items.includes(graveKey(g.id));
+  const action = (g: (typeof list)[number]) =>
+    owned(g) ? (
+      <button className="cosy-btn" disabled={!look || using === g.id} onClick={() => wear({ grave: g.id })}>
+        {using === g.id ? 'Yours ✓' : 'Choose it'}
+      </button>
+    ) : (
+      <BuyButton price={g.price} what={`the ${g.name.toLowerCase()}`} onBuy={() => casino({ k: 'buyItem', item: graveKey(g.id!) })} />
+    );
+  const name = me?.name.trim() || 'R.I.P.';
+  const epitaph = look?.epitaph ?? '';
   return (
     <>
-      <p className="casino-blurb">When you die, a gravestone goes up for you in the churchyard. Choose how it looks, and what it says under your name. Yours to keep.</p>
+      <p className="casino-blurb">When you die, a gravestone goes up for you in the churchyard. Choose how it looks, and what it says under your name. Yours to keep. Tap one to see it.</p>
+      {look && (
+        <ShopPane
+          look={{ ...look, pet: null }}
+          shift={0.42}
+          zoom={1.1}
+          prop={{ key: `grave-${shown.id ?? 'plain'}-${name}-${epitaph}`, make: () => graveObject(shown.id, name, epitaph), x: -0.36, ry: 0.25 }}
+          title={
+            <>
+              {shown.icon} {shown.name}
+            </>
+          }
+          sub={owned(shown) ? (using === shown.id ? 'Your gravestone' : 'Yours') : money(shown.price)}
+          action={action(shown)}
+        />
+      )}
       {look && <Epitaph look={look} onSave={(epitaph) => wear({ epitaph })} />}
       <div className="shop-grid">
-        {[PLAIN_GRAVE, ...GRAVES].map((g) => {
-          const owned = !g.id || items.includes(graveKey(g.id));
-          const on = using === g.id;
-          return (
-            <div key={g.id ?? 'plain'} className={`shop-pet shop-seat ${owned ? 'owned' : ''} ${on ? 'picked' : ''}`}>
-              <span className="shop-pet-icon">
-                <GravePicture id={g.id} icon={g.icon} />
-              </span>
-              <span className="shop-pet-name">{g.name}</span>
-              {owned ? (
-                <button className="cosy-btn" disabled={!look || on} onClick={() => wear({ grave: g.id })}>
-                  {on ? 'Yours ✓' : 'Choose it'}
-                </button>
-              ) : (
-                <BuyButton price={g.price} what={`the ${g.name.toLowerCase()}`} onBuy={() => casino({ k: 'buyItem', item: graveKey(g.id!) })} />
-              )}
-            </div>
-          );
-        })}
+        {list.map((g) => (
+          <div key={g.id ?? 'plain'} className={`shop-pet shop-seat shop-hat ${owned(g) ? 'owned' : ''} ${picked === g.id ? 'picked' : ''}`} onClick={() => setPicked(g.id)}>
+            <span className="shop-pet-icon">
+              <GravePicture id={g.id} icon={g.icon} />
+            </span>
+            <span className="shop-pet-name">{g.name}</span>
+            <span onClick={(e) => e.stopPropagation()} className="shop-hat-buy">
+              {action(g)}
+            </span>
+          </div>
+        ))}
       </div>
     </>
   );

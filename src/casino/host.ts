@@ -192,13 +192,15 @@ function buy(player: string, pet: string) {
 }
 
 /**
- * A hat or a dance. Unlike a pet, these can be bought from anywhere (a locked dance in the Dances picker opens the
- * shop wherever you are), and the player's own screen says how it went from their profile.
+ * A hat, a dance, an emote, a stool or anything else on the shelves. Like a pet, only at a counter (a locked dance in
+ * the Dances picker opens the shop wherever you are, but only to look), and the player's own screen says how it went
+ * from their profile.
  */
 function buyItem(player: string, key: string) {
   const seat = gameSeat(player);
   const ware = wareOf(key);
   if (!seat || !ware) return;
+  if (!atCounter(seat.id)) return tell(player, 'That’s sold at the counter: in the casino, the tavern or the market.');
   const p = profileOf({ name: seat.name });
   const what = ware.kind === 'dance' || ware.kind === 'emote' ? `“${ware.name}”` : `the ${ware.name.toLowerCase()}`;
   if (p?.items.includes(key)) return tell(player, `You already have ${what}.`);

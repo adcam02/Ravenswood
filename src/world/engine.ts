@@ -1473,7 +1473,7 @@ export class Engine {
       return;
     }
     if (this.view?.mode === 'player' && !emoteOwned(anim, useProgress.getState())) {
-      useHud.setState({ emotePick: false, casino: { kind: 'shop', tab: 'emotes', away: zoneKind(local.zone) !== 'casino' } });
+      useHud.setState({ emotePick: false, casino: { kind: 'shop', tab: 'emotes', away: !atShopCounter(local.zone, local.x, local.z) } });
       return;
     }
     // On a meeting stool: wave, laugh and the rest happen sitting there, and "sit" doesn't stand them up.

@@ -367,3 +367,108 @@
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------- the preview at the top of every shelf */
+/* It stays at the top of the panel while the shelf scrolls under it (the panel's padding is 20px). */
+.shop-panel .try-on {
+  position: sticky;
+  top: -20px;
+  z-index: 3;
+  box-shadow: 0 0 0 6px #fff8ea, 0 8px 12px -6px rgba(90, 68, 52, 0.35);
+}
+.shop-panel .try-on.trophy {
+  background: linear-gradient(135deg, #fff1b8, #f6d266 60%, #fff3c4);
+}
+.shop-pane .try-on-picture.try-on-live {
+  width: 150px !important;
+  height: 150px !important;
+}
+.shop-stage {
+  position: relative;
+  flex: none;
+  display: grid;
+}
+/* A move's picture, big, by your raised paw. */
+.shop-stage-badge {
+  position: absolute;
+  top: 4px;
+  right: -6px;
+  font-size: 38px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 2px rgba(60, 40, 20, 0.3));
+  animation: shop-badge-bob 1.6s ease-in-out infinite;
+}
+@keyframes shop-badge-bob {
+  50% {
+    transform: translateY(-5px) rotate(-8deg);
+  }
+}
+.shop-stage-shout {
+  position: absolute;
+  left: 50%;
+  bottom: 2px;
+  transform: translateX(-50%);
+  max-width: 140px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: #fffdf6;
+  box-shadow: 0 1px 3px rgba(60, 40, 20, 0.3);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.shop-pane .try-on-words {
+  min-width: 0;
+}
+.shop-pane-action {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+/* Browsing away from a counter: no buy buttons, just where to go. */
+.shop-away {
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: #fbefd2;
+  color: #7a5208;
+  font-size: 13.5px;
+  text-align: center;
+}
+.shop-away-need {
+  max-width: 24ch;
+  font-size: 12px;
+  line-height: 1.25;
+  text-align: center;
+}
+.shop-pane-action .shop-away-need {
+  text-align: left;
+}
+.shop-shelf {
+  display: contents;
+}
+@media (max-width: 560px) {
+  .shop-panel .try-on {
+    gap: 10px;
+    padding: 6px 10px 6px 6px;
+  }
+  .shop-pane .try-on-picture.try-on-live {
+    width: 104px !important;
+    height: 104px !important;
+  }
+  .shop-stage-badge {
+    font-size: 28px;
+  }
+  .shop-pane .try-on-words b {
+    font-size: 16px;
+  }
+  .shop-pane .try-on-words .try-on-fx {
+    font-size: 12px;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}

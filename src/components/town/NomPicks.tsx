@@ -48,7 +48,7 @@ export function NomShelf({ BuyButton }: { BuyButton: Buy }) {
           const owned = !player || ownsNom(m.id, items);
           const on = using(look) === m.id;
           return (
-            <div key={m.id} className={`shop-pet shop-slay shop-nom ${owned ? 'owned' : ''} ${on ? 'picked' : ''}`}>
+            <div key={m.id} className={`shop-pet shop-slay shop-nom ${owned ? 'owned' : ''} ${on ? 'picked' : ''}`} data-pick={m.id}>
               <NomBadge m={m} />
               <span className="shop-pet-name">{m.name}</span>
               <span className="shop-slay-note">{m.blurb}</span>

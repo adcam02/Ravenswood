@@ -9,6 +9,7 @@ import { AnimalPreview } from '../../world/AnimalPreview';
 import { fixLook, type Look } from '../../world/types';
 import { DEFAULT_VICTORY, ownsVictory, victoryAnim, victoryKey, victoryMove, VICTORY_MOVES, type VictoryId } from '../../world/victoryShop';
 import { wearLook } from './JoinFlow';
+import { AwayNote, useAtCounter } from './ShopPane';
 
 /**
  * Victory moves: Customise's Victory tab (choose among yours, try any of them on your animal) and the Shop's shelf of
@@ -18,8 +19,11 @@ import { wearLook } from './JoinFlow';
 /** Buy button for a victory move, straight from here (the host takes the money and says how it went). */
 function BuyNow({ id }: { id: VictoryId }) {
   const coins = useMoney();
+  const counter = useAtCounter();
   const move = victoryMove(id);
   const short = (move.price ?? 0) - coins;
+  // (Only bought at a shop counter.)
+  if (!counter) return <AwayNote price={move.price ?? 0} />;
   return (
     <>
       <button className="cosy-btn primary" disabled={short > 0} onClick={() => casino({ k: 'buyItem', item: victoryKey(id) })}>
