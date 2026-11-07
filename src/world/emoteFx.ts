@@ -219,7 +219,71 @@ function finger(skin: THREE.Material, len: number, r = 0.016) {
   m.userData.skin = true;
   // (Standing up from the grip.)
   m.geometry.translate(0, len / 2 + r, 0);
+  // The coat is painted by vertex, so the finger needs paint of its own: a soft tan until it's first drawn, then
+  // the colour of the paw it's on.
+  const paint = new Float32Array(m.geometry.getAttribute('position').count * 3);
+  m.geometry.setAttribute('color', new THREE.BufferAttribute(paint, 3));
+  fill(m.geometry, FINGER_TAN);
+  m.onBeforeRender = () => {
+    m.onBeforeRender = () => {};
+    const c = pawColour(m);
+    if (c) fill(m.geometry, c);
+  };
   return m;
+}
+const FINGER_TAN = new THREE.Color('#d9b48c');
+function fill(geo: THREE.BufferGeometry, c: THREE.Color) {
+  const a = geo.getAttribute('color') as THREE.BufferAttribute;
+  for (let i = 0; i < a.count; i++) a.setXYZ(i, c.r, c.g, c.b);
+  a.needsUpdate = true;
+}
+
+/** Paw colours already found, by the animal's body and the bone the paw is on. */
+const pawColours = new WeakMap<THREE.BufferGeometry, Map<number, THREE.Color | null>>();
+/**
+ * The colour at the end of the arm this prop is held by: the far end of the arm bone it hangs from, read off the
+ * animal's own painted body (null if there's no telling).
+ */
+function pawColour(o: THREE.Object3D): THREE.Color | null {
+  let bone: THREE.Bone | null = null;
+  let body: THREE.SkinnedMesh | null = null;
+  for (let p = o.parent, n = 0; p && n < 14 && !body; p = p.parent, n++) {
+    if (!bone && (p as THREE.Bone).isBone) bone = p as THREE.Bone;
+    if (bone) body = (p.children.find((k) => (k as THREE.SkinnedMesh).isSkinnedMesh) as THREE.SkinnedMesh | undefined) ?? null;
+  }
+  if (!bone || !body?.skeleton) return null;
+  const geo = body.geometry;
+  const at = body.skeleton.bones.indexOf(bone);
+  let known = pawColours.get(geo);
+  if (!known) pawColours.set(geo, (known = new Map()));
+  if (known.has(at)) return known.get(at)!;
+  const pos = geo.getAttribute('position');
+  const col = geo.getAttribute('color');
+  const idx = geo.getAttribute('skinIndex');
+  const wt = geo.getAttribute('skinWeight');
+  let found: THREE.Color | null = null;
+  if (at >= 0 && pos && col && idx && wt) {
+    // The vertices mostly on this bone, measured out along it from its joint; the farthest few are the paw.
+    const inv = body.skeleton.boneInverses[at];
+    const v = new THREE.Vector3();
+    const near: { d: number; i: number }[] = [];
+    for (let i = 0; i < pos.count; i++) {
+      for (let k = 0; k < 4; k++) {
+        if (idx.getComponent(i, k) !== at || wt.getComponent(i, k) < 0.5) continue;
+        near.push({ d: v.fromBufferAttribute(pos, i).applyMatrix4(inv).length(), i });
+        break;
+      }
+    }
+    near.sort((a, b) => b.d - a.d);
+    const few = near.slice(0, Math.max(1, Math.ceil(near.length * 0.15)));
+    if (few.length) {
+      found = new THREE.Color(0, 0, 0);
+      for (const { i } of few) found.add(new THREE.Color(col.getX(i), col.getY(i), col.getZ(i)));
+      found.multiplyScalar(1 / few.length);
+    }
+  }
+  known.set(at, found);
+  return found;
 }
 
 function buildProps(anim: EmoteAnim, skin: THREE.Material, pawR: number): Props {
