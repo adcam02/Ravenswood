@@ -399,15 +399,19 @@ if (view === 'grid' || view === 'night') {
       const r = id === ('storyteller' as AnimalId) ? buildStoryteller() : make(lookOf(id));
       if (hatParam) r.setHat(hatParam);
       scene.add(r.root);
+      // (&perch=0.9 stands them up on something, like a stool in the town.)
+      r.root.position.y = Number(q.get('perch') ?? 0);
       // Framed on the animal standing (so how far a dance moves it shows), with room round it for the paws.
       r.update({ anim: 'idle', speed: 0, dt: 0.05, t: 0 });
       r.root.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(insideOf(r).mesh);
       const c = box.getCenter(new THREE.Vector3());
       const size = box.getSize(new THREE.Vector3());
-      const d = (Math.max(size.y, size.x / cam.aspect) * 1.5) / 2 / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
+      // (&wide=2.5 stands further back, for what's round them: a victory move's props, say.)
+      const wide = Number(q.get('wide') ?? 1);
+      const d = ((Math.max(size.y, size.x / cam.aspect) * 1.5) / 2 / Math.tan(THREE.MathUtils.degToRad(cam.fov / 2))) * wide;
       cam.position.set(c.x + Math.sin(az) * Math.cos(el) * d, c.y + Math.sin(el) * d, c.z + Math.cos(az) * Math.cos(el) * d);
-      cam.lookAt(c.x, c.y + size.y * 0.05, c.z);
+      cam.lookAt(c.x, c.y + size.y * (0.05 + (wide - 1) * 0.35), c.z);
       let t = 0;
       times.forEach((at, col) => {
         // Played through at 30 frames a second, as in the game.

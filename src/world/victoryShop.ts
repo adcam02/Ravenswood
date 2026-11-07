@@ -36,6 +36,22 @@ export const VICTORY_IDS = [
   'backflip',
   'bow',
   'pirouette',
+  // The props and staging ones (victoryMoves2.ts, victoryProps.ts).
+  'skyshow',
+  'coolwalk',
+  'podium',
+  'fries',
+  'medal',
+  'trophy',
+  'cheque',
+  'crowned',
+  'redcarpet',
+  'encore',
+  'makeitrain',
+  'jetpack',
+  'djset',
+  'selfie',
+  'excalibur',
 ] as const;
 export type VictoryId = (typeof VICTORY_IDS)[number];
 
@@ -82,6 +98,21 @@ export const VICTORY_MOVES: VictoryMove[] = [
   { id: 'backflip', name: 'Backflip', icon: '🤸', price: 60, blurb: 'A crouch, a spring and a full flip backwards, stuck every time.' },
   { id: 'bow', name: 'Grand bow', icon: '🎭', price: 25, blurb: 'A flourish of the paw and a deep, deep bow. Thank you, thank you.' },
   { id: 'pirouette', name: 'Pirouette', icon: '🩰', price: 90, blurb: 'Up on one toe, arms in a circle, spinning like the prima ballerina.' },
+  { id: 'skyshow', name: 'Fireworks finale', icon: '🎆', price: 40, blurb: 'Rockets bursting in the sky overhead, and a paw pointing up at every one. Ooh, aah.' },
+  { id: 'coolwalk', name: 'Cool walk away', icon: '😎', price: 90, blurb: 'Shades on, a huge cartoon explosion behind, and a slow walk away from it. Never look back.' },
+  { id: 'podium', name: 'Number one', icon: '🥇', price: 30, blurb: 'Up on the top step of the podium with a big 1 on the front, both arms in the air.' },
+  { id: 'fries', name: 'Fries in the bag', icon: '🍟', price: 35, blurb: 'A scoop of hot chips, into the paper bag, and a long blank stare. Back to work.', shout: 'Fries in the bag.' },
+  { id: 'medal', name: 'Medal of honour', icon: '🎖️', price: 60, blurb: 'A gold medal comes down round the neck, the chest goes out and up comes the salute.' },
+  { id: 'trophy', name: 'The big trophy', icon: '🏆', price: 70, blurb: 'A huge gold cup held up over the head, with the confetti coming down all round.' },
+  { id: 'cheque', name: 'Novelty cheque', icon: '💸', price: 50, blurb: 'A giant cheque for a million dollars, shown off to one side and then the other.', shout: 'Cash it in!' },
+  { id: 'crowned', name: 'Coronation', icon: '👑', price: 100, blurb: 'A crown lowered onto the head, then a sweep of the paw and a flourish of the royal cape.' },
+  { id: 'redcarpet', name: 'Red carpet', icon: '📸', price: 45, blurb: 'Posing this way and that on the red carpet while the cameras flash. No questions, please.' },
+  { id: 'encore', name: 'Encore', icon: '🌹', price: 55, blurb: 'A spotlight, a mic stand and a deep bow, while the roses come flying in.', shout: 'You’ve been wonderful!' },
+  { id: 'makeitrain', name: 'Make it rain', icon: '🪙', price: 65, blurb: 'Flicking notes off the wad while gold coins pour down from the sky.' },
+  { id: 'jetpack', name: 'Jetpack', icon: '🚀', price: 120, blurb: 'A jetpack fires up, off into the air for a hover and a fist to the sky, and a careful landing.' },
+  { id: 'djset', name: 'DJ set', icon: '🎧', price: 75, blurb: 'Headphones on, a deck to scratch and the head nodding hard. Hands in the air!', shout: 'Make some noise!' },
+  { id: 'selfie', name: 'Selfie stick', icon: '🤳', price: 30, blurb: 'Out comes the selfie stick: a pout, a peace sign, a flash, and another one just in case.' },
+  { id: 'excalibur', name: 'Sword to the sky', icon: '⚔️', price: 85, blurb: 'A sword thrust up at the clouds and a bolt of lightning straight down onto it.', shout: 'I have the power!' },
 ];
 
 export const DEFAULT_VICTORY: VictoryId = 'fistpump';

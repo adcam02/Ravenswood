@@ -204,6 +204,8 @@ export function VictoryLineup({ winner, seats, reason, onDone }: { winner: 'good
       const p = spots[i];
       const rig = buildAnimal(seat.look!);
       rig.root.position.set(p.x, p.y, p.z);
+      // (On the stage, even up a step: the props that stand on the floor are wanted. See world/victoryProps.ts.)
+      rig.root.userData.stage = true;
       // (Turned a touch in towards the middle, like a team photo.)
       rig.root.rotation.y = -p.x * 0.05;
       rig.root.traverse((o) => (o.castShadow = (o as THREE.Mesh).isMesh === true));

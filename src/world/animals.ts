@@ -14,6 +14,7 @@ import { animalInfo, isDance, wrapAngle, type Anim, type AnimalId, type HatId, t
 
 import { buildPet } from './pets';
 import { victoryPose, type WinBody } from './victoryMoves';
+import { VictoryFx } from './victoryProps';
 import type { VictoryId } from './victoryShop';
 export { buildPet, type Pet } from './pets';
 
@@ -540,6 +541,8 @@ class AnimalRig implements Rig {
   private hatFx: HatFx | null = null;
   /** A shop emote's props and effects while it plays (emoteFx.ts), and the left paw's hand for a prop there. */
   private emoteFx: EmoteFx | null = null;
+  /** A victory move's props and staging while it plays (victoryProps.ts). */
+  private winFx: VictoryFx | null = null;
   private handL: THREE.Group | null = null;
   private hatFxOn = true;
   private baseHeadHeight = 1;
@@ -2706,6 +2709,40 @@ class AnimalRig implements Rig {
     this.emoteFx.update((s.t - this.animStart) % (T + 0.6), this.emoteSpots());
   }
 
+  /** A victory move's props and staging (victoryProps.ts): made as it starts, updated, and thrown away as it ends. */
+  private victoryExtras(s: RigState) {
+    const id = s.anim.startsWith('win:') ? (s.anim.slice(4) as VictoryId) : null;
+    if (this.winFx && this.winFx.id !== id) {
+      this.winFx.dispose();
+      this.winFx = null;
+    }
+    if (!id || !VictoryFx.wanted(id)) return;
+    if (!this.winFx) {
+      const sh = this.shape;
+      this.winFx = new VictoryFx(id, {
+        root: this.root,
+        float: this.float,
+        body: this.body,
+        neck: this.neck,
+        hand: this.handTilt,
+        handL: () => this.leftHand(),
+        rest: this.sk.rest,
+        shoulder: this.shoulder,
+        headC: this.headC,
+        headR: this.headR,
+        eyePos: this.eyePos,
+        mouth: this.mouth,
+        front: this.front,
+        back: sh.tc[2] - sh.tr[2],
+        pawR: this.pawR,
+      });
+    }
+    if (this.winFx.handsFull && this.item) this.item.visible = false;
+    if (this.winFx.hidesHat && this.hat) this.hat.holder.visible = false;
+    const p = this.emoteSpots();
+    this.winFx.update(s.t - this.animStart, { top: p.top, head: p.head, hand: p.hand, handL: p.handL });
+  }
+
   /** A hand on the left paw too (made the first time it's wanted), placed like the right one: see applyPose. */
   private leftHand(): THREE.Group {
     if (!this.handL) {
@@ -3487,6 +3524,7 @@ class AnimalRig implements Rig {
     this.emoteExtras(s);
     // Hats come off for bed.
     if (this.hat) this.hat.holder.visible = s.anim !== 'sleep';
+    this.victoryExtras(s);
     if (this.hatFx) {
       const on = this.hatFxOn && s.anim !== 'sleep';
       this.hatFx.group.visible = this.hatFx.ground.visible = on;
@@ -3636,6 +3674,9 @@ class AnimalRig implements Rig {
   dispose() {
     this.emoteFx?.dispose();
     this.emoteFx = null;
+    // (Its props share geometry that's kept: off the rig before the rig's own is freed.)
+    this.winFx?.dispose();
+    this.winFx = null;
     this.setItem(null);
     this.setHat(null);
     // Back to this rig's own geometry first: the distant version is shared and stays cached.

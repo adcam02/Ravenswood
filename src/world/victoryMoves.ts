@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { AuxMap, Pose } from './animals';
 import type { Anim } from './types';
 import type { VictoryId } from './victoryShop';
+import { propPose } from './victoryMoves2';
 
 /**
  * The victory moves (see victoryShop.ts), `d` seconds in, posed from the same few bones as the dances in animals.ts
@@ -815,6 +816,9 @@ export function victoryPose(b: WinBody, P: Pose, A: AuxMap, id: VictoryId, d: nu
       ears(-0.15, 0);
       break;
     }
+    default:
+      // The ones built round props (victoryMoves2.ts).
+      propPose(b, P, A, id, d);
   }
 }
 
