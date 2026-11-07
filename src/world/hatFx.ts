@@ -682,7 +682,7 @@ export function buildHatFx(hat: HatId, height: number, radius: number): HatFx | 
       for (const { pts, full } of motes) pts.geometry.setDrawRange(0, low ? Math.ceil(full * 0.4) : full);
       for (const g of glows) g.visible = !low;
       // On the ground only while standing (not up on a seat), and not under a ghost.
-      const standing = anim !== 'sit' && anim !== 'sleep' && !ghost;
+      const standing = anim !== 'sit' && anim !== 'perch' && anim !== 'sleep' && !ghost;
       for (const p of pools) p.visible = !low && standing;
     },
     dispose() {

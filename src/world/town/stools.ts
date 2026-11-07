@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Builder, placeMatrix, type Place, type Vec3 } from '../build';
+import { setEmoteStool } from '../emoteFx';
 import type { GraveId, StoolId } from '../stoolShop';
 import { G } from './kit';
 import { signBoard, TextSign } from './sign';
@@ -770,6 +771,8 @@ export function stoolObject(id: StoolId | null): THREE.Mesh {
   m.userData.shared = true;
   return m;
 }
+// (And the one a player summons to sit on, with the sit emote.)
+setEmoteStool(stoolObject);
 
 /** A gravestone with the name (and the line under it, if any) on its plate. Its sign is freed by onDispose. */
 export function graveObject(id: GraveId | null, name: string, epitaph = '', statue?: StatueLook | null): THREE.Group {

@@ -4,7 +4,8 @@ import { all, any, armForms, details, finishSculpt, region, sculptOf, sock, useS
 import { buildHat, fitHat, type BuiltHat, type HatBit, type HatFit, type HatHead, type HatNudge } from './hats';
 import { buildHatFx, type HatFx } from './hatFx';
 import { buyEmote, isBuyEmote, type EmoteAnim } from './emotes';
-import { EmoteFx, type EmoteSpots } from './emoteFx';
+import { EmoteFx, hasEmoteFx, PERCH_Y, type EmoteSpots } from './emoteFx';
+import type { StoolId } from './stoolShop';
 import { buildItem, disposeObject } from './items';
 import { Fold, lowDetail, seedOf, seeded, solid, tube } from './paper';
 import { ellipsoid, rod, type Probe } from './sculpt';
@@ -50,6 +51,8 @@ export interface Rig {
   dispose(): void;
   /** Something held in the right paw just for show (an animal's rig only). */
   holdProp?(prop: THREE.Object3D | null): void;
+  /** The stool they've chosen, which the sit emote ('perch') brings out for them to sit on. */
+  stool?: StoolId | null;
 }
 
 // ---------------------------------------------------------------- poses
@@ -543,6 +546,9 @@ class AnimalRig implements Rig {
   private emoteFx: EmoteFx | null = null;
   /** A victory move's props and staging while it plays (victoryProps.ts). */
   private winFx: VictoryFx | null = null;
+  /** One that's ended, its stool or puddle going (see EmoteFx.leave). */
+  private fxGone: EmoteFx | null = null;
+  stool: StoolId | null = null;
   private handL: THREE.Group | null = null;
   private hatFxOn = true;
   private baseHeadHeight = 1;
@@ -1104,7 +1110,7 @@ class AnimalRig implements Rig {
 
   /** Whether a winged flier has its wings folded: whenever it isn't flying or gesturing with them. */
   private folded(s: RigState): boolean {
-    return s.anim === 'idle' || s.anim === 'sit' || s.anim === 'sleep' || s.anim === 'drink' || s.anim === 'fish' || s.anim === 'laugh' || s.anim === 'cry';
+    return s.anim === 'idle' || s.anim === 'sit' || s.anim === 'perch' || s.anim === 'sleep' || s.anim === 'drink' || s.anim === 'fish' || s.anim === 'laugh' || s.anim === 'cry';
   }
 
   /** The pose everything starts from, with the arms hanging the way this animal's do. */
@@ -2687,26 +2693,38 @@ class AnimalRig implements Rig {
     }
   }
 
-  /** The shop's emotes' props and effects (emoteFx.ts): made as one starts, updated, and thrown away as it ends. */
+  /**
+   * The emotes', dances' and some victory moves' props and effects (emoteFx.ts): made as one starts, updated, and
+   * thrown away as it ends.
+   */
   private emoteExtras(s: RigState) {
-    const anim = isBuyEmote(s.anim) ? s.anim : null;
+    const anim = hasEmoteFx(s.anim) ? s.anim : null;
     if (this.emoteFx && this.emoteFx.anim !== anim) {
-      this.emoteFx.dispose();
+      if (this.emoteFx.leave(this.root, s.t)) {
+        this.fxGone?.dispose();
+        this.fxGone = this.emoteFx;
+      } else this.emoteFx.dispose();
       this.emoteFx = null;
     }
-    // (Whatever's in the paw is put away for it.)
-    if (this.item) this.item.visible = !anim;
+    if (this.fxGone && !this.fxGone.leaving(s.t)) {
+      this.fxGone.dispose();
+      this.fxGone = null;
+    }
+    // (Whatever's in the paw is put away for a shop emote, or the mic.)
+    if (this.item) this.item.visible = !(anim && (isBuyEmote(anim) || anim === 'win:micdrop'));
     if (!anim) return;
     if (!this.emoteFx) {
-      const fx = new EmoteFx(anim, this.material, this.pawR);
+      const fx = new EmoteFx(anim, this.material, this.pawR, this.stool);
       if (fx.props.r) this.handTilt.add(fx.props.r);
       if (fx.props.l) this.leftHand().add(fx.props.l);
+      if (fx.props.ground) this.root.add(fx.props.ground);
       this.float.add(fx.group);
       this.emoteFx = fx;
     }
     if (!EmoteFx.wanted(anim)) return;
-    const T = buyEmote(anim)?.time ?? 2.5;
-    this.emoteFx.update((s.t - this.animStart) % (T + 0.6), this.emoteSpots());
+    const d = s.t - this.animStart;
+    // (A shop emote goes round again after a pause, for the previews; the rest go on as long as they're done.)
+    this.emoteFx.update(isBuyEmote(anim) ? d % ((buyEmote(anim)?.time ?? 2.5) + 0.6) : d, this.emoteSpots());
   }
 
   /** A victory move's props and staging (victoryProps.ts): made as it starts, updated, and thrown away as it ends. */
@@ -2983,6 +3001,11 @@ class AnimalRig implements Rig {
         break;
       case 'sit':
         this.sit(P, A, t);
+        break;
+      case 'perch':
+        // Sat up on their own stool, as it pops up under them (emoteFx.ts).
+        this.sit(P, A, t);
+        P.by += PERCH_Y * Math.min(1, (s.t - this.animStart) / 0.2);
         break;
       case 'sleep':
         // (Something that floats, a jellyfish or a bat, just draws in where it is.)
@@ -3285,7 +3308,7 @@ class AnimalRig implements Rig {
     }
     // The species' posture on top: a hunch or an upright carriage, with the face kept level.
     if (s.anim !== 'sleep') {
-      const lean = prof.lean * (s.anim === 'sit' ? 0.5 : 1);
+      const lean = prof.lean * (s.anim === 'sit' || s.anim === 'perch' ? 0.5 : 1);
       P.brx += lean;
       P.hrx += prof.head - lean;
       P.hrz += prof.tilt;
@@ -3473,7 +3496,7 @@ class AnimalRig implements Rig {
       this.phase += dt * (5 + sp * 1.6) * this.prof.cadence;
     }
     if (this.tendril) {
-      const out = Boolean(this.item) || !(s.anim === 'idle' || s.anim === 'walk' || s.anim === 'run' || s.anim === 'sit' || s.anim === 'sleep');
+      const out = Boolean(this.item) || !(s.anim === 'idle' || s.anim === 'walk' || s.anim === 'run' || s.anim === 'sit' || s.anim === 'perch' || s.anim === 'sleep');
       this.grow += ((out ? 1 : 0) - this.grow) * (1 - Math.exp(-dt * 8));
     }
     const target = this.target(s);
@@ -3677,6 +3700,8 @@ class AnimalRig implements Rig {
     // (Its props share geometry that's kept: off the rig before the rig's own is freed.)
     this.winFx?.dispose();
     this.winFx = null;
+    this.fxGone?.dispose();
+    this.fxGone = null;
     this.setItem(null);
     this.setHat(null);
     // Back to this rig's own geometry first: the distant version is shared and stays cached.
@@ -3726,6 +3751,7 @@ export function buildAnimal(look: Look): Rig {
     },
   });
   if (look.hat) rig.setHat(look.hat);
+  rig.stool = look.stool ?? null;
   return rig;
 }
 

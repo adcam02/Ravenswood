@@ -256,6 +256,8 @@ export class AvatarView {
       (this.rig as unknown as RigExtras).setHat?.(hat);
       AvatarView.noShadows(this.rig.root);
     }
+    // The stool the sit emote brings out for them.
+    this.rig.stool = look?.stool ?? null;
     // A pet that trots along beside them.
     const petId = look?.pet ?? null;
     if ((petId ?? '') !== this.petKey) {

@@ -1482,7 +1482,8 @@ export class Engine {
       return;
     }
     if (anim === 'sit') {
-      this.seated = this.seated ? null : { y: 0, anim: 'sit' };
+      // (On a stool of their own that pops up under them: see emoteFx.ts.)
+      this.seated = this.seated ? null : { y: 0, anim: 'perch' };
       this.emote = null;
       return;
     }
@@ -2559,7 +2560,7 @@ export class Engine {
     me.setVoiceState(Boolean(local.muted), Boolean(local.shout));
     me.setPrivate(inBooth(local.zone, local.x, local.z));
     useHud.setState((h) => {
-      const emote = this.emote?.anim ?? (this.seated?.anim === 'sit' && this.seated.y === 0 ? 'sit' : null);
+      const emote = this.emote?.anim ?? (this.seated?.anim === 'perch' ? 'sit' : null);
       const canSip = Boolean(local.item && SIPPABLE.has(local.item.k));
       return h.emote === emote && h.canSip === canSip ? h : { emote, canSip };
     });
@@ -2724,7 +2725,7 @@ export class Engine {
     const standing = !this.seated && !this.inBed && !this.job;
     for (const [key, p] of standing ? presence.others : []) {
       const d = Math.hypot(local.x - p.x, local.z - p.z);
-      if (p.zone !== local.zone || d > 1.4 || d < 0.2 || p.anim === 'sit' || p.anim === 'sleep') continue;
+      if (p.zone !== local.zone || d > 1.4 || d < 0.2 || p.anim === 'sit' || p.anim === 'perch' || p.anim === 'sleep') continue;
       if ((Math.sin(p.ry) * (local.x - p.x) + Math.cos(p.ry) * (local.z - p.z)) / d < -0.7) behind = { key, ry: p.ry };
     }
     if (!behind || f.sneak?.key !== behind.key || Math.abs(wrapAngle(behind.ry - f.sneak.ry)) > 0.8) f.sneak = behind && { ...behind, since: t };

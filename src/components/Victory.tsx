@@ -6,7 +6,6 @@ import type { SeatView } from '../state/view';
 import { buildAnimal, buildPet, type Pet, type Rig } from '../world/animals';
 import { townCovered } from '../world/engine';
 import { Fireworks } from '../world/fireworks';
-import { AURA, VICTORY_PROPS } from '../world/victoryMoves';
 import { victoryAnim, victoryMove } from '../world/victoryShop';
 import { PetFeel } from '../world/petMood';
 
@@ -43,17 +42,6 @@ function skyTexture(winner: 'good' | 'evil'): THREE.Texture {
   return tex;
 }
 
-/** A little stage microphone, standing up out of the paw. */
-function microphone(): THREE.Object3D {
-  const g = new THREE.Group();
-  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.012, 0.16, 10), new THREE.MeshStandardMaterial({ color: '#222', roughness: 0.5 }));
-  handle.position.y = 0.05;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.036, 14, 10), new THREE.MeshStandardMaterial({ color: '#b8bcc4', metalness: 0.6, roughness: 0.35 }));
-  head.position.y = 0.15;
-  g.add(handle, head);
-  return g;
-}
-
 interface Winner {
   seat: SeatView;
   rig: Rig;
@@ -63,8 +51,6 @@ interface Winner {
   at: { x: number; y: number; z: number };
   /** When their move starts (lineup seconds), one after another down the line. */
   start: number;
-  mic: { obj: THREE.Object3D; held: boolean; vy: number } | null;
-  aura: THREE.Mesh | null;
 }
 
 /** Where each winner stands: rows of at most `per`, the front row first, each row behind a step up. */
@@ -198,8 +184,6 @@ export function VictoryLineup({ winner, seats, reason, onDone }: { winner: 'good
     scene.add(fireworks.points);
     owned.push(fireworks);
 
-    const auraGeo = new THREE.CylinderGeometry(0.42, 0.62, 1, 20, 1, true);
-    owned.push(auraGeo);
     const people: Winner[] = cast.map((seat, i) => {
       const p = spots[i];
       const rig = buildAnimal(seat.look!);
@@ -223,16 +207,7 @@ export function VictoryLineup({ winner, seats, reason, onDone }: { winner: 'good
         feel.measure(pet.root);
         scene.add(feel.group);
       }
-      const move = victoryMove(seat.look!.win);
-      const mic = VICTORY_PROPS[move.id] ? { obj: microphone(), held: false, vy: 0 } : null;
-      let aura: THREE.Mesh | null = null;
-      if (AURA[move.id]) {
-        aura = new THREE.Mesh(auraGeo, new THREE.MeshBasicMaterial({ color: '#ffd34d', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
-        aura.scale.y = rig.headHeight * 1.5;
-        aura.position.set(p.x, p.y + aura.scale.y / 2, p.z);
-        scene.add(aura);
-      }
-      return { seat, rig, pet, feel, at: { x: p.x + 0.45, y: p.y, z: p.z + 0.4 }, start: 0.9 + i * 0.18, mic, aura };
+      return { seat, rig, pet, feel, at: { x: p.x + 0.45, y: p.y, z: p.z + 0.4 }, start: 0.9 + i * 0.18 };
     });
 
     // Framed so the whole team fits under the title, coming in from further out and round to one side.
@@ -296,39 +271,6 @@ export function VictoryLineup({ winner, seats, reason, onDone }: { winner: 'good
           w.feel.apply(w.pet.root, go ? { kind: 'cheer' } : null, dt, t);
         }
         const into = t - w.start;
-        if (w.mic) {
-          const prop = VICTORY_PROPS[victoryMove(w.seat.look!.win).id]!;
-          const c = go ? into % prop.loop : 0;
-          if (c < prop.drop && !w.mic.held) {
-            w.mic.obj.position.set(0, 0, 0);
-            w.mic.obj.rotation.set(0, 0, 0);
-            w.rig.holdProp?.(w.mic.obj);
-            w.mic.held = true;
-          } else if (c >= prop.drop && w.mic.held) {
-            // Let go: it falls to the stage from where the paw was, and lies there.
-            scene.attach(w.mic.obj);
-            w.mic.held = false;
-            w.mic.vy = 0;
-          }
-          if (!w.mic.held) {
-            const o = w.mic.obj;
-            const floor = spots[i].y + 0.04;
-            if (o.position.y > floor) {
-              w.mic.vy -= 9.8 * dt;
-              o.position.y = Math.max(floor, o.position.y + w.mic.vy * dt);
-              o.rotation.z += dt * 6;
-            } else o.rotation.z = Math.PI / 2;
-          }
-        }
-        if (w.aura) {
-          const c = go ? into % 3 : 0;
-          const build = go ? THREE.MathUtils.smoothstep(c, 0, 2.2) : 0;
-          const burst = THREE.MathUtils.smoothstep(c, 2.2, 2.4) * (1 - THREE.MathUtils.smoothstep(c, 2.8, 3));
-          const mat = w.aura.material as THREE.MeshBasicMaterial;
-          mat.opacity = go ? 0.08 + build * 0.22 + burst * 0.35 + Math.sin(t * 31) * 0.04 : 0;
-          w.aura.scale.x = w.aura.scale.z = 1 + burst * 0.5 + Math.sin(t * 17) * 0.04;
-          w.aura.rotation.y += dt * 3;
-        }
         const p = spots[i];
         // (A name plate at the feet for the front row; over the head for the rows behind, where the feet are hidden.)
         const over = p.row > 0;
@@ -357,14 +299,6 @@ export function VictoryLineup({ winner, seats, reason, onDone }: { winner: 'good
         w.rig.dispose();
         w.pet?.dispose();
         w.feel?.dispose();
-        if (w.aura) (w.aura.material as THREE.Material).dispose();
-        if (w.mic) w.mic.obj.traverse((o) => {
-          const m = o as THREE.Mesh;
-          if (m.isMesh) {
-            m.geometry.dispose();
-            (m.material as THREE.Material).dispose();
-          }
-        });
       }
       for (const o of owned) o.dispose();
       renderer.dispose();

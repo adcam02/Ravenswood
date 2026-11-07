@@ -710,6 +710,8 @@ export type Anim =
   | 'walk'
   | 'run'
   | 'sit'
+  /** Sat on their own stool, which pops up under them (the Sit emote, away from a seat; see emoteFx.ts). */
+  | 'perch'
   | 'sleep'
   | 'wave'
   | 'dance'

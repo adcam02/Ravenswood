@@ -646,12 +646,12 @@ export function victoryPose(b: WinBody, P: Pose, A: AuxMap, id: VictoryId, d: nu
     }
     case 'powerup': {
       // Crouched with the feet wide and fists clenched low, shaking harder and harder as the power builds, then
-      // a burst: arms flung out and the head back, screaming.
+      // a burst: arms flung out and the head back, screaming. (The aura, flames and crackles: emoteFx.ts.)
       const c = d % 3;
       const build = smooth(c, 0, 2.2);
       const burst = smooth(c, 2.2, 2.4) * (1 - smooth(c, 2.8, 3));
       const shake = sin(d * 47) * (0.004 + build * 0.016);
-      P.by = -0.06 + burst * 0.08;
+      P.by = -0.06 + burst * 0.08 + abs(shake) * 0.6;
       P.llz = 0.32;
       P.lrz = -0.32;
       P.llx = P.lrx = -0.2;
@@ -688,7 +688,7 @@ export function victoryPose(b: WinBody, P: Pose, A: AuxMap, id: VictoryId, d: nu
     }
     case 'micdrop': {
       // The mic held to the mouth with the other paw waving as the speech goes on; then held out at arm's length
-      // to the side, dropped (see Victory.tsx), and the arms folded, chin up.
+      // to the side, dropped (the mic and its fall: emoteFx.ts), and the arms folded, chin up.
       const c = d % 5;
       if (c < 2) {
         const m = b.mouth;
@@ -821,11 +821,3 @@ export function victoryPose(b: WinBody, P: Pose, A: AuxMap, id: VictoryId, d: nu
       propPose(b, P, A, id, d);
   }
 }
-
-/** How a victory move's prop goes (the mic, for now): held until `drop` seconds into each `loop`, then let go. */
-export const VICTORY_PROPS: Partial<Record<VictoryId, { kind: 'mic'; drop: number; loop: number }>> = {
-  micdrop: { kind: 'mic', drop: 2.9, loop: 5 },
-};
-
-/** Lightweight checks used by the lineup: whether a move goes up in a golden aura. */
-export const AURA: Partial<Record<VictoryId, boolean>> = { powerup: true };
