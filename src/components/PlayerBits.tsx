@@ -177,6 +177,8 @@ export function PlayerRail() {
       action: () => ui.open({ kind: 'pigeon' }),
     },
     { key: 'awards', icon: 'trophy', label: 'Awards', action: () => ui.open({ kind: 'awards' }) },
+    // Ideas and requests for the Storyteller (there used to be a box for them by the gallery).
+    { key: 'idea', icon: 'sparkle', label: 'Ideas', action: () => ui.open({ kind: 'idea' }) },
     // (Settings are in the cog at the top right, with the sound and voice.)
   ];
   return (

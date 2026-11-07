@@ -8,7 +8,6 @@ import {
   CLUB,
   FLATS,
   FLATS_NAME,
-  IDEA_BOX,
   MARKET,
   ROAD_LOOP,
   ROAD_NARROW,
@@ -1637,42 +1636,6 @@ function noticeboard(p: Paint, r: () => number) {
   lantern(p.at(0.85, 1.9, 0.06));
 }
 
-/**
- * The idea box: a little mint post box on a post, with a pink roof, a slot, a light bulb on its front for bright
- * ideas, and hearts. (Its sign hangs below it; see the signs.)
- */
-function ideaBox(p: Paint) {
-  const body = '#8fd3c1';
-  const roof = '#f28fb0';
-  p.post(WOOD_DARK, 0.07, 1.05, 0, 0, 0, 10);
-  p.block(shade(WOOD_DARK, -0.1), 0.24, 0.1, 0.24, 0, 0, 0);
-  p.rbox(body, 0.62, 0.5, 0.46, 0, 1.3, 0, 0.05);
-  p.box(shade(body, -0.12), 0.66, 0.05, 0.5, 0, 1.06, 0);
-  p.prism(roof, 0.74, 0.24, 0.56, 0, 1.55, 0, Math.PI / 2);
-  p.box(shade(roof, -0.15), 0.06, 0.06, 0.62, 0, 1.78, 0);
-  // The slot, a little brass flap over it, and a keyhole.
-  p.box('#2a2228', 0.34, 0.035, 0.02, 0, 1.44, 0.235);
-  p.box('#e8c35a', 0.38, 0.06, 0.015, 0, 1.475, 0.24, -0.3);
-  p.cyl('#e8c35a', 0.025, 0.015, 0.2, 1.15, 0.235, 10, Math.PI / 2);
-  // A light bulb for a bright idea.
-  p.sphere('#ffe87a', 0.08, 0.09, 0.03, 0, 1.27, 0.24, 14, 10);
-  p.box('#9aa0a8', 0.06, 0.05, 0.03, 0, 1.17, 0.24);
-  for (const k of [-1, 0, 1]) p.box('#ffe87a', 0.015, 0.06, 0.01, k * 0.13, 1.3 + Math.abs(k) * -0.02 + 0.08, 0.245, 0, 0, -k * 0.6);
-  glowAt(p, 0, 1.27, 0.3, 0.7, '#ffe87a');
-  // Hearts on the sides.
-  for (const sx of [-1, 1]) {
-    const q = p.at(sx * 0.315, 1.3, 0, (sx * Math.PI) / 2);
-    q.sphere('#f25f8a', 0.045, 0.045, 0.015, -0.035, 0.03, 0, 10, 6);
-    q.sphere('#f25f8a', 0.045, 0.045, 0.015, 0.035, 0.03, 0, 10, 6);
-    q.box('#f25f8a', 0.065, 0.065, 0.02, 0, -0.015, 0, 0, 0, Math.PI / 4);
-  }
-  // Flowers round its foot.
-  for (let k = 0; k < 5; k++) {
-    const a = (k / 5) * Math.PI * 2;
-    p.post('#4f8f3f', 0.01, 0.22, Math.cos(a) * 0.22, 0, Math.sin(a) * 0.22, 4);
-    p.sphere(['#f6d55c', '#f2a7b8', '#ffffff'][k % 3], 0.05, 0.035, 0.05, Math.cos(a) * 0.22, 0.24, Math.sin(a) * 0.22, 8, 6);
-  }
-}
 
 /** Where the post office's letterboxes are on its front, in its own frame: the grid the name plates are drawn on. */
 export const POST_GRID = { x0: -1.08, x1: 1.08, y0: 0.28, y1: 1.4, z: 0.21 };
@@ -1809,7 +1772,6 @@ function blockers(): Blocker[] {
   for (const h of houseSlots) add(h.x, h.z, 6);
   add(CLUB.x, CLUB.z, 6.5);
   for (const b of BOOTHS) if (b.zone === 'town') add(b.x, b.z, 3.2);
-  add(IDEA_BOX.x, IDEA_BOX.z, 1.6);
   add(CASINO.x, CASINO.z, 7.5);
   // No trees on the way up to its door from the square, where they'd hide you from the camera.
   for (const out of [7.5, 11.5]) {
@@ -2012,7 +1974,6 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
     bush(ground.at(-2.2, 0, -0.6), r, true);
     colliders.push({ kind: 'circle', ...local(b.x, b.z, b.ry, -1.85, 0.6), r: 0.12 });
   }
-  ideaBox(painter(IDEA_BOX.x, IDEA_BOX.z, IDEA_BOX.ry));
   // The market, north-east of the square (its colliders are with the rest in layout.ts).
   const stalls = market(painter(MARKET.x, MARKET.z, MARKET.ry), (p, x, y, z) => glowAt(p, x, y, z, 1.5, '#ffc46b'));
   group.add(stalls.object);
@@ -2365,15 +2326,6 @@ export function buildOutdoor(windowMat: THREE.Material): Outdoor {
   };
   hang(['The Raven’s Rest', 'tavern & inn'], TAVERN, 2.6, TAVERN.d / 2 + 1.0, 3.05, 1.6, 0.95);
   signMaterials.push(club.material);
-  {
-    const sign = new TextSign({ w: 512, h: 192, bg: '#fff4e0', fg: '#b8506a', border: '#f28fb0', round: false, size: 66 }, ['Ideas & requests', 'for the Storyteller']);
-    const { mesh, material } = signBoard(sign, 0.9, 0.34);
-    const p = local(IDEA_BOX.x, IDEA_BOX.z, IDEA_BOX.ry, 0, 0.09);
-    mesh.position.set(p.x, 0.78, p.z);
-    mesh.rotation.y = IDEA_BOX.ry;
-    group.add(mesh);
-    signMaterials.push(material);
-  }
   // (The bakery's hangs off its front corner, clear of the awning.)
   hang(['Bakery', 'fresh every morning'], BAKERY, BAKERY.w / 2 + 0.12, BAKERY.d / 2 + 1.0, 2.83, 1.5, 0.85, { bg: '#f6e7cf', fg: '#a0523a', border: '#a0523a' });
   {

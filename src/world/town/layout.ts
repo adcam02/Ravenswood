@@ -638,7 +638,6 @@ export function makeStations(): Station[] {
   // In front of the gallery's board: look at the night's drawings, and vote.
   const gv = local(GALLERY.x, GALLERY.z, GALLERY.ry, 0, 1.3);
   st.push({ id: 'gallery', zone: 'town', x: gv.x, z: gv.z, r: 1.8, job: 'gallery', stand: { x: gv.x, z: gv.z, ry: GALLERY.ry + Math.PI }, label: 'Look at the drawings' });
-  st.push({ id: 'ideas', zone: 'town', x: IDEA_BOX.x, z: IDEA_BOX.z + 1.0, r: 1.4, job: 'ideas', stand: { x: IDEA_BOX.x, z: IDEA_BOX.z + 0.9, ry: Math.PI }, label: 'Post an idea for the Storyteller' });
   st.push({ id: 'notice', zone: 'town', x: NOTICEBOARD.x, z: NOTICEBOARD.z + 1.1, r: 1.6, job: 'notice', stand: { x: NOTICEBOARD.x, z: NOTICEBOARD.z + 1.0, ry: Math.PI }, label: 'Read the noticeboard' });
   benches.forEach((b, i) =>
     [-0.5, 0.5].forEach((lx, k) => {
@@ -712,7 +711,6 @@ export function townColliders(extra: Collider[]): Collider[] {
   BOOTHS.forEach((b, i) => {
     if (b.zone === 'town') c.push(box(boothSpot(i, 0, 0), BOOTH_HW + 0.05, BOOTH_HD + 0.05));
   });
-  c.push({ kind: 'circle', x: IDEA_BOX.x, z: IDEA_BOX.z, r: 0.35 });
   c.push(box(CASINO, CASINO.w / 2 + 0.15, CASINO.d / 2 + 0.15));
   c.push(box(FLATS, FLATS.w / 2 + 0.15, FLATS.d / 2 + 0.15));
   // The pond, as overlapping circles, leaving the dock clear.
@@ -893,7 +891,6 @@ export function whereIs(zone: string, x: number, z: number): string {
   if (near(GALLOWS, 3.5)) return 'by the gallows';
   if (near(WELL, 3)) return 'at the well';
   if (near(NOTICEBOARD, 2.5)) return 'at the noticeboard';
-  if (near(IDEA_BOX, 2)) return 'at the idea box';
   if (near(WOODPILE, 3)) return 'at the woodpile';
   if (Math.abs(x - GRAVEYARD.x) < GRAVEYARD.hw + 2 && Math.abs(z - GRAVEYARD.z) < GRAVEYARD.hd + 2) return 'in the graveyard';
   if (near(doorPoint(CHURCH, 3, churchFront), 6)) return 'outside the church';
