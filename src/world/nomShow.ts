@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { nomMove, type NomMove, type NomMoveId } from '../game/nomMoves';
+import { animalThumbnail } from './animals';
 import { Bursts, Dizzy, ease, easeOut, hash, span } from './exec/fx';
-import type { Anim } from './types';
+import type { Anim, Look } from './types';
 
 /**
  * A nomination's little cutscene at the meeting, the same on every screen (it runs off the nomination's start time
@@ -49,6 +50,41 @@ export interface NomFrame {
 const UP = new THREE.Vector3(0, 1, 0);
 const v3 = () => new THREE.Vector3();
 
+/** Whoever is nominated, for their photo on the conspiracy board. */
+export interface NomWho {
+  look: Look | null;
+  name: string;
+}
+
+// The conspiracy board: its cork (in the canvas's pixels and the board's own size), what's pinned on it, and the red
+// string between the pins. The camera follows the zig-zag `TRAIL` to the photo of the one nominated.
+const CORK = { w: 600, h: 420, W: 1.2, H: 0.84, y: 1.08 };
+const PHOTO = { x: 455, y: 205, w: 150, h: 178 };
+type Pinned = { x: number; y: number; kind: 'photo' | 'note' | 'news'; text?: string; color?: string; tilt: number };
+const PINNED: Pinned[] = [
+  { x: 70, y: 70, kind: 'photo', tilt: -0.08 },
+  { x: 215, y: 62, kind: 'news', tilt: 0.05 },
+  { x: 345, y: 70, kind: 'note', text: 'night 2??', color: '#ffe36a', tilt: 0.1 },
+  { x: 540, y: 52, kind: 'note', text: 'follow the $', color: '#9fdcff', tilt: -0.06 },
+  { x: 60, y: 205, kind: 'note', text: 'alibi?', color: '#ff9fc0', tilt: 0.12 },
+  { x: 200, y: 200, kind: 'photo', tilt: 0.06 },
+  { x: 315, y: 210, kind: 'note', text: 'WHO?!', color: '#ffe36a', tilt: -0.1 },
+  { x: 80, y: 340, kind: 'photo', tilt: 0.1 },
+  { x: 205, y: 345, kind: 'note', text: 'LIES', color: '#b8f08a', tilt: -0.05 },
+  { x: 330, y: 345, kind: 'news', tilt: -0.08 },
+  { x: 545, y: 375, kind: 'note', text: 'seen at the tavern', color: '#ff9fc0', tilt: 0.07 },
+];
+/** Each one's pin: near its top edge. */
+const pinOf = (p: Pinned) => ({ x: p.x, y: p.y - (p.kind === 'note' ? 24 : 30) });
+const PHOTO_PIN = { x: PHOTO.x, y: PHOTO.y - PHOTO.h / 2 + 8 };
+/** The string the camera follows, by index into PINNED, then on to the photo. */
+const TRAIL = [0, 5, 2, 6, 9];
+/** And all the other threads, pin to pin (-1 is the photo). */
+const THREADS: [number, number][] = [
+  [0, 5], [5, 2], [2, 6], [6, 9], [9, -1],
+  [1, 4], [4, 7], [7, 8], [8, -1], [1, -1], [3, -1], [3, 6], [10, -1], [10, 8], [2, -1], [5, 8], [4, 6], [6, -1], [7, 5],
+];
+
 /** Bits that fly or hang about, built once per show. */
 type Kit = Record<string, THREE.Object3D>;
 
@@ -72,6 +108,7 @@ export class NomShow {
   constructor(
     id: NomMoveId,
     private sound: (name: string) => void = () => {},
+    private who: NomWho | null = null,
   ) {
     this.move = nomMove(id);
     this.group.add(this.bursts.group, this.dizzy.group);
@@ -245,7 +282,12 @@ export class NomShow {
   private build() {
     const id = this.move.id;
     // What they shout, over the nominator, and what the one nominated says back, beside their face.
-    this.add('shout', this.card(this.move.shout, { fg: '#ffffff', bg: id === 'objection' ? '#2a4fb8' : '#e8506a', edge: '#3a1a2a', jag: id === 'objection' || id === 'jaccuse' || id === 'gavel', italic: true }));
+    this.add(
+      'shout',
+      id === 'you'
+        ? this.card(this.move.shout, { fg: '#3a1a2a', bg: '#ffffff', edge: '#3a1a2a', h: 0.5 })
+        : this.card(this.move.shout, { fg: '#ffffff', bg: id === 'objection' ? '#2a4fb8' : '#e8506a', edge: '#3a1a2a', jag: id === 'objection' || id === 'jaccuse' || id === 'gavel' || id === 'board', italic: true }),
+    );
     this.add('reply', this.card(this.move.reply, { fg: '#3a2a3a', bg: '#fffaf0', edge: '#3a2a3a' }));
     // Hearts (or "!"s) that pop out where it lands.
     const pops = new THREE.Group();
@@ -420,6 +462,10 @@ export class NomShow {
         break;
       }
       case 'jaccuse':
+      case 'you':
+        break;
+      case 'board':
+        this.add('board', this.board());
         break;
       case 'confetti': {
         const cannon = new THREE.Group();
@@ -441,6 +487,208 @@ export class NomShow {
         break;
       }
     }
+  }
+
+  /** The conspiracy board on its wheeled stand, facing +z, its feet at 0: cork, photos, notes, pins and red string. */
+  private board(): THREE.Group {
+    const g = new THREE.Group();
+    const c = document.createElement('canvas');
+    c.width = CORK.w;
+    c.height = CORK.h;
+    const ctx = c.getContext('2d');
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 4;
+    this.texs.push(tex);
+    if (ctx) {
+      this.drawCork(ctx, null);
+      // Their own portrait over the silhouette, once it's drawn (an animal's thumbnail, made for the picker).
+      const look = this.who?.look;
+      let url = '';
+      try {
+        url = look ? animalThumbnail(look, 128) : '';
+      } catch {
+        url = '';
+      }
+      if (url) {
+        const img = new Image();
+        img.onload = () => {
+          this.drawCork(ctx, img);
+          tex.needsUpdate = true;
+        };
+        img.src = url;
+      }
+    }
+    const { W, H, y } = CORK;
+    const cork = this.mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshLambertMaterial({ map: tex, side: THREE.FrontSide }), 0, y, 0.026);
+    this.mats.push(cork.material as THREE.Material);
+    g.add(cork);
+    const wood = this.mat('#7a4e2a');
+    g.add(this.mesh(new THREE.BoxGeometry(W + 0.06, H + 0.06, 0.04), this.mat('#5a3a20'), 0, y, 0));
+    for (const [w, h, x, yy] of [
+      [W + 0.12, 0.06, 0, y + H / 2 + 0.03],
+      [W + 0.12, 0.06, 0, y - H / 2 - 0.03],
+      [0.06, H + 0.12, W / 2 + 0.03, y],
+      [0.06, H + 0.12, -W / 2 - 0.03, y],
+    ] as const)
+      g.add(this.mesh(new THREE.BoxGeometry(w, h, 0.07), wood, x, yy, 0.02));
+    // The stand: two legs, a crossbar, and wheels.
+    const metal = this.mat('#5a5e66');
+    for (const s of [-1, 1]) {
+      g.add(this.mesh(new THREE.BoxGeometry(0.05, y - H / 2 + 0.02, 0.05), metal, s * (W / 2 - 0.1), (y - H / 2) / 2, -0.03));
+      g.add(this.mesh(new THREE.BoxGeometry(0.06, 0.04, 0.42), metal, s * (W / 2 - 0.1), 0.07, -0.03));
+      for (const z of [-0.2, 0.15]) {
+        const wheel = this.mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.03, 10), this.mat('#2a2a2e'), s * (W / 2 - 0.1), 0.045, z - 0.03);
+        wheel.rotation.z = Math.PI / 2;
+        wheel.name = 'wheel';
+        g.add(wheel);
+      }
+    }
+    g.add(this.mesh(new THREE.BoxGeometry(W - 0.2, 0.04, 0.04), metal, 0, 0.3, -0.03));
+    // Pin heads that stand off the cork, for a bit of depth as the camera skims past.
+    const pinMats = ['#e8283a', '#2a6ae8', '#f0c020', '#2ab86a'].map((col) => this.mat(col));
+    const pins = [...PINNED.map(pinOf), PHOTO_PIN];
+    pins.forEach((p, i) => {
+      const at = corkAt(p.x, p.y);
+      const pin = this.mesh(new THREE.SphereGeometry(0.017, 8, 6), i === pins.length - 1 ? pinMats[0] : pinMats[i % 4], at.x, at.y, 0.05);
+      g.add(pin);
+      const shaft = this.mesh(new THREE.CylinderGeometry(0.004, 0.004, 0.025, 4), metal, at.x, at.y, 0.035);
+      shaft.rotation.x = Math.PI / 2;
+      g.add(shaft);
+    });
+    return g;
+  }
+
+  /** The cork and all that's on it (with a silhouette in the photo, until their portrait is ready). */
+  private drawCork(g: CanvasRenderingContext2D, img: HTMLImageElement | null) {
+    const { w, h } = CORK;
+    g.fillStyle = '#c69a5e';
+    g.fillRect(0, 0, w, h);
+    // Speckles in the cork.
+    for (let i = 0; i < 900; i++) {
+      g.fillStyle = ['#a87c44', '#d8b078', '#8e6634'][i % 3];
+      g.globalAlpha = 0.5;
+      g.fillRect(hash(i, 11) * w, hash(i, 12) * h, 2 + hash(i, 13) * 3, 2 + hash(i, 14) * 2);
+    }
+    g.globalAlpha = 1;
+    const hand = '"Comic Sans MS", "Marker Felt", "Chalkboard SE", cursive';
+    for (const [i, p] of PINNED.entries()) {
+      g.save();
+      g.translate(p.x, p.y);
+      g.rotate(p.tilt);
+      g.shadowColor = 'rgba(40,20,0,0.35)';
+      g.shadowBlur = 6;
+      g.shadowOffsetY = 3;
+      if (p.kind === 'photo') {
+        // A polaroid of someone else: a grey figure and a big question mark.
+        g.fillStyle = '#fbfaf4';
+        g.fillRect(-48, -32, 96, 74);
+        g.shadowColor = 'transparent';
+        g.fillStyle = ['#7a8aa0', '#8a7a6a', '#6a8a7a'][i % 3];
+        g.fillRect(-42, -26, 84, 54);
+        g.fillStyle = '#3a3a48';
+        g.beginPath();
+        g.arc(0, -4, 12, 0, Math.PI * 2);
+        g.fill();
+        g.fillRect(-18, 8, 36, 20);
+        g.fillStyle = '#ffffff';
+        g.font = `700 22px ${hand}`;
+        g.textAlign = 'center';
+        g.fillText('?', 0, 4);
+      } else if (p.kind === 'note') {
+        g.fillStyle = p.color!;
+        g.fillRect(-42, -26, 84, 66);
+        g.shadowColor = 'transparent';
+        g.fillStyle = '#2a2a6a';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        const words = p.text!.split(' ');
+        const lines = words.length > 2 ? [words.slice(0, 2).join(' '), words.slice(2).join(' ')] : [p.text!];
+        g.font = `700 ${lines.length > 1 ? 15 : 19}px ${hand}`;
+        lines.forEach((l, j) => g.fillText(l, 0, 8 + (j - (lines.length - 1) / 2) * 18));
+      } else {
+        // A newspaper clipping: a headline and lines of print.
+        g.fillStyle = '#ecebe2';
+        g.fillRect(-50, -32, 100, 70);
+        g.shadowColor = 'transparent';
+        g.fillStyle = '#2a2a2a';
+        g.fillRect(-42, -24, 84, 9);
+        g.fillStyle = '#8a8a86';
+        for (let k = 0; k < 6; k++) g.fillRect(-42, -8 + k * 7, k % 3 === 2 ? 50 : 84, 3);
+      }
+      g.restore();
+    }
+    this.drawPhoto(g, img);
+    // The red string, pin to pin, over the lot.
+    const at = (k: number) => (k < 0 ? PHOTO_PIN : pinOf(PINNED[k]));
+    g.strokeStyle = '#d4202c';
+    g.lineWidth = 3;
+    g.lineCap = 'round';
+    g.shadowColor = 'rgba(40,10,0,0.4)';
+    g.shadowBlur = 3;
+    g.shadowOffsetY = 2;
+    for (const [a, b] of THREADS) {
+      g.beginPath();
+      g.moveTo(at(a).x, at(a).y);
+      g.lineTo(at(b).x, at(b).y);
+      g.stroke();
+    }
+    g.shadowColor = 'transparent';
+    // And a scrawl: circled, with question marks.
+    g.strokeStyle = '#d4202c';
+    g.lineWidth = 4;
+    g.beginPath();
+    g.ellipse(PHOTO.x, PHOTO.y + 4, PHOTO.w * 0.62, PHOTO.h * 0.6, -0.05, 0, Math.PI * 2);
+    g.stroke();
+    g.fillStyle = '#d4202c';
+    g.font = `700 34px ${hand}`;
+    g.textAlign = 'center';
+    g.fillText('?!', PHOTO.x - PHOTO.w * 0.62, PHOTO.y + PHOTO.h * 0.5);
+    g.fillText('!!', PHOTO.x + PHOTO.w * 0.5, PHOTO.y - PHOTO.h * 0.42);
+  }
+
+  /** The photo of the one nominated, with their name: their portrait if there is one, or a silhouette in their colour. */
+  private drawPhoto(g: CanvasRenderingContext2D, img: HTMLImageElement | null) {
+    const { x, y, w, h } = PHOTO;
+    g.save();
+    g.translate(x, y);
+    g.rotate(0.04);
+    g.shadowColor = 'rgba(40,20,0,0.4)';
+    g.shadowBlur = 8;
+    g.shadowOffsetY = 4;
+    g.fillStyle = '#fbfaf4';
+    g.fillRect(-w / 2, -h / 2, w, h);
+    g.shadowColor = 'transparent';
+    const pw = w - 18;
+    const ph = pw;
+    const top = -h / 2 + 9;
+    g.fillStyle = '#9ec8e0';
+    g.fillRect(-pw / 2, top, pw, ph);
+    if (img) g.drawImage(img, -pw / 2, top, pw, ph);
+    else {
+      // Head and shoulders in their own colour.
+      g.fillStyle = this.who?.look?.color ?? '#6a5a7a';
+      g.beginPath();
+      g.arc(0, top + ph * 0.42, ph * 0.22, 0, Math.PI * 2);
+      g.fill();
+      g.beginPath();
+      g.ellipse(0, top + ph, ph * 0.38, ph * 0.3, 0, Math.PI, 0);
+      g.fill();
+    }
+    g.fillStyle = '#2a2a3a';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    const name = this.who?.name || '???';
+    let size = 22;
+    g.font = `700 ${size}px "Comic Sans MS", "Marker Felt", cursive`;
+    while (size > 11 && g.measureText(name).width > w - 12) g.font = `700 ${--size}px "Comic Sans MS", "Marker Felt", cursive`;
+    g.fillText(name, 0, top + ph + (h / 2 - (top + ph)) / 2 + 1);
+    g.restore();
+    // Its pin, on top.
+    g.fillStyle = '#e8283a';
+    g.beginPath();
+    g.arc(PHOTO_PIN.x, PHOTO_PIN.y, 6, 0, Math.PI * 2);
+    g.fill();
   }
 
   private pearlMat: THREE.Material | null = null;
@@ -525,12 +773,13 @@ export class NomShow {
 
     // The sounds, each at its moment.
     this.once('shout', 0.25, age, () => this.sound(id === 'card' ? 'whistle' : id === 'objection' ? 'objection' : id === 'jaccuse' ? 'spot' : 'call'));
-    this.once('throw', NOM.throw, age, () => this.sound(id === 'laser' ? 'zap' : id === 'pigeon' ? 'flap' : id === 'confetti' ? 'cannon' : 'whoosh'));
-    this.once('hit', NOM.hit, age, () => this.sound(id === 'gauntlet' ? 'slap' : id === 'gavel' ? 'gavel' : id === 'laser' ? 'meow' : id === 'confetti' ? 'party' : 'boop'));
+    // (Plain "YOU!" throws nothing: just the call, and their gasp.)
+    this.once('throw', NOM.throw, age, () => id !== 'you' && this.sound(id === 'laser' ? 'zap' : id === 'pigeon' ? 'flap' : id === 'confetti' ? 'cannon' : 'whoosh'));
+    this.once('hit', NOM.hit, age, () => id !== 'you' && this.sound(id === 'gauntlet' ? 'slap' : id === 'gavel' ? 'gavel' : id === 'laser' ? 'meow' : id === 'confetti' ? 'party' : id === 'board' ? 'dun2' : 'boop'));
     if (this.move.react === 'dun') for (let i = 0; i < 3; i++) this.once(`dun${i}`, NOM.hit + 0.15 + i * 0.5, age, () => this.sound(i === 2 ? 'dun2' : 'dun'));
     this.once('react', NOM.hit + 0.2, age, () => this.move.react !== 'dun' && this.sound(this.move.react === 'faint' ? 'faint' : this.move.react === 'tremble' ? 'shiver' : 'gasp'));
     // The pop where it lands.
-    if (landed && !this.done.has('burst')) {
+    if (landed && !this.done.has('burst') && id !== 'you') {
       this.done.add('burst');
       // (Kept small and off to the side of the face: the camera is about to be right there.)
       const bk = id === 'confetti' ? 'confetti' : id === 'gavel' ? 'dust' : 'sparkle';
@@ -550,11 +799,13 @@ export class NomShow {
     for (const k of Object.keys(this.kit)) this.kit[k].visible = false;
     const face = (o: THREE.Object3D) => o.quaternion.copy(camera.quaternion);
     // The shout over the nominator, while they make it.
-    if (age > 0.2 && age < NOM.hit) {
+    if (age > 0.2 && age < (id === 'board' ? NOM.throw : NOM.hit)) {
       const s = this.show('shout', true)!;
       const k = easeOut((age - 0.2) / 0.25);
       s.position.copy(from.face).addScaledVector(UP, 0.22 + from.top * 0.2).addScaledVector(side, -0.1);
-      s.scale.setScalar(Math.max(0.01, k) * (0.9 + from.top * 0.25) * (1 + Math.sin(age * 9) * 0.03));
+      // ("YOU!" pops in big, with a bounce.)
+      const pop = id === 'you' ? 1 + 0.25 * Math.sin(Math.min(1, (age - 0.2) / 0.35) * Math.PI) : 1;
+      s.scale.setScalar(Math.max(0.01, k) * pop * (0.9 + from.top * 0.25) * (1 + Math.sin(age * 9) * 0.03));
       face(s);
     }
     const flier = this.kit.flier;
@@ -563,6 +814,9 @@ export class NomShow {
       o.position.copy(a).addScaledVector(UP, up).addScaledVector(from.fwd, out);
     };
     switch (id) {
+      case 'board':
+        this.placeBoard(age, from, dir);
+        break;
       case 'card':
         if (age > 0.3 && age < NOM.throw) {
           // Held up high, with a blast on the whistle.
@@ -701,13 +955,17 @@ export class NomShow {
     byPose.tip = 0;
     byPose.roll = 0;
     // Turned to face them (most of the way), for as long as they point.
-    const fl = flat(dir);
+    // (At the board, while they rant at it.)
+    const fl = id === 'board' && this.boardAt && hitAge < 0 ? flat(this.boardAt.mid.clone().sub(from.face)) : flat(dir);
     const want = Math.atan2(fl.x, fl.z) - Math.atan2(from.fwd.x, from.fwd.z);
     const wrap = Math.atan2(Math.sin(want), Math.cos(want)) * 0.8;
     byPose.yaw = wrap * span(age, 0.05, 0.4) * (1 - span(hitAge, 0.6, 0.9));
     byPose.anim = age < 0.15 || hitAge > 0.9 ? null : id === 'lasso' || id === 'card' ? (age < NOM.throw ? 'hand' : 'point') : 'point';
     // A little lean into it as they let go.
-    if (age > NOM.throw - 0.2 && age < NOM.throw + 0.3) byPose.off.addScaledVector(from.fwd, Math.sin(((age - NOM.throw + 0.2) / 0.5) * Math.PI) * 0.06);
+    if (id === 'board') {
+      // Jab, jab, jab at it.
+      if (age > 0.6 && age < NOM.throw + 0.4) byPose.off.addScaledVector(fl, Math.max(0, Math.sin((age - 0.6) * 15)) * (0.03 + from.top * 0.03));
+    } else if (age > NOM.throw - 0.2 && age < NOM.throw + 0.3) byPose.off.addScaledVector(from.fwd, Math.sin(((age - NOM.throw + 0.2) / 0.5) * Math.PI) * 0.06);
     const toPose = landed ? this.react(hitAge, to) : null;
 
     // ---- the camera
@@ -715,11 +973,14 @@ export class NomShow {
     f.cut = false;
     f.close = false;
     let shot = 0;
-    if (age < NOM.throw) {
-      // The nominator, three-quarters on, closing in as they wind up.
+    if (id === 'board' && this.boardAt && age < NOM.hit) {
+      shot = this.boardShot(age, from, aspect);
+    } else if (age < NOM.throw || (id === 'you' && age < NOM.hit)) {
+      // The nominator, three-quarters on, closing in as they wind up (or, for plain "YOU!", as they say it).
+      const wind = id === 'you' ? NOM.hit : NOM.throw;
       const out = flat(dir);
       const sideN = new THREE.Vector3().crossVectors(UP, out).normalize();
-      const d = (0.95 + from.top * 1.25) * (1.18 - 0.18 * ease(age / NOM.throw)) * (aspect < 0.8 ? 1.35 : 1);
+      const d = (0.95 + from.top * 1.25) * (1.18 - 0.18 * ease(age / wind)) * (aspect < 0.8 ? 1.35 : 1) * (id === 'you' ? 1.15 : 1);
       f.pos.copy(from.face).addScaledVector(out.clone().multiplyScalar(0.8).addScaledVector(sideN, 0.75).normalize(), d).addScaledVector(UP, 0.1 + from.top * 0.12);
       f.look.copy(from.face).addScaledVector(UP, -from.top * 0.05).addScaledVector(dir, 0.15);
       f.close = d < 1.6;
@@ -751,7 +1012,7 @@ export class NomShow {
     }
     if (shot !== this.shot) {
       // (Into the flight it whips round; into the close-up it cuts.)
-      f.cut = shot !== 1;
+      f.cut = shot !== 1 || id === 'board';
       this.shot = shot;
     }
     // A thump of a shake where it lands hard.
@@ -765,6 +1026,79 @@ export class NomShow {
 
   private dunShot = -2;
   private aspect = 1.6;
+
+  /** Where the conspiracy board stands once it's rolled in: its spot and way it faces, its size, its middle. */
+  private boardAt: { home: THREE.Vector3; n: THREE.Vector3; out: THREE.Vector3; sideN: THREE.Vector3; sc: number; mid: THREE.Vector3 } | null = null;
+
+  /** The board rolls in from the side to stand beside the nominator, facing the camera, with a wobble as it stops. */
+  private placeBoard(age: number, from: NomEnd, dir: THREE.Vector3) {
+    if (!this.boardAt) {
+      // (Fixed where it was at the start, so it doesn't follow them about as they jab.)
+      const out = new THREE.Vector3(dir.x, 0, dir.z).normalize();
+      const sideN = new THREE.Vector3().crossVectors(UP, out).normalize();
+      const n = out.clone().multiplyScalar(0.8).addScaledVector(sideN, 0.75).normalize();
+      const sc = 0.55 + from.top * 0.5;
+      const reach = 0.55 + sc * 0.55;
+      const home = new THREE.Vector3(from.face.x, from.floor, from.face.z).addScaledVector(out, reach).addScaledVector(sideN, -reach);
+      const mid = home.clone().addScaledVector(UP, CORK.y * sc);
+      this.boardAt = { home, n, out, sideN, sc, mid };
+    }
+    const { home, n, sideN, sc } = this.boardAt;
+    const b = this.show('board', true)!;
+    const k = easeOut((age - 0.1) / 0.55);
+    const roll = (1 - k) * 2.6 * sc;
+    b.position.copy(home).addScaledVector(sideN, -roll);
+    b.rotation.set(0, Math.atan2(n.x, n.z), 0);
+    // A wobble on its wheels as it stops.
+    const settle = age - 0.65;
+    b.rotateZ(settle > 0 ? Math.sin(settle * 18) * 0.05 * Math.max(0, 1 - settle / 0.6) : 0);
+    b.scale.setScalar(sc * Math.max(0.01, Math.min(1, age / 0.1)));
+    for (const w of b.children) if (w.name === 'wheel') w.rotation.x = roll / 0.045;
+    b.updateMatrixWorld(true);
+  }
+
+  /** A point on the board in the world, from the cork's pixels. */
+  private onBoard(px: number, py: number) {
+    return this.kit.board.localToWorld(corkAt(px, py));
+  }
+
+  /**
+   * The camera for the board: the nominator and the board side by side as they rant at it, then skimming along the
+   * red string, pin to pin, to the photo of the one nominated.
+   */
+  private boardShot(age: number, from: NomEnd, aspect: number): number {
+    const f = this.frame;
+    const { n, sc, mid } = this.boardAt!;
+    const tall = aspect < 0.8;
+    if (age < NOM.throw) {
+      // (On a screen held upright, further back and more on the board, so it all fits across.)
+      const centre = from.face.clone().lerp(mid, tall ? 0.55 : 0.5);
+      const d = (1.9 + from.top * 1.1) * (1.1 - 0.1 * ease(age / NOM.throw)) * (tall ? 2.5 : 1);
+      f.pos.copy(centre).addScaledVector(n, d).addScaledVector(UP, 0.15 + from.top * 0.1);
+      f.look.copy(centre);
+      f.close = false;
+      return 0;
+    }
+    const u = Math.min(1, (age - NOM.throw) / (NOM.hit - NOM.throw - 0.15));
+    const pts = [...TRAIL.map((i) => pinOf(PINNED[i])), { x: PHOTO.x, y: PHOTO.y }].map((p) => this.onBoard(p.x, p.y));
+    const along = (k: number) => {
+      // By length along the string.
+      const lens = pts.slice(1).map((p, i) => p.distanceTo(pts[i]));
+      let left = Math.max(0, Math.min(1, k)) * lens.reduce((x, y) => x + y, 0);
+      for (let i = 0; i < lens.length; i++) {
+        if (left <= lens[i] || i === lens.length - 1) return pts[i].clone().lerp(pts[i + 1], Math.min(1, left / lens[i]));
+        left -= lens[i];
+      }
+      return pts[pts.length - 1].clone();
+    };
+    const k = u * 0.35 + ease(u) * 0.65;
+    const here = along(k);
+    const d = sc * (0.42 + 0.3 * ease(u)) * (tall ? 1.5 : 1);
+    f.pos.copy(here).addScaledVector(n, d).addScaledVector(UP, 0.04 * sc);
+    f.look.copy(along(Math.min(1, k + 0.12)));
+    f.close = true;
+    return 1;
+  }
 
   /** A thin line (the laser) from a to b. */
   private ray(a: THREE.Vector3, b: THREE.Vector3) {
@@ -805,7 +1139,7 @@ export class NomShow {
     const flier = this.kit.flier;
     const facing = (o: THREE.Object3D) => o.quaternion.copy(camera.quaternion);
     // The little pop of hearts (or "!"s) round their head.
-    if (h < 1.1) {
+    if (h < 1.1 && id !== 'you') {
       const pops = this.show('pops', true)!;
       const k = easeOut(h / 0.6);
       pops.children.forEach((p, i) => {
@@ -1044,6 +1378,11 @@ export class NomShow {
 }
 
 const groundBelow = (e: NomEnd) => e.floor;
+
+/** A point on the cork, from its canvas pixels to the board's own space (on its face). */
+function corkAt(px: number, py: number): THREE.Vector3 {
+  return new THREE.Vector3((px / CORK.w - 0.5) * CORK.W, CORK.y + (0.5 - py / CORK.h) * CORK.H, 0.03);
+}
 
 const _box = new THREE.Box3();
 

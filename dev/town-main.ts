@@ -632,7 +632,8 @@ function nomAt(o: { nom: string; et: number; by?: string; to?: string; n?: numbe
   };
   const by = rig(o.by ?? 'bear', o.nby ?? 0);
   const to = rig(o.to ?? 'fox', o.nto ?? 4);
-  const show = new NomShow(o.nom as NomMoveId);
+  const toAnimal = ANIMALS.find((a) => a.id === (o.to ?? 'fox'));
+  const show = new NomShow(o.nom as NomMoveId, undefined, { look: { animal: (o.to ?? 'fox') as never, color: toAnimal?.colors[0] ?? '#e2793a', hat: null }, name: toAnimal?.name ?? 'Fox' });
   town.groups.town.add(show.group);
   nomShow = { show, rigs: [by, to] };
   let f: NomFrame | null = null;

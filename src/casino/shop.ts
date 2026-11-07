@@ -136,7 +136,7 @@ export const shopEmotes = () => [...BUY_EMOTES].sort((a, b) => a.price - b.price
 /** The victory moves on sale, cheapest first (the fist pump is everyone's already). */
 export const shopVictories = () => VICTORY_MOVES.filter((m) => m.price).sort((a, b) => a.price! - b.price! || a.name.localeCompare(b.name));
 export const shopSlayMoves = () => SLAY_MOVES.filter((m) => m.price).sort((a, b) => a.price! - b.price!);
-/** The nomination moves on sale, cheapest first (the paper aeroplane is everyone's already). */
+/** The nomination moves on sale, cheapest first ("YOU!" and the paper aeroplane are everyone's already). */
 export const shopNomMoves = () => NOM_MOVES.filter((m) => m.price).sort((a, b) => a.price! - b.price!);
 
 /** Something on sale besides pets, by its key ('hat:topper', 'dance:worm'): what it is, its name and its price. */

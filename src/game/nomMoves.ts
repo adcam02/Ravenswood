@@ -1,10 +1,11 @@
 /**
  * Nomination moves: the little cutscene everyone at the meeting sees when a nomination starts (see world/nomShow.ts).
- * The paper aeroplane is free; the rest are bought in the Shop, kept on the profile as 'nom:<id>', and chosen in
- * Customise (on the look, as `nom`). The host puts the nominator's move on the nomination itself, so every screen
+ * Plain "YOU!" is everyone's (and what plays when nothing is chosen), the paper aeroplane is free too; the rest are
+ * bought in the Shop, kept on the profile as 'nom:<id>', and chosen in Customise (on the look, as `nom`). The host puts the nominator's move on the nomination itself, so every screen
  * plays the same one. Only the show changes: the nomination runs as ever.
  */
 export const NOM_IDS = [
+  'you',
   'plane',
   'finger',
   'gauntlet',
@@ -21,6 +22,7 @@ export const NOM_IDS = [
   'meme',
   'unmask',
   'confetti',
+  'board',
 ] as const;
 export type NomMoveId = (typeof NOM_IDS)[number];
 
@@ -45,7 +47,8 @@ export interface NomMove {
 }
 
 export const NOM_MOVES: NomMove[] = [
-  { id: 'plane', name: 'Paper aeroplane', icon: '✈️', shout: 'You!', reply: '?!', react: 'jump', blurb: 'A neatly folded accusation, sailing across the circle. Everyone has it.' },
+  { id: 'you', name: 'YOU!', icon: '🫵', shout: 'YOU!', reply: 'Me?!', react: 'jump', blurb: 'Straight to the point: a finger, a big “YOU!”, and their startled face. Everyone has it.' },
+  { id: 'plane', name: 'Paper aeroplane', icon: '✈️', shout: 'You!', reply: '?!', react: 'jump', blurb: 'A neatly folded accusation, sailing across the circle. Free for everyone.' },
   { id: 'finger', name: 'The finger of blame', icon: '👉', price: 10, shout: 'That one!', reply: 'Gasp!', react: 'gasp', blurb: 'A big glowing pointing finger, straight across the circle. No hiding now.' },
   { id: 'gauntlet', name: 'Glove slap', icon: '🧤', price: 15, shout: 'I challenge you!', reply: 'Well I never!', react: 'pearls', blurb: 'A gentleman’s glove, flung with feeling. A slap across the cheek, terribly polite.' },
   { id: 'card', name: 'Yellow card', icon: '🟨', price: 15, shout: 'Foul!', reply: '…me?', react: 'freeze', blurb: 'A blast on the whistle and a yellow card, held high. The referee’s decision is final.' },
@@ -60,6 +63,7 @@ export const NOM_MOVES: NomMove[] = [
   { id: 'gavel', name: 'Courtroom gavel', icon: '⚖️', price: 50, shout: 'Order!', reply: 'Dun dun DUN', react: 'dun', blurb: 'A giant gavel comes down from the sky beside them. Order in the square!' },
   { id: 'meme', name: 'Freeze-frame', icon: '🖼️', price: 55, shout: 'This one.', reply: 'Dun dun DUN', react: 'dun', blurb: 'A gold frame snaps round you as you point, and then round them. Instant classic.' },
   { id: 'unmask', name: 'Unmasking', icon: '🎭', price: 65, shout: 'Let’s see who you really are!', reply: 'Jinkies!', react: 'faint', blurb: 'A grab, a pull, and their mask comes off! (It was them all along.)' },
+  { id: 'board', name: 'Conspiracy board', icon: '📌', price: 70, shout: 'It all connects!', reply: 'W-what?!', react: 'tremble', blurb: 'A cork board rolls in, all photos, notes and red string, every thread leading to their face.' },
   { id: 'confetti', name: 'Confetti cannon', icon: '🎉', price: 80, shout: 'Congratulations!', reply: 'For me?!', react: 'pearls', blurb: 'A cannon of confetti and streamers: congratulations, you’re nominated!' },
 ];
 
@@ -74,7 +78,7 @@ export const NOM_SHOW_MS = NOM_LEAD_MS + 5300 + 100;
 export const nomKey = (id: NomMoveId) => `nom:${id}`;
 export const nomMove = (id: string | null | undefined): NomMove => NOM_MOVES.find((m) => m.id === id) ?? NOM_MOVES[0];
 export const isNomMove = (id: unknown): id is NomMoveId => typeof id === 'string' && (NOM_IDS as readonly string[]).includes(id);
-/** A known move or none (the paper aeroplane), for a look. */
-export const fixNom = (v: unknown): NomMoveId | null => (isNomMove(v) && v !== 'plane' ? v : null);
+/** A known move or none (plain "YOU!"), for a look. */
+export const fixNom = (v: unknown): NomMoveId | null => (isNomMove(v) && v !== 'you' ? v : null);
 /** Whether someone with these items may use this move (the free one, or one they've bought). */
 export const ownsNom = (id: NomMoveId, items: readonly string[] | undefined) => !nomMove(id).price || Boolean(items?.includes(nomKey(id)));

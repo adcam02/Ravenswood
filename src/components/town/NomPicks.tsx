@@ -24,7 +24,7 @@ const REACTS: Record<NomReaction, string> = {
   dun: 'dun dun DUN',
 };
 
-const using = (look: Look | null | undefined): NomMoveId => look?.nom ?? 'plane';
+const using = (look: Look | null | undefined): NomMoveId => look?.nom ?? 'you';
 
 /** What a buy button does, from the shop (it says how much more is needed when it can't). */
 type Buy = (props: { price: number; onBuy: () => void; what: string }) => React.ReactElement;
@@ -40,11 +40,11 @@ export function NomShelf({ BuyButton }: { BuyButton: Buy }) {
   return (
     <>
       <p className="casino-blurb">
-        How you nominate at the meeting: everyone watches a little scene of you doing it, and of their face when it lands. The paper aeroplane is everyone’s; each of these is yours
-        to keep.
+        How you nominate at the meeting: everyone watches a little scene of you doing it, and of their face when it lands. A plain “YOU!” and the paper aeroplane are everyone’s; each of the
+        rest is yours to keep.
       </p>
       <div className="shop-grid">
-        {[NOM_MOVES[0], ...shopNomMoves()].map((m) => {
+        {[...NOM_MOVES.filter((m) => !m.price), ...shopNomMoves()].map((m) => {
           const owned = !player || ownsNom(m.id, items);
           const on = using(look) === m.id;
           return (
@@ -100,7 +100,7 @@ export function NomPicks({ look, setLook }: { look: Look; setLook: (l: Look) => 
             <button
               key={m.id}
               className={`join-item ${on ? 'on' : ''} ${owned ? '' : 'locked'}`}
-              onClick={() => owned && setLook({ ...look, nom: m.id === 'plane' ? null : m.id })}
+              onClick={() => owned && setLook({ ...look, nom: m.id === 'you' ? null : m.id })}
               role="radio"
               aria-checked={on}
               aria-disabled={!owned}

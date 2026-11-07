@@ -3109,7 +3109,7 @@ export class Engine {
   private beginNom(v: WorldView, nom: Nomination, pair: string) {
     this.endNom();
     if (local.zone !== 'town' || this.show || this.slay || this.dawn) return;
-    this.nom = { pair, by: nom.nominatorId, target: nom.nomineeId, move: nom.move ?? 'plane', start: nom.at! + NOM_LEAD_MS, show: null, frame: null, phase: -1 };
+    this.nom = { pair, by: nom.nominatorId, target: nom.nomineeId, move: nom.move ?? 'you', start: nom.at! + NOM_LEAD_MS, show: null, frame: null, phase: -1 };
     nomShows.want();
     this.noteNom(pair, 'seen');
     this.noteNom(pair, 'plan', this.nom.start);
@@ -3134,10 +3134,16 @@ export class Engine {
     }
     if (age > mod.NOM.end) return this.endNom();
     if (!n.show) {
-      n.show = new mod.NomShow(n.move, (name) => {
-        this.noteNom(n.pair, `sound:${name}`);
-        nomSound(name);
-      });
+      const seat = v.seats.find((s) => s.id === n.target);
+      n.show = new mod.NomShow(
+        n.move,
+        (name) => {
+          this.noteNom(n.pair, `sound:${name}`);
+          nomSound(name);
+        },
+        // (Whose photo goes on the conspiracy board.)
+        seat ? { look: seat.look ?? null, name: shownName(seat.name || 'Someone') } : null,
+      );
       this.town.groups.town.add(n.show.group);
       // (Everyone's name tags and the meeting's labels stay out of the picture meanwhile.)
       this.labels.domElement.style.visibility = 'hidden';

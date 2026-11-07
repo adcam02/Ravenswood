@@ -372,11 +372,11 @@ export function nominateWhy(block: NominateBlock, targetName = 'They'): string {
 
 /** Seconds each for the accusation and the defence before a vote, unless the Storyteller has changed it (0 is off). */
 export const SPEECH_SECS = 30;
-/** A nominator's move, as long as they own it (a dead nominator still has theirs); the paper aeroplane otherwise. */
+/** A nominator's move, as long as they own it (a dead nominator still has theirs); a plain "YOU!" otherwise. */
 function nomMoveOf(g: GameState, seatId: string | null): NomMoveId {
   const s = seatId ? g.seats.find((x) => x.id === seatId) : null;
   const id = s?.look?.nom;
-  return id && s?.playerId && ownsNom(id, profileOf({ player: s.playerId })?.items) ? id : 'plane';
+  return id && s?.playerId && ownsNom(id, profileOf({ player: s.playerId })?.items) ? id : 'you';
 }
 
 export const speechSecs = (g: { speechSecs?: number }) => g.speechSecs ?? SPEECH_SECS;

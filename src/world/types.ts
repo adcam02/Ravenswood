@@ -156,7 +156,7 @@ export interface Look {
   epitaph?: string;
   /** Their victory move, for the lineup when their team wins (bought at the shop, see victoryShop.ts). */
   win?: VictoryId | null;
-  /** How they nominate at a meeting (bought at the shop, see game/nomMoves.ts); none is the paper aeroplane. */
+  /** How they nominate at a meeting (bought at the shop, see game/nomMoves.ts); none is a plain "YOU!". */
   nom?: NomMoveId | null;
 }
 
