@@ -33,9 +33,9 @@ export const THUMB_W = 160;
 export const THUMB_H = 120;
 /** Nightfall's vote on what to draw: how many prompts are offered, and how long the vote runs (a late idea adds a little, up to the most). */
 export const PROMPT_CHOICES = 5;
-export const CHOOSE_MS = 10_000;
+export const CHOOSE_MS = 15_000;
 export const CHOOSE_ADD_MS = 5_000;
-export const CHOOSE_MAX_MS = 20_000;
+export const CHOOSE_MAX_MS = 25_000;
 /** Ideas of their own that players (and the Storyteller) can add to the vote: how long each, and how many a night. */
 export const IDEA_MAX = 60;
 export const IDEAS_MAX = 5;
